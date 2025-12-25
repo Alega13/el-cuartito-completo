@@ -10,6 +10,17 @@ const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test
     : null;
 
 export const stripeWebhookHandler = async (req: Request, res: Response) => {
+    // DEBUG: Log everything about the request
+    console.log('========== WEBHOOK DEBUG START ==========');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Body type:', typeof req.body);
+    console.log('Body is Buffer?:', Buffer.isBuffer(req.body));
+    console.log('Body is String?:', typeof req.body === 'string');
+    console.log('Body is Object?:', typeof req.body === 'object' && !Buffer.isBuffer(req.body));
+    console.log('Body length:', req.body?.length || 'N/A');
+    console.log('Body preview:', req.body ? (Buffer.isBuffer(req.body) ? req.body.toString().substring(0, 100) : JSON.stringify(req.body).substring(0, 100)) : 'EMPTY');
+    console.log('========== WEBHOOK DEBUG END ==========');
+
     if (!stripe) {
         return res.status(500).json({ error: 'Stripe not configured' });
     }
