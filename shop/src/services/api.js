@@ -49,9 +49,9 @@ export const releaseStock = async (productId, qty) => {
     }
 };
 
-export const startCheckout = async (items) => {
+export const startCheckout = async (items, customerData) => {
     try {
-        const response = await api.post('/checkout/start', { items });
+        const response = await api.post('/checkout/start', { items, customerData });
         return response.data;
     } catch (error) {
         console.error("Error starting checkout:", error);

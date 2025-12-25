@@ -22,6 +22,7 @@ interface Config {
     FIREBASE_CLIENT_EMAIL: string;
     FIREBASE_PRIVATE_KEY: string;
     STRIPE_SECRET_KEY: string;
+    STRIPE_WEBHOOK_SECRET: string;
     FRONTEND_URL: string;
 }
 
@@ -34,6 +35,7 @@ export const config: Config = {
     FIREBASE_PRIVATE_KEY: getEnvVar('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n'),
 
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder',
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
 };

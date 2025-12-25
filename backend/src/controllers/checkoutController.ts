@@ -14,7 +14,7 @@ export const startCheckout = async (req: Request, res: Response) => {
             console.error("Stripe key missing or using mock");
             return res.status(500).json({ error: "Payment system not configured" });
         }
-        const { items } = req.body; // { recordId, quantity }[]
+        const { items, customerData } = req.body; // { recordId, quantity }[] + customer info
         const db = getDb();
 
         let total = 0;
@@ -39,17 +39,19 @@ export const startCheckout = async (req: Request, res: Response) => {
                 productId: item.recordId,
                 quantity: item.quantity,
                 unitPrice: data.price,
-                album: data.album
+                album: data.album,
+                artist: data.artist
             });
         }
 
-        // Create Pending Sale in Firestore
+        // Create Pending Sale in Firestore with customer data
         const saleRef = db.collection('sales').doc();
         await saleRef.set({
             total_amount: total,
             channel: 'online',
             status: 'PENDING',
             items: validatedItems,
+            customer: customerData || null,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 

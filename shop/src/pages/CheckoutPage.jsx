@@ -88,7 +88,7 @@ const CheckoutPage = ({ setPage }) => {
         e.preventDefault();
         try {
             const items = cartItems.map(item => ({ recordId: item.id, quantity: item.quantity }));
-            const data = await startCheckout(items);
+            const data = await startCheckout(items, formData); // Pass customer data
             setClientSecret(data.clientSecret);
             setSaleId(data.saleId);
             setIsFormSubmit(true);
