@@ -15,7 +15,7 @@ const InputField = ({ label, name, type = "text", width = "w-full", value, onCha
             value={value}
             onChange={onChange}
             disabled={disabled}
-            className="border-b border-black/20 py-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30"
+            className="w-full border-b border-black/20 pb-1 pt-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30"
             placeholder={label}
             required
         />

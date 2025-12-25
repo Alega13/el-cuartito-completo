@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const SuccessPage = () => {
+const SuccessPage = ({ setPage }) => {
     const [orderData, setOrderData] = useState(null);
-    const navigate = useNavigate();
 
     useEffect(() => {
         const data = sessionStorage.getItem('lastOrder');
         if (data) {
             setOrderData(JSON.parse(data));
-            sessionStorage.removeItem('lastOrder');
+            // Keep data for now so it doesn't disappear on refresh
+            // sessionStorage.removeItem('lastOrder');
         } else {
             // No order data, redirect to home
-            navigate('/');
+            setPage('home');
         }
-    }, [navigate]);
+    }, [setPage]);
 
     if (!orderData) {
         return null;
@@ -101,7 +100,7 @@ const SuccessPage = () => {
                 {/* Actions */}
                 <div className="flex gap-4">
                     <button
-                        onClick={() => navigate('/')}
+                        onClick={() => setPage('home')}
                         className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl transition-colors"
                     >
                         Volver a la Tienda

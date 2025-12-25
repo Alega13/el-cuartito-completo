@@ -89,7 +89,7 @@ function App() {
           />
         )}
         {page === 'checkout' && <CheckoutPage setPage={setPage} />}
-        {page === 'success' && <SuccessPage />}
+        {page === 'success' && <SuccessPage setPage={setPage} />}
       </main>
 
       <GlobalPlayer />
