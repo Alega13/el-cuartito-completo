@@ -13,13 +13,14 @@ import webhookRoutes from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 
 
+
+
 const app = express();
 
+// Webhook route FIRST - needs raw body before any parsing
+app.use('/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
+
 app.use(cors());
-
-// Webhook route BEFORE express.json() - needs raw body
-app.use('/webhook', webhookRoutes);
-
 app.use(express.json());
 
 app.use('/records', recordRoutes);
