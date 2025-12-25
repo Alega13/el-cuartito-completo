@@ -26,7 +26,14 @@ const SuccessPage = ({ setPage, saleId }) => {
             }
 
             // Fallback: Fetch from Firestore if no local data or saleId mismatch
-            const targetId = saleId || (localData ? JSON.parse(localData).saleId : null);
+            let targetId = saleId;
+            if (!targetId && localData) {
+                try {
+                    targetId = JSON.parse(localData).saleId;
+                } catch (e) {
+                    console.error('Safe targetId extraction failed:', e);
+                }
+            }
 
             if (targetId) {
                 try {
@@ -104,7 +111,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                         <div className="grid grid-cols-2 gap-8">
                             <div className="space-y-2">
                                 <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/30">Order Number</h2>
-                                <p className="text-xl font-bold tracking-tight">{orderData.orderNumber}</p>
+                                <p className="text-xl font-bold tracking-tight">{orderData?.orderNumber || 'Pending...'}</p>
                             </div>
                             <div className="space-y-2">
                                 <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/30">Payment Method</h2>
@@ -116,12 +123,14 @@ const SuccessPage = ({ setPage, saleId }) => {
                             <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/30 mb-6">Shipping Information</h2>
                             <div className="bg-white p-8 border border-black/5 shadow-sm">
                                 <div className="text-sm font-medium space-y-1">
-                                    <p className="text-xl font-bold mb-4">{orderData.customer.firstName} {orderData.customer.lastName}</p>
+                                    <p className="text-xl font-bold mb-4">
+                                        {orderData?.customer?.firstName || ''} {orderData?.customer?.lastName || ''}
+                                    </p>
                                     <div className="space-y-1 text-black/60">
-                                        <p>{orderData.customer.email}</p>
-                                        <p className="pt-4">{orderData.customer.address}</p>
-                                        <p>{orderData.customer.postalCode} {orderData.customer.city}</p>
-                                        <p className="uppercase tracking-widest text-[10px] font-bold mt-2">{orderData.customer.country}</p>
+                                        <p>{orderData?.customer?.email || 'N/A'}</p>
+                                        <p className="pt-4">{orderData?.customer?.address || ''}</p>
+                                        <p>{orderData?.customer?.postalCode || ''} {orderData?.customer?.city || ''}</p>
+                                        <p className="uppercase tracking-widest text-[10px] font-bold mt-2">{orderData?.customer?.country || ''}</p>
                                     </div>
                                 </div>
                             </div>
@@ -130,7 +139,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                         <div className="border-l-2 border-orange-600 pl-8 py-2">
                             <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-600 mb-2">What's Next?</h2>
                             <p className="text-sm leading-relaxed font-medium text-black/70">
-                                A confirmation email has been sent to <span className="text-black font-bold">{orderData.customer.email}</span>.
+                                A confirmation email has been sent to <span className="text-black font-bold">{orderData?.customer?.email || 'your email'}</span>.
                                 We typically process orders within 24 hours. You'll receive a tracking number as soon as your records ship.
                             </p>
                         </div>
@@ -141,21 +150,21 @@ const SuccessPage = ({ setPage, saleId }) => {
                         <div className="bg-black text-white p-8 sticky top-32">
                             <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40 mb-10 border-b border-white/10 pb-4">Order Summary</h2>
                             <div className="space-y-8 mb-10">
-                                {orderData.items.map((item, idx) => (
+                                {Array.isArray(orderData?.items) && orderData.items.map((item, idx) => (
                                     <div key={idx} className="flex gap-4 group">
                                         <div className="w-16 h-16 bg-white/10 overflow-hidden flex-shrink-0">
                                             <img
-                                                src={item.cover_image || '/default-vinyl.png'}
+                                                src={item?.cover_image || '/default-vinyl.png'}
                                                 className="w-full h-full object-cover grayscale brightness-90 group-hover:grayscale-0 transition-all duration-500"
-                                                alt={item.album}
+                                                alt={item?.album}
                                             />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold truncate uppercase tracking-tight">{item.album}</p>
-                                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest">{item.artist}</p>
+                                            <p className="text-xs font-bold truncate uppercase tracking-tight">{item?.album}</p>
+                                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest">{item?.artist}</p>
                                             <div className="flex justify-between items-end mt-2">
-                                                <p className="text-[9px] font-bold text-white/30 uppercase">Qty: {item.quantity}</p>
-                                                <p className="text-xs font-bold">DKK {item.price}</p>
+                                                <p className="text-[9px] font-bold text-white/30 uppercase">Qty: {item?.quantity}</p>
+                                                <p className="text-xs font-bold">DKK {item?.price}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -165,7 +174,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                             <div className="border-t border-white/20 pt-8 space-y-4">
                                 <div className="flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
                                     <span>Subtotal</span>
-                                    <span>DKK {orderData.total}</span>
+                                    <span>DKK {orderData?.total || 0}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
                                     <span>Shipping</span>
@@ -173,7 +182,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                                 </div>
                                 <div className="flex justify-between items-end pt-4 border-t border-white/10">
                                     <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40">Total Paid</h2>
-                                    <p className="text-4xl font-bold tracking-tighter">DKK {orderData.total}</p>
+                                    <p className="text-4xl font-bold tracking-tighter">DKK {orderData?.total || 0}</p>
                                 </div>
                             </div>
                         </div>
