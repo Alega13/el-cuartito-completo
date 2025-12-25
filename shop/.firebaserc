@@ -5,8 +5,8 @@
   "targets": {
     "el-cuartito-app": {
       "hosting": {
-        "admin": [
-          "el-cuartito-admin-records"
+        "shop": [
+          "el-cuartito-app"
         ]
       }
     }
