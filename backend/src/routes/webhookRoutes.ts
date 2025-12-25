@@ -120,7 +120,15 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
 
         res.json({ received: true });
     } catch (err: any) {
-        console.error('Webhook error:', err.message);
+        console.error('========== WEBHOOK ERROR ==========');
+        console.error('Error name:', err.name);
+        console.error('Error message:', err.message);
+        console.error('Error type:', err.type);
+        console.error('rawBody preview:', (req as any).rawBody?.substring(0, 200));
+        console.error('Signature:', req.headers['stripe-signature']);
+        console.error('Secret configured?:', !!config.STRIPE_WEBHOOK_SECRET);
+        console.error('Secret preview:', config.STRIPE_WEBHOOK_SECRET?.substring(0, 15) + '...');
+        console.error('========== WEBHOOK ERROR END ==========');
         res.status(400).send(`Webhook Error: ${err.message}`);
     }
 };
