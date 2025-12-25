@@ -1,53 +1,81 @@
-import React, { useEffect, useState } from 'react';
+import { db } from '../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-const SuccessPage = ({ setPage }) => {
+const SuccessPage = ({ setPage, saleId }) => {
     const [orderData, setOrderData] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        console.log('SuccessPage mounted');
-        const data = sessionStorage.getItem('lastOrder');
-        console.log('Order data from session:', data);
-        if (data) {
-            try {
-                const parsed = JSON.parse(data);
-                setOrderData(parsed);
-                // We keep it for now to help debug if the user refreshes
-            } catch (err) {
-                console.error('Error parsing order data:', err);
+        const fetchOrder = async () => {
+            console.log('SuccessPage mounted, saleId:', saleId);
+            const localData = sessionStorage.getItem('lastOrder');
+
+            if (localData) {
+                try {
+                    const parsed = JSON.parse(localData);
+                    if (!saleId || parsed.saleId === saleId) {
+                        setOrderData(parsed);
+                        setLoading(false);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error parsing local order data:', err);
+                }
+            }
+
+            // Fallback: Fetch from Firestore if no local data or saleId mismatch
+            const targetId = saleId || (localData ? JSON.parse(localData).saleId : null);
+
+            if (targetId) {
+                try {
+                    console.log('Fetching from Firestore:', targetId);
+                    const docSnap = await getDoc(doc(db, 'sales', targetId));
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        setOrderData({
+                            orderNumber: data.orderNumber || 'Pending...',
+                            saleId: targetId,
+                            paymentId: data.paymentId || 'Processing',
+                            total: data.total_amount,
+                            items: data.items,
+                            customer: data.customer
+                        });
+                    } else {
+                        setError(true);
+                    }
+                } catch (err) {
+                    console.error('Firestore fetch error:', err);
+                    setError(true);
+                }
+            } else {
                 setError(true);
             }
-        } else {
-            console.warn('No order data found in session');
-            // Give it a second before redirecting to home
-            const timer = setTimeout(() => {
-                if (!sessionStorage.getItem('lastOrder')) {
-                    setPage('home');
-                }
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [setPage]);
+            setLoading(false);
+        };
 
-    if (error || (!orderData && !sessionStorage.getItem('lastOrder'))) {
+        fetchOrder();
+    }, [setPage, saleId]);
+
+    if (loading) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-                <h1 className="text-2xl font-bold mb-4">Oops! Something went wrong.</h1>
-                <p className="text-black/60 mb-8">We couldn't find your order details, but don't worry—your payment was successful.</p>
-                <button
-                    onClick={() => setPage('home')}
-                    className="bg-black text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest"
-                >
-                    Back to Store
-                </button>
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
             </div>
         );
     }
 
-    if (!orderData) {
+    if (error || (!orderData)) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+                <h1 className="text-2xl font-bold mb-4">Lo sentimos, no pudimos cargar los detalles.</h1>
+                <p className="text-black/60 mb-8">Tu pago fue procesado con éxito, pero no encontramos los datos del pedido en esta sesión.</p>
+                <button
+                    onClick={() => setPage('home')}
+                    className="bg-black text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest"
+                >
+                    Volver a la Tienda
+                </button>
             </div>
         );
     }

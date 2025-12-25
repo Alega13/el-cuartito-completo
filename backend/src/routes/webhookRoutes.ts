@@ -51,9 +51,13 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                     const saleRef = db.collection('sales').doc(saleId);
                     const saleDoc = await transaction.get(saleRef);
 
-                    if (saleDoc.exists && saleDoc.data()?.status === 'PENDING') {
-                        const saleData = saleDoc.data() as any;
+                    if (!saleDoc.exists) return;
 
+                    const saleData = saleDoc.data() as any;
+                    const isNew = saleData?.status === 'PENDING';
+                    const isMissingData = saleData?.status === 'completed' && !saleData?.orderNumber;
+
+                    if (isNew || isMissingData) {
                         // Generate order number (format: WEB-YYYYMMDD-XXXXX)
                         const now = new Date();
                         const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');

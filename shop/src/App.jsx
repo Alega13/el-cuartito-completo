@@ -18,12 +18,14 @@ function App() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchSaleId, setSearchSaleId] = useState(null);
 
   useEffect(() => {
     // Check for success page in URL (from Stripe redirect)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('page') === 'success') {
       setPage('success');
+      setSearchSaleId(urlParams.get('saleId'));
       // Clean up URL without refreshing
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -99,7 +101,7 @@ function App() {
           />
         )}
         {page === 'checkout' && <CheckoutPage setPage={setPage} />}
-        {page === 'success' && <SuccessPage setPage={setPage} />}
+        {page === 'success' && <SuccessPage setPage={setPage} saleId={searchSaleId} />}
       </main>
 
       <GlobalPlayer />

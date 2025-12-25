@@ -97,6 +97,11 @@ export const confirmCheckout = async (req: Request, res: Response) => {
 
             const saleData = saleDoc.data() as any;
 
+            // Generate order number (format: WEB-YYYYMMDD-XXXXX)
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const orderNumber = `WEB-${dateStr}-${saleId.slice(-5).toUpperCase()}`;
+
             // Re-validate and deduct stock
             for (const item of saleData.items) {
                 const productRef = db.collection('products').doc(item.productId);
@@ -119,13 +124,27 @@ export const confirmCheckout = async (req: Request, res: Response) => {
                     reason: 'sale',
                     channel: 'online',
                     saleId: saleId,
+                    orderNumber: orderNumber,
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
 
+            // Customer data enrichment (simplified as we don't have stripe shipping here yet, 
+            // but we use form data)
+            const customer = saleData.customer || {};
+            const enrichedCustomer = {
+                ...customer,
+                name: customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || 'Cliente',
+                email: customer.email || ''
+            };
+
             transaction.update(saleRef, {
                 status: 'completed',
+                fulfillment_status: 'pending',
+                orderNumber: orderNumber,
                 paymentId: paymentId || 'MOCK_PAYMENT',
+                customer: enrichedCustomer,
+                completed_at: admin.firestore.FieldValue.serverTimestamp(),
                 updated_at: admin.firestore.FieldValue.serverTimestamp()
             });
         });
