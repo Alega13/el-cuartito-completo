@@ -3278,15 +3278,15 @@ const app = {
         this.state.cart = [];
         this.renderCartWidget();
     },
-renderOnlineSales(container) {
-    // Filter only online sales
-    const onlineSales = this.state.sales.filter(s => s.channel === 'online');
-    const completedSales = onlineSales.filter(s => s.status === 'completed');
-    const pendingSales = onlineSales.filter(s => s.status === 'PENDING');
+    renderOnlineSales(container) {
+        // Filter only online sales
+        const onlineSales = this.state.sales.filter(s => s.channel === 'online');
+        const completedSales = onlineSales.filter(s => s.status === 'completed');
+        const pendingSales = onlineSales.filter(s => s.status === 'PENDING');
 
-    const totalRevenue = completedSales.reduce((sum, s) => sum + (parseFloat(s.total_amount || s.total) || 0), 0);
+        const totalRevenue = completedSales.reduce((sum, s) => sum + (parseFloat(s.total_amount || s.total) || 0), 0);
 
-    container.innerHTML = `
+        container.innerHTML = `
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -3366,35 +3366,35 @@ renderOnlineSales(container) {
                             </thead>
                             <tbody>
                                 ${onlineSales.sort((a, b) => {
-        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.date);
-        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.date);
-        return dateB - dateA;
-    }).map(sale => {
-        const customer = sale.customer || {};
-        const orderNumber = sale.orderNumber || 'N/A';
-        const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.date);
-        const completedDate = sale.completed_at?.toDate ? sale.completed_at.toDate() : null;
-        const displayDate = completedDate || saleDate;
+            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.date);
+            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.date);
+            return dateB - dateA;
+        }).map(sale => {
+            const customer = sale.customer || {};
+            const orderNumber = sale.orderNumber || 'N/A';
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.date);
+            const completedDate = sale.completed_at?.toDate ? sale.completed_at.toDate() : null;
+            const displayDate = completedDate || saleDate;
 
-        const statusColors = {
-            'completed': 'bg-green-50 text-green-700 border-green-200',
-            'PENDING': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-            'failed': 'bg-red-50 text-red-700 border-red-200'
-        };
-        const statusLabels = {
-            'completed': '✅ Completado',
-            'PENDING': '⏳ Pendiente',
-            'failed': '❌ Fallido'
-        };
+            const statusColors = {
+                'completed': 'bg-green-50 text-green-700 border-green-200',
+                'PENDING': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                'failed': 'bg-red-50 text-red-700 border-red-200'
+            };
+            const statusLabels = {
+                'completed': '✅ Completado',
+                'PENDING': '⏳ Pendiente',
+                'failed': '❌ Fallido'
+            };
 
-        return `
-                                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+            return `
+                                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openOnlineSaleDetailModal('${sale.id}')">
                                             <td class="px-6 py-4">
                                                 <div class="font-mono text-sm font-bold text-brand-orange">${orderNumber}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${customer.firstName || ''} ${customer.lastName || ''}</div>
-                                                <div class="text-xs text-slate-500">${customer.email || 'No email'}</div>
+                                                <div class="font-semibold text-brand-dark">${customer.stripe_info?.name || customer.firstName || ''} ${customer.stripe_info ? '' : (customer.lastName || '')}</div>
+                                                <div class="text-xs text-slate-500">${customer.stripe_info?.email || customer.email || 'No email'}</div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
@@ -3409,9 +3409,8 @@ renderOnlineSales(container) {
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm text-slate-600">
-                                                    ${customer.address || 'N/A'}<br>
-                                                    ${customer.postalCode || ''} ${customer.city || ''}<br>
-                                                    ${customer.country || ''}
+                                                    ${customer.stripe_info?.shipping?.line1 || customer.address || 'N/A'}<br>
+                                                    ${customer.stripe_info?.shipping?.city || customer.city || ''} ${customer.stripe_info?.shipping?.postal_code || customer.postalCode || ''}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -3436,7 +3435,7 @@ renderOnlineSales(container) {
                                             </td>
                                         </tr>
                                     `;
-    }).join('')}
+        }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -3444,7 +3443,152 @@ renderOnlineSales(container) {
             </div>
         </div>
     `;
-},
+    },
+
+    openOnlineSaleDetailModal(id) {
+        const sale = this.state.sales.find(s => s.id === id);
+        if (!sale) return;
+
+        const customer = sale.customer || {};
+        const stripeInfo = customer.stripe_info || {};
+        const shipping = stripeInfo.shipping || {};
+
+        // Fallback logic for address display
+        const addressHtml = shipping.line1 ? `
+        <p class="font-medium">${shipping.line1}</p>
+        ${shipping.line2 ? `<p class="font-medium">${shipping.line2}</p>` : ''}
+        <p class="text-slate-500">${shipping.postal_code || ''} ${shipping.city || ''}</p>
+        <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${shipping.country || ''}</p>
+    ` : `
+        <p class="font-medium">${customer.address || 'Sin dirección'}</p>
+        <p class="text-slate-500">${customer.postalCode || ''} ${customer.city || ''}</p>
+        <p class="text-slate-500 uppercase">${customer.country || ''}</p>
+    `;
+
+        const html = `
+        <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
+                
+                <!-- Header -->
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
+                    <div>
+                        <div class="text-xs font-bold text-brand-orange uppercase tracking-widest mb-1">Detalle del Pedido</div>
+                        <h2 class="font-display text-2xl font-bold text-brand-dark line-clamp-1">${sale.orderNumber || 'Sin número de orden'}</h2>
+                    </div>
+                    <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
+                    
+                    <!-- Top section: Status & Total -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Estado de Pago</p>
+                            <div class="flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full ${sale.status === 'completed' ? 'bg-green-500' : 'bg-yellow-500'}"></span>
+                                <span class="font-bold text-brand-dark capitalize">${sale.status === 'completed' ? 'Pagado' : sale.status}</span>
+                            </div>
+                        </div>
+                        <div class="bg-brand-dark p-4 rounded-2xl text-white">
+                            <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Monto Total</p>
+                            <div class="text-2xl font-bold">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Customer Info -->
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                                <i class="ph-fill ph-user-circle text-brand-orange"></i> Datos de Envío
+                            </h3>
+                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-sm">
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Destinatario</p>
+                                    <p class="font-bold text-brand-dark text-base">${stripeInfo.name || (customer.firstName + ' ' + customer.lastName) || 'Desconocido'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
+                                    <div class="text-brand-dark space-y-0.5">
+                                        ${addressHtml}
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Contacto</p>
+                                    <p class="font-medium text-brand-dark">${stripeInfo.email || customer.email || 'Sin email'}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment & Metadata -->
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                                <i class="ph-fill ph-credit-card text-brand-orange"></i> Detalles de Pago
+                            </h3>
+                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 text-sm text-brand-dark">
+                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span class="text-slate-500 text-xs">Método</span>
+                                    <span class="font-bold capitalize">${sale.payment_method || sale.paymentMethod || 'card'}</span>
+                                </div>
+                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span class="text-slate-500 text-xs">Fecha</span>
+                                    <span class="font-bold">${new Date(sale.timestamp?.toDate ? sale.timestamp.toDate() : (sale.completed_at?.toDate ? sale.completed_at.toDate() : sale.date)).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                </div>
+                                <div class="space-y-1">
+                                    <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Stripe ID</span>
+                                    <p class="font-mono text-[9px] break-all bg-white p-2 rounded border border-slate-200">${sale.paymentId || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Items -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-package text-brand-orange"></i> Items comprados
+                        </h3>
+                        <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">Producto</th>
+                                        <th class="px-4 py-3 text-center">Cant.</th>
+                                        <th class="px-4 py-3 text-right">Precio</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                    ${(sale.items || []).map(item => `
+                                        <tr>
+                                            <td class="px-4 py-3">
+                                                <p class="font-bold text-brand-dark">${item.album || item.record?.album || 'Unknown'}</p>
+                                                <p class="text-xs text-slate-500">${item.artist || item.record?.artist || ''}</p>
+                                            </td>
+                                            <td class="px-4 py-3 text-center font-medium">${item.quantity || 1}</td>
+                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(item.unitPrice || (item.record?.price || 0)).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer / Actions -->
+                <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
+                    <button onclick="window.print()" class="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-printer"></i> Imprimir Packing Slip
+                    </button>
+                    <button onclick="document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    },
 
     renderCartWidget() {
         const widget = document.getElementById('cart-widget');

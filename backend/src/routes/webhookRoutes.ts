@@ -84,12 +84,29 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             }
                         }
 
-                        // Update sale status (preserving existing customer data)
+                        // Update sale status (preserving existing customer data, but enriching with Stripe info)
+                        const stripeCustomer = {
+                            name: paymentIntent.shipping?.name || paymentIntent.receipt_email || saleData.customer?.name || 'Customer',
+                            email: paymentIntent.receipt_email || saleData.customer?.email || '',
+                            shipping: paymentIntent.shipping?.address ? {
+                                line1: paymentIntent.shipping.address.line1,
+                                line2: paymentIntent.shipping.address.line2,
+                                city: paymentIntent.shipping.address.city,
+                                state: paymentIntent.shipping.address.state,
+                                postal_code: paymentIntent.shipping.address.postal_code,
+                                country: paymentIntent.shipping.address.country,
+                            } : saleData.customer?.shipping || null
+                        };
+
                         transaction.update(saleRef, {
                             status: 'completed',
                             orderNumber: orderNumber,
                             paymentId: paymentIntent.id,
                             payment_method: paymentIntent.payment_method_types[0] || 'card',
+                            customer: {
+                                ...saleData.customer, // Keep original data from checkout form
+                                stripe_info: stripeCustomer // Enrich with Stripe details
+                            },
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()
                         });
