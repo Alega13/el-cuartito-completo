@@ -139,6 +139,7 @@ const app = {
             case 'dashboard': this.renderDashboard(container); break;
             case 'inventory': this.renderInventory(container); break;
             case 'sales': this.renderSales(container); break;
+            case 'onlineSales': this.renderOnlineSales(container); break;
             case 'expenses': this.renderExpenses(container); break;
             case 'consignments': this.renderConsignments(container); break;
             case 'vat': this.renderVAT(container); break;

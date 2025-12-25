@@ -32,12 +32,11 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
             setMessage(error.message);
             setIsProcessing(false);
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-            try {
-                await confirmCheckout(saleId, paymentIntent.id);
-                onSuccess();
-            } catch (err) {
-                setMessage("Payment succeeded but order confirmation failed. Please contact support.");
-            }
+            // Payment succeeded - webhook will handle stock/confirmation
+            setMessage("Payment successful! Processing your order...");
+            setTimeout(() => {
+                onSuccess(saleId); // Pass saleId to show order number
+            }, 1500);
             setIsProcessing(false);
         } else {
             setMessage("Unexpected state.");
@@ -98,9 +97,11 @@ const CheckoutPage = ({ setPage }) => {
         }
     };
 
-    const handleSuccess = () => {
+    const handleSuccess = (saleId) => {
         clearCart();
-        alert("Order Confirmed! Thank you.");
+        // Generate display order number from saleId
+        const orderNumber = `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${saleId.slice(-5).toUpperCase()}`;
+        alert(`✅ Order Confirmed!\n\nOrder Number: ${orderNumber}\n\nThank you for your purchase!\nA confirmation email will be sent shortly.`);
         setPage('home');
     };
 

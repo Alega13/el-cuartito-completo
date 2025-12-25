@@ -51,6 +51,11 @@ router.post('/stripe',
                         if (saleDoc.exists && saleDoc.data()?.status === 'PENDING') {
                             const saleData = saleDoc.data() as any;
 
+                            // Generate order number (format: WEB-YYYYMMDD-XXXXX)
+                            const now = new Date();
+                            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+                            const orderNumber = `WEB-${dateStr}-${saleId.slice(-5).toUpperCase()}`;
+
                             // Deduct stock for each item
                             for (const item of saleData.items) {
                                 const productRef = db.collection('products').doc(item.productId);
@@ -70,20 +75,23 @@ router.post('/stripe',
                                         reason: 'sale',
                                         channel: 'online',
                                         saleId: saleId,
+                                        orderNumber: orderNumber,
                                         timestamp: admin.firestore.FieldValue.serverTimestamp()
                                     });
                                 }
                             }
 
-                            // Update sale status
+                            // Update sale status (preserving existing customer data)
                             transaction.update(saleRef, {
                                 status: 'completed',
+                                orderNumber: orderNumber,
                                 paymentId: paymentIntent.id,
                                 payment_method: paymentIntent.payment_method_types[0] || 'card',
+                                completed_at: admin.firestore.FieldValue.serverTimestamp(),
                                 updated_at: admin.firestore.FieldValue.serverTimestamp()
                             });
 
-                            console.log(`✅ Payment confirmed and stock updated for sale ${saleId}`);
+                            console.log(`✅ Payment confirmed and stock updated for sale ${saleId}, order ${orderNumber}`);
                         } else {
                             console.log('Sale not found or already processed:', saleId);
                         }
