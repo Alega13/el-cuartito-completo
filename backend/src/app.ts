@@ -15,10 +15,15 @@ import { errorHandler } from './middlewares/errorHandler';
 
 
 
+
+
 const app = express();
 
-// Webhook route FIRST - needs raw body before any parsing
-app.use('/webhook', express.raw({ type: 'application/json' }), webhookRoutes);
+// Webhook endpoint - MUST be before express.json() to get raw body
+app.post('/webhook/stripe',
+    express.raw({ type: 'application/json' }),
+    require('./routes/webhookRoutes').stripeWebhookHandler
+);
 
 app.use(cors());
 app.use(express.json());

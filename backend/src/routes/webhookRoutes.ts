@@ -1,18 +1,15 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import config from '../config/env';
 import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
-import express from 'express';
-
-const router = Router();
 
 // Initialize Stripe only if key exists
 const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test_mock'
     ? new Stripe(config.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' } as any)
     : null;
 
-router.post('/stripe', async (req: Request, res: Response) => {
+export const stripeWebhookHandler = async (req: Request, res: Response) => {
     if (!stripe) {
         return res.status(500).json({ error: 'Stripe not configured' });
     }
@@ -115,7 +112,4 @@ router.post('/stripe', async (req: Request, res: Response) => {
         console.error('Webhook error:', err.message);
         res.status(400).send(`Webhook Error: ${err.message}`);
     }
-}
-);
-
-export default router;
+};
