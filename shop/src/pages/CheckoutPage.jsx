@@ -7,18 +7,20 @@ import defaultImage from '../assets/default-vinyl.png';
 
 // Input component defined outside to prevent re-creation on each render
 const InputField = ({ label, name, type = "text", width = "w-full", value, onChange, disabled }) => (
-    <div className={`flex flex-col gap-1 ${width}`}>
-        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40">{label}</label>
-        <input
-            type={type}
-            name={name}
-            value={value}
-            onChange={onChange}
-            disabled={disabled}
-            className="w-full border-b border-black/20 pb-1 pt-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30"
-            placeholder={label}
-            required
-        />
+    <div className={`flex flex-col gap-1 ${width} min-h-[60px]`}>
+        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40">{label}</label>
+        <div className="relative">
+            <input
+                type={type}
+                name={name}
+                value={value}
+                onChange={onChange}
+                disabled={disabled}
+                className="w-full block border-b border-black/20 py-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30 placeholder:opacity-0"
+                placeholder={label}
+                required
+            />
+        </div>
     </div>
 );
 
