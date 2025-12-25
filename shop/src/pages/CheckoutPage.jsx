@@ -42,10 +42,13 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
 
         setIsProcessing(true);
 
+        // Save order data before redirect just in case
+        onSuccess(saleId, "pending", true);
+
         const { error, paymentIntent } = await stripe.confirmPayment({
             elements,
             confirmParams: {
-                return_url: window.location.origin, // Not used if redirect: 'if_required'
+                return_url: `${window.location.origin}/?page=success&saleId=${saleId}`,
             },
             redirect: 'if_required'
         });
@@ -133,7 +136,7 @@ const CheckoutPage = ({ setPage }) => {
         }
     };
 
-    const handleSuccess = (saleId, paymentId) => {
+    const handleSuccess = (saleId, paymentId, isPreliminary = false) => {
         const orderData = {
             orderNumber: `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${saleId.slice(-5).toUpperCase()}`,
             saleId,
@@ -146,8 +149,10 @@ const CheckoutPage = ({ setPage }) => {
         // Save to sessionStorage for success page
         sessionStorage.setItem('lastOrder', JSON.stringify(orderData));
 
-        clearCart();
-        setPage('success');
+        if (!isPreliminary) {
+            clearCart();
+            setPage('success');
+        }
     };
 
     return (

@@ -20,6 +20,16 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    // Check for success page in URL (from Stripe redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('page') === 'success') {
+      setPage('success');
+      // Clean up URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     // Real-time listener for products
     const q = query(
       collection(db, 'products'),
