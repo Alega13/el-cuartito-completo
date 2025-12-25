@@ -5,6 +5,23 @@ import { useCart } from '../context/CartContext';
 import { startCheckout, confirmCheckout } from '../services/api';
 import defaultImage from '../assets/default-vinyl.png';
 
+// Input component defined outside to prevent re-creation on each render
+const InputField = ({ label, name, type = "text", width = "w-full", value, onChange, disabled }) => (
+    <div className={`flex flex-col gap-1 ${width}`}>
+        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40">{label}</label>
+        <input
+            type={type}
+            name={name}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            className="border-b border-black/20 py-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30"
+            placeholder={label}
+            required
+        />
+    </div>
+);
+
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
@@ -32,11 +49,20 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
             setMessage(error.message);
             setIsProcessing(false);
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-            // Payment succeeded - webhook will handle stock/confirmation
+            // Payment succeeded - confirm with backend to update stock
             setMessage("Payment successful! Processing your order...");
-            setTimeout(() => {
-                onSuccess(saleId); // Pass saleId to show order number
-            }, 1500);
+            try {
+                await confirmCheckout(saleId, paymentIntent.id);
+                setTimeout(() => {
+                    onSuccess(saleId, paymentIntent.id);
+                }, 500);
+            } catch (err) {
+                console.error('Confirmation error:', err);
+                // Even if confirmation fails, payment succeeded
+                setTimeout(() => {
+                    onSuccess(saleId, paymentIntent.id);
+                }, 500);
+            }
             setIsProcessing(false);
         } else {
             setMessage("Unexpected state.");
@@ -97,29 +123,22 @@ const CheckoutPage = ({ setPage }) => {
         }
     };
 
-    const handleSuccess = (saleId) => {
-        clearCart();
-        // Generate display order number from saleId
-        const orderNumber = `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${saleId.slice(-5).toUpperCase()}`;
-        alert(`✅ Order Confirmed!\n\nOrder Number: ${orderNumber}\n\nThank you for your purchase!\nA confirmation email will be sent shortly.`);
-        setPage('home');
-    };
+    const handleSuccess = (saleId, paymentId) => {
+        const orderData = {
+            orderNumber: `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${saleId.slice(-5).toUpperCase()}`,
+            saleId,
+            paymentId,
+            total: subtotal,
+            items: cartItems,
+            customer: formData
+        };
 
-    // Helper for inputs
-    const InputField = ({ label, name, type = "text", width = "w-full" }) => (
-        <div className={`flex flex-col gap-1 ${width}`}>
-            <label className="text-[10px] font-bold uppercase tracking-widest text-black/40">{label}</label>
-            <input
-                type={type}
-                name={name}
-                value={formData[name]}
-                onChange={handleInputChange}
-                disabled={isFormSubmit}
-                className="border-b border-black/20 py-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30"
-                placeholder={label}
-            />
-        </div>
-    );
+        // Save to sessionStorage for success page
+        sessionStorage.setItem('lastOrder', JSON.stringify(orderData));
+
+        clearCart();
+        setPage('success');
+    };
 
     return (
         <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto min-h-screen">

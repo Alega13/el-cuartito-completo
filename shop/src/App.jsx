@@ -6,6 +6,7 @@ import Hero from './components/Hero';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 import CheckoutPage from './pages/CheckoutPage';
+import SuccessPage from './pages/SuccessPage';
 import CartDrawer from './components/CartDrawer';
 import GlobalPlayer from './components/GlobalPlayer';
 import logo from './assets/logo.png';
@@ -88,6 +89,7 @@ function App() {
           />
         )}
         {page === 'checkout' && <CheckoutPage setPage={setPage} />}
+        {page === 'success' && <SuccessPage />}
       </main>
 
       <GlobalPlayer />
