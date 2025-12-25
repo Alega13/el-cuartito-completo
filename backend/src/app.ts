@@ -9,7 +9,6 @@ import consignorRoutes from './routes/consignorRoutes';
 import firebaseRecordRoutes from './routes/firebaseRecordRoutes';
 import firebaseSaleRoutes from './routes/firebaseSaleRoutes';
 import healthRoutes from './routes/health';
-import webhookRoutes from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 
 
