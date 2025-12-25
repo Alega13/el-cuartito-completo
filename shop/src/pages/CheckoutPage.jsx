@@ -7,8 +7,10 @@ import defaultImage from '../assets/default-vinyl.png';
 
 // Input component defined outside to prevent re-creation on each render
 const InputField = ({ label, name, type = "text", width = "w-full", value, onChange, disabled }) => (
-    <div className={`flex flex-col gap-1 ${width} min-h-[60px]`}>
-        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40">{label}</label>
+    <div className={`flex flex-col gap-2 ${width} group`}>
+        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 group-focus-within:text-accent transition-colors">
+            {label}
+        </label>
         <div className="relative">
             <input
                 type={type}
@@ -16,10 +18,11 @@ const InputField = ({ label, name, type = "text", width = "w-full", value, onCha
                 value={value}
                 onChange={onChange}
                 disabled={disabled}
-                className="w-full block border-b border-black/20 py-2 text-sm font-medium outline-none focus:border-black transition-colors bg-transparent rounded-none disabled:text-black/30 placeholder:opacity-0"
+                className="w-full block border-b border-black/10 py-3 text-sm font-medium outline-none focus:border-black transition-all bg-transparent rounded-none disabled:text-black/30 placeholder:opacity-0 focus:pl-1"
                 placeholder={label}
                 required
             />
+            <div className="absolute bottom-0 left-0 w-0 h-[1px] bg-black transition-all duration-300 group-focus-within:w-full" />
         </div>
     </div>
 );
@@ -111,8 +114,11 @@ const CheckoutPage = ({ setPage }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+
     const handleInitialSubmit = async (e) => {
         e.preventDefault();
+        setIsStartingCheckout(true);
         try {
             const items = cartItems.map(item => ({ recordId: item.id, quantity: item.quantity }));
             const data = await startCheckout(items, formData); // Pass customer data
@@ -122,6 +128,8 @@ const CheckoutPage = ({ setPage }) => {
         } catch (error) {
             console.error("Failed to start checkout", error);
             alert("Failed to initialize checkout. Please try again.");
+        } finally {
+            setIsStartingCheckout(false);
         }
     };
 
@@ -207,10 +215,22 @@ const CheckoutPage = ({ setPage }) => {
                             <div className="pt-6">
                                 <button
                                     type="submit"
-                                    disabled={!isFormValid}
-                                    className="w-full bg-accent text-white py-5 text-sm font-bold uppercase tracking-[0.2em] hover:bg-black transition-colors disabled:bg-black/20 disabled:cursor-not-allowed"
+                                    disabled={!isFormValid || isStartingCheckout}
+                                    className="w-full bg-accent text-white py-5 text-sm font-bold uppercase tracking-[0.2em] hover:bg-black transition-all duration-300 disabled:bg-black/20 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
                                 >
-                                    Continue to Payment
+                                    {isStartingCheckout ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Initializing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>Continue to Payment</span>
+                                            <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                            </svg>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>

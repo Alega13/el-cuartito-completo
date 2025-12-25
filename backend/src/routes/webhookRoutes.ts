@@ -12,10 +12,10 @@ const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test
 export const stripeWebhookHandler = async (req: Request, res: Response) => {
     // DEBUG: Log everything about the request
     console.log('========== WEBHOOK DEBUG START ==========');
-    console.log('Has rawBody?:', !!(req as any).rawBody);
-    console.log('rawBody type:', typeof (req as any).rawBody);
-    console.log('rawBody length:', (req as any).rawBody?.length || 'N/A');
     console.log('Body type:', typeof req.body);
+    console.log('Is Buffer?:', Buffer.isBuffer(req.body));
+    console.log('Body length:', req.body?.length || 'N/A');
+    console.log('Secret configured?:', !!config.STRIPE_WEBHOOK_SECRET);
     console.log('========== WEBHOOK DEBUG END ==========');
 
     if (!stripe) {
@@ -28,12 +28,9 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'No signature provided' });
     }
 
-    // Use rawBody if available, otherwise try req.body
-    const rawBody = (req as any).rawBody || req.body;
-
     try {
         const event = stripe.webhooks.constructEvent(
-            rawBody,
+            req.body, // req.body is now a Buffer thanks to express.raw()
             sig,
             config.STRIPE_WEBHOOK_SECRET || ''
         );

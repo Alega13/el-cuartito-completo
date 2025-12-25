@@ -19,17 +19,15 @@ import { errorHandler } from './middlewares/errorHandler';
 
 const app = express();
 
-// Webhook endpoint - save raw body before parsing
+app.use(cors());
+
+// Webhook endpoint - must use express.raw to preserve signature
+// This must come BEFORE any other body-parser middleware
 app.post('/webhook/stripe',
-    express.json({
-        verify: (req: any, res, buf) => {
-            req.rawBody = buf.toString('utf8');
-        }
-    }),
+    express.raw({ type: 'application/json' }),
     stripeWebhookHandler
 );
 
-app.use(cors());
 app.use(express.json());
 
 app.use('/records', recordRoutes);
