@@ -19,9 +19,13 @@ import { errorHandler } from './middlewares/errorHandler';
 
 const app = express();
 
-// Webhook endpoint - MUST be before express.json() to get raw body
+// Webhook endpoint - save raw body before parsing
 app.post('/webhook/stripe',
-    express.raw({ type: 'application/json' }),
+    express.json({
+        verify: (req: any, res, buf) => {
+            req.rawBody = buf.toString('utf8');
+        }
+    }),
     stripeWebhookHandler
 );
 
