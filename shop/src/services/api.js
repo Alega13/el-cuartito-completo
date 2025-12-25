@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = 'https://el-cuartito-shop.up.railway.app';
 
 const api = axios.create({
     baseURL: API_URL,

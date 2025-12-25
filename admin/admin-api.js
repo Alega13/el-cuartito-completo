@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001';
+const API_URL = 'https://el-cuartito-shop.up.railway.app';
 
 async function handleResponse(res) {
     if (!res.ok) {
