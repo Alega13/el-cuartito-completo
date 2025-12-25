@@ -9,6 +9,7 @@ import consignorRoutes from './routes/consignorRoutes';
 import firebaseRecordRoutes from './routes/firebaseRecordRoutes';
 import firebaseSaleRoutes from './routes/firebaseSaleRoutes';
 import healthRoutes from './routes/health';
+import { stripeWebhookHandler } from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 
 
@@ -21,7 +22,7 @@ const app = express();
 // Webhook endpoint - MUST be before express.json() to get raw body
 app.post('/webhook/stripe',
     express.raw({ type: 'application/json' }),
-    require('./routes/webhookRoutes').stripeWebhookHandler
+    stripeWebhookHandler
 );
 
 app.use(cors());
