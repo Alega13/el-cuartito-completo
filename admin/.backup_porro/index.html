@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <title>El Cuartito Records</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            orange: '#F05A28', // Logo Orange
+                            yellow: '#FDE047', // Logo Yellow
+                            bg: '#FEF9C3',     // Lighter Yellow (Yellow-100) for better visibility
+                            cream: '#FFFBEB',  // Warm White
+                            dark: '#1e293b',   // Slate 800
+                            red: '#ef4444',
+                            green: '#22c55e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background-color: #FEF9C3;
+            color: #1e293b;
+        }
+
+        .font-display {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Mobile Safe Area */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Card Hover Effect */
+        .hover-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+        }
+
+        .hover-card:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden selection:bg-brand-orange selection:text-white bg-brand-bg">
+
+    <!-- Login View -->
+    <div id="login-view" class="fixed inset-0 bg-brand-dark z-[60] flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-orange to-orange-400"></div>
+
+            <div class="text-center mb-8">
+                <div
+                    class="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden shadow-xl shadow-brand-orange/20 border-4 border-white">
+                    <img src="logo.jpg" alt="El Cuartito Logo" class="w-full h-full object-cover">
+                </div>
+                <h1 class="font-display text-3xl font-bold text-brand-dark mb-2">El Cuartito</h1>
+                <p class="text-slate-500">Gestión de Inventario & Ventas</p>
+            </div>
+
+            <form onsubmit="app.handleLogin(event)" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Email</label>
+                    <div class="relative">
+                        <i
+                            class="ph-fill ph-envelope absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="email" name="email" required placeholder="admin@elcuartito.com"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-brand-orange focus:bg-white transition-all">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Contraseña</label>
+                    <div class="relative">
+                        <i
+                            class="ph-fill ph-lock-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="password" name="password" required placeholder="••••••••"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 outline-none focus:border-brand-orange focus:bg-white transition-all">
+                    </div>
+                </div>
+
+                <button type="submit" id="login-btn" onclick="app.handleLogin(event)"
+                    class="w-full bg-brand-dark text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2 group">
+                    <span>Ingresar</span>
+                    <i class="ph-bold ph-arrow-right group-hover:translate-x-1 transition-transform"></i>
+                </button>
+            </form>
+
+            <p id="login-error" class="text-red-500 text-sm text-center mt-4 hidden"></p>
+            <p class="text-slate-300 text-xs text-center mt-6">v1.6</p>
+        </div>
+    </div>
+
+    <!-- Main App (Hidden by default) -->
+    <div id="main-app" class="hidden w-full h-full flex flex-col md:flex-row">
+        <!-- Mobile Header -->
+        <header
+            class="md:hidden bg-white border-b border-orange-100 p-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-full overflow-hidden shadow-md border-2 border-white">
+                    <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover">
+                </div>
+                <h1 class="font-display text-xl font-bold text-brand-dark">El Cuartito</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="app.logout()"
+                    class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors">
+                    <i class="ph-bold ph-sign-out"></i>
+                </button>
+                <button
+                    class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center relative">
+                    <i class="ph-bold ph-bell"></i>
+                    <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Desktop Sidebar -->
+        <aside class="hidden md:flex flex-col w-64 bg-white border-r border-orange-100 h-screen sticky top-0 z-40">
+            <div class="p-6 border-b border-orange-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl overflow-hidden shadow-lg border-2 border-white shrink-0">
+                        <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover">
+                    </div>
+                    <div>
+                        <h1 class="font-display text-xl font-bold text-brand-dark leading-tight">El Cuartito</h1>
+                        <p class="text-xs text-slate-400 font-medium">Records Management</p>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+                <button onclick="app.navigate('dashboard')" id="nav-d-dashboard"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-chart-pie-slice text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Dashboard</span>
+                </button>
+
+                <button onclick="app.navigate('inventory')" id="nav-d-inventory"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-disc text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Inventario</span>
+                </button>
+                <button onclick="app.navigate('sales')" id="nav-d-sales"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-shopping-cart text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Ventas</span>
+                </button>
+                <button onclick="app.navigate('expenses')" id="nav-d-expenses"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Gastos</span>
+                </button>
+                <button onclick="app.navigate('consignments')" id="nav-d-consignments"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-handshake text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Consignaciones</span>
+                </button>
+                <button onclick="app.navigate('calendar')" id="nav-d-calendar"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-calendar-blank text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Calendario</span>
+                </button>
+                <button onclick="app.navigate('vat')" id="nav-d-vat"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>VAT / Impuestos</span>
+                </button>
+                <button onclick="app.navigate('backup')" id="nav-d-backup"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-cloud-arrow-up text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Respaldo</span>
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-orange-50">
+                <button onclick="app.logout()"
+                    class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all font-medium group">
+                    <i class="ph-duotone ph-sign-out text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 h-full overflow-y-auto bg-slate-50 relative" id="app-content">
+            <!-- Dynamic Content -->
+        </main>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-orange-100 px-6 py-3 flex justify-between items-center z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]"
+        id="mobile-nav">
+        <button onclick="app.navigate('dashboard')" id="nav-m-dashboard"
+            class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
+            <i class="ph-fill ph-chart-pie-slice text-2xl"></i>
+            <span class="text-[10px] font-bold">Dash</span>
+        </button>
+        <button onclick="app.navigate('inventory')" id="nav-m-inventory"
+            class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
+            <i class="ph-fill ph-disc text-2xl"></i>
+            <span class="text-[10px] font-bold">Items</span>
+        </button>
+        <div class="relative -top-6">
+            <button onclick="app.openAddVinylModal()"
+                class="w-14 h-14 bg-brand-dark rounded-full flex items-center justify-center text-white shadow-lg shadow-brand-dark/40 hover:scale-105 transition-transform border-4 border-slate-50">
+                <i class="ph-bold ph-plus text-2xl"></i>
+            </button>
+        </div>
+        <button onclick="app.navigate('sales')" id="nav-m-sales"
+            class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
+            <i class="ph-fill ph-shopping-cart text-2xl"></i>
+            <span class="text-[10px] font-bold">Ventas</span>
+        </button>
+        <button onclick="app.navigate('expenses')" id="nav-m-expenses"
+            class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
+            <i class="ph-fill ph-receipt text-2xl"></i>
+            <span class="text-[10px] font-bold">Gastos</span>
+        </button>
+        <!-- More Menu (Consignments, VAT, Backup) -->
+        <button onclick="app.toggleMobileMenu()"
+            class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
+            <i class="ph-fill ph-dots-three text-2xl"></i>
+            <span class="text-[10px] font-bold">Más</span>
+        </button>
+    </nav>
+
+    <!-- Mobile More Menu Overlay -->
+    <div id="mobile-menu-overlay" class="fixed inset-0 bg-black/50 z-50 hidden" onclick="app.toggleMobileMenu()"></div>
+    <div id="mobile-menu"
+        class="fixed bottom-0 left-0 w-full bg-white rounded-t-3xl p-6 z-50 transform translate-y-full transition-transform duration-300">
+        <div class="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
+        <div class="grid grid-cols-3 gap-4">
+            <button onclick="app.navigate('consignments'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-handshake text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Socios</span>
+            </button>
+            <button onclick="app.navigate('calendar'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-calendar-blank text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Calendario</span>
+            </button>
+
+            <button onclick="app.navigate('vat'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-bank text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">VAT</span>
+            </button>
+            <button onclick="app.navigate('backup'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-cloud-arrow-up text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Backup</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast"
+        class="fixed top-4 right-4 md:bottom-8 md:right-8 md:top-auto transform -translate-y-20 md:translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div
+            class="bg-brand-dark text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 border-l-4 border-brand-orange">
+            <i class="ph-fill ph-check-circle text-brand-orange text-xl"></i>
+            <span id="toast-message" class="font-medium">Operación exitosa</span>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <!-- App Logic -->
+    <script src="app.js?v=1.5"></script>
+</body>
+
+</html>

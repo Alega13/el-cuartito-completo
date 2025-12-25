@@ -1,0 +1,20 @@
+{
+    "name": "El Cuartito Records",
+    "short_name": "El Cuartito",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#fffbeb",
+    "theme_color": "#f97316",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/1384/1384060.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

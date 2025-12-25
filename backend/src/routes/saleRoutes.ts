@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import * as firebaseController from '../controllers/firebaseController';
+import { isAdmin } from '../middlewares/auth';
+
+const router = Router();
+
+router.get('/', isAdmin, firebaseController.getSales);
+router.post('/', isAdmin, firebaseController.createSale);
+
+
+export default router;
+

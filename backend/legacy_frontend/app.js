@@ -1,0 +1,4247 @@
+/**
+ * El Cuartito - App Logic (Upgraded)
+ */
+
+// Initial Data from CSV
+const INITIAL_INVENTORY = [
+    { sku: "SKU-0001", artist: "Ricardo Villalobos", album: "Late Night Grooves EP", genre: "Minimal/Techno", status: "NM", cost: 180, price: 270, stock: 1, supplier: "Distribuidor DK", owner: "Miguel", channel: "Discogs + Local" },
+    { sku: "SKU-0002", artist: "Priku", album: "Bucharest Loops", genre: "Minimal rumano", status: "G", cost: 150, price: 225, stock: 1, supplier: "Acervo Vesterbro", owner: "Morten", channel: "Discogs" },
+    { sku: "SKU-0003", artist: "Sublee", album: "Deep Patterns", genre: "Minimal/House", status: "NM", cost: 140, price: 210, stock: 1, supplier: "Distribuidor DK", owner: "Santaolalla", channel: "Local" },
+    { sku: "SKU-0004", artist: "Kirk", album: "Analog Heat", genre: "Techno", status: "VG", cost: 170, price: 255, stock: 1, supplier: "Vinyl Supply", owner: "Alejo", channel: "Local" },
+    { sku: "SKU-0005", artist: "Various Artists", album: "Nordic House Sessions Vol.1", genre: "House", status: "VG+", cost: 120, price: 180, stock: 1, supplier: "Acervo Vesterbro", owner: "Alejo", channel: "Local" },
+    { sku: "SKU-0006", artist: "Ricardo Villalobos & Friends", album: "Groove Ritual", genre: "Minimal/Techno", status: "VG", cost: 210, price: 315, stock: 1, supplier: "Distribuidor DK", owner: "El Cuartito", channel: "Local" },
+    { sku: "SKU-0007", artist: "Priku", album: "Eastern Echoes EP", genre: "Minimal rumano", status: "NM", cost: 140, price: 210, stock: 1, supplier: "Distribuidor DK", owner: "El Cuartito", channel: "Local" },
+    { sku: "SKU-0008", artist: "Sublee", album: "Late Afternoon Mix", genre: "Deep House", status: "G", cost: 125, price: 200, stock: 1, supplier: "Acervo Vesterbro", owner: "El Cuartito", channel: "Local" },
+    { sku: "SKU-0009", artist: "Kirk", album: "Basement Frequencies", genre: "Techno", status: "NM", cost: 160, price: 240, stock: 1, supplier: "Vinyl Supply", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0010", artist: "Local DJ Collective", album: "Vesterbro Sounds", genre: "House/Techno", status: "B", cost: 110, price: 165, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0011", artist: "Ricardo Villalobos", album: "Peruvian Nights", genre: "Minimal", status: "NM", cost: 200, price: 300, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0012", artist: "Priku & Guest", album: "Club Shadows", genre: "Minimal rumano", status: "B", cost: 155, price: 232.5, stock: 1, supplier: "Distribuidor DK", owner: "alejo", channel: "Local" },
+    { sku: "SKU-0013", artist: "Sublee", album: "Ocean Drive", genre: "Minimal/Chill", status: "NM", cost: 110, price: 165, stock: 1, supplier: "Acervo Vesterbro", owner: "Miguel", channel: "Local" },
+    { sku: "SKU-0014", artist: "Kirk", album: "Circuit City", genre: "Techno industrial", status: "G", cost: 180, price: 270, stock: 1, supplier: "Vinyl Supply", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0015", artist: "DJ Import", album: "Global House Beats Vol.2", genre: "House", status: "VG", cost: 130, price: 195, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0016", artist: "Ricardo Villalobos", album: "Sunset Edits", genre: "Minimal/Edits", status: "NM", cost: 210, price: 315, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0017", artist: "Priku", album: "Underground Letters", genre: "Minimal rumano", status: "VG+", cost: 145, price: 217.5, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0018", artist: "Sublee", album: "Room 17 Mix", genre: "Deep House", status: "VG+", cost: 130, price: 195, stock: 1, supplier: "Vinyl Supply", owner: "el Cuartito", channel: "Local" },
+    { sku: "SKU-0019", artist: "Kirk", album: "Night Shift", genre: "Techno", status: "VG+", cost: 170, price: 255, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0020", artist: "Various Artists", album: "Wax & Coffee", genre: "Lounge/House", status: "VG+", cost: 100, price: 150, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0021", artist: "Ricardo Villalobos", album: "Minimal Moods", genre: "Minimal", status: "NM", cost: 195, price: 292.5, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0022", artist: "Priku", album: "B-side Stories", genre: "Minimal rumano", status: "G", cost: 140, price: 210, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0023", artist: "Sublee", album: "Sunrise EP", genre: "Deep House", status: "NM", cost: 120, price: 180, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0024", artist: "Kirk", album: "Rough Cuts", genre: "Techno/Minimal", status: "S", cost: 175, price: 262.5, stock: 1, supplier: "Vinyl Supply", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0025", artist: "DJ Vesterbro", album: "Midnight Mixes", genre: "House/Techno", status: "S", cost: 125, price: 187.5, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0026", artist: "Ricardo Villalobos", album: "Groove Anatomy", genre: "Minimal", status: "VG", cost: 200, price: 300, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0027", artist: "Priku", album: "Concrete Waves", genre: "Minimal rumano", status: "VG", cost: 150, price: 225, stock: 1, supplier: "Distribuidor DK", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0028", artist: "Sublee & Kirk", album: "Split EP", genre: "Minimal/Techno", status: "VG+", cost: 160, price: 240, stock: 1, supplier: "Vinyl Supply", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0029", artist: "Various Artists", album: "Copenhagen Clubcuts", genre: "Techno/House", status: "VG", cost: 115, price: 172.5, stock: 1, supplier: "Acervo Vesterbro", owner: "el Cuartito", channel: "Discogs" },
+    { sku: "SKU-0030", artist: "Curated Selection", album: "El Cuartito Picks Vol.1", genre: "Eclectic", status: "VG+", cost: 135, price: 202.5, stock: 0, supplier: "El Cuartito Records", owner: "Manuel ", channel: "Discogs" }
+];
+
+// Firebase Configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyBj0bgdOtb5snSrn3tteblFdVUtA0BpFss",
+    authDomain: "el-cuartito-app.firebaseapp.com",
+    projectId: "el-cuartito-app",
+    storageBucket: "el-cuartito-app.firebasestorage.app",
+    messagingSenderId: "116723400888",
+    appId: "1:116723400888:web:47ec6d99818d391d6ab44d"
+};
+
+// Initialize Firebase
+let db;
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+} catch (err) {
+    console.error("Firebase Init Error:", err);
+}
+
+const app = {
+    state: {
+        inventory: [],
+        sales: [],
+        expenses: [],
+        consignors: [],
+        salesHistorySearch: '',
+        customGenres: [], // From Firestore
+        cart: [], // Multi-item sales cart
+        viewMode: 'list', // 'list' or 'grid' for Inventory
+        selectedItems: new Set(), // For Bulk Actions
+        customCategories: [],
+        vatActive: true,
+        currentView: 'dashboard',
+        filterMonths: [new Date().getMonth()],
+        filterYear: new Date().getFullYear(),
+        inventorySearch: '',
+        salesHistorySearch: '',
+        expensesSearch: '',
+        events: [],
+        selectedDate: new Date()
+    },
+
+    init() {
+        // Bypass Auth - Enter directly
+        document.getElementById('login-view').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        document.getElementById('mobile-nav').classList.remove('hidden');
+
+        this.setupListeners();
+        this.renderDashboard(document.getElementById('app-content'));
+        this.setupMobileMenu();
+        this.setupNavigation();
+    },
+
+    handleLogin(e) {
+        if (e) e.preventDefault(); // Critical: Stop form reload
+
+        // Handle both form submit (e.target is form) and button click (e.target is button)
+        const form = e.target.tagName === 'FORM' ? e.target : e.target.closest('form');
+
+        const email = form.email.value;
+        const password = form.password.value;
+        const errorMsg = document.getElementById('login-error');
+        const btn = document.getElementById('login-btn'); // Use ID for safety
+        const originalBtnText = btn.innerHTML;
+
+        // Show Loading
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin text-xl"></i> Verificando...';
+        errorMsg.classList.add('hidden');
+
+        firebase.auth().signInWithEmailAndPassword(email, password)
+            .then(() => {
+                // Auth listener handles the rest
+                // But let's keep loading state until view switches
+            })
+            .catch((error) => {
+                console.error(error);
+                btn.disabled = false;
+                btn.innerHTML = originalBtnText;
+
+                let message = "Error desconocido";
+                if (error.code === 'auth/wrong-password') message = "Contraseña incorrecta";
+                if (error.code === 'auth/user-not-found') message = "Usuario no encontrado";
+                if (error.code === 'auth/invalid-email') message = "Email inválido";
+                if (error.code === 'auth/too-many-requests') message = "Demasiados intentos. Intenta más tarde.";
+                if (error.code === 'auth/operation-not-allowed') message = "Error de configuración: Habilita Email/Password en Firebase Console.";
+
+                errorMsg.innerText = message;
+                errorMsg.classList.remove('hidden');
+                alert(message); // Fallback to ensure user sees it
+            });
+    },
+
+    logout() {
+        firebase.auth().signOut().then(() => {
+            // Sign-out successful. Listener handles UI.
+        }).catch((error) => {
+            console.error(error);
+        });
+    },
+
+    setupListeners() {
+        // Inventory Listener
+        db.collection('inventory').onSnapshot(snapshot => {
+            this.state.inventory = [];
+            snapshot.forEach(doc => {
+                this.state.inventory.push(doc.data());
+            });
+            this.refreshCurrentView();
+        });
+
+        // Sales Listener
+        db.collection('sales').onSnapshot(snapshot => {
+            this.state.sales = [];
+            snapshot.forEach(doc => {
+                this.state.sales.push({ id: doc.id, ...doc.data() });
+            });
+            this.refreshCurrentView();
+        });
+
+        // Expenses Listener
+        db.collection('expenses').onSnapshot(snapshot => {
+            this.state.expenses = [];
+            snapshot.forEach(doc => {
+                this.state.expenses.push({ id: doc.id, ...doc.data() });
+            });
+            this.refreshCurrentView();
+        });
+
+        // Consignors Listener
+        db.collection('consignors').onSnapshot(snapshot => {
+            this.state.consignors = [];
+            snapshot.forEach(doc => {
+                this.state.consignors.push({ id: doc.id, ...doc.data() });
+            });
+            this.refreshCurrentView();
+        });
+
+        // Settings Listener (for custom genres/categories)
+        db.collection('settings').doc('general').onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                this.state.customGenres = data.customGenres || [];
+                this.state.customCategories = data.customCategories || [];
+            }
+        });
+
+        // Events Listener
+        // Events Listener
+        db.collection('events').onSnapshot(snapshot => {
+            this.state.events = [];
+            snapshot.forEach(doc => {
+                this.state.events.push({ id: doc.id, ...doc.data() });
+            });
+            if (this.state.currentView === 'calendar') {
+                this.renderCalendar(document.getElementById('app-content'));
+            }
+        }, error => {
+            console.error("Events listener error:", error);
+        });
+    },
+
+    refreshCurrentView() {
+        const container = document.getElementById('app-content');
+        if (!container) return;
+
+        switch (this.state.currentView) {
+            case 'dashboard': this.renderDashboard(container); break;
+            case 'inventory': this.renderInventory(container); break;
+            case 'sales': this.renderSales(container); break;
+            case 'expenses': this.renderExpenses(container); break;
+            case 'consignments': this.renderConsignments(container); break;
+            case 'vat': this.renderVAT(container); break;
+            case 'settings': this.renderSettings(container); break;
+        }
+    },
+
+    saveData() {
+        // No-op: Data is saved directly to Firestore in action methods
+    },
+
+    loadData() {
+        // No-op: Data is loaded via listeners
+    },
+
+    navigate(view) {
+        this.state.currentView = view;
+
+        // Update UI Active States
+        document.querySelectorAll('.nav-item, .nav-item-m').forEach(el => {
+            el.classList.remove('bg-orange-50', 'text-brand-orange');
+            el.classList.add('text-slate-500');
+        });
+
+        // Desktop
+        const activeNavD = document.getElementById(`nav-d-${view}`);
+        if (activeNavD) {
+            activeNavD.classList.remove('text-slate-500');
+            activeNavD.classList.add('bg-orange-50', 'text-brand-orange');
+        }
+
+        // Mobile
+        const activeNavM = document.getElementById(`nav-m-${view}`);
+        if (activeNavM) {
+            activeNavM.classList.remove('text-slate-400');
+            activeNavM.classList.add('text-brand-orange');
+        }
+
+        // Render View
+        const content = document.getElementById('app-content');
+        content.innerHTML = '';
+
+        switch (view) {
+            case 'dashboard': this.renderDashboard(content); break;
+            case 'sales': this.renderSales(content); break;
+            case 'inventory': this.renderInventory(content); break;
+            case 'expenses': this.renderExpenses(content); break;
+            case 'consignments': this.renderConsignments(content); break;
+            case 'calendar': this.renderCalendar(content); break;
+            case 'vat': this.renderVAT(content); break;
+            case 'backup': this.renderBackup(content); break;
+            case 'settings': this.renderSettings(content); break;
+        }
+    },
+
+    renderCalendar(container) {
+        const currentDate = this.state.selectedDate || new Date();
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Adjust for Monday start
+
+        const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        // Helper to check for activity on a date
+        const hasActivity = (day) => {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const hasSales = this.state.sales.some(s => s.date === dateStr);
+            const hasExpenses = this.state.expenses.some(e => e.date === dateStr);
+            const hasEvents = this.state.events.some(e => e.date === dateStr);
+            return { hasSales, hasExpenses, hasEvents };
+        };
+
+        const html = `
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <div class="flex flex-col lg:flex-row gap-8 h-[calc(100vh-140px)]">
+                    <!-- Calendar Grid -->
+                    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="font-display text-2xl font-bold text-brand-dark capitalize">
+                                ${monthNames[month]} <span class="text-brand-orange">${year}</span>
+                            </h2>
+                            <div class="flex gap-2">
+                                <button onclick="app.changeCalendarMonth(-1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
+                                    <i class="ph-bold ph-caret-left"></i>
+                                </button>
+                                <button onclick="app.changeCalendarMonth(1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
+                                    <i class="ph-bold ph-caret-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-2 mb-2 text-center">
+                            ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${d}</div>
+                            `).join('')}
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
+                            ${Array(startingDay).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join('')}
+                            ${Array.from({ length: daysInMonth }, (_, i) => {
+            const day = i + 1;
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isSelected = currentDate.getDate() === day;
+            const activity = hasActivity(day);
+            const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+            return `
+                                    <button onclick="app.selectCalendarDate('${dateStr}')" 
+                                        class="relative rounded-xl p-2 flex flex-col items-center justify-start gap-1 transition-all border-2
+                                        ${isSelected ? 'border-brand-orange bg-orange-50' : 'border-transparent hover:bg-slate-50'}
+                                        ${isToday ? 'bg-blue-50' : ''}">
+                                        <span class="text-sm font-bold ${isSelected ? 'text-brand-orange' : 'text-slate-700'} ${isToday ? 'text-blue-600' : ''}">${day}</span>
+                                        <div class="flex gap-1 mt-1">
+                                            ${activity.hasSales ? '<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>' : ''}
+                                            ${activity.hasExpenses ? '<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>' : ''}
+                                            ${activity.hasEvents ? '<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>' : ''}
+                                        </div>
+                                    </button>
+                                `;
+        }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Day Summary -->
+                    <div class="w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col h-full overflow-hidden">
+                        ${this.renderCalendarDaySummary(currentDate)}
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    renderCalendarDaySummary(date) {
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const displayDate = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        const daySales = this.state.sales.filter(s => s.date === dateStr);
+        const dayExpenses = this.state.expenses.filter(e => e.date === dateStr);
+        const dayEvents = this.state.events.filter(e => e.date === dateStr);
+
+        const totalSales = daySales.reduce((sum, s) => sum + s.total, 0);
+        const totalExpenses = dayExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+        return `
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="font-display text-xl font-bold text-brand-dark capitalize">${displayDate}</h3>
+                    <p class="text-xs text-slate-500 mt-1">Resumen del día</p>
+                </div>
+                <button onclick="app.openAddEventModal('${dateStr}')" class="text-brand-orange hover:bg-orange-50 p-2 rounded-lg transition-colors" title="Agregar Evento">
+                    <i class="ph-bold ph-plus"></i>
+                </button>
+            </div>
+
+            <div class="space-y-6 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                <!-- Financial Summary -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-green-50 p-3 rounded-xl border border-green-100">
+                        <p class="text-[10px] font-bold text-green-600 uppercase">Ventas</p>
+                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(totalSales)}</p>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-xl border border-red-100">
+                        <p class="text-[10px] font-bold text-red-600 uppercase">Gastos</p>
+                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(totalExpenses)}</p>
+                    </div>
+                </div>
+
+                <!-- Events -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Eventos / Notas</h4>
+                    ${dayEvents.length > 0 ? `
+                        <div class="space-y-2">
+                            ${dayEvents.map(e => `
+                                <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 group relative">
+                                    <p class="text-sm font-medium text-brand-dark">${e.title}</p>
+                                    ${e.description ? `<p class="text-xs text-slate-500 mt-1">${e.description}</p>` : ''}
+                                    <button onclick="app.deleteEvent('${e.id}')" class="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600">
+                                        <i class="ph-bold ph-trash"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <div class="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                            <p class="text-xs text-slate-400">No hay eventos registrados</p>
+                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar nota</button>
+                        </div>
+                    `}
+                </div>
+
+                <!-- Sales List -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${daySales.length})</h4>
+                    ${daySales.length > 0 ? `
+                        <div class="space-y-2">
+                            ${daySales.map(s => `
+                                <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
+                                    <div class="truncate flex-1 pr-2">
+                                        <span class="font-bold text-slate-700 block truncate">${s.album || 'Venta rápida'}</span>
+                                        <span class="text-slate-400 text-[10px]">${s.sku || '-'}</span>
+                                    </div>
+                                    <span class="font-bold text-brand-dark">${this.formatCurrency(s.total)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-xs text-slate-400 italic">Sin ventas</p>'}
+                </div>
+
+                <!-- Expenses List -->
+                <div>
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Gastos (${dayExpenses.length})</h4>
+                    ${dayExpenses.length > 0 ? `
+                        <div class="space-y-2">
+                            ${dayExpenses.map(e => `
+                                <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
+                                    <div class="truncate flex-1 pr-2">
+                                        <span class="font-bold text-slate-700 block truncate">${e.description}</span>
+                                        <span class="text-slate-400 text-[10px]">${e.category}</span>
+                                    </div>
+                                    <span class="font-bold text-brand-dark">${this.formatCurrency(e.amount)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-xs text-slate-400 italic">Sin gastos</p>'}
+                </div>
+            </div>
+        `;
+    },
+
+    changeCalendarMonth(offset) {
+        const newDate = new Date(this.state.selectedDate);
+        newDate.setMonth(newDate.getMonth() + offset);
+        this.state.selectedDate = newDate;
+        this.renderCalendar(document.getElementById('app-content'));
+    },
+
+    selectCalendarDate(dateStr) {
+        this.state.selectedDate = new Date(dateStr);
+        this.renderCalendar(document.getElementById('app-content'));
+    },
+
+    openAddEventModal(dateStr) {
+        const modalHtml = `
+            <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-display text-xl font-bold text-brand-dark">Nuevo Evento</h3>
+                        <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-brand-dark transition-colors">
+                            <i class="ph-bold ph-x text-xl"></i>
+                        </button>
+                    </div>
+
+                    <form onsubmit="app.handleAddEvent(event)" class="space-y-4">
+                        <input type="hidden" name="date" value="${dateStr}">
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título</label>
+                            <input name="title" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Ej. Evento Especial">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                            <textarea name="description" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Detalles..."></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                            Guardar Evento
+                        </button>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    handleAddEvent(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const eventData = {
+            date: formData.get('date'),
+            title: formData.get('title'),
+            description: formData.get('description'),
+            createdAt: new Date().toISOString()
+        };
+
+        db.collection('events').add(eventData)
+            .then(() => {
+                this.showToast('Evento agregado');
+                document.getElementById('modal-overlay').remove();
+            })
+            .catch(err => console.error(err));
+    },
+
+    deleteEvent(id) {
+        if (!confirm('¿Eliminar este evento?')) return;
+        db.collection('events').doc(id).delete()
+            .then(() => this.showToast('Evento eliminado'))
+            .catch(err => console.error(err));
+    },
+
+    renderBackup(container) {
+        const html = `
+            <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Backup y Restauración</h2>
+                
+                <div class="space-y-6">
+                    <!-- Export Card -->
+                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100">
+                        <div class="flex items-start gap-4 mb-6">
+                            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-2xl">
+                                <i class="ph-fill ph-download-simple"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg text-brand-dark">Exportar Datos</h3>
+                                <p class="text-sm text-slate-500 mt-1">Descarga un archivo con todo tu inventario, ventas y gastos. Úsalo para mover tus datos a otra computadora.</p>
+                            </div>
+                        </div>
+                        <button onclick="app.exportData()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-download"></i> Descargar Copia de Seguridad
+                        </button>
+                        
+                        <div class="flex-1 relative">
+                            <input type="file" id="import-file" accept=".json" class="hidden" onchange="app.importData(this)">
+                            <button onclick="document.getElementById('import-file').click()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
+                                <i class="ph-fill ph-upload-simple text-xl"></i>
+                                Importar Backup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
+                    <h3 class="font-bold text-lg mb-4 text-red-700">Zona de Peligro</h3>
+                    <p class="text-red-600/80 text-sm mb-4">Esta acción borrará TODOS los datos de la base de datos (Inventario, Ventas, Gastos, Socios). No se puede deshacer.</p>
+                    
+                    <button onclick="app.resetApplication()" class="w-full bg-white border-2 border-red-200 text-red-600 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-fill ph-trash text-xl"></i>
+                        Restablecer de Fábrica
+                    </button>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    renderSettings(container) {
+        const token = localStorage.getItem('discogs_token') || '';
+        const html = `
+            <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Configuración</h2>
+                
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
+                    <h3 class="font-bold text-lg text-brand-dark mb-4">Integraciones</h3>
+                    <form onsubmit="app.saveSettings(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Discogs Personal Access Token</label>
+                            <input type="text" name="discogs_token" value="${token}" placeholder="Ej: hSIAXlFq..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-brand-orange outline-none font-mono text-sm">
+                            <p class="text-xs text-slate-400 mt-2">Necesario para buscar portadas y datos de discos. <a href="https://www.discogs.com/settings/developers" target="_blank" class="text-brand-orange hover:underline">Generar Token</a></p>
+                        </div>
+                        <button type="submit" class="bg-brand-dark text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors">
+                            Guardar Configuración
+                        </button>
+                    </form>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    saveSettings(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const token = formData.get('discogs_token').trim();
+
+        if (token) {
+            localStorage.setItem('discogs_token', token);
+            localStorage.setItem('discogs_token_warned', 'true'); // Clear warning
+            this.showToast('Configuración guardada correctamente');
+        } else {
+            localStorage.removeItem('discogs_token');
+            this.showToast('Token eliminado');
+        }
+    },
+    exportData() {
+        const data = {
+            inventory: this.state.inventory,
+            sales: this.state.sales,
+            expenses: this.state.expenses,
+            consignors: this.state.consignors,
+            customGenres: this.state.customGenres,
+            customCategories: this.state.customCategories,
+            timestamp: new Date().toISOString()
+        };
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "el_cuartito_backup_" + new Date().toISOString().slice(0, 10) + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    },
+
+    importData(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (!confirm('¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales.')) return;
+
+                // Batch write to Firestore
+                const batch = db.batch();
+
+                // Clear existing collections? Firestore doesn't have a "delete collection" client-side easily.
+                // For import, we might just overwrite/add. 
+                // A true restore is complex in Firestore client-side without cloud functions to wipe first.
+                // For now, let's just add/merge items. 
+                // WARNING: This might duplicate if IDs are different or not handled.
+                // Since we use SKU as ID for inventory, that merges.
+                // Sales/Expenses use auto-ID usually, so they might duplicate if re-imported.
+
+                alert('La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora.');
+
+                // Example: Import Inventory
+                if (data.inventory) {
+                    data.inventory.forEach(item => {
+                        const ref = db.collection('inventory').doc(item.sku);
+                        batch.set(ref, item);
+                    });
+                }
+
+                batch.commit().then(() => {
+                    this.showToast('Datos importados (Inventario)');
+                });
+
+            } catch (err) {
+                alert('Error al leer el archivo de respaldo');
+                console.error(err);
+            }
+        };
+        reader.readAsText(file);
+    },
+
+    resetApplication() {
+        if (!confirm('⚠️ ¡ADVERTENCIA! ⚠️\n\nEsto borrará PERMANENTEMENTE todo el inventario, ventas, gastos y socios de la base de datos.\n\n¿Estás absolutamente seguro?')) return;
+
+        const password = prompt('Para confirmar, ingresa la contraseña de administrador:');
+        if (password !== 'alejo13') {
+            alert('Contraseña incorrecta. Operación cancelada.');
+            return;
+        }
+
+        this.showToast('Iniciando borrado completo...');
+
+        // Helper to delete all docs in a collection
+        const deleteCollection = (collectionName) => {
+            return db.collection(collectionName).get().then(snapshot => {
+                const batch = db.batch();
+                snapshot.docs.forEach(doc => {
+                    batch.delete(doc.ref);
+                });
+                return batch.commit();
+            });
+        };
+
+        Promise.all([
+            deleteCollection('inventory'),
+            deleteCollection('sales'),
+            deleteCollection('expenses'),
+            deleteCollection('consignors'),
+            db.collection('settings').doc('general').delete()
+        ]).then(() => {
+            this.showToast('♻️ Aplicación restablecida de fábrica');
+            setTimeout(() => location.reload(), 1500);
+        }).catch(err => {
+            console.error(err);
+            alert('Error al borrar datos: ' + err.message);
+        });
+    },
+
+    // --- Helper Functions ---
+
+    logInventoryMovement(type, item) {
+        let details = '';
+        if (type === 'EDIT') details = 'Producto actualizado';
+        else if (type === 'ADD') details = 'Ingreso de inventario';
+        else if (type === 'DELETE') details = 'Egreso manual';
+        else if (type === 'SOLD') details = 'Venta registrada';
+
+        db.collection('inventory_logs').add({
+            type: type, // 'ADD', 'DELETE', 'EDIT', 'SOLD'
+            sku: item.sku || 'Unknown',
+            album: item.album || 'Unknown',
+            artist: item.artist || 'Unknown',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            details: details
+        }).catch(err => console.error("Error logging movement:", err));
+    },
+
+    openInventoryLogModal() {
+        // Fetch logs
+        db.collection('inventory_logs').orderBy('timestamp', 'desc').limit(50).get().then(snapshot => {
+            const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const html = `
+                <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fadeIn">
+                        <div class="flex justify-between items-center mb-6 shrink-0">
+                            <h3 class="font-display text-2xl font-bold text-brand-dark flex items-center gap-2">
+                                <i class="ph-bold ph-clock-counter-clockwise text-brand-orange"></i> Historial de Movimientos
+                            </h3>
+                            <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                                <i class="ph-bold ph-x text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex-1 overflow-y-auto custom-scrollbar rounded-xl border border-slate-100">
+                             <table class="w-full text-left">
+                                <thead class="bg-slate-50 sticky top-0 z-10 text-xs uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Fecha</th>
+                                        <th class="p-4">Tipo</th>
+                                        <th class="p-4">Item</th>
+                                        <th class="p-4">SKU</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50 text-sm">
+                                    ${logs.map(log => {
+                let badgeClass = 'bg-slate-100 text-slate-600';
+                if (log.type === 'ADD') badgeClass = 'bg-green-100 text-green-700';
+                if (log.type === 'DELETE') badgeClass = 'bg-red-100 text-red-700';
+                if (log.type === 'EDIT') badgeClass = 'bg-blue-100 text-blue-700';
+                if (log.type === 'SOLD') badgeClass = 'bg-purple-100 text-purple-700';
+
+                const date = log.timestamp ? (log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp)) : new Date();
+
+                return `
+                                        <tr>
+                                            <td class="p-4 text-slate-500 whitespace-nowrap">
+                                                ${date.toLocaleDateString()} <span class="text-xs text-slate-400 opacity-75">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </td>
+                                            <td class="p-4">
+                                                <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${badgeClass}">${log.type}</span>
+                                            </td>
+                                            <td class="p-4">
+                                                <div class="font-bold text-brand-dark">${log.album}</div>
+                                                <div class="text-xs text-slate-500">${log.artist}</div>
+                                            </td>
+                                            <td class="p-4 font-mono text-xs text-slate-400">${log.sku}</td>
+                                        </tr>
+                                        `;
+            }).join('')}
+                                    ${logs.length === 0 ? '<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">No hay movimientos registrados.</td></tr>' : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', html);
+        });
+    },
+
+    // --- UTILS ---
+    formatCurrency(amount) {
+        return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(amount);
+    },
+
+    formatDate(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    },
+
+    getMonthName(monthIndex) {
+        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        return months[monthIndex];
+    },
+
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    },
+
+    showToast(message) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toast-message').innerText = message;
+        toast.classList.remove('opacity-0', '-translate-y-20', 'md:translate-y-20');
+        setTimeout(() => {
+            toast.classList.add('opacity-0', '-translate-y-20', 'md:translate-y-20');
+        }, 3000);
+    },
+
+    setupNavigation() {
+        // Navigation is handled via inline onclick events in HTML
+        // This function is kept for compatibility with init()
+    },
+
+    setupMobileMenu() {
+        // Mobile menu setup
+    },
+
+    toggleMobileMenu() {
+        const menu = document.getElementById('mobile-menu');
+        const overlay = document.getElementById('mobile-menu-overlay');
+
+        if (!menu || !overlay) return;
+
+        if (menu.classList.contains('translate-y-full')) {
+            // Open
+            menu.classList.remove('translate-y-full');
+            overlay.classList.remove('hidden');
+        } else {
+            // Close
+            menu.classList.add('translate-y-full');
+            overlay.classList.add('hidden');
+        }
+    },
+
+    // --- LOGIC ---
+
+    // Calculates the VAT component (20% of gross) if VAT is active
+    getVatComponent(amount) {
+        if (!this.state.vatActive) return 0;
+        const value = parseFloat(amount) || 0;
+        return value * 0.20;
+    },
+
+    getNetPrice(amount) {
+        if (!this.state.vatActive) return amount;
+        return amount * 0.80;
+    },
+
+    // 50,000 DKK Threshold Logic (Rolling 12 months)
+    getRolling12MonthSales() {
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+        return this.state.sales
+            .filter(s => new Date(s.date) >= oneYearAgo)
+            .reduce((sum, s) => sum + this.getNetPrice(s.total), 0);
+    },
+
+    // --- VIEWS ---
+
+    toggleMonthFilter(monthIndex) {
+        const index = this.state.filterMonths.indexOf(monthIndex);
+        if (index === -1) {
+            this.state.filterMonths.push(monthIndex);
+        } else {
+            // Prevent deselecting the last month (always keep at least one)
+            if (this.state.filterMonths.length > 1) {
+                this.state.filterMonths.splice(index, 1);
+            }
+        }
+        this.state.filterMonths.sort((a, b) => a - b);
+        this.refreshCurrentView();
+    },
+
+    renderDashboard(container) {
+        // Calculate Metrics based on Filters
+        const selectedMonths = this.state.filterMonths;
+        const currentYear = this.state.filterYear;
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+        const filteredSales = this.state.sales.filter(s => {
+            const d = new Date(s.date);
+            return d.getFullYear() === currentYear && selectedMonths.includes(d.getMonth());
+        });
+
+        // Sort sales by date descending (newest first)
+        const sortedSales = [...filteredSales].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // Financial Calculations
+        const totalRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+
+        // Calculate Partners Share (Cost of goods for consignment items)
+        const partnersShare = filteredSales.reduce((sum, s) => {
+            const owner = s.owner || '';
+            // If owner is NOT El Cuartito, checking case insensitive
+            if (owner && owner.toLowerCase() !== 'el cuartito') {
+                // It's a consignment. Cost goes to partner.
+                return sum + (Number(s.cost) || 0);
+            }
+            return sum;
+        }, 0);
+
+        // Calculate Tax (VAT) - Simplified estimation based on total revenue if VAT active
+        const taxAmount = this.state.vatActive ? (totalRevenue - (totalRevenue / 1.25)) : 0; // Assuming 25% VAT included
+
+        // El Cuartito Share = Revenue - Partners Share - Tax
+        const cuartitoShare = totalRevenue - partnersShare - taxAmount;
+
+        // Stock Metrics
+        const totalStockValueSale = this.state.inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
+        const totalStockValueCost = this.state.inventory.reduce((sum, i) => sum + (i.cost * i.stock), 0);
+        const totalItems = this.state.inventory.reduce((sum, i) => sum + i.stock, 0);
+
+        const periodText = selectedMonths.length === 12
+            ? `Año ${currentYear}`
+            : `${selectedMonths.map(m => this.getMonthName(m)).join(', ')} ${currentYear}`;
+
+        const html = `
+            <div class="max-w-7xl mx-auto space-y-6 pb-24 md:pb-8 px-4 md:px-8 pt-6">
+                <!-- Header -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div class="flex items-center gap-4">
+                        <button onclick="app.navigate('dashboard')" class="w-12 h-12 bg-brand-orange rounded-full flex items-center justify-center text-white text-2xl shadow-lg shadow-brand-orange/30 hover:scale-105 transition-transform">
+                            <i class="ph-fill ph-vinyl-record"></i>
+                        </button>
+                        <div>
+                            <h2 class="font-display text-3xl font-bold text-brand-dark">Dashboard</h2>
+                            <p class="text-slate-500">Resumen de <span class="font-bold text-brand-orange">${periodText}</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Date Selectors -->
+                    <!-- Date Selectors -->
+                    <div class="flex flex-wrap md:flex-nowrap items-center gap-3">
+                         <div class="bg-white p-1 rounded-lg border border-orange-100 shadow-sm">
+                            <select id="dashboard-year" onchange="app.updateFilter('year', this.value)" class="bg-transparent text-sm font-bold text-brand-dark p-2 outline-none cursor-pointer">
+                                <option value="2024" ${this.state.filterYear === 2024 ? 'selected' : ''}>2024</option>
+                                <option value="2025" ${this.state.filterYear === 2025 ? 'selected' : ''}>2025</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            ${monthNames.map((m, i) => `
+                                <button onclick="app.toggleMonthFilter(${i})" 
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${selectedMonths.includes(i) ? 'bg-brand-orange text-white shadow-brand-orange/30' : 'bg-white border border-slate-100 text-slate-400 hover:text-brand-dark hover:bg-slate-50'}">
+                                    ${m}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions (Top) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <button onclick="app.openAddSaleModal()" class="bg-white p-3 rounded-xl border border-slate-200 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center gap-3 shadow-sm group">
+                        <div class="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-brand-orange group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                            <i class="ph-bold ph-plus-circle text-lg"></i>
+                        </div>
+                        <span class="font-bold text-sm">Nueva Venta</span>
+                    </button>
+                    <button onclick="app.openAddVinylModal()" class="bg-white p-3 rounded-xl border border-slate-200 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center gap-3 shadow-sm group">
+                        <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                            <i class="ph-bold ph-disc text-lg"></i>
+                        </div>
+                        <span class="font-bold text-sm">Agregar Disco</span>
+                    </button>
+                    <button onclick="app.openAddExpenseModal()" class="bg-white p-3 rounded-xl border border-slate-200 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center gap-3 shadow-sm group">
+                        <div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors">
+                            <i class="ph-bold ph-receipt text-lg"></i>
+                        </div>
+                        <span class="font-bold text-sm">Registrar Gasto</span>
+                    </button>
+                    <button onclick="app.openAddConsignorModal()" class="bg-white p-3 rounded-xl border border-slate-200 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center gap-3 shadow-sm group">
+                        <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors">
+                            <i class="ph-bold ph-users text-lg"></i>
+                        </div>
+                        <span class="font-bold text-sm">Nuevo Socio</span>
+                    </button>
+                </div>
+
+                <!-- Main Metrics Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <!-- Financial Breakdown -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-lg text-brand-dark mb-4 flex items-center gap-2">
+                            <i class="ph-fill ph-chart-pie-slice text-brand-orange"></i> Desglose Financiero
+                        </h3>
+                        
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <p class="text-sm text-slate-500 uppercase font-bold">Ventas Totales</p>
+                                <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalRevenue)}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs text-slate-400 uppercase font-bold">Ganancia Neta</p>
+                                <p class="text-xl font-bold text-green-600">${this.formatCurrency(cuartitoShare)}</p>
+                            </div>
+                        
+                        <!-- VAT Limit Progress -->
+                        <!-- VAT Limit Progress -->
+                        <div class="mt-8 pt-6 border-t border-slate-100">
+                             <div class="flex justify-between items-end mb-3">
+                                <div>
+                                    <p class="text-xs text-brand-dark uppercase font-bold tracking-wider mb-1">Límite VAT (50.000 kr)</p>
+                                    <p class="text-[10px] text-slate-400 font-medium">Ventas acumuladas (12 meses)</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-2xl font-display font-bold text-brand-dark">${Math.min(((totalRevenue / 50000) * 100).toFixed(1), 100)}<span class="text-sm text-slate-400 ml-0.5">%</span></span>
+                                </div>
+                            </div>
+                            <div class="h-5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
+                                <!-- Marker for 50k -->
+                                <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-red-300 z-10 opacity-50"></div>
+                                <div class="h-full bg-gradient-to-r from-brand-orange via-orange-400 to-red-500 transition-all duration-1000 ease-out shadow-[0_2px_10px_rgba(249,115,22,0.3)]" style="width: ${Math.min(((totalRevenue / 50000) * 100), 100)}%">
+                                    <div class="w-full h-full opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9InN0cmlwZXMiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDAgMEgyMHY0MHptMjAgLTIwTDIwIDIwHDAiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjc3RyaXBlcykiLz48L3N2Zz4')] animate-[slide_2s_linear_infinite]"></div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mt-3">
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">0 kr</p>
+                                <p class="text-xs text-brand-orange font-bold bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                                    ${totalRevenue >= 50000 ? '⚠️ Límite Alcanzado' : `Faltan ${this.formatCurrency(50000 - totalRevenue)}`}
+                                </p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">50.000 kr</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
+                                <span class="text-sm font-bold text-green-700">El Cuartito</span>
+                                <span class="font-bold text-green-700">${this.formatCurrency(cuartitoShare)}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                <span class="text-sm font-bold text-blue-700">Socios (Pagos)</span>
+                                <span class="font-bold text-blue-700">${this.formatCurrency(partnersShare)}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                <span class="text-sm font-bold text-slate-600">Impuestos (Estimado)</span>
+                                <span class="font-bold text-slate-600">${this.formatCurrency(taxAmount)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stock Overview -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-lg text-brand-dark mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-stack text-blue-500"></i> Estado del Stock
+                            </h3>
+                            
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                                    <p class="text-xs text-slate-500 font-bold uppercase">Valor Venta</p>
+                                    <p class="text-xl font-bold text-brand-dark">${this.formatCurrency(totalStockValueSale)}</p>
+                                </div>
+                                <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                                    <p class="text-xs text-slate-500 font-bold uppercase">Valor Costo</p>
+                                    <p class="text-xl font-bold text-slate-600">${this.formatCurrency(totalStockValueCost)}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-purple-50 rounded-xl border border-purple-100 flex justify-between items-center mt-auto">
+                            <span class="text-sm font-bold text-purple-700 uppercase">Total Discos</span>
+                            <span class="text-2xl font-bold text-purple-700">${totalItems}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h4 class="font-bold text-sm text-slate-500 uppercase mb-4 text-center">Por Género</h4>
+                        <div class="h-40 flex items-center justify-center">
+                            <canvas id="genreChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h4 class="font-bold text-sm text-slate-500 uppercase mb-4 text-center">Por Método Pago</h4>
+                        <div class="h-40 flex items-center justify-center">
+                            <canvas id="paymentChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <h4 class="font-bold text-sm text-slate-500 uppercase mb-4 text-center">Por Canal</h4>
+                        <div class="h-40 flex items-center justify-center">
+                            <canvas id="channelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Sales -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-brand-dark">Últimas Ventas</h3>
+                        <button onclick="app.navigate('sales')" class="text-sm font-bold text-brand-orange hover:underline">Ver todas</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-xs text-slate-400 border-b border-slate-100">
+                                    <th class="py-2 font-bold uppercase">Items</th>
+                                    <th class="py-2 font-bold uppercase">Fecha</th>
+                                    <th class="py-2 font-bold uppercase text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-sm">
+                                ${sortedSales.slice(0, 5).map(sale => `
+                                    <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                                        <td class="py-3 font-medium text-brand-dark max-w-[200px] truncate">
+                                            ${sale.album || (sale.items && sale.items[0] ? sale.items[0].album : 'Venta rápida')}
+                                        </td>
+                                        <td class="py-3 text-slate-500">${this.formatDate(sale.date)}</td>
+                                        <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(sale.total)}</td>
+                                    </tr>
+                                `).join('') || '<tr><td colspan="3" class="text-center py-4 text-slate-400">No hay ventas recientes</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+        this.renderDashboardCharts(filteredSales);
+    },
+
+    renderInventoryCart() {
+        const container = document.getElementById('inventory-cart-container');
+        if (!container) return;
+
+        if (this.state.cart.length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+        container.classList.remove('hidden');
+
+        const itemsHtml = this.state.cart.map((item, index) => `
+            <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                <div class="truncate pr-2">
+                    <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
+                    <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(item.price)}</p>
+                </div>
+                <button onclick="app.removeFromCart(${index})" class="text-red-400 hover:text-red-600">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+             <div id="cart-widget" class="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                        <i class="ph-fill ph-shopping-cart text-brand-orange"></i> Carrito 
+                        <span class="bg-brand-orange text-white text-xs px-1.5 py-0.5 rounded-full">${this.state.cart.length}</span>
+                    </h3>
+                    <button onclick="app.clearCart()" class="text-xs text-red-500 font-bold hover:underline">Vaciar</button>
+                </div>
+                <div class="space-y-2 mb-4 max-h-40 overflow-y-auto text-sm custom-scrollbar">
+                    ${itemsHtml}
+                </div>
+                <div class="pt-3 border-t border-slate-50 flex justify-between items-center mb-3">
+                     <span class="text-xs font-bold text-slate-500">Total</span>
+                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
+                </div>
+                <button onclick="app.openCheckoutModal()" class="w-full py-2 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
+                    Finalizar Venta
+                </button>
+            </div>
+        `;
+    },
+
+    renderInventoryContent(container, filteredInventory, allGenres, allOwners, allStorage) {
+        // CONTENT AREA (Grid/List)
+        container.innerHTML = `
+            ${this.state.viewMode === 'grid' ? `
+                <!-- GRID VIEW -->
+                ${
+                // FOLDER LOGIC: If Grid Mode + No Specific Filter is active -> Show Folders
+                (this.state.filterGenre === 'all' && this.state.filterOwner === 'all' && this.state.filterLabel === 'all' && this.state.filterStorage === 'all' && this.state.inventorySearch === '') ? `
+                    
+                    <div class="space-y-8 animate-fade-in">
+                        <!-- Genres Folder -->
+                        <div>
+                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-music-notes-simple text-brand-orange"></i> Géneros
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                ${allGenres.map(g => `
+                                    <div onclick="app.navigateInventoryFolder('genre', '${g}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                        <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3 text-brand-orange group-hover:scale-110 transition-transform">
+                                            <i class="ph-bold ph-folder-notch text-2xl"></i>
+                                        </div>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${g}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.genre === g).length} items</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Owners Folder -->
+                         <div>
+                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-users text-blue-500"></i> Dueños
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                ${allOwners.map(o => `
+                                    <div onclick="app.navigateInventoryFolder('owner', '${o}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                        <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
+                                            <i class="ph-bold ph-folder-user text-2xl"></i>
+                                        </div>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${o}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.owner === o).length} items</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Labels Folder (Label Disquería) -->
+                         <div>
+                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-tag text-purple-500"></i> Label Disquería
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                ${allStorage.map(s => `
+                                    <div onclick="app.navigateInventoryFolder('storage', '${s.replace(/'/g, "\\'")}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                        <div class="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-500 group-hover:scale-110 transition-transform">
+                                            <i class="ph-bold ph-tag text-2xl"></i>
+                                        </div>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${s}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.storageLocation === s).length} items</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    ` : ` <!-- ITEMS GRID (Filtered) -->
+                    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 animate-fade-in">
+                        <!-- Back Button if Filtered -->
+                        ${(this.state.filterGenre !== 'all' || this.state.filterOwner !== 'all' || this.state.filterLabel !== 'all' || this.state.filterStorage !== 'all') ? `
+                            <div onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.refreshCurrentView()" 
+                                class="col-span-full mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-orange cursor-pointer w-fit pl-1 group">
+                                <div class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:bg-brand-orange group-hover:text-white group-hover:border-brand-orange transition-all shadow-sm">
+                                    <i class="ph-bold ph-arrow-left"></i>
+                                </div>
+                                <span class="text-sm font-bold">Volver a Carpetas</span>
+                            </div>
+                        ` : ''}
+
+                        ${filteredInventory.map(item => `
+                            <!-- Item Card -->
+                            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
+                                onclick="app.openProductModal('${item.sku.replace(/'/g, "\\'")}')">
+                                <div class="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-4 relative shadow-inner">
+                                     ${item.cover_image
+                        ? `<img src="${item.cover_image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
+                        : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-disc text-5xl"></i></div>`
+                    }
+                                     <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
+                                         <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                            <i class="ph-bold ph-shopping-cart text-lg"></i>
+                                         </button>
+                                         <button onclick="event.stopPropagation(); app.openProductModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                            <i class="ph-bold ph-eye text-lg"></i>
+                                         </button>
+                                         <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                            <i class="ph-bold ph-printer text-lg"></i>
+                                         </button>
+                                     </div>
+                                     <div class="absolute top-2 right-2">
+                                         ${this.getStatusBadge(item.status)}
+                                     </div>
+                                </div>
+                                <div class="flex-1 flex flex-col">
+                                    <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${item.album}">${item.album}</h3>
+                                    <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${item.artist}</p>
+                                    <div class="mt-auto flex justify-between items-center pt-3 border-t border-slate-50">
+                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(item.price)}</span>
+                                        <span class="text-xs font-bold ${item.stock > 0 ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'} px-2 py-1 rounded-md">
+                                            Stock: ${item.stock}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            ` : `
+                <!-- LIST VIEW (Table) -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden relative">
+                    <!-- Bulk Action Bar -->
+                    ${this.state.selectedItems.size > 0 ? `
+                        <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-fade-in">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-sm bg-white/10 px-3 py-1 rounded-lg">${this.state.selectedItems.size} seleccionados</span>
+                                <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="app.addSelectionToCart()" class="bg-brand-orange text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
+                                    <i class="ph-bold ph-shopping-cart"></i> Agregar al Carrito
+                                </button>
+                                <button onclick="app.deleteSelection()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-red-600 transition-colors flex items-center gap-2">
+                                    <i class="ph-bold ph-trash"></i> Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <table class="w-full text-left">
+                        <thead class="bg-orange-50/50 border-b border-orange-100 text-slate-500 font-bold uppercase text-xs">
+                            <tr>
+                                <th class="p-4 w-10">
+                                    <input type="checkbox" onchange="app.toggleSelectAll()" 
+                                        class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
+                                        ${filteredInventory.length > 0 && filteredInventory.every(i => this.state.selectedItems.has(i.sku)) ? 'checked' : ''}>
+                                </th>
+                                <th class="p-4 rounded-tl-2xl">Disco</th>
+                                <th class="p-4">Sello</th>
+                                <th class="p-4">Estado</th>
+                                <th class="p-4">Precio</th>
+                                <th class="p-4">Stock</th>
+                                <th class="p-4 text-right rounded-tr-2xl">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50">
+                            ${filteredInventory.map(item => `
+                                <tr class="hover:bg-orange-50/30 transition-colors group cursor-pointer relative ${this.state.selectedItems.has(item.sku) ? 'bg-orange-50/50' : ''}" 
+                                    onclick="app.openProductModal('${item.sku.replace(/'/g, "\\'")}')">
+                                    <td class="p-4" onclick="event.stopPropagation()">
+                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\'")}')" 
+                                            class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
+                                            ${this.state.selectedItems.has(item.sku) ? 'checked' : ''}>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-sm border border-slate-100">
+                                                ${item.cover_image
+                            ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
+                            : `<i class="ph-fill ph-disc text-xl"></i>`
+                        }
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-brand-dark text-[15px] truncate max-w-[200px]" title="${item.album}">${item.album}</div>
+                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[200px]">${item.artist}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-sm text-slate-500 font-medium max-w-[100px] truncate">${item.label || '-'}</td>
+                                    <td class="p-4">${this.getStatusBadge(item.status)}</td>
+                                    <td class="p-4 font-bold text-brand-dark font-display">${this.formatCurrency(item.price)}</td>
+                                    <td class="p-4">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
+                                            ${item.stock}
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-right" onclick="event.stopPropagation()">
+                                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onclick="app.openAddVinylModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
+                                                <i class="ph-bold ph-pencil-simple"></i>
+                                            </button>
+                                            <button onclick="app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir al Carrito">
+                                                <i class="ph-bold ph-shopping-cart"></i>
+                                            </button>
+                                            <button onclick="app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Imprimir Etiqueta">
+                                                <i class="ph-bold ph-printer"></i>
+                                            </button>
+                                            <button onclick="app.deleteVinyl('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
+                                                <i class="ph-bold ph-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `}
+        `;
+    },
+
+    renderInventory(container) {
+        // Collect unique values for dynamic filters
+        const allGenres = [...new Set(this.state.inventory.map(i => i.genre).filter(Boolean))].sort();
+        const allOwners = [...new Set(this.state.inventory.map(i => i.owner).filter(Boolean))].sort();
+        const allLabels = [...new Set(this.state.inventory.map(i => i.label).filter(Boolean))].sort();
+        const allStorage = [...new Set(this.state.inventory.map(i => i.storageLocation).filter(Boolean))].sort();
+
+        const filteredInventory = this.state.inventory.filter(item => {
+            const search = this.state.inventorySearch.toLowerCase();
+            const matchesSearch = item.artist.toLowerCase().includes(search) ||
+                item.album.toLowerCase().includes(search) ||
+                item.sku.toLowerCase().includes(search);
+
+            const currentGenreFilter = this.state.filterGenre || 'all';
+            const currentOwnerFilter = this.state.filterOwner || 'all';
+            const currentLabelFilter = this.state.filterLabel || 'all';
+            const currentStorageFilter = this.state.filterStorage || 'all';
+
+            const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
+            const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
+            const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
+            const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
+
+            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage;
+        });
+
+        // Sort Logic
+        const sortBy = this.state.sortBy || 'dateDesc';
+        filteredInventory.sort((a, b) => {
+            if (sortBy === 'priceDesc') return (b.price || 0) - (a.price || 0);
+            if (sortBy === 'priceAsc') return (a.price || 0) - (b.price || 0);
+            if (sortBy === 'stockDesc') return (b.stock || 0) - (a.stock || 0);
+            const dateA = a.created_at ? (a.created_at.seconds ? a.created_at.seconds * 1000 : new Date(a.created_at).getTime()) : 0;
+            const dateB = b.created_at ? (b.created_at.seconds ? b.created_at.seconds * 1000 : new Date(b.created_at).getTime()) : 0;
+            if (sortBy === 'dateDesc') return dateB - dateA;
+            if (sortBy === 'dateAsc') return dateA - dateB;
+            return 0;
+        });
+
+        // 1. Static Layout Init
+        if (!document.getElementById('inventory-layout-root')) {
+            container.innerHTML = `
+                <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
+                    <!-- Header (Search) -->
+                    <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
+                         <div class="flex justify-between items-center mb-4">
+                            <div><h2 class="font-display text-2xl font-bold text-brand-dark">Inventario</h2></div>
+                             <div class="flex gap-2">
+                                <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors">
+                                    <i class="ph-bold ph-clock-counter-clockwise text-2xl"></i>
+                                </button>
+                                <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
+                                    <i class="ph-bold ph-plus text-2xl"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="relative group">
+                            <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-orange transition-colors text-lg"></i>
+                            <input type="text" placeholder="Buscar artista, álbum, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium">
+                        </div>
+                    </div>
+
+                    <!-- Main Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mt-6">
+                        <!-- Left Sidebar -->
+                        <div class="hidden lg:block lg:col-span-1 space-y-6">
+                            <div id="inventory-cart-container" class="hidden"></div>
+                            <div id="inventory-filters-container"></div>
+                        </div>
+                        <!-- Content -->
+                        <div class="lg:col-span-3">
+                            <div class="flex justify-end mb-4 hidden lg:flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-400 uppercase mr-2">Vista:</span>
+                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400'}"><i class="ph-bold ph-list-dashes text-lg"></i></button>
+                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400'}"><i class="ph-bold ph-squares-four text-lg"></i></button>
+                            </div>
+                            <div class="space-y-4 md:hidden">
+                                <!-- Mobile Items (Simplified) -->
+                                ${this.state.inventory.map(item => `<!-- Mobile Card Placeholder - Handled by renderInventoryContent actually? No, duplicate logic. Let's merge mobile into renderInventoryContent -->`).join('')} 
+                                <!-- Actually, let's let renderInventoryContent handle ALL content including mobile -->
+                            </div>
+                            <div id="inventory-content-container"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Render Filters (Once or Update?)
+            // Filters rely on 'selected' attributes so they might need re-render on state change.
+            // But they are less frequent. Let's render them here or in update.
+        }
+
+        // 2. Dynamic Updates
+        this.renderInventoryCart();
+
+        // Filters (Re-render to update counts/selected state)
+        const filtersContainer = document.getElementById('inventory-filters-container');
+        if (filtersContainer) {
+            filtersContainer.innerHTML = `
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 sticky top-24">
+                    <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
+                            <select onchange="app.state.sortBy = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-medium outline-none focus:border-brand-orange">
+                                <option value="dateDesc" ${this.state.sortBy === 'dateDesc' ? 'selected' : ''}>Más Recientes</option>
+                                <option value="dateAsc" ${this.state.sortBy === 'dateAsc' ? 'selected' : ''}>Más Antiguos</option>
+                                <option value="priceDesc" ${this.state.sortBy === 'priceDesc' ? 'selected' : ''}>Precio: Mayor a Menor</option>
+                                <option value="priceAsc" ${this.state.sortBy === 'priceAsc' ? 'selected' : ''}>Precio: Menor a Mayor</option>
+                                <option value="stockDesc" ${this.state.sortBy === 'stockDesc' ? 'selected' : ''}>Stock: Mayor a Menor</option>
+                            </select>
+                        </div>
+                        <hr class="border-slate-50">
+                        <!-- Simplified Filters -->
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Género</label>
+                            <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
+                                <option value="all">Todos</option>
+                                ${allGenres.map(g => `<option value="${g}" ${this.state.filterGenre === g ? 'selected' : ''}>${g}</option>`).join('')}
+                            </select>
+                        </div>
+                         <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Label Disquería</label>
+                            <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
+                                <option value="all">Todas</option>
+                                ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                         <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
+                            <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
+                                <option value="all">Todos</option>
+                                ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Dueño</label>
+                            <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
+                                <option value="all">Todos</option>
+                                ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Content (Grid/List)
+        const contentContainer = document.getElementById('inventory-content-container');
+        if (contentContainer) {
+            this.renderInventoryContent(contentContainer, filteredInventory, allGenres, allOwners, allStorage);
+        }
+    },
+
+    getStatusBadge(status) {
+        const colors = {
+            'NM': 'bg-green-100 text-green-700 border-green-200',
+            'VG+': 'bg-blue-100 text-blue-700 border-blue-200',
+            'VG': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+            'G': 'bg-orange-100 text-orange-700 border-orange-200',
+            'B': 'bg-red-100 text-red-700 border-red-200',
+            'S': 'bg-purple-100 text-purple-700 border-purple-200'
+        };
+        const colorClass = colors[status] || 'bg-slate-100 text-slate-600 border-slate-200';
+        return `<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${colorClass}">${status}</span>`;
+    },
+
+    renderCharts(filteredSales, filteredExpenses) {
+        // 1. Prepare Financial Data (Selected Months)
+        const selectedMonths = this.state.filterMonths;
+        const currentYear = this.state.filterYear;
+        const labels = [];
+        const revenueData = [];
+        const expenseData = [];
+
+        selectedMonths.forEach(m => {
+            labels.push(this.getMonthName(m).substring(0, 3));
+
+            const mSales = filteredSales.filter(s => new Date(s.date).getMonth() === m).reduce((sum, s) => sum + s.total, 0);
+            const mExpenses = filteredExpenses.filter(e => new Date(e.date).getMonth() === m).reduce((sum, e) => sum + e.amount, 0);
+
+            revenueData.push(mSales);
+            expenseData.push(mExpenses);
+        });
+
+        // 2. Prepare Genre Data (Aggregated)
+        const genreCounts = {};
+        filteredSales.forEach(s => {
+            genreCounts[s.genre] = (genreCounts[s.genre] || 0) + s.quantity;
+        });
+
+        // Chart 1: Finance (Bar)
+        new Chart(document.getElementById('financeChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Ventas',
+                        data: revenueData,
+                        backgroundColor: '#F05A28',
+                        borderRadius: 6,
+                    },
+                    {
+                        label: 'Gastos',
+                        data: expenseData,
+                        backgroundColor: '#94a3b8',
+                        borderRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { grid: { color: '#f1f5f9' }, beginAtZero: true },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    },
+
+    renderDashboardCharts(filteredSales = []) {
+        const salesToUse = filteredSales.length > 0 ? filteredSales : this.state.sales;
+
+        // Helper to create doughnut chart config
+        const createConfig = (data, label) => ({
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data),
+                datasets: [{
+                    data: Object.values(data),
+                    backgroundColor: ['#F05A28', '#FDE047', '#8b5cf6', '#10b981', '#f43f5e', '#64748b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }
+                }
+            }
+        });
+
+        // 1. Genre Chart
+        const genreCounts = {};
+        salesToUse.forEach(s => {
+            const genre = s.genre || 'Desconocido';
+            genreCounts[genre] = (genreCounts[genre] || 0) + s.quantity;
+        });
+
+        if (this.genreChartInstance) this.genreChartInstance.destroy();
+        const genreCtx = document.getElementById('genreChart')?.getContext('2d');
+        if (genreCtx) this.genreChartInstance = new Chart(genreCtx, createConfig(genreCounts, 'Género'));
+
+        // 2. Payment Method Chart
+        const paymentCounts = {};
+        salesToUse.forEach(s => {
+            const payment = s.paymentMethod || 'Desconocido';
+            paymentCounts[payment] = (paymentCounts[payment] || 0) + s.quantity;
+        });
+
+        if (this.paymentChartInstance) this.paymentChartInstance.destroy();
+        const paymentCtx = document.getElementById('paymentChart')?.getContext('2d');
+        if (paymentCtx) this.paymentChartInstance = new Chart(paymentCtx, createConfig(paymentCounts, 'Pago'));
+
+        // 3. Channel Chart
+        const channelCounts = {};
+        salesToUse.forEach(s => {
+            const channel = s.channel || 'Local';
+            channelCounts[channel] = (channelCounts[channel] || 0) + s.quantity;
+        });
+
+        if (this.channelChartInstance) this.channelChartInstance.destroy();
+        const channelCtx = document.getElementById('channelChart')?.getContext('2d');
+        if (channelCtx) this.channelChartInstance = new Chart(channelCtx, createConfig(channelCounts, 'Canal'));
+    },
+
+    updateFilter(type, value) {
+        if (type === 'month') this.state.filterMonth = parseInt(value);
+        if (type === 'year') this.state.filterYear = parseInt(value);
+        this.renderDashboard(document.getElementById('app-content'));
+    },
+
+    renderSales(container) {
+        // Filter Sales
+        const currentYear = this.state.filterYear;
+        const selectedMonths = this.state.filterMonths;
+        const paymentFilter = document.getElementById('sales-payment-filter')?.value || 'all';
+        const searchTerm = this.state.salesHistorySearch.toLowerCase();
+
+        const filteredSales = this.state.sales.filter(s => {
+            const d = new Date(s.date);
+            const dateMatch = d.getFullYear() === currentYear && selectedMonths.includes(d.getMonth());
+            const paymentMatch = paymentFilter === 'all' || s.paymentMethod === paymentFilter;
+            const searchMatch = !searchTerm ||
+                s.album.toLowerCase().includes(searchTerm) ||
+                s.artist.toLowerCase().includes(searchTerm) ||
+                s.sku.toLowerCase().includes(searchTerm);
+            return dateMatch && paymentMatch && searchMatch;
+        });
+
+        const totalRevenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+        const totalProfit = filteredSales.reduce((sum, s) => {
+            const total = parseFloat(s.total) || 0;
+            let saleCost = 0;
+            if (s.items && Array.isArray(s.items)) {
+                saleCost = s.items.reduce((c, i) => c + (parseFloat(i.cost) || 0), 0);
+            } else {
+                saleCost = (parseFloat(s.cost) || 0) * (parseInt(s.quantity) || 1);
+            }
+            return sum + (total - saleCost);
+        }, 0);
+
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+        const html = `
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <!-- Header & Filters -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div>
+                        <h2 class="font-display text-2xl font-bold text-brand-dark">Gestión de Ventas</h2>
+                        <p class="text-xs text-slate-500">Periodo: <span class="font-bold text-brand-orange">${selectedMonths.map(m => this.getMonthName(m)).join(', ')} ${currentYear}</span></p>
+                    </div>
+                    
+                    <!-- Date Selectors -->
+                    <div class="flex flex-col gap-2 mt-4 md:mt-0">
+                         <div class="flex gap-2 bg-white p-1 rounded-lg border border-orange-100 shadow-sm">
+                            <select id="sales-year" onchange="app.updateFilter('year', this.value)" class="bg-transparent text-sm font-medium text-slate-600 p-2 outline-none">
+                                <option value="2024" ${this.state.filterYear === 2024 ? 'selected' : ''}>2024</option>
+                                <option value="2025" ${this.state.filterYear === 2025 ? 'selected' : ''}>2025</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-wrap gap-1 max-w-md justify-end">
+                            ${monthNames.map((m, i) => `
+                                <button onclick="app.toggleMonthFilter(${i})" 
+                                    class="px-2 py-1 rounded text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-orange text-white' : 'bg-white border border-orange-100 text-slate-400 hover:text-brand-orange'}">
+                                    ${m}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                
+                 <!-- Sales Summary Cards (Moved to Top) -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-brand-orange text-white p-5 rounded-2xl shadow-lg shadow-brand-orange/20 relative overflow-hidden">
+                        <div class="relative z-10">
+                            <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Totales</p>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(totalRevenue)}</h3>
+                        </div>
+                        <i class="ph-fill ph-trend-up absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                        <div class="relative z-10">
+                            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ganancia Neta</p>
+                            <h3 class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalProfit)}</h3>
+                        </div>
+                        <i class="ph-fill ph-coins absolute -right-4 -bottom-4 text-8xl text-brand-orange/5"></i>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-8">
+                <!-- Left Column: Forms & Cart (WIDER: col-span-2) -->
+                <div class="md:col-span-2 space-y-6">
+                    
+                    <!-- 1. CART WIDGET (Priority if items exist) -->
+                    ${this.state.cart.length > 0 ? `
+                        <div id="cart-widget-sales" class="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                                    <i class="ph-fill ph-shopping-cart text-brand-orange"></i> Carrito 
+                                    <span class="bg-brand-orange text-white text-xs px-2 py-0.5 rounded-full">${this.state.cart.length}</span>
+                                </h3>
+                                <button onclick="app.clearCart(); app.renderSales(document.getElementById('app-content'))" class="text-xs text-red-500 font-bold hover:underline">Vaciar</button>
+                            </div>
+                            
+                            <!-- Cart Items List -->
+                            <div class="space-y-3 mb-4 max-h-60 overflow-y-auto custom-scrollbar px-1">
+                                ${this.state.cart.map((item, index) => `
+                                    <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                        <div class="truncate pr-2">
+                                            <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
+                                            <p class="text-[10px] text-slate-500 truncate">${item.artist}</p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-bold text-xs text-brand-orange">${this.formatCurrency(item.price)}</span>
+                                            <button onclick="app.removeFromCart(${index}); app.renderSales(document.getElementById('app-content'))" class="text-slate-400 hover:text-red-500">
+                                                <i class="ph-bold ph-x"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+
+                            <!-- Cart Total -->
+                            <div class="pt-3 border-t border-slate-100 flex justify-between items-center mb-4">
+                                <span class="text-sm font-bold text-slate-500">Total a Pagar</span>
+                                <span class="font-display font-bold text-brand-dark text-xl">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
+                            </div>
+
+                            <!-- Checkout Form (Embedded) -->
+                            <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <p class="text-xs font-bold text-slate-400 uppercase mb-2">Datos de Venta</p>
+                                
+                                <input type="text" id="cart-customer-name" placeholder="Cliente (Opcional)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                <input type="email" id="cart-customer-email" placeholder="Email (Opcional)" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                
+                                <div class="grid grid-cols-2 gap-2">
+                                    <select id="cart-payment" class="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                        <option value="MobilePay">MobilePay</option>
+                                        <option value="Efectivo">Efectivo</option>
+                                        <option value="Tarjeta">Tarjeta</option>
+                                    </select>
+                                    <select id="cart-channel" class="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                        <option value="Tienda">Tienda</option>
+                                        <option value="Discogs">Discogs</option>
+                                        <option value="Feria">Feria</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" id="cart-invoice" class="rounded text-brand-orange focus:ring-brand-orange">
+                                    <label for="cart-invoice" class="text-xs text-slate-500">Solicitar Factura</label>
+                                </div>
+                            </div>
+
+                            <button onclick="app.handleSalesViewCheckout()" class="w-full mt-4 py-3 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
+                                <i class="ph-bold ph-check"></i> Confirmar Venta (${this.state.cart.length})
+                            </button>
+                        </div>
+                    ` : `
+                        <!-- 2. MANUAL SALE FORM (If Cart is Empty) -->
+                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                            <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+                                <i class="ph-fill ph-cash-register text-6xl text-brand-orange"></i>
+                            </div>
+                            <h3 class="font-bold text-lg mb-4 text-brand-dark relative z-10">Registrar Venta</h3>
+                            
+                            <form onsubmit="app.handleSaleSubmit(event)" class="space-y-4 relative z-10">
+                                <!-- Hidden Inputs for Manual Logic -->
+                                <input type="hidden" name="sku" id="input-sku">
+                                <input type="hidden" name="genre" id="input-genre">
+                                <input type="hidden" name="artist" id="input-artist">
+                                <input type="hidden" name="album" id="input-album">
+                                <input type="hidden" name="owner" id="input-owner">
+
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Producto / Concepto</label>
+                                    <div class="relative">
+                                        <input type="text" id="sku-search" oninput="app.searchSku(this.value)" onblur="setTimeout(() => document.getElementById('sku-results').classList.add('hidden'), 200)"
+                                            placeholder="Buscar o escribir concepto..." 
+                                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm font-medium">
+                                        <div id="sku-results" class="absolute top-full left-0 w-full bg-white border border-slate-200 rounded-lg shadow-lg hidden z-50 max-h-48 overflow-y-auto"></div>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Precio</label>
+                                        <div class="relative">
+                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                            <input type="number" name="price" required min="0" step="0.01" onchange="app.updateTotal()" id="input-price"
+                                                class="w-full pl-6 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm font-bold">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Costo</label>
+                                         <div class="relative">
+                                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                            <input type="number" name="cost" id="input-cost" value="0" min="0" step="0.01"
+                                                class="w-full pl-6 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha</label>
+                                        <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ctd.</label>
+                                        <input type="number" name="quantity" value="1" min="1" required onchange="app.updateTotal()" id="input-qty"
+                                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                     <select name="paymentMethod" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none">
+                                        <option value="MobilePay">MobilePay</option>
+                                        <option value="Efectivo">Efectivo</option>
+                                        <option value="Tarjeta">Tarjeta</option>
+                                    </select>
+                                    <select name="soldAt" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none">
+                                        <option>Tienda</option>
+                                        <option>Discogs</option>
+                                        <option>Feria</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p class="text-xs font-bold text-slate-400 uppercase mb-2">Datos del Cliente (Opcional)</p>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="text" name="customerName" placeholder="Nombre del Cliente" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                        <input type="email" name="customerEmail" placeholder="Email" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <input type="checkbox" name="requestInvoice" id="check-invoice-manual" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
+                                        <label for="check-invoice-manual" class="text-xs text-slate-500 font-medium">Solicitar Factura</label>
+                                    </div>
+                                </div>
+
+                                    <button type="submit" id="btn-submit-sale" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
+                                        <i class="ph-bold ph-plus"></i> Registrar Venta Manual <span id="form-total" class="ml-2 font-mono bg-white/10 px-2 rounded">$0.00</span>
+                                    </button>
+                                </form>
+                        </div>
+                    `}
+
+                    <!-- Partners Summary (Below Form/Cart) -->
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
+                        <h3 class="font-bold text-lg mb-4 text-brand-dark">Resumen de Socios</h3>
+                         <div class="space-y-4">
+                            ${['El Cuartito', ...this.state.consignors.map(c => c.name)].map(owner => {
+            const stockCount = this.state.inventory.filter(i => i.owner === owner).reduce((sum, i) => sum + i.stock, 0);
+            const soldCount = filteredSales.reduce((sum, s) => {
+                if (s.owner === owner) return sum + (s.quantity || 1);
+                if (s.items && Array.isArray(s.items)) return sum + s.items.filter(i => i.owner === owner).length;
+                return sum;
+            }, 0);
+            const total = stockCount + soldCount;
+            const stockPercent = total > 0 ? (stockCount / total) * 100 : 0;
+            const soldPercent = total > 0 ? (soldCount / total) * 100 : 0;
+
+            return `
+                                    <div>
+                                        <div class="flex justify-between items-end mb-1">
+                                            <span class="font-bold text-sm text-brand-dark">${owner}</span>
+                                            <span class="text-xs text-slate-500">Stock: ${stockCount} | Vendidos: ${soldCount}</span>
+                                        </div>
+                                        <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                            <div style="width: ${stockPercent}%" class="h-full bg-blue-500"></div>
+                                            <div style="width: ${soldPercent}%" class="h-full bg-brand-orange"></div>
+                                        </div>
+                                    </div>
+                                `;
+        }).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: History & Stats (col-span-3) -->
+                <div class="md:col-span-3 space-y-6">
+                        <!-- Summary Cards removed from here -->
+
+                        <!-- List -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                            <div class="p-4 border-b border-orange-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                <h3 class="font-bold text-brand-dark">Historial de Ventas</h3>
+                                <div class="flex gap-2 w-full sm:w-auto">
+                                    <!-- Search History -->
+                                    <div class="relative flex-1 sm:w-48">
+                                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                        <input type="text" 
+                                            value="${this.state.salesHistorySearch}"
+                                            oninput="app.state.salesHistorySearch = this.value; app.renderSales(document.getElementById('app-content'))"
+                                            placeholder="Buscar en historial..." 
+                                            class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-brand-orange text-xs">
+                                    </div>
+                                    <!-- Payment Filter -->
+                                    <select id="sales-payment-filter" onchange="app.renderSales(document.getElementById('app-content'))" class="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-3 py-1.5 outline-none focus:border-brand-orange">
+                                        <option value="all" ${paymentFilter === 'all' ? 'selected' : ''}>Todos</option>
+                                        <option value="MobilePay" ${paymentFilter === 'MobilePay' ? 'selected' : ''}>MobilePay</option>
+                                        <option value="Efectivo" ${paymentFilter === 'Efectivo' ? 'selected' : ''}>Efectivo</option>
+                                        <option value="Tarjeta" ${paymentFilter === 'Tarjeta' ? 'selected' : ''}>Tarjeta</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
+                                        <tr>
+                                            <th class="p-4">Fecha</th>
+                                            <th class="p-4">Item</th>
+                                            <th class="p-4 text-center">Cant.</th>
+                                            <th class="p-4 text-right">Total</th>
+                                            <th class="p-4 text-center">Pago</th>
+                                            <th class="p-4 w-10"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-orange-50">
+                                        ${filteredSales.sort((a, b) => {
+            const dateA = a.date && a.date.toDate ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date && b.date.toDate ? b.date.toDate() : new Date(b.date);
+            return dateB - dateA;
+        }).map(s => `
+                                            <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                                <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
+                                                    ${this.formatDate(s.date)}
+                                                    <span class="block text-[10px] text-slate-400">${new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </td>
+                                                <td class="p-4">
+                                                    <div class="flex flex-col">
+                                                        ${s.items && s.items.length > 0 ?
+                `<span class="font-bold text-brand-dark text-sm truncate max-w-[150px]">${s.items.length} items</span>
+                                                             <span class="text-[10px] text-slate-400 truncate max-w-[150px]">${s.items.map(i => i.album).join(', ')}</span>`
+                :
+                `<span class="font-bold text-brand-dark text-sm truncate max-w-[150px]">${s.album || 'Venta Manual'}</span>
+                                                             <span class="text-[10px] text-slate-400 truncate max-w-[150px]">${s.artist || '-'}</span>`
+            }
+                                                    </div>
+                                                </td>
+                                                <td class="p-4 text-center text-sm text-slate-600">${s.quantity || (s.items ? s.items.length : 1)}</td>
+                                                <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency(s.total)}</td>
+                                                <td class="p-4 text-center">
+                                                    <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">${s.paymentMethod}</span>
+                                                </td>
+                                                <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                                    <button onclick="app.deleteSale('${s.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Venta">
+                                                        <i class="ph-fill ph-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                        ${filteredSales.length === 0 ? `
+                                            <tr>
+                                                <td colspan="6" class="p-8 text-center text-slate-400 italic">No hay ventas registradas en este periodo.</td>
+                                            </tr>
+                                        ` : ''}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+
+        // Restore focus
+        const searchInput = container.querySelector('input[placeholder="Buscar en historial..."]');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+        }
+    },
+
+
+
+    searchSku(query) {
+        const resultsDiv = document.getElementById('sku-results');
+        if (query.length < 2) {
+            resultsDiv.classList.add('hidden');
+            return;
+        }
+
+        const matches = this.state.inventory.filter(i =>
+            i.artist.toLowerCase().includes(query.toLowerCase()) ||
+            i.album.toLowerCase().includes(query.toLowerCase()) ||
+            i.sku.toLowerCase().includes(query.toLowerCase())
+        );
+
+        if (matches.length > 0) {
+            resultsDiv.innerHTML = matches.map(item => `
+                <div onclick="app.selectSku('${item.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-sm text-brand-dark">${item.album}</p>
+                        <p class="text-xs text-slate-500">${item.artist}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(item.price)}</p>
+                        <p class="text-xs ${item.stock > 0 ? 'text-green-500' : 'text-red-500'}">Stock: ${item.stock}</p>
+                    </div>
+                </div>
+            `).join('');
+            resultsDiv.classList.remove('hidden');
+        } else {
+            resultsDiv.classList.add('hidden');
+        }
+    },
+
+    selectSku(sku) {
+        const item = this.state.inventory.find(i => i.sku === sku);
+        if (!item) return;
+
+        // Populate inputs
+        const priceInput = document.getElementById('input-price');
+        const qtyInput = document.getElementById('input-qty');
+        const totalSpan = document.getElementById('form-total');
+
+        if (priceInput) priceInput.value = item.price;
+        if (qtyInput) qtyInput.value = 1;
+
+        // Fill Hidden Inputs
+        document.getElementById('input-sku').value = item.sku;
+        document.getElementById('input-cost').value = item.cost;
+        document.getElementById('input-genre').value = item.genre;
+        document.getElementById('input-artist').value = item.artist;
+        document.getElementById('input-album').value = item.album;
+        document.getElementById('input-owner').value = item.owner;
+
+        // Hide Results (delayed to allow click)
+        setTimeout(() => {
+            const results = document.getElementById('sku-results');
+            if (results) results.classList.add('hidden');
+        }, 200);
+
+        // Update Search Bar
+        const searchInput = document.getElementById('sku-search');
+        if (searchInput) searchInput.value = `${item.artist} - ${item.album}`;
+
+        this.updateTotal();
+
+        // Stock Check for Button State
+        const btnPage = document.getElementById('btn-submit-sale');
+        const btnModal = document.getElementById('btn-submit-sale-modal');
+
+        const isOutOfStock = item.stock <= 0;
+
+        const updateButton = (btn) => {
+            if (!btn) return;
+            if (isOutOfStock) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = '<i class="ph-bold ph-warning"></i> Sin Stock';
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = '<i class="ph-bold ph-check"></i> Registrar Venta';
+            }
+        };
+
+        updateButton(btnPage);
+        updateButton(btnModal);
+
+        if (isOutOfStock) {
+            this.showToast('⚠️ Producto sin stock');
+        }
+    },
+
+    updateTotal() {
+        const price = parseFloat(document.getElementById('input-price').value) || 0;
+        const qty = parseInt(document.getElementById('input-qty').value) || 1;
+        const total = price * qty;
+        document.getElementById('form-total').innerText = this.formatCurrency(total);
+    },
+
+
+
+    openAddVinylModal(editSku = null) {
+        let item = { sku: '', artist: '', album: '', genre: 'Minimal', status: 'NM', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+        let isEdit = false;
+
+        if (editSku) {
+            const found = this.state.inventory.find(i => i.sku === editSku);
+            if (found) {
+                item = found;
+                isEdit = true;
+            }
+        }
+
+        // Auto-generate SKU for new items
+        if (!isEdit) {
+            const skuNumbers = this.state.inventory
+                .map(i => {
+                    const match = i.sku.match(/^SKU-(\d+)$/);
+                    return match ? parseInt(match[1]) : 0;
+                });
+            const maxSku = Math.max(0, ...skuNumbers);
+            item.sku = `SKU-${String(maxSku + 1).padStart(3, '0')}`;
+        }
+
+        // Custom Genres Logic
+        const defaultGenres = ['Minimal', 'Techno', 'House', 'Deep House', 'Electro'];
+        const allGenres = [...new Set([...defaultGenres, ...(this.state.customGenres || [])])];
+
+        const modalHtml = `
+            <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
+                <div class="flex justify-between items-center mb-6 shrink-0">
+                    <h3 class="font-display text-2xl font-bold text-brand-dark">${isEdit ? 'Editar Vinilo' : 'Agregar Nuevo Vinilo'}</h3>
+                    <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-8 pr-2 custom-scrollbar">
+                    
+                    <!-- Left Column: Search & Image -->
+                    <div class="md:col-span-4 space-y-6">
+                        <!-- Discogs Search -->
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                            <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange opacity-5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                            
+                            <div class="relative z-10">
+                                <div class="flex justify-between items-center mb-3">
+                                    <label class="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                        <i class="ph-fill ph-disc"></i> Buscar en Discogs
+                                    </label>
+                                    <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" class="text-xs font-bold text-brand-orange hover:underline" title="Configurar Token">
+                                        Configurar
+                                    </button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
+                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                                        <i class="ph-bold ph-magnifying-glass"></i>
+                                    </button>
+                                </div>
+                                <div id="discogs-results" class="mt-3 space-y-2 hidden max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl shadow-inner p-1"></div>
+                            </div>
+                        </div>
+
+                        <!-- Cover Preview (Large) -->
+                        <div class="aspect-square bg-slate-100 rounded-2xl border-2 border-slate-200 border-dashed flex items-center justify-center relative overflow-hidden group shadow-inner">
+                            <div id="cover-preview" class="${item.cover_image ? '' : 'hidden'} w-full h-full relative">
+                                <img src="${item.cover_image || ''}" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm">Portada</span>
+                                </div>
+                            </div>
+                             <div class="${item.cover_image ? 'hidden' : ''} text-center p-6 text-slate-300">
+                                <i class="ph-fill ph-image text-4xl mb-2"></i>
+                                <p class="text-xs font-bold uppercase">Sin Imagen</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Form Data -->
+                    <div class="md:col-span-8">
+                        <form onsubmit="app.handleAddVinyl(event, '${isEdit ? item.sku : ''}')" class="space-y-5">
+                            
+                            <!-- Hidden Fields -->
+                            <input type="hidden" name="cover_image" id="input-cover-image" value="${item.cover_image || ''}">
+                            <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
+                            <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
+                             <!-- Fixed: Add hidden SKU input for form data -->
+                            <input type="hidden" name="sku" value="${item.sku}">
+
+                            <!-- Main Info Group -->
+                             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                                <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
+                                    <i class="ph-fill ph-info text-brand-orange"></i> Información Principal
+                                </h4>
+                                
+                                <div class="grid grid-cols-2 gap-5">
+                                     <div class="col-span-2 md:col-span-1">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Artista</label>
+                                        <input name="artist" value="${item.artist}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none font-bold text-brand-dark transition-all focus:bg-white text-sm">
+                                    </div>
+                                    <div class="col-span-2 md:col-span-1">
+                                         <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Álbum</label>
+                                        <input name="album" value="${item.album}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none font-bold text-brand-dark transition-all focus:bg-white text-sm">
+                                    </div>
+                                    <div class="col-span-2 md:col-span-1">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Sello / Label</label>
+                                        <input name="label" id="input-label" value="${item.label || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm">
+                                    </div>
+                                    <div class="col-span-2 md:col-span-1">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género</label>
+                                        <select name="genre" onchange="app.checkCustomInput(this, 'custom-genre-container')" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
+                                            ${allGenres.map(g => `<option ${item.genre === g ? 'selected' : ''}>${g}</option>`).join('')}
+                                            <option value="other">Otro...</option>
+                                        </select>
+                                        <div id="custom-genre-container" class="hidden mt-2">
+                                            <input name="custom_genre" placeholder="Nuevo Género" class="w-full bg-white border border-brand-orange rounded-xl p-2 text-sm focus:outline-none">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inventory & Pricing Group -->
+                             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                                <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
+                                    <i class="ph-fill ph-currency-dollar text-green-600"></i> Inventario y Precio
+                                </h4>
+
+                                <div class="grid grid-cols-3 md:grid-cols-4 gap-4">
+                                     <div class="col-span-3 md:col-span-2">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Dueño</label>
+                                        <select name="owner" id="modal-owner" onchange="app.handlePriceChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none font-medium text-sm">
+                                            <option value="El Cuartito" ${item.owner === 'El Cuartito' ? 'selected' : ''}>El Cuartito (Propio)</option>
+                                            ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name} (${c.agreementSplit}%)</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="col-span-3 md:col-span-1">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Label Disquería</label>
+                                        <input name="storageLocation" value="${item.storageLocation || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm" placeholder="A1">
+                                    </div>
+                                    <div class="col-span-3 md:col-span-1">
+                                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado</label>
+                                        <select name="status" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
+                                            <option ${item.status === 'NM' ? 'selected' : ''}>NM</option>
+                                            <option ${item.status === 'VG+' ? 'selected' : ''}>VG+</option>
+                                            <option ${item.status === 'VG' ? 'selected' : ''}>VG</option>
+                                            <option ${item.status === 'G' ? 'selected' : ''}>G</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 bg-orange-50/50 rounded-xl border border-orange-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Costo</label>
+                                        <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost}" required oninput="app.handleCostChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-slate-600">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ganancia %</label>
+                                        <input name="margin" id="modal-margin" type="number" step="1" value="30" oninput="app.handleMarginChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-brand-orange">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Precio Final</label>
+                                        <input name="price" id="modal-price" type="number" step="0.5" value="${item.price}" required oninput="app.handlePriceChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none font-bold text-brand-dark text-lg text-center shadow-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Stock</label>
+                                        <input name="stock" type="number" value="${item.stock}" required class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none font-bold text-center shadow-sm">
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-center px-1">
+                                    <p class="text-[10px] text-slate-400" id="cost-helper">Ingresa Costo y Margen para calcular precio.</p>
+                                    <p class="text-[10px] text-slate-400 font-mono">${item.sku}</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-2 flex gap-4">
+                                <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">Cancelar</button>
+                                <button type="submit" class="flex-[2] py-3 rounded-xl bg-brand-dark hover:bg-slate-800 text-white font-bold transition-all shadow-xl shadow-brand-dark/20 hover:scale-[1.02]">
+                                    <i class="ph-bold ph-floppy-disk mr-2"></i> Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    // --- Product Detail View (Ficha) ---
+    openProductModal(sku) {
+        console.log('Attempting to open modal for:', sku);
+        try {
+            const item = this.state.inventory.find(i => i.sku === sku);
+            if (!item) {
+                console.error('Item not found:', sku);
+                alert('Error: No se encontró el disco. Intenta recargar.');
+                return;
+            }
+
+            // Remove existing if any
+            const existing = document.getElementById('modal-overlay');
+            if (existing) existing.remove();
+
+            const html = `
+                <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-fadeIn" style="animation: fadeIn 0.3s forwards;">
+                        
+                        <!-- Cover Image Header -->
+                        <div class="h-64 w-full bg-slate-100 relative group">
+                        ${item.cover_image
+                    ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
+                    : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-music-note text-6xl"></i></div>`
+                }
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                        
+                        <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm">
+                            <i class="ph-bold ph-x text-xl"></i>
+                        </button>
+
+                        <div class="absolute bottom-0 left-0 w-full p-6 text-white">
+                            <div class="flex items-center gap-2 mb-2">
+                                ${this.getStatusBadge(item.status)}
+                                <span class="text-xs font-mono opacity-70 bg-black/30 px-2 py-1 rounded">${item.sku}</span>
+                            </div>
+                            <h2 class="font-display text-2xl font-bold leading-tight drop-shadow-md mb-1">${item.album}</h2>
+                            <p class="text-lg font-medium text-orange-200 drop-shadow-sm">${item.artist}</p>
+                        </div>
+                    </div>
+
+                    <!-- Details Body -->
+                    <div class="p-6 space-y-6">
+                        <div class="grid grid-cols-2 gap-6">
+                            <div>
+                                <p class="text-xs text-slate-400 font-bold uppercase mb-1">Precio</p>
+                                <p class="text-3xl font-bold text-brand-dark">${this.formatCurrency(item.price)}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-400 font-bold uppercase mb-1">Stock</p>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xl font-bold ${item.stock > 0 ? 'text-green-600' : 'text-red-500'}">${item.stock}</span>
+                                    <span class="text-xs text-slate-400 font-medium">unidades</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 pt-4 border-t border-slate-100">
+                            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                <span class="text-sm text-slate-500 font-medium">Género</span>
+                                <span class="text-sm font-bold text-brand-dark">${item.genre}</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                <span class="text-sm text-slate-500 font-medium">Sello / Label</span>
+                                <span class="text-sm font-bold text-brand-dark text-right max-w-[60%] truncate">${item.label || '-'}</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                <span class="text-sm text-slate-500 font-medium">Dueño / Owner</span>
+                                <span class="text-sm font-bold text-brand-dark">${item.owner}</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                <span class="text-sm text-slate-500 font-medium">Ubicación / Storage</span>
+                                <span class="text-sm font-bold text-brand-dark">${item.storageLocation || '-'}</span>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex gap-3">
+                            <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.sku}')" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20">
+                                <i class="ph-bold ph-pencil-simple"></i>
+                                Editar
+                            </button>
+                            ${item.discogsUrl
+                    ? `<a href="${item.discogsUrl}" target="_blank" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
+                                    <i class="ph-bold ph-disc"></i> Discogs
+                                   </a>`
+                    : `<a href="https://www.discogs.com/search/?q=${encodeURIComponent(item.artist + ' ' + item.album)}&type=release" target="_blank" class="flex-1 bg-slate-50 text-slate-400 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                                    <i class="ph-bold ph-magnifying-glass"></i> Buscar
+                                   </a>`
+                }
+                            <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100">
+                                <i class="ph-bold ph-list-numbers"></i> Tracks
+                            </button>
+                            <button onclick="app.addToCart('${item.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20">
+                                <i class="ph-bold ph-shopping-cart"></i>
+                                Vender (Carrito)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+            document.body.insertAdjacentHTML('beforeend', html);
+
+        } catch (error) {
+            console.error('Error opening product modal:', error);
+            alert('Hubo un error al abrir la ficha. Por favor recarga la página.');
+        }
+    },
+
+    // --- End Product Detail View ---
+
+    handleCostChange() {
+        const cost = parseFloat(document.getElementById('modal-cost').value) || 0;
+        const ownerSelect = document.getElementById('modal-owner');
+        const split = ownerSelect.options[ownerSelect.selectedIndex].getAttribute('data-split');
+        const marginInput = document.getElementById('modal-margin');
+        const priceInput = document.getElementById('modal-price');
+
+        if (split) {
+            // Consignor: Price = Cost / (Split / 100)
+            const factor = parseFloat(split) / 100;
+            if (factor > 0) {
+                const price = cost / factor;
+                priceInput.value = Math.ceil(price);
+            }
+        } else {
+            // Propio: Price = Cost / (1 - Margin / 100)
+            const margin = parseFloat(marginInput.value) || 0;
+            const factor = 1 - (margin / 100);
+            if (factor > 0) {
+                const price = cost / factor;
+                priceInput.value = Math.ceil(price);
+            }
+        }
+    },
+
+    handlePriceChange() {
+        const price = parseFloat(document.getElementById('modal-price').value) || 0;
+        const ownerSelect = document.getElementById('modal-owner');
+        const split = ownerSelect.options[ownerSelect.selectedIndex].getAttribute('data-split');
+        const marginInput = document.getElementById('modal-margin');
+        const costInput = document.getElementById('modal-cost');
+        const helperText = document.getElementById('cost-helper');
+
+        if (split) {
+            // Consignor: Cost = Price * (Split / 100)
+            const factor = parseFloat(split) / 100;
+            const cost = price * factor;
+            costInput.value = Math.round(cost);
+
+            // Set Margin Display (Fixed)
+            marginInput.value = 100 - parseFloat(split);
+            marginInput.readOnly = true;
+            marginInput.classList.add('opacity-50');
+
+            if (helperText) helperText.innerText = `Consignación: ${split}% Socio`;
+        } else {
+            // Propio: Calculate Margin from Price/Cost
+            const cost = parseFloat(costInput.value) || 0;
+            if (cost > 0 && price > 0) {
+                const margin = ((price - cost) / price) * 100; // Store Margin % of Sale
+                marginInput.value = Math.round(margin);
+            }
+            marginInput.readOnly = false;
+            marginInput.classList.remove('opacity-50');
+            if (helperText) helperText.innerText = 'Modo Propio: Margen variable';
+        }
+    },
+
+    handleMarginChange() {
+        const margin = parseFloat(document.getElementById('modal-margin').value) || 0;
+        const cost = parseFloat(document.getElementById('modal-cost').value) || 0;
+        const priceInput = document.getElementById('modal-price');
+
+        // Only for Propio (Margin is editable)
+        const factor = 1 - (margin / 100);
+        if (factor > 0 && cost > 0) {
+            const price = cost / factor;
+            priceInput.value = Math.ceil(price);
+        }
+    },
+
+    checkCustomInput(select, containerId) {
+        const container = document.getElementById(containerId);
+        if (select.value === 'other') {
+            container.classList.remove('hidden');
+            container.querySelector('input').required = true;
+            container.querySelector('input').focus();
+        } else {
+            container.classList.add('hidden');
+            container.querySelector('input').required = false;
+        }
+    },
+
+    openAddSaleModal() {
+        const cartItemsSvg = this.state.cart.length > 0
+            ? this.state.cart.map(item => `
+            <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+                <div class="min-w-0 pr-2">
+                    <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
+                    <p class="text-[10px] text-slate-500">${this.formatCurrency(item.price)}</p>
+                </div>
+            </div>`).join('')
+            : '<p class="text-sm text-slate-400 italic text-center py-4">El carrito está vacío</p>';
+
+        const modalHtml = `
+        <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
+                <div class="flex justify-between items-center mb-6 shrink-0">
+                    <h3 class="font-display text-2xl font-bold text-brand-dark">Nueva Venta</h3>
+                    <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-8 pr-2 custom-scrollbar">
+                    
+                    <!-- Left Column: Cart Summary -->
+                    <div class="md:col-span-5 space-y-6 border-r border-slate-100 pr-6">
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                             <h4 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-shopping-cart text-brand-orange"></i> Carrito Actual
+                                <span class="bg-brand-dark text-white text-xs px-2 py-0.5 rounded-full">${this.state.cart.length}</span>
+                            </h4>
+                            <div class="max-h-60 overflow-y-auto mb-4 bg-white rounded-xl border border-slate-100 p-3 shadow-inner custom-scrollbar">
+                                ${cartItemsSvg}
+                            </div>
+                            ${this.state.cart.length > 0 ? `
+                                <div class="flex justify-between items-center mb-4 pt-2 border-t border-slate-200">
+                                    <span class="text-sm font-bold text-slate-500">Total</span>
+                                    <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
+                                </div>
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
+                                    <i class="ph-bold ph-check-circle"></i> Finalizar Compra Carrito
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Manual Sale Form -->
+                    <div class="md:col-span-7">
+                        <div class="mb-4">
+                            <h4 class="font-bold text-brand-dark flex items-center gap-2 mb-2">
+                                <i class="ph-fill ph-lightning text-yellow-500"></i> Venta Manual (Item Único)
+                            </h4>
+                            <p class="text-xs text-slate-500 mb-4">Usa esto para vender un item suelto fuera del inventario o rápidamente.</p>
+                        </div>
+
+                        <form onsubmit="app.handleSaleSubmit(event)" class="space-y-4">
+                            <!-- SKU Search -->
+                            <div class="relative">
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Buscar Producto</label>
+                                <div class="relative">
+                                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                    <input type="text" id="sku-search" onkeyup="app.searchSku(this.value)" placeholder="SKU / Artista..." autocomplete="off"
+                                        class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange transition-all text-sm font-medium">
+                                </div>
+                                <div id="sku-results" class="absolute w-full bg-white shadow-xl rounded-xl mt-2 max-h-60 overflow-y-auto z-50 hidden border border-orange-100"></div>
+                            </div>
+
+                            <!-- Selected Item Info -->
+                            <div class="p-4 bg-orange-50/50 rounded-2xl border border-orange-100 text-sm">
+                                <div class="flex justify-between mb-2">
+                                    <span class="text-slate-500 font-medium">Item:</span>
+                                    <span id="form-album" class="font-bold text-brand-dark text-right truncate ml-4">-</span>
+                                </div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-slate-500 font-medium">Precio:</span>
+                                    <input type="number" name="price" id="input-price" step="0.5" class="w-24 text-right font-bold text-brand-dark bg-white border border-slate-200 rounded-lg px-2 py-1 focus:border-brand-orange outline-none">
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-500 font-medium">Stock:</span>
+                                    <span id="form-stock" class="font-medium text-slate-700">-</span>
+                                </div>
+                            </div>
+
+                            <!-- Customer Info -->
+                             <div class="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                                <h4 class="text-xs font-bold text-indigo-800 uppercase flex items-center gap-2">
+                                    <i class="ph-fill ph-user"></i> Cliente
+                                </h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <input name="customerName" placeholder="Nombre" class="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-sm focus:border-indigo-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <input name="customerEmail" type="email" placeholder="Email" class="w-full bg-white border border-indigo-200 rounded-xl p-2.5 text-sm focus:border-indigo-500 outline-none">
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" name="requestInvoice" id="check-invoice" class="w-4 h-4 text-indigo-600 rounded border-indigo-300 focus:ring-indigo-500">
+                                    <label for="check-invoice" class="text-xs font-medium text-indigo-700">Solicitar Factura</label>
+                                </div>
+                             </div>
+
+                            <!-- Hidden Inputs -->
+                            <input type="hidden" name="sku" id="input-sku">
+                            <input type="hidden" name="cost" id="input-cost">
+                            <input type="hidden" name="genre" id="input-genre">
+                            <input type="hidden" name="artist" id="input-artist">
+                            <input type="hidden" name="album" id="input-album">
+                            <input type="hidden" name="owner" id="input-owner">
+                            <input type="hidden" name="quantity" id="input-qty" value="1">
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha</label>
+                                    <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                                        class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-sm font-medium">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Pago</label>
+                                    <select name="paymentMethod" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-sm font-medium">
+                                        <option value="MobilePay">MobilePay</option>
+                                        <option value="Efectivo">Efectivo</option>
+                                        <option value="Tarjeta">Tarjeta</option>
+                                        <option value="Transferencia">Transferencia</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Canal</label>
+                                <select name="soldAt" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-sm font-medium">
+                                    <option>Tienda</option>
+                                    <option>Discogs</option>
+                                    <option>Feria</option>
+                                </select>
+                            </div>
+
+                             <div class="flex items-center justify-between p-3 bg-brand-dark text-white rounded-lg">
+                                <span class="text-sm font-medium">Total</span>
+                                <span id="form-total" class="font-display font-bold text-xl">0 kr.</span>
+                            </div>
+
+                                                    <button type="submit" id="btn-submit-sale-modal" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
+                                                        <i class="ph-bold ph-check"></i>
+                                                        Registrar Venta
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Focus search
+        setTimeout(() => document.getElementById('sku-search').focus(), 100);
+    },
+
+    addToCart(sku, event) {
+        if (event) event.stopPropagation();
+
+        this.openAddSaleModal();
+        setTimeout(() => {
+            const input = document.getElementById('sku-search');
+            input.value = sku;
+            this.searchSku(sku);
+            // Auto select first result after delay
+            setTimeout(() => {
+                const firstResult = document.getElementById('sku-results').firstElementChild;
+                if (firstResult) firstResult.click();
+            }, 500);
+        }, 200);
+    },
+
+    openSaleDetailModal(saleId) {
+        const sale = this.state.sales.find(s => s.id === saleId);
+        if (!sale) return;
+
+        const date = new Date(sale.date);
+
+        const modalHtml = `
+            <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
+                    <div class="bg-brand-dark p-6 text-white relative">
+                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="absolute top-4 right-4 text-white/70 hover:text-white">
+                            <i class="ph-bold ph-x text-2xl"></i>
+                        </button>
+                        <h2 class="font-display font-bold text-2xl mb-1">Detalle de Venta</h2>
+                        <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${sale.id.slice(0, 8)}</p>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <!-- Info Grid -->
+                        <div class="grid grid-cols-2 gap-6">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Fecha y Hora</label>
+                                <p class="font-bold text-brand-dark">${date.toLocaleDateString()}</p>
+                                <p class="text-xs text-slate-500">${date.toLocaleTimeString()}</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Vendedor</label>
+                                <p class="font-bold text-brand-dark">${sale.seller || 'Sistema'}</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Cliente</label>
+                                <p class="font-bold text-brand-dark">${sale.customerName || 'No registrado'}</p>
+                                <p class="text-xs text-slate-500">${sale.customerEmail || ''}</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Canal / Pago</label>
+                                <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-600 uppercase tracking-wide mr-1">${sale.channel || 'Tienda'}</span>
+                                <span class="px-2 py-1 rounded bg-brand-orange/10 text-[10px] font-bold text-brand-orange uppercase tracking-wide">${sale.paymentMethod}</span>
+                            </div>
+                        </div>
+
+                        <!-- Items List -->
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase block mb-2">Items Vendidos</label>
+                            <div class="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                                ${sale.items && sale.items.length > 0 ? sale.items.map(item => `
+                                    <div class="p-3 flex justify-between items-center">
+                                        <div class="truncate pr-4">
+                                            <p class="font-bold text-sm text-brand-dark truncate">${item.album}</p>
+                                            <p class="text-xs text-slate-500 truncate">${item.artist}</p>
+                                        </div>
+                                        <span class="font-bold text-brand-dark text-sm">${this.formatCurrency(item.price)}</span>
+                                    </div>
+                                `).join('') : `
+                                    <div class="p-3 flex justify-between items-center">
+                                        <div class="truncate pr-4">
+                                            <p class="font-bold text-sm text-brand-dark truncate">${sale.album || 'Venta Manual'}</p>
+                                            <p class="text-xs text-slate-500 truncate">${sale.artist || '-'}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <span class="block font-bold text-brand-dark text-sm">${this.formatCurrency(sale.total / (sale.quantity || 1))}</span>
+                                            ${sale.quantity > 1 ? `<span class="text-[10px] text-slate-500">x${sale.quantity}</span>` : ''}
+                                        </div>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+
+                        <!-- Financials -->
+                        <div class="flex justify-between items-end pt-4 border-t border-slate-100">
+                             <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Nota</label>
+                                <p class="text-sm text-brand-dark">${sale.comment || 'Sin notas'}</p>
+                            </div>
+                            <div class="text-right">
+                                <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Total Venta</label>
+                                <p class="font-display font-bold text-3xl text-brand-orange">${this.formatCurrency(sale.total)}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-4 pt-2">
+                             <button onclick="document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                                Cerrar
+                            </button>
+                             <button onclick="app.deleteSale('${sale.id}'); document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-white border-2 border-red-50 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
+                                Eliminar Venta
+                            </button>
+                        </div>
+                    </div>
+                </div >
+            </div >
+    `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    navigateInventoryFolder(type, value) {
+        if (type === 'genre') this.state.filterGenre = value;
+        if (type === 'owner') this.state.filterOwner = value;
+        if (type === 'label') this.state.filterLabel = value; // assuming 'label' is 'label'
+        if (type === 'storage') this.state.filterStorage = value;
+        this.refreshCurrentView();
+    },
+
+    toggleSelection(sku) {
+        if (this.state.selectedItems.has(sku)) {
+            this.state.selectedItems.delete(sku);
+        } else {
+            this.state.selectedItems.add(sku);
+        }
+        this.refreshCurrentView();
+    },
+
+    openPrintLabelModal(sku) {
+        const item = this.state.inventory.find(i => i.sku === sku);
+        if (!item) return;
+
+        const modalHtml = `
+        <div id="print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-orange-100 overflow-hidden max-h-[90vh] flex flex-col relative">
+                
+                <!-- Header -->
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div>
+                        <h2 class="text-2xl font-display font-bold text-brand-dark">Imprimir Etiqueta</h2>
+                        <p class="text-slate-500 text-sm">Configura e imprime la etiqueta para ${item.sku}</p>
+                    </div>
+                    <button onclick="document.getElementById('print-label-modal').remove()" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="p-8 flex-1 overflow-y-auto">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Controls -->
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Comentario Personalizado</label>
+                                <textarea id="label-comment" rows="4" 
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-orange focus:ring-4 focus:ring-orange-500/10 outline-none transition-all resize-none text-sm"
+                                    placeholder="Escribe un comentario para la etiqueta (ej. Info extra, estado, precio promocional)..."
+                                    oninput="document.getElementById('preview-comment').innerText = this.value"></textarea>
+                            </div>
+                            
+                            <div class="bg-blue-50 p-4 rounded-xl flex gap-3 text-blue-700 text-sm">
+                                <i class="ph-fill ph-info text-lg shrink-0"></i>
+                                <p>La etiqueta está diseñada para 7cm x 4cm. Asegúrate de configurar la impresora con estas medidas.</p>
+                            </div>
+
+                            <button onclick="window.print()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-printer"></i>
+                                Imprimir
+                            </button>
+                        </div>
+
+                        <!-- Preview Container -->
+                        <div class="flex flex-col items-center justify-center bg-gray-100 rounded-xl p-8 border border-dashed border-gray-300">
+                            <span class="text-xs font-bold text-slate-400 uppercase mb-4">Vista Previa (7cm x 4cm)</span>
+                            
+                            <!-- THE LABEL (Print Target: Template Overlay) -->
+                            <div id="printable-label" class="bg-white relative overflow-hidden"
+                                style="width: 7cm; height: 4cm; box-sizing: border-box; font-family: 'Rockwell', 'Courier New', Courier, serif; color: black; line-height: 1;">
+                                
+                                <!-- Background Template Image (Clean) -->
+                                <img src="assets/label_clean.png" 
+                                     style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;"
+                                     alt="Label Template">
+
+                                <!-- Content Layer (Absolute Positioning) -->
+                                <div style="position: relative; z-index: 10; height: 100%; width: 100%;">
+                                    
+                                    <!-- Top Main Section -->
+                                    <div style="position: absolute; top: 4mm; left: 4mm; width: calc(100% - 8mm);">
+                                        <div style="font-size: 10pt; font-weight: bold; margin-bottom: 2px; line-height: 1.1; letter-spacing: -0.3px;">${item.album}</div>
+                                        <div style="font-size: 8pt; margin-bottom: 12px; letter-spacing: -0.2px;">${item.artist}</div>
+                                        <div style="font-size: 8pt; color: #444; font-weight: bold; font-style: italic;">${item.genre || ''}</div>
+                                    </div>
+
+                                    <!-- Comment Section -->
+                                    <div style="position: absolute; top: 21mm; left: 4mm; width: calc(100% - 8mm); height: 9mm; display: flex; align-items: start;">
+                                         <p id="preview-comment" style="font-size: 7pt; line-height: 1.4; padding-top: 3px; margin: 0; white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                                            ${/* Comment injects here */ ''}
+                                         </p>
+                                    </div>
+
+                                    <!-- Footer Section -->
+                                    <div style="position: absolute; bottom: 1.5mm; left: 4mm; width: calc(100% - 8mm);">
+                                        <div style="font-size: 11pt; font-weight: bold; letter-spacing: -0.5px; line-height: 0.9; margin-bottom: 2px;">${item.sku}</div>
+                                        <div style="font-size: 7pt; font-weight: normal; text-transform: uppercase; color: #555; line-height: 1;">${item.storageLocation || 'Sin Ubicación'}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Injected Print Styles -->
+            <style>
+                @media print {
+                    @page {
+                        size: 7cm 4cm;
+                        margin: 0;
+                    }
+                    body * {
+                        visibility: hidden;
+                    }
+                    #printable-label, #printable-label * {
+                        visibility: visible;
+                    }
+                    #printable-label {
+                        position: fixed;
+                        left: 0;
+                        top: 0;
+                        margin: 0;
+                        border: none;
+                        width: 7cm !important;
+                        height: 4cm !important;
+                        box-shadow: none;
+                        background: white !important;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    .modal-container, .modal-backdrop {
+                        display: none !important;
+                    }
+                }
+            </style>
+        </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+    toggleSelectAll() {
+        // Based on current filtered inventory
+        // Determine visible SKUs
+        // Assuming renderInventory filters the list. 
+        // We need to access the helper 'refreshCurrentView' calls 'renderInventory'.
+        // We can't easily access the internal 'filteredInventory' variable of renderInventory from here unless we duplicate logic.
+        // OR we can perform the logic again.
+
+        const currentYear = this.state.filterYear; // Not used in inventory
+        // ... Re-run filter logic ...
+        const term = this.state.inventorySearch.toLowerCase();
+        const filtered = this.state.inventory.filter(i => {
+            const matchesGenre = this.state.filterGenre === 'all' || i.genre === this.state.filterGenre;
+            const matchesOwner = this.state.filterOwner === 'all' || i.owner === this.state.filterOwner;
+            const matchesLabel = this.state.filterLabel === 'all' || i.label === this.state.filterLabel;
+            const matchesStorage = this.state.filterStorage === 'all' || i.storageLocation === this.state.filterStorage;
+            const matchesSearch = !term || i.album.toLowerCase().includes(term) || i.artist.toLowerCase().includes(term) || i.sku.toLowerCase().includes(term);
+            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesSearch;
+        });
+
+        if (this.state.selectedItems.size === filtered.length) {
+            this.state.selectedItems.clear(); // Deselect All
+        } else {
+            filtered.forEach(i => this.state.selectedItems.add(i.sku)); // Select All Visible
+        }
+        this.refreshCurrentView();
+    },
+
+    addSelectionToCart() {
+        this.state.selectedItems.forEach(sku => {
+            const item = this.state.inventory.find(i => i.sku === sku);
+            if (item && item.stock > 0) {
+                // Simple addToCart logic duplication or loop
+                // Check if already in cart
+                if (!this.state.cart.find(c => c.sku === sku)) {
+                    this.state.cart.push(item);
+                }
+            }
+        });
+        this.state.selectedItems.clear();
+        this.showToast(`${this.state.cart.length} items agregados al carrito`);
+        this.refreshCurrentView();
+    },
+
+    deleteSelection() {
+        if (!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `)) return;
+
+        const batch = db.batch();
+        const itemsToDelete = []; // Track for logging
+        this.state.selectedItems.forEach(sku => {
+            const ref = db.collection('inventory').doc(sku);
+            const item = this.state.inventory.find(i => i.sku === sku);
+            if (item) itemsToDelete.push(item);
+            batch.delete(ref);
+        });
+
+        batch.commit().then(() => {
+            this.showToast('Productos eliminados');
+            // Log deleted items
+            itemsToDelete.forEach(item => this.logInventoryMovement('DELETE', item));
+            this.state.selectedItems.clear();
+        }).catch(err => {
+            console.error(err);
+            alert('Error al eliminar');
+        });
+    }, openAddExpenseModal() {
+        // Custom Categories Logic
+        const defaultCategories = ['Alquiler', 'Servicios', 'Marketing', 'Suministros', 'Honorarios'];
+        const allCategories = [...new Set([...defaultCategories, ...(this.state.customCategories || [])])];
+
+        const modalHtml = `
+    < div id = "modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
+                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
+                <input type="hidden" name="id" id="expense-id">
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
+                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                                ${allCategories.map(c => `<option>${c}</option>`).join('')}
+                                <option value="other">Otra...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="custom-expense-category-container" class="hidden">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
+                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
+                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                        Guardar Gasto
+                    </button>
+            </form>
+        </div>
+                                        </div >
+    `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    handleAddVinyl(e, editSku) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+
+        let genre = formData.get('genre');
+        if (genre === 'other') {
+            genre = formData.get('custom_genre');
+            // Save new genre to Firestore settings
+            if (!this.state.customGenres) this.state.customGenres = [];
+            if (!this.state.customGenres.includes(genre)) {
+                const newGenres = [...this.state.customGenres, genre];
+                db.collection('settings').doc('general').set({ customGenres: newGenres }, { merge: true });
+            }
+        }
+
+        const vinylData = {
+            sku: formData.get('sku'),
+            artist: formData.get('artist'),
+            album: formData.get('album'),
+            genre: genre,
+            status: formData.get('status'),
+            price: parseFloat(formData.get('price')),
+            cost: parseFloat(formData.get('cost')),
+            stock: parseInt(formData.get('stock')),
+            owner: formData.get('owner'),
+            label: formData.get('label'),
+            storageLocation: formData.get('storageLocation'),
+            cover_image: formData.get('cover_image'),
+            discogsUrl: formData.get('discogsUrl'),
+            supplier: "Manual",
+            channel: "Local"
+        };
+
+        if (editSku) {
+            // Update existing
+            db.collection('inventory').doc(editSku).set(vinylData, { merge: true })
+                .then(() => {
+                    this.showToast('Vinilo actualizado');
+                    document.getElementById('modal-overlay').remove();
+                    this.logInventoryMovement('EDIT', vinylData); // Log Edit
+                })
+                .catch(err => console.error(err));
+        } else {
+            // Add new
+            // Check if SKU exists (optional, but Firestore set will overwrite if we use SKU as ID)
+            // We use SKU as ID, so we just set it.
+            db.collection('inventory').doc(vinylData.sku).set(vinylData)
+                .then(() => {
+                    this.showToast('Vinilo agregado');
+                    document.getElementById('modal-overlay').remove();
+                    this.logInventoryMovement('ADD', vinylData); // Log Add
+                })
+                .catch(err => console.error(err));
+        }
+    },
+
+    deleteVinyl(sku) {
+        if (confirm('¿Estás seguro de eliminar este disco?')) {
+            const item = this.state.inventory.find(i => i.sku === sku); // Get item for log
+            db.collection('inventory').doc(sku).delete()
+                .then(() => {
+                    this.showToast('Disco eliminado');
+                    this.logInventoryMovement('DELETE', item || { sku }); // Log Delete
+                })
+                .catch(error => {
+                    console.error("Error removing document: ", error);
+                    alert("Error al eliminar el disco");
+                });
+        }
+    },
+
+    handleSaleSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        // The manual form inputs have name="sku" (hidden) ? No, let's check renderSales again.
+        // renderSales lines: <input type="hidden" name="artist" id="input-artist"> etc.
+        // <input type="hidden" id="input-sku"> -> NO NAME ATTRIBUTE on the hidden input in renderSales!
+        // I need to fix the name attributes in renderSales or read from IDs.
+        // Let's rely on IDs for the manual form since they are unique there.
+        // But this function might be used by the Modal too?
+        // Modal form: <input type="hidden" name="sku" value="${item.sku}"> -> HAS NAME.
+
+        // Safer approach: Read from FormData, if missing, try IDs.
+        let sku = formData.get('sku');
+        if (!sku) sku = document.getElementById('input-sku')?.value;
+
+        let qty = parseInt(formData.get('quantity'));
+        if (isNaN(qty)) qty = parseInt(document.getElementById('input-qty')?.value) || 1;
+
+        let price = parseFloat(formData.get('price'));
+        if (isNaN(price)) price = parseFloat(document.getElementById('input-price')?.value) || 0;
+
+        const cost = parseFloat(formData.get('cost')) || 0; // Cost might be optional/hidden
+        const total = price * qty; // Calculate total here
+
+        const date = formData.get('date') || new Date().toISOString();
+        const paymentMethod = formData.get('paymentMethod');
+        const soldAt = formData.get('soldAt');
+        const comment = formData.get('comment');
+
+        // Flattened Data
+        let artist = formData.get('artist');
+        if (!artist) artist = document.getElementById('input-artist')?.value;
+
+        let album = formData.get('album');
+        if (!album) album = document.getElementById('input-album')?.value;
+
+        let genre = formData.get('genre');
+        if (!genre) genre = document.getElementById('input-genre')?.value;
+
+        let owner = formData.get('owner');
+        if (!owner) owner = document.getElementById('input-owner')?.value;
+
+        // Customer Data
+        const customerName = formData.get('customerName');
+        const customerEmail = formData.get('customerEmail');
+        const requestInvoice = formData.get('requestInvoice') === 'on';
+
+        // Customer Logic: Save/Update Customer in 'customers' collection
+        if (customerEmail) {
+            const customerRef = db.collection('customers').doc(customerEmail);
+            customerRef.set({
+                email: customerEmail,
+                name: customerName,
+                lastPurchase: firebase.firestore.FieldValue.serverTimestamp(),
+                totalPurchases: firebase.firestore.FieldValue.increment(1),
+                totalSpent: firebase.firestore.FieldValue.increment(total)
+            }, { merge: true }).catch(err => console.error("Error saving customer:", err));
+        }
+
+        const saleData = {
+            sku: sku,
+            quantity: qty,
+            price: price,
+            total: total,
+            cost: cost,
+            date: new Date(date).toISOString(),
+            paymentMethod: paymentMethod,
+            channel: soldAt, // Renamed from soldAt to channel for consistency
+            comment: comment,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            // Flattened History
+            album: album,
+            artist: artist,
+            genre: genre,
+            owner: owner,
+            // Customer Info
+            customerName: customerName || null,
+            customerEmail: customerEmail || null,
+            invoiceRequested: requestInvoice,
+            invoiceSent: false
+        };
+
+        db.collection('sales').add(saleData)
+            .then(() => {
+                // Update Inventory Stock
+                const itemRef = db.collection('inventory').doc(sku);
+                return itemRef.get().then(doc => {
+                    if (doc.exists) {
+                        const newStock = Math.max(0, doc.data().stock - qty);
+                        return itemRef.update({ stock: newStock });
+                    }
+                });
+            })
+            .then(() => {
+                this.showToast(requestInvoice ? 'Venta registrada (Factura Solicitada)' : 'Venta registrada');
+                const modal = document.getElementById('modal-overlay');
+                if (modal) modal.remove();
+
+                // If in non-modal (Sales View), clear form
+                const salesForm = e.target;
+                if (salesForm) salesForm.reset();
+
+                // Reset "form-total" if exists
+                const totalDisplay = document.getElementById('form-total');
+                if (totalDisplay) totalDisplay.innerText = '$0.00';
+
+                // Clear SKU Search
+                const skuSearch = document.getElementById('sku-search');
+                if (skuSearch) skuSearch.value = '';
+
+                // Log Movement
+                this.logInventoryMovement('SOLD', saleData);
+            })
+            .catch(error => {
+                console.error("Error adding sale: ", error);
+                alert("Error al registrar venta");
+            });
+    },
+
+    // --- CART & MULTI-ITEM SALES ---
+
+    addToCart(sku, event) {
+        if (event) event.stopPropagation();
+
+        const item = this.state.inventory.find(i => i.sku === sku);
+        if (!item) return;
+
+        // Check if stock is sufficient
+        const inCart = this.state.cart.filter(i => i.sku === sku).length;
+        if (inCart >= item.stock) {
+            this.showToast('⚠️ No hay más stock disponible');
+            return;
+        }
+
+        this.state.cart.push(item);
+
+        // If in Inventory view, ensure widget is rendered
+        if (document.getElementById('inventory-cart-container')) {
+            this.renderInventoryCart();
+        } else {
+            this.renderCartWidget();
+        }
+
+        this.showToast('Agregado al carrito');
+    },
+
+    removeFromCart(index) {
+        this.state.cart.splice(index, 1);
+        this.renderCartWidget();
+    },
+
+    clearCart() {
+        this.state.cart = [];
+        this.renderCartWidget();
+    },
+
+    renderCartWidget() {
+        const widget = document.getElementById('cart-widget');
+        if (!widget) return;
+
+        const count = document.getElementById('cart-count');
+        const list = document.getElementById('cart-items-mini');
+        const totalEl = document.getElementById('cart-total-mini');
+
+        if (this.state.cart.length === 0) {
+            widget.classList.add('hidden');
+            return;
+        }
+
+        widget.classList.remove('hidden');
+        count.innerText = this.state.cart.length;
+
+        const total = this.state.cart.reduce((sum, i) => sum + i.price, 0);
+        totalEl.innerText = this.formatCurrency(total);
+
+        list.innerHTML = this.state.cart.map((item, index) => `
+    <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
+                <div class="truncate pr-2">
+                    <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
+                    <p class="text-[10px] text-slate-500 truncate">${item.price} kr.</p>
+                </div>
+                <button onclick="app.removeFromCart(${index})" class="text-red-400 hover:text-red-600">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div >
+    `).join('');
+    },
+
+    openCheckoutModal() {
+        if (this.state.cart.length === 0) return;
+
+        const total = this.state.cart.reduce((sum, i) => sum + i.price, 0);
+
+        const modalHtml = `
+<div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl transform scale-100 transition-all border border-orange-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-display text-xl font-bold text-brand-dark">Finalizar Venta (${this.state.cart.length} items)</h3>
+                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+
+            <div class="bg-orange-50/50 rounded-xl p-4 mb-6 border border-orange-100 max-h-40 overflow-y-auto custom-scrollbar">
+                ${this.state.cart.map(item => `
+                            <div class="flex justify-between py-1 border-b border-orange-100/50 last:border-0 text-sm">
+                                <span class="truncate pr-4 font-medium text-slate-700">${item.album}</span>
+                                <span class="font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(item.price)}</span>
+                            </div>
+                        `).join('')}
+            </div>
+
+            <form onsubmit="app.handleCheckoutSubmit(event)" class="space-y-4">
+
+                <!-- Customer Info -->
+                <div class="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-3">
+                    <h4 class="text-xs font-bold text-indigo-800 uppercase flex items-center gap-2">
+                        <i class="ph-fill ph-user"></i> Cliente
+                    </h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <input name="customerName" placeholder="Nombre" class="w-full bg-white border border-indigo-200 rounded-lg p-2 text-sm focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <input name="customerEmail" type="email" placeholder="Email (para factura)" class="w-full bg-white border border-indigo-200 rounded-lg p-2 text-sm focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="requestInvoice" id="check-invoice-checkout" class="w-4 h-4 text-indigo-600 rounded border-indigo-300 focus:ring-indigo-500">
+                            <label for="check-invoice-checkout" class="text-xs font-medium text-indigo-700">Solicitar Factura</label>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Fecha</label>
+                        <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Pago</label>
+                        <select name="paymentMethod" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                            <option value="MobilePay">MobilePay</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Transferencia">Transferencia</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Canal</label>
+                    <select name="soldAt" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-sm">
+                        <option>Tienda</option>
+                        <option>Discogs</option>
+                        <option>Feria</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center justify-between p-4 bg-brand-dark text-white rounded-xl shadow-lg shadow-brand-dark/10">
+                    <span class="text-sm font-medium">Total a Pagar</span>
+                    <span class="font-display font-bold text-2xl">${this.formatCurrency(total)}</span>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 bg-brand-orange text-white font-bold rounded-xl hover:bg-orange-600 transition-colors shadow-lg shadow-brand-orange/20 flex items-center justify-center gap-2">
+                    <i class="ph-bold ph-check-circle text-xl"></i>
+                    Confirmar Venta
+                </button>
+            </form>
+        </div>
+            </div>
+    `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    handleCheckoutSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const date = formData.get('date');
+        const paymentMethod = formData.get('paymentMethod');
+        const soldAt = formData.get('soldAt');
+
+        // Customer Data
+        const customerName = formData.get('customerName');
+        const customerEmail = formData.get('customerEmail');
+        const requestInvoice = formData.get('requestInvoice') === 'on';
+
+        const batch = db.batch();
+        const totalSaleAmount = this.state.cart.reduce((sum, i) => sum + i.price, 0);
+
+        // 1. Save Customer if email provided (Once for the whole batch)
+        if (customerEmail) {
+            const customerRef = db.collection('customers').doc(customerEmail);
+            customerRef.set({
+                email: customerEmail,
+                name: customerName,
+                lastPurchase: firebase.firestore.FieldValue.serverTimestamp(),
+                totalPurchases: firebase.firestore.FieldValue.increment(1),
+                totalSpent: firebase.firestore.FieldValue.increment(totalSaleAmount)
+            }, { merge: true }).catch(err => console.error("Error saving customer:", err));
+        }
+
+        // 2. Create Sale Documents (One per item)
+        this.state.cart.forEach(item => {
+            const saleRef = db.collection('sales').doc(); // Auto ID
+            const saleData = {
+                sku: item.sku,
+                quantity: 1, // Cart items are unique instances for now or we treat them as qty 1
+                price: item.price,
+                total: item.price,
+                cost: item.cost, // Use explicit cost from item
+                date: date ? new Date(date).toISOString() : new Date().toISOString(), // Fallback to now if date missing
+                paymentMethod,
+                channel: soldAt, // Standardize to 'channel' to match manual sales
+                comment: 'Venta Carrito', // Grouped sale
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                // Flattened History
+                album: item.album,
+                artist: item.artist,
+                genre: item.genre,
+                owner: item.owner,
+                // Customer Info (Duplicated per row for easier querying per sale)
+                customerName: customerName || null,
+                customerEmail: customerEmail || null,
+                invoiceRequested: requestInvoice,
+                invoiceSent: false
+            };
+            batch.set(saleRef, saleData);
+
+            // 3. Update Inventory Stock
+            const inventoryRef = db.collection('inventory').doc(item.sku);
+            batch.update(inventoryRef, {
+                stock: firebase.firestore.FieldValue.increment(-1)
+            });
+        });
+
+        batch.commit()
+            .then(() => {
+                this.showToast(`Venta de ${this.state.cart.length} items registrada!`);
+
+                // Log Movements
+                this.state.cart.forEach(item => {
+                    this.logInventoryMovement('SOLD', item);
+                });
+
+                this.clearCart();
+                document.getElementById('modal-overlay').remove();
+            })
+            .catch(err => {
+                console.error("Error batch checkout", err);
+                alert("Error al procesar venta: " + err.message);
+            });
+    },
+
+    handleSalesViewCheckout() {
+        if (this.state.cart.length === 0) {
+            this.showToast('El carrito está vacío');
+            return;
+        }
+        this.openCheckoutModal();
+    },
+
+    deleteSale(id) {
+        if (!confirm('¿Eliminar esta venta y restaurar stock?')) return;
+
+        const sale = this.state.sales.find(s => s.id === id);
+        if (!sale) return;
+
+        const batch = db.batch();
+        const saleRef = db.collection('sales').doc(id);
+
+        // Only restore stock if the item still exists in inventory (it should)
+        // If we deleted the item, this might fail. But assuming item exists:
+        const inventoryRef = db.collection('inventory').doc(sale.sku);
+
+        batch.delete(saleRef);
+        batch.update(inventoryRef, {
+            stock: firebase.firestore.FieldValue.increment(sale.quantity)
+        });
+
+        batch.commit()
+            .then(() => this.showToast('Venta eliminada y stock restaurado'))
+            .catch(err => console.error(err));
+    },
+
+
+
+    renderExpenses(container) {
+        // Custom Categories Logic
+        const defaultCategories = ['Alquiler', 'Servicios', 'Marketing', 'Suministros', 'Honorarios'];
+        const allCategories = [...new Set([...defaultCategories, ...(this.state.customCategories || [])])];
+
+        const searchTerm = this.state.expensesSearch.toLowerCase();
+        const filteredExpenses = this.state.expenses.filter(e =>
+            !searchTerm ||
+            e.description.toLowerCase().includes(searchTerm) ||
+            e.category.toLowerCase().includes(searchTerm)
+        );
+
+        const html = `
+    <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                                            <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Gastos Operativos</h2>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                                <!-- Form -->
+                                                <div class="md:col-span-1">
+                                                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 sticky top-4">
+                                                        <h3 id="expense-form-title" class="font-bold text-lg mb-4">Nuevo Gasto</h3>
+                                                        <form id="expense-form" onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
+                                                            <input type="hidden" name="id" id="expense-id">
+                                                                <div>
+                                                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                                                                    <input name="description" id="expense-description" required class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                                                </div>
+                                                                <div>
+                                                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                                                                    <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                                                        ${allCategories.map(c => `<option>${c}</option>`).join('')}
+                                                                        <option value="other">Otra...</option>
+                                                                    </select>
+                                                                    <div id="custom-expense-category-container" class="hidden mt-2">
+                                                                        <input name="custom_category" placeholder="Nueva Categoría" class="w-full bg-white border border-brand-orange rounded-lg p-2 text-sm focus:outline-none">
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
+                                                                    <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                                                </div>
+                                                                <div class="flex items-center gap-2 py-2">
+                                                                    <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
+                                                                        <label for="hasVat" class="text-sm text-slate-600 font-medium">Incluye VAT (Sí/No)</label>
+                                                                </div>
+                                                                <div class="flex gap-2">
+                                                                    <button type="submit" id="expense-submit-btn" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors">
+                                                                        Guardar
+                                                                    </button>
+                                                                    <button type="button" id="expense-cancel-btn" onclick="app.resetExpenseForm()" class="hidden px-4 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                                                                        Cancelar
+                                                                    </button>
+                                                                </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+
+                                                <!-- List -->
+                                                <div class="md:col-span-2">
+                                                    <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                                                        <div class="p-4 border-b border-orange-50">
+                                                            <div class="relative">
+                                                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                                                <input type="text"
+                                                                    value="${this.state.expensesSearch}"
+                                                                    oninput="app.state.expensesSearch = this.value; app.renderExpenses(document.getElementById('app-content'))"
+                                                                    placeholder="Buscar gasto..."
+                                                                    class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-brand-orange text-sm">
+                                                            </div>
+                                                        </div>
+                                                        <table class="w-full text-left">
+                                                            <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
+                                                                <tr>
+                                                                    <th class="p-4">Fecha</th>
+                                                                    <th class="p-4">Descripción</th>
+                                                                    <th class="p-4 text-right">Monto</th>
+                                                                    <th class="p-4 text-center">VAT</th>
+                                                                    <th class="p-4 w-10"></th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-orange-50">
+                                                                ${filteredExpenses.slice().reverse().map(e => `
+                                        <tr class="hover:bg-orange-50/30 transition-colors group">
+                                            <td class="p-4 text-xs text-slate-500">${this.formatDate(e.date)}</td>
+                                            <td class="p-4">
+                                                <p class="text-sm font-bold text-brand-dark">${e.description}</p>
+                                                <p class="text-xs text-slate-500">${e.category}</p>
+                                            </td>
+                                            <td class="p-4 text-right font-medium text-brand-dark">${this.formatCurrency(e.amount)}</td>
+                                            <td class="p-4 text-center">
+                                                ${e.hasVat ? '<span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Sí</span>' : '<span class="text-xs bg-slate-100 text-slate-400 px-2 py-1 rounded">No</span>'}
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                <div class="flex gap-1 justify-center">
+                                                    <button onclick="app.editExpense('${e.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-orange transition-all p-2" title="Editar">
+                                                        <i class="ph-fill ph-pencil-simple"></i>
+                                                    </button>
+                                                    <button onclick="app.deleteExpense('${e.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-2" title="Eliminar">
+                                                        <i class="ph-fill ph-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                                                ${filteredExpenses.length === 0 ? `
+                                        <tr>
+                                            <td colspan="5" class="p-8 text-center text-slate-400 italic">No se encontraron gastos.</td>
+                                        </tr>
+                                    ` : ''}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+    `;
+        container.innerHTML = html;
+
+        // Restore focus
+        const searchInput = container.querySelector('input[placeholder="Buscar gasto..."]');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+        }
+    },
+
+    editExpense(id) {
+        if (!confirm('¿Seguro que deseas editar este gasto?')) return;
+
+        const expense = this.state.expenses.find(e => e.id === id);
+        if (!expense) return;
+
+        // Populate Form
+        document.getElementById('expense-id').value = expense.id;
+        document.getElementById('expense-description').value = expense.description;
+        document.getElementById('expense-amount').value = expense.amount;
+        document.getElementById('hasVat').checked = expense.hasVat;
+
+        // Handle Category
+        const categorySelect = document.getElementById('expense-category');
+        if ([...categorySelect.options].some(o => o.value === expense.category)) {
+            categorySelect.value = expense.category;
+        } else {
+            // If category is not in list (shouldn't happen with dynamic list, but safe fallback)
+            categorySelect.value = 'other';
+            app.checkCustomInput(categorySelect, 'custom-expense-category-container');
+            document.querySelector('[name="custom_category"]').value = expense.category;
+        }
+
+        // Update UI State
+        document.getElementById('expense-form-title').innerText = 'Editar Gasto';
+        document.getElementById('expense-submit-btn').innerText = 'Actualizar';
+        document.getElementById('expense-cancel-btn').classList.remove('hidden');
+    },
+
+
+
+    resetExpenseForm() {
+        document.getElementById('expense-form').reset();
+        document.getElementById('expense-id').value = '';
+        document.getElementById('expense-form-title').innerText = 'Nuevo Gasto';
+        document.getElementById('expense-submit-btn').innerText = 'Guardar';
+        document.getElementById('expense-cancel-btn').classList.add('hidden');
+        document.getElementById('custom-expense-category-container').classList.add('hidden');
+    },
+
+    handleExpenseSubmit(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+
+        // Handle Custom Category
+        let category = formData.get('category');
+        if (category === 'other') {
+            category = formData.get('custom_category');
+            if (!this.state.customCategories) this.state.customCategories = [];
+            if (!this.state.customCategories.includes(category)) {
+                const newCategories = [...this.state.customCategories, category];
+                db.collection('settings').doc('general').set({ customCategories: newCategories }, { merge: true });
+            }
+        }
+
+        const expenseData = {
+            description: formData.get('description'),
+            category: category,
+            amount: parseFloat(formData.get('amount')),
+            hasVat: formData.get('hasVat') === 'on',
+            date: new Date().toISOString() // Or keep existing date if editing?
+        };
+
+        const id = formData.get('id');
+        if (id) {
+            // Update
+            // Don't overwrite date on edit unless intended. 
+            // Ideally we fetch the existing doc to keep the date, or pass it in hidden field.
+            // For simplicity, let's assume we keep the original date if possible, or just update it.
+            // Actually, let's fetch the existing expense from state to preserve date.
+            const existing = this.state.expenses.find(e => e.id === id);
+            if (existing) expenseData.date = existing.date;
+
+            db.collection('expenses').doc(id).update(expenseData)
+                .then(() => this.showToast('Gasto actualizado'))
+                .catch(err => console.error(err));
+        } else {
+            // Create
+            db.collection('expenses').add(expenseData)
+                .then(() => this.showToast('Gasto registrado'))
+                .catch(err => console.error(err));
+        }
+
+        this.resetExpenseForm();
+    },
+
+    deleteExpense(id) {
+        if (!confirm('¿Eliminar este gasto?')) return;
+        db.collection('expenses').doc(id).delete()
+            .then(() => this.showToast('Gasto eliminado'))
+            .catch(err => console.error(err));
+    },
+
+    renderConsignments(container) {
+        if (!container) return;
+
+        const html = `
+    <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn">
+                                            <div class="flex justify-between items-center mb-8">
+                                                <h2 class="font-display text-2xl font-bold text-brand-dark">Socios y Consignación</h2>
+                                                <button onclick="app.openAddConsignorModal()" class="bg-brand-dark text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors flex items-center gap-2">
+                                                    <i class="ph-bold ph-plus"></i>
+                                                    Nuevo Socio
+                                                </button>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                ${this.state.consignors.map(c => {
+            // Stats
+            const partnerName = c.name;
+            const partnerItems = this.state.inventory.filter(i => i.owner === partnerName);
+            const inStockCount = partnerItems.reduce((acc, curr) => acc + curr.stock, 0);
+
+            // Sales (Flat structure assumption)
+            const soldItems = this.state.sales.filter(s => s.owner === partnerName).sort((a, b) => new Date(b.date) - new Date(a.date));
+            const totalSold = soldItems.reduce((acc, curr) => acc + curr.quantity, 0);
+
+            // Financials: Cost is what is owed to partner
+            const totalDue = soldItems.reduce((acc, curr) => acc + (curr.cost || 0), 0);
+            const alreadyPaid = soldItems.filter(s => s.payoutStatus === 'paid').reduce((acc, curr) => acc + (curr.cost || 0), 0);
+            const pendingPay = totalDue - alreadyPaid;
+
+            return `
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 class="font-display text-xl font-bold text-brand-dark">${c.name}</h3>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">${c.agreementSplit}% Acuerdo</span>
+                                    </div>
+                                </div>
+                                <button onclick="app.deleteConsignor('${c.id}')" class="text-slate-300 hover:text-red-400 transition-colors">
+                                    <i class="ph-bold ph-trash"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 mb-6">
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Stock Actual</p>
+                                    <p class="font-display font-bold text-xl text-brand-dark">${inStockCount}</p>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pendiente Pago</p>
+                                    <p class="font-display font-bold text-xl ${pendingPay > 0 ? 'text-brand-orange' : 'text-slate-500'}">${this.formatCurrency(pendingPay)}</p>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-slate-100 pt-4">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h4 class="font-bold text-sm text-brand-dark">Historial de Ventas</h4>
+                                    <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(alreadyPaid)}</span>
+                                </div>
+                                <div class="max-h-60 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                                    ${soldItems.length > 0 ? soldItems.map(s => `
+                                        <div class="flex items-center justify-between p-3 rounded-xl border ${s.payoutStatus === 'paid' ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-orange-100 shadow-sm'} transition-all">
+                                            <div class="flex-1 min-w-0 pr-3">
+                                                <div class="font-bold text-xs truncate text-brand-dark">${s.album || s.sku}</div>
+                                                <div class="text-[10px] text-slate-400">${this.formatDate(s.date)} • ${this.formatCurrency(s.cost)}</div>
+                                                ${s.payoutStatus === 'paid' && s.payoutDate
+                    ? `<div class="text-[9px] text-green-600 font-bold mt-0.5"><i class="ph-bold ph-check"></i> Pagado: ${this.formatDate(s.payoutDate)}</div>`
+                    : ''}
+                                            </div>
+                                            <button 
+                                                onclick="app.togglePayoutStatus('${s.id}', '${s.payoutStatus || 'pending'}')"
+                                                class="shrink-0 h-8 px-3 rounded-lg text-[10px] font-bold border transition-colors ${s.payoutStatus === 'paid'
+                    ? 'bg-slate-200 border-slate-300 text-slate-500 hover:bg-slate-300'
+                    : 'bg-green-100 border-green-200 text-green-700 hover:bg-green-200'
+                }"
+                                            >
+                                                ${s.payoutStatus === 'paid' ? 'PAGADO' : 'PAGAR'}
+                                            </button>
+                                        </div>
+                                    `).join('') : '<div class="text-center py-4 text-xs text-slate-400 italic">No hay ventas registradas</div>'}
+                                </div>
+                            </div>
+                        </div>
+                        `;
+        }).join('')}
+                                                ${this.state.consignors.length === 0 ? `
+                        <div class="col-span-full text-center py-16 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                                <i class="ph-bold ph-users text-3xl"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-brand-dark mb-2">No hay socios registrados</h3>
+                            <p class="text-slate-500 mb-6 max-w-md mx-auto">Agrega socios para gestionar ventas en consignación y calcular pagos automáticamente.</p>
+                            <button onclick="app.openAddConsignorModal()" class="text-brand-orange font-bold hover:underline">Agregar primer socio</button>
+                        </div>
+                    ` : ''}
+                                            </div>
+                                        </div >
+    `;
+        container.innerHTML = html;
+    },
+
+    togglePayoutStatus(saleId, currentStatus) {
+        if (!confirm(`¿Marcar esta venta como ${currentStatus === 'paid' ? 'PENDIENTE' : 'PAGADA'}?`)) return;
+
+        const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
+        const updateData = { payoutStatus: newStatus };
+
+        if (newStatus === 'paid') {
+            updateData.payoutDate = new Date().toISOString();
+        } else {
+            updateData.payoutDate = null;
+        }
+
+        db.collection('sales').doc(saleId).update(updateData).then(() => {
+            this.showToast(`Estado actualizado: ${newStatus === 'paid' ? 'PAGADO' : 'PENDIENTE'} `);
+        }).catch(err => {
+            console.error(err);
+            alert('Error al actualizar estado');
+        });
+    },
+
+    openAddConsignorModal() {
+        const modalHtml = `
+    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
+            <h3 class="font-display text-xl font-bold mb-4 text-brand-dark">Nuevo Socio</h3>
+            <form onsubmit="app.handleAddConsignor(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre y Apellido</label>
+                    <input name="name" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Porcentaje del Socio (%)</label>
+                    <input name="split" type="number" min="0" max="100" value="70" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                        <p class="text-[10px] text-slate-400 mt-1">El porcentaje de la venta que se queda el dueño del vinilo.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Opcional)</label>
+                        <input name="email" type="email" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teléfono (Opcional)</label>
+                        <input name="phone" type="tel" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                    </div>
+                </div>
+                <div class="pt-4 flex gap-3">
+                    <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition-colors">Cancelar</button>
+                    <button type="submit" class="flex-1 py-2 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold transition-colors">Guardar</button>
+                </div>
+            </form>
+        </div>
+
+`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    handleAddConsignor(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newConsignor = {
+            name: formData.get('name'),
+            agreementSplit: parseFloat(formData.get('split')),
+            email: formData.get('email'),
+            phone: formData.get('phone')
+        };
+
+        db.collection('consignors').add(newConsignor)
+            .then(() => {
+                this.showToast('Socio registrado correctamente');
+                document.getElementById('modal-overlay').remove();
+            })
+            .catch(err => console.error(err));
+    },
+
+    deleteConsignor(id) {
+        if (!confirm('¿Eliminar este socio?')) return;
+        db.collection('consignors').doc(id).delete()
+            .then(() => this.showToast('Socio eliminado'))
+            .catch(err => console.error(err));
+    },
+
+    renderVAT(container) {
+        // Filter by selected year
+        const getYear = (date) => {
+            if (!date) return 0;
+            if (date.toDate) return date.toDate().getFullYear(); // Firestore Timestamp
+            return new Date(date).getFullYear();
+        };
+
+        const yearSales = this.state.sales.filter(s => getYear(s.date) === this.state.filterYear);
+        const yearExpenses = this.state.expenses.filter(e => getYear(e.date) === this.state.filterYear);
+
+        // Calculate VAT
+        let totalSalesVAT = 0;
+        let totalExpensesVAT = 0;
+
+        if (this.state.vatActive) {
+            totalSalesVAT = yearSales.reduce((sum, s) => sum + this.getVatComponent(s.total), 0);
+            totalExpensesVAT = yearExpenses
+                .filter(e => e.hasVat)
+                .reduce((sum, e) => sum + this.getVatComponent(e.amount), 0);
+        }
+
+        const netVAT = totalSalesVAT - totalExpensesVAT;
+
+        const html = `
+    <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                                                <div class="flex justify-between items-center mb-6">
+                                                    <h2 class="font-display text-2xl font-bold text-brand-dark">Reporte VAT (Moms)</h2>
+                                                    <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-orange-100">
+                                                        <span class="text-sm font-medium text-slate-600">VAT Activo</span>
+                                                        <button onclick="app.toggleVAT()" class="w-12 h-6 rounded-full transition-colors relative ${this.state.vatActive ? 'bg-brand-orange' : 'bg-slate-300'}">
+                                                            <div class="w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${this.state.vatActive ? 'left-7' : 'left-1'}"></div>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div class="bg-brand-dark text-white rounded-3xl p-8 mb-8 relative overflow-hidden">
+                                                    <div class="absolute top-0 right-0 w-64 h-64 bg-brand-orange opacity-10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                                                    <div class="relative z-10 text-center">
+                                                        <p class="text-slate-400 font-medium mb-2">Balance VAT (${this.state.filterYear})</p>
+                                                        <h2 class="text-6xl font-display font-bold mb-2">${this.formatCurrency(netVAT)}</h2>
+                                                        <p class="text-sm text-slate-400">${netVAT > 0 ? 'A pagar a Skat' : 'A reclamar'}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
+                                                        <h3 class="font-bold text-lg mb-4 text-brand-dark">VAT Recaudado (Ventas)</h3>
+                                                        <div class="space-y-3">
+                                                            <div class="flex justify-between text-sm">
+                                                                <span class="text-slate-500">Ventas Brutas</span>
+                                                                <span class="font-medium">${this.formatCurrency(yearSales.reduce((s, i) => s + i.total, 0))}</span>
+                                                            </div>
+                                                            <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
+                                                                <span class="font-bold text-brand-orange">Total VAT (25%)</span>
+                                                                <span class="font-bold text-brand-orange">${this.formatCurrency(totalSalesVAT)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
+                                                        <h3 class="font-bold text-lg mb-4 text-brand-dark">VAT Deducible (Gastos)</h3>
+                                                        <div class="space-y-3">
+                                                            <div class="flex justify-between text-sm">
+                                                                <span class="text-slate-500">Gastos con VAT</span>
+                                                                <span class="font-medium">${this.formatCurrency(yearExpenses.filter(e => e.hasVat).reduce((s, i) => s + i.amount, 0))}</span>
+                                                            </div>
+                                                            <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
+                                                                <span class="font-bold text-green-600">Total Deducible</span>
+                                                                <span class="font-bold text-green-600">${this.formatCurrency(totalExpensesVAT)}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div >
+                                        </div>
+    `;
+        container.innerHTML = html;
+    },
+
+    toggleVAT() {
+        this.state.vatActive = !this.state.vatActive;
+        this.saveData();
+        this.renderVAT(document.getElementById('app-content'));
+    },
+
+    // --- Discogs Integration (Restored) ---
+    searchDiscogs() {
+        const query = document.getElementById('discogs-search-input').value;
+        const resultsContainer = document.getElementById('discogs-results');
+        if (!query) return;
+
+        // Try getting token from settings
+        let token = localStorage.getItem('discogs_token');
+
+        if (!token) {
+            // Check if user provided it in old variable (fallback)
+            token = "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz"; // Default fallback
+            // Ideally we prompt user or show error, but for now fallback to the known token if valid, 
+            // or alert them.
+            if (!localStorage.getItem('discogs_token_warned')) {
+                alert("Por favor configura tu Token de Discogs en Configuración (Tuerca).");
+                localStorage.setItem('discogs_token_warned', 'true');
+            }
+        }
+
+        resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse">Buscando en Discogs...</p>';
+        resultsContainer.classList.remove('hidden');
+
+        fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.results && data.results.length > 0) {
+                    resultsContainer.innerHTML = data.results.slice(0, 10).map(r => `
+                        <div onclick='app.handleDiscogsSelection(${JSON.stringify(r).replace(/'/g, "&#39;")})' class="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
+                            <img src="${r.thumb || 'logo.jpg'}" class="w-10 h-10 rounded object-cover bg-slate-100">
+                            <div class="flex-1 min-w-0">
+                                <p class="font-bold text-xs text-brand-dark truncate">${r.title}</p>
+                                <p class="text-[10px] text-slate-500 truncate">${r.year || 'Unknown'} - ${r.country || ''} - ${r.label ? r.label[0] : ''}</p>
+                            </div>
+                            <i class="ph-bold ph-plus-circle text-brand-orange"></i>
+                        </div>
+                    `).join('');
+                } else {
+                    resultsContainer.innerHTML = '<p class="text-xs text-slate-400">No se encontraron resultados.</p>';
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                resultsContainer.innerHTML = '<p class="text-xs text-red-400">Error al buscar. Revisa tu Token.</p>';
+            });
+    },
+
+    handleDiscogsSelection(release) {
+        const parts = release.title.split(' - ');
+        const artist = parts[0] || '';
+        const album = parts.slice(1).join(' - ') || release.title;
+
+        const form = document.querySelector('#modal-overlay form');
+        if (form) {
+            if (form.artist) form.artist.value = artist;
+            if (form.album) form.album.value = album;
+            if (form.year && release.year) form.year.value = release.year;
+
+            // Set Label
+            if (form.label && release.label && release.label.length > 0) {
+                form.label.value = release.label[0];
+            }
+
+            // Set Image
+            if (release.thumb || release.cover_image) {
+                const imgUrl = release.cover_image || release.thumb;
+                const input = document.getElementById('input-cover-image');
+                const preview = document.getElementById('cover-preview');
+
+                if (input) input.value = imgUrl;
+                if (preview) {
+                    preview.querySelector('img').src = imgUrl;
+                    preview.classList.remove('hidden');
+                }
+            }
+
+            // Genre Auto-Complete
+            const formSelect = form.querySelector('select[name="genre"]');
+            if (formSelect && release.style && release.style.length > 0) {
+                // Try to match Style first
+                const styles = release.style;
+                let match = false;
+                for (let style of styles) {
+                    for (let opt of formSelect.options) {
+                        if (opt.value.toLowerCase() === style.toLowerCase()) {
+                            formSelect.value = opt.value;
+                            match = true;
+                            break;
+                        }
+                    }
+                    if (match) break;
+                }
+
+                // If no match, try Genre
+                if (!match && release.genre) {
+                    for (let genre of release.genre) {
+                        for (let opt of formSelect.options) {
+                            if (opt.value.toLowerCase() === genre.toLowerCase()) {
+                                formSelect.value = opt.value;
+                                match = true;
+                                break;
+                            }
+                        }
+                        if (match) break;
+                    }
+                }
+
+                // If still no match, set to 'other' and fill custom
+                if (!match) {
+                    formSelect.value = 'other';
+                    const customContainer = document.getElementById('custom-genre-container');
+                    if (customContainer) {
+                        customContainer.classList.remove('hidden');
+                        const customInput = customContainer.querySelector('input');
+                        if (customInput) customInput.value = release.style[0] || release.genre[0];
+                    }
+                }
+            }
+        }
+
+        // Set Discogs URL
+        if (release.uri || release.resource_url) {
+            const uri = release.uri || release.resource_url;
+            const fullUrl = uri.startsWith('http') ? uri : 'https://www.discogs.com' + uri;
+            const urlInput = document.getElementById('input-discogs-url');
+            if (urlInput) urlInput.value = fullUrl;
+        }
+
+        // Set Discogs ID
+        if (release.id) {
+            const idInput = document.getElementById('input-discogs-id');
+            if (idInput) idInput.value = release.id;
+        }
+
+        document.getElementById('discogs-results').classList.add('hidden');
+    },
+
+    openTracklistModal(sku) {
+        const item = this.state.inventory.find(i => i.sku === sku);
+        if (!item) return;
+
+        // Try to find Discogs ID
+        let discogsId = item.discogsId;
+
+        // Render Loading State
+        const loadingHtml = `
+            <div id="tracklist-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl relative animate-fadeIn">
+                    <h3 class="font-display text-xl font-bold text-brand-dark mb-4">Lista de Temas (Tracklist)</h3>
+                    <div class="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
+                        <i class="ph-bold ph-spinner animate-spin text-4xl text-brand-orange"></i>
+                        <p class="font-medium">Cargando tracks desde Discogs...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+
+        // Fetch Function
+        const fetchAndRender = (id) => {
+            const token = localStorage.getItem('discogs_token') || "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";
+            fetch(`https://api.discogs.com/releases/${id}?token=${token}`)
+                .then(res => {
+                    if (!res.ok) throw new Error('Release not found');
+                    return res.json();
+                })
+                .then(data => {
+                    const tracks = data.tracklist || [];
+                    const trackHtml = tracks.map(t => `
+                        <div class="flex items-center justify-between py-3 border-b border-slate-50 hover:bg-slate-50 px-2 transition-colors rounded-lg group">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-mono font-bold text-slate-400 w-8">${t.position}</span>
+                                <span class="text-sm font-bold text-brand-dark group-hover:text-brand-orange transition-colors">${t.title}</span>
+                            </div>
+                            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">${t.duration || '--:--'}</span>
+                        </div>
+                    `).join('');
+
+                    const finalHtml = `
+                        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative animate-fadeIn max-h-[85vh] flex flex-col overflow-hidden">
+                            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 shrink-0">
+                                <div>
+                                    <h3 class="font-display text-xl font-bold text-brand-dark">Lista de Temas</h3>
+                                    <p class="text-xs text-slate-500">${item.artist} - ${item.album}</p>
+                                </div>
+                                <button onclick="document.getElementById('tracklist-overlay').remove()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                                    <i class="ph-bold ph-x text-lg"></i>
+                                </button>
+                            </div>
+                            <div class="p-4 overflow-y-auto custom-scrollbar flex-1">
+                                ${tracks.length > 0 ? trackHtml : '<p class="text-center text-slate-500 py-8">No se encontraron temas para esta edición.</p>'}
+                            </div>
+                            <div class="p-3 bg-slate-50 text-center shrink-0 border-t border-slate-100">
+                                <a href="https://www.discogs.com/release/${id}" target="_blank" class="text-xs font-bold text-brand-orange hover:underline flex items-center justify-center gap-1">
+                                    Ver release completo en Discogs <i class="ph-bold ph-arrow-square-out"></i>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('tracklist-overlay').innerHTML = finalHtml;
+                })
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('tracklist-overlay').innerHTML = `
+                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+                            <div class="text-center py-6">
+                                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                                    <i class="ph-bold ph-warning-circle text-3xl"></i>
+                                </div>
+                                <h3 class="font-bold text-brand-dark mb-2">Error al cargar</h3>
+                                <p class="text-sm text-slate-500 mb-4">No pudimos obtener el tracklist. El ID de Discogs podría ser incorrecto o faltar.</p>
+                                <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
+                            </div>
+                        </div>
+                    `;
+                });
+        };
+
+        if (discogsId) {
+            fetchAndRender(discogsId);
+        } else {
+            // Fallback: Try to search by Artist + Album to get ID
+            const query = `${item.artist} - ${item.album}`;
+            const token = localStorage.getItem('discogs_token') || "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";
+            fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.results && data.results.length > 0) {
+                        fetchAndRender(data.results[0].id);
+                    } else {
+                        throw new Error("No results found in fallback search");
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('tracklist-overlay').innerHTML = `
+                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+                            <div class="text-center py-6">
+                                <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-orange">
+                                    <i class="ph-bold ph-question text-3xl"></i>
+                                </div>
+                                <h3 class="font-bold text-brand-dark mb-2">Tracklist no disponible</h3>
+                                <p class="text-sm text-slate-500 mb-4">Este disco no tiene un ID de Discogs asociado y la búsqueda automática falló.</p>
+                                <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+    },
+
+
+};
+
+// Start App
+document.addEventListener('DOMContentLoaded', () => {
+    app.init();
+});
