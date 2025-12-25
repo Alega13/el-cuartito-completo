@@ -6,6 +6,7 @@ const router = Router();
 
 router.get('/', isAdmin, firebaseController.getSales);
 router.post('/', isAdmin, firebaseController.createSale);
+router.patch('/:id/fulfillment', isAdmin, firebaseController.updateFulfillmentStatus);
 
 
 export default router;

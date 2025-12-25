@@ -86,11 +86,12 @@ const app = {
         }
     },
 
-    async updateFulfillmentStatus(id, status) {
+    async updateFulfillmentStatus(event, id, status) {
         try {
-            const btn = event?.target?.closest('button');
+            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
             if (btn) {
                 btn.disabled = true;
+                const originalContent = btn.innerHTML;
                 btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i>';
             }
 
@@ -106,7 +107,7 @@ const app = {
             this.showToast('Estado de envío actualizado');
         } catch (error) {
             console.error("Fulfillment update error:", error);
-            this.showToast("Error al actualizar estado", "error");
+            this.showToast("Error al actualizar estado: " + error.message, "error");
         }
     },
 
@@ -3532,13 +3533,13 @@ const app = {
                             <i class="ph-fill ph-truck text-brand-orange"></i> Gestión de Envío
                         </h3>
                         <div class="flex flex-wrap gap-2">
-                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'preparing')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'preparing' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'preparing' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-package"></i> Preparación
                             </button>
-                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'shipped')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'shipped' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'shipped' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-paper-plane-tilt"></i> Enviado
                             </button>
-                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'delivered')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'delivered')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-check-circle"></i> Entregado
                             </button>
                         </div>
