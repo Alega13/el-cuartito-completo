@@ -185,21 +185,21 @@ const CheckoutPage = ({ setPage }) => {
                         <form onSubmit={handleInitialSubmit} className="space-y-12 sticky top-32">
                             <div className="space-y-6">
                                 <h2 className="text-sm font-bold uppercase tracking-widest bg-black text-white inline-block px-2 py-1">Contact</h2>
-                                <InputField label="Email Address" name="email" type="email" />
+                                <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleInputChange} disabled={isFormSubmit} />
                             </div>
 
                             <div className="space-y-6">
                                 <h2 className="text-sm font-bold uppercase tracking-widest bg-black text-white inline-block px-2 py-1">Shipping Address</h2>
                                 <div className="flex gap-6">
-                                    <InputField label="First Name" name="firstName" width="w-1/2" />
-                                    <InputField label="Last Name" name="lastName" width="w-1/2" />
+                                    <InputField label="First Name" name="firstName" width="w-1/2" value={formData.firstName} onChange={handleInputChange} disabled={isFormSubmit} />
+                                    <InputField label="Last Name" name="lastName" width="w-1/2" value={formData.lastName} onChange={handleInputChange} disabled={isFormSubmit} />
                                 </div>
-                                <InputField label="Address" name="address" />
+                                <InputField label="Address" name="address" value={formData.address} onChange={handleInputChange} disabled={isFormSubmit} />
                                 <div className="flex gap-6">
-                                    <InputField label="Postal Code" name="postalCode" width="w-1/3" />
-                                    <InputField label="City" name="city" width="w-2/3" />
+                                    <InputField label="Postal Code" name="postalCode" width="w-1/3" value={formData.postalCode} onChange={handleInputChange} disabled={isFormSubmit} />
+                                    <InputField label="City" name="city" width="w-2/3" value={formData.city} onChange={handleInputChange} disabled={isFormSubmit} />
                                 </div>
-                                <InputField label="Country" name="country" />
+                                <InputField label="Country" name="country" value={formData.country} onChange={handleInputChange} disabled={isFormSubmit} />
                             </div>
 
                             <div className="pt-6">
