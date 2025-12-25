@@ -58,10 +58,11 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                     const isMissingData = saleData?.status === 'completed' && !saleData?.orderNumber;
 
                     if (isNew || isMissingData) {
-                        // Generate order number (format: WEB-YYYYMMDD-XXXXX)
+                        // Generate or use existing order number
                         const now = new Date();
                         const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-                        const orderNumber = `WEB-${dateStr}-${saleId.slice(-5).toUpperCase()}`;
+                        const orderNumber = saleData.orderNumber || `WEB-${dateStr}-${saleId.slice(-5).toUpperCase()}`;
+                        console.log(`Using orderNumber: ${orderNumber} for sale ${saleId}`);
 
                         // Deduct stock for each item
                         for (const item of saleData.items) {

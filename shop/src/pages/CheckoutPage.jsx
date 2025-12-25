@@ -40,12 +40,24 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
     const [message, setMessage] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Diagnostics
+    console.log('CheckoutForm status:', {
+        hasStripe: !!stripe,
+        hasElements: !!elements,
+        hasClientSecret: !!clientSecret
+    });
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!stripe || !elements) return;
+        if (!stripe || !elements) {
+            console.error("Stripe.js has not loaded yet.");
+            setMessage("Error: El sistema de pago no se ha inicializado. Por favor recarga la página.");
+            return;
+        }
 
         setIsProcessing(true);
+        setMessage(null);
 
         // Save order data before redirect just in case
         onSuccess(saleId, "pending", true);
@@ -86,8 +98,24 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-6 mt-6 border-t border-black/10 pt-6">
             <h3 className="text-xl font-bold uppercase tracking-tight">Payment Details</h3>
-            <PaymentElement />
-            {message && <div className="text-red-500 text-xs font-bold uppercase tracking-widest">{message}</div>}
+
+            <div className="min-h-[100px] relative">
+                <PaymentElement />
+                {!stripe && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/50">
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="w-5 h-5 border-2 border-black/10 border-t-black rounded-full animate-spin" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-black/40">Conectando con Stripe...</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {message && (
+                <div className="bg-red-50 border border-red-100 p-4 text-red-600 text-[10px] font-bold uppercase tracking-widest leading-loose">
+                    {message}
+                </div>
+            )}
             <button
                 disabled={isProcessing || !stripe || !elements}
                 id="submit"

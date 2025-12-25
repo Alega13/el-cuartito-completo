@@ -46,12 +46,20 @@ export const startCheckout = async (req: Request, res: Response) => {
 
         // Create Pending Sale in Firestore with customer data
         const saleRef = db.collection('sales').doc();
+
+        // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const orderNumber = `WEB-${dateStr}-${saleRef.id.slice(-5).toUpperCase()}`;
+
         await saleRef.set({
+            orderNumber, // Now included from the start
             total_amount: total,
             channel: 'online',
             status: 'PENDING',
             items: validatedItems,
             customer: customerData || null,
+            fulfillment_status: 'pending',
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
