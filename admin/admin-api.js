@@ -79,6 +79,15 @@ const api = {
         return handleResponse(res);
     },
 
+    async updateFulfillmentStatus(id, status) {
+        const res = await this._fetch(`${API_URL}/sales/${id}/fulfillment`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        return handleResponse(res);
+    },
+
     // --- EXPENSES ---
     async getExpenses() {
         const res = await this._fetch(`${API_URL}/expenses`);

@@ -271,3 +271,23 @@ export const getSales = async (req: Request, res: Response) => {
     }
 };
 
+export const updateFulfillmentStatus = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        const db = getDb();
+
+        if (!['pending', 'preparing', 'shipped', 'delivered'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid fulfillment status' });
+        }
+
+        await db.collection('sales').doc(id).update({
+            fulfillment_status: status,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ success: true, id, fulfillment_status: status });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};

@@ -86,7 +86,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
 
                         // Update sale status (preserving existing customer data, but enriching with Stripe info)
                         const stripeCustomer = {
-                            name: paymentIntent.shipping?.name || paymentIntent.receipt_email || saleData.customer?.name || 'Customer',
+                            name: paymentIntent.shipping?.name || paymentIntent.receipt_email || saleData.customer?.name || (saleData.customer?.firstName ? `${saleData.customer.firstName} ${saleData.customer.lastName}` : '') || 'Customer',
                             email: paymentIntent.receipt_email || saleData.customer?.email || '',
                             shipping: paymentIntent.shipping?.address ? {
                                 line1: paymentIntent.shipping.address.line1,
@@ -95,17 +95,24 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                                 state: paymentIntent.shipping.address.state,
                                 postal_code: paymentIntent.shipping.address.postal_code,
                                 country: paymentIntent.shipping.address.country,
-                            } : saleData.customer?.shipping || null
+                            } : (saleData.customer?.address ? {
+                                line1: saleData.customer.address,
+                                city: saleData.customer.city,
+                                postal_code: saleData.customer.postalCode,
+                                country: saleData.customer.country || 'Denmark'
+                            } : null)
                         };
 
                         transaction.update(saleRef, {
                             status: 'completed',
+                            fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
                             paymentId: paymentIntent.id,
                             payment_method: paymentIntent.payment_method_types[0] || 'card',
                             customer: {
                                 ...saleData.customer, // Keep original data from checkout form
-                                stripe_info: stripeCustomer // Enrich with Stripe details
+                                ...stripeCustomer,    // Flatten for easier access
+                                stripe_info: stripeCustomer // Keep full stripe info for reference
                             },
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()

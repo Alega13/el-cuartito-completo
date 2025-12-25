@@ -86,6 +86,30 @@ const app = {
         }
     },
 
+    async updateFulfillmentStatus(id, status) {
+        try {
+            const btn = event?.target?.closest('button');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i>';
+            }
+
+            await api.updateFulfillmentStatus(id, status);
+            await this.loadData();
+
+            // Re-render modal if open
+            if (document.getElementById('modal-overlay')) {
+                document.getElementById('modal-overlay').remove();
+                this.openOnlineSaleDetailModal(id);
+            }
+
+            this.showToast('Estado de envío actualizado');
+        } catch (error) {
+            console.error("Fulfillment update error:", error);
+            this.showToast("Error al actualizar estado", "error");
+        }
+    },
+
     async logout() {
         try {
             await auth.signOut();
@@ -3356,11 +3380,11 @@ const app = {
                                 <tr class="bg-slate-50 border-b border-slate-100">
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Orden</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Productos</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Dirección</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Pago</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Envío</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
                                 </tr>
                             </thead>
@@ -3393,44 +3417,40 @@ const app = {
                                                 <div class="font-mono text-sm font-bold text-brand-orange">${orderNumber}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${customer.stripe_info?.name || customer.firstName || ''} ${customer.stripe_info ? '' : (customer.lastName || '')}</div>
-                                                <div class="text-xs text-slate-500">${customer.stripe_info?.email || customer.email || 'No email'}</div>
+                                                <div class="font-semibold text-brand-dark">${customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || customer.stripe_info?.name || 'Cliente'}</div>
+                                                <div class="text-xs text-slate-500">${customer.email || customer.stripe_info?.email || 'No email'}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-sm">
-                                                    ${(sale.items || []).map(item => `
-                                                        <div class="mb-1">
-                                                            <span class="font-medium">${item.album || item.record?.album || 'Unknown'}</span>
-                                                            <span class="text-slate-400"> - ${item.artist || item.record?.artist || ''}</span>
-                                                            ${item.quantity > 1 ? `<span class="text-xs bg-slate-100 px-1.5 py-0.5 rounded ml-1">x${item.quantity}</span>` : ''}
-                                                        </div>
-                                                    `).join('')}
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm text-slate-600">
-                                                    ${customer.stripe_info?.shipping?.line1 || customer.address || 'N/A'}<br>
-                                                    ${customer.stripe_info?.shipping?.city || customer.city || ''} ${customer.stripe_info?.shipping?.postal_code || customer.postalCode || ''}
+                                                <div class="text-sm text-slate-600 truncate max-w-[200px]">
+                                                    ${customer.shipping?.line1 || customer.address || customer.stripe_info?.shipping?.line1 || 'Sin dirección'}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
-                                                    <div class="font-medium capitalize">${sale.payment_method || sale.paymentMethod || 'card'}</div>
-                                                    ${sale.paymentId ? `<div class="text-xs text-slate-400 font-mono">${sale.paymentId.slice(0, 15)}...</div>` : ''}
+                                                    <div class="font-medium capitalize text-xs">${sale.payment_method || sale.paymentMethod || 'card'}</div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="font-bold text-brand-dark">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-xs font-bold rounded-full border ${statusColors[sale.status] || 'bg-slate-50 text-slate-700'}">
+                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${statusColors[sale.status] || 'bg-slate-50 text-slate-700'}">
                                                     ${statusLabels[sale.status] || sale.status}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-sm text-slate-600">
+                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${sale.fulfillment_status === 'shipped' ? 'bg-blue-100 text-blue-700' :
+                    sale.fulfillment_status === 'preparing' ? 'bg-orange-100 text-orange-700' :
+                        sale.fulfillment_status === 'delivered' ? 'bg-green-100 text-green-700' :
+                            'bg-slate-100 text-slate-600'
+                }">
+                                                    ${(sale.fulfillment_status || 'pendiente').toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-xs text-slate-600">
                                                     ${displayDate.toLocaleDateString('es-ES')}
-                                                    <div class="text-xs text-slate-400">${displayDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+                                                    <div class="text-[10px] text-slate-400">${displayDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
                                                 </div>
                                             </td>
                                         </tr>
@@ -3451,19 +3471,23 @@ const app = {
 
         const customer = sale.customer || {};
         const stripeInfo = customer.stripe_info || {};
-        const shipping = stripeInfo.shipping || {};
+        const ship = customer.shipping || stripeInfo.shipping || {};
 
-        // Fallback logic for address display
-        const addressHtml = shipping.line1 ? `
-        <p class="font-medium">${shipping.line1}</p>
-        ${shipping.line2 ? `<p class="font-medium">${shipping.line2}</p>` : ''}
-        <p class="text-slate-500">${shipping.postal_code || ''} ${shipping.city || ''}</p>
-        <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${shipping.country || ''}</p>
-    ` : `
-        <p class="font-medium">${customer.address || 'Sin dirección'}</p>
-        <p class="text-slate-500">${customer.postalCode || ''} ${customer.city || ''}</p>
-        <p class="text-slate-500 uppercase">${customer.country || ''}</p>
-    `;
+        // Robust address detection
+        const addr = {
+            line1: ship.line1 || customer.address || 'Sin dirección',
+            line2: ship.line2 || '',
+            city: ship.city || customer.city || '',
+            postal: ship.postal_code || customer.postalCode || '',
+            country: ship.country || customer.country || 'Denmark'
+        };
+
+        const addressHtml = `
+            <p class="font-medium">${addr.line1}</p>
+            ${addr.line2 ? `<p class="font-medium">${addr.line2}</p>` : ''}
+            <p class="text-slate-500">${addr.postal} ${addr.city}</p>
+            <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${addr.country}</p>
+        `;
 
         const html = `
         <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -3484,7 +3508,7 @@ const app = {
                 <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
                     
                     <!-- Top section: Status & Total -->
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Estado de Pago</p>
                             <div class="flex items-center gap-2">
@@ -3492,9 +3516,31 @@ const app = {
                                 <span class="font-bold text-brand-dark capitalize">${sale.status === 'completed' ? 'Pagado' : sale.status}</span>
                             </div>
                         </div>
+                        <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                            <p class="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Envío</p>
+                            <div class="font-bold text-orange-700 capitalize">${sale.fulfillment_status || 'pendiente'}</div>
+                        </div>
                         <div class="bg-brand-dark p-4 rounded-2xl text-white">
-                            <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Monto Total</p>
-                            <div class="text-2xl font-bold">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
+                            <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Total</p>
+                            <div class="text-xl font-bold">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+
+                    <!-- Fulfillment Controls -->
+                    <div class="space-y-4">
+                         <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-truck text-brand-orange"></i> Gestión de Envío
+                        </h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'preparing')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'preparing' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                                <i class="ph ph-package"></i> Preparación
+                            </button>
+                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'shipped')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'shipped' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                                <i class="ph ph-paper-plane-tilt"></i> Enviado
+                            </button>
+                            <button onclick="app.updateFulfillmentStatus('${sale.id}', 'delivered')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                                <i class="ph ph-check-circle"></i> Entregado
+                            </button>
                         </div>
                     </div>
 
@@ -3507,7 +3553,7 @@ const app = {
                             <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-sm">
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Destinatario</p>
-                                    <p class="font-bold text-brand-dark text-base">${stripeInfo.name || (customer.firstName + ' ' + customer.lastName) || 'Desconocido'}</p>
+                                    <p class="font-bold text-brand-dark text-base">${customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || customer.stripe_info?.name || 'Cliente'}</p>
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
@@ -3517,7 +3563,7 @@ const app = {
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Contacto</p>
-                                    <p class="font-medium text-brand-dark">${stripeInfo.email || customer.email || 'Sin email'}</p>
+                                    <p class="font-medium text-brand-dark">${customer.email || stripeInfo.email || 'Sin email'}</p>
                                 </div>
                             </div>
                         </div>
