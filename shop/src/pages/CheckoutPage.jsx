@@ -27,7 +27,12 @@ const InputField = ({ label, name, type = "text", width = "w-full", value, onCha
     </div>
 );
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+console.log('Stripe Key loaded:', stripeKey ? 'YES (starts with ' + stripeKey.substring(0, 7) + '...)' : 'NO');
+
+const stripePromise = stripeKey && !stripeKey.includes('REPLACE_WITH_YOUR_KEY')
+    ? loadStripe(stripeKey)
+    : Promise.resolve(null);
 
 const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
     const stripe = useStripe();
@@ -123,14 +128,26 @@ const CheckoutPage = ({ setPage }) => {
         e.preventDefault();
         setIsStartingCheckout(true);
         try {
+            console.log("Starting checkout process...");
             const items = cartItems.map(item => ({ recordId: item.id, quantity: item.quantity }));
             const data = await startCheckout(items, formData); // Pass customer data
+
+            console.log("Response from startCheckout:", {
+                saleId: data.saleId,
+                hasClientSecret: !!data.clientSecret,
+                clientSecretPrefix: data.clientSecret ? data.clientSecret.substring(0, 10) : 'none'
+            });
+
+            if (!data.clientSecret) {
+                throw new Error("El servidor no devolvió el secreto de pago (client_secret).");
+            }
+
             setClientSecret(data.clientSecret);
             setSaleId(data.saleId);
             setIsFormSubmit(true);
         } catch (error) {
-            console.error("Failed to start checkout", error);
-            alert("Failed to initialize checkout. Please try again.");
+            console.error("Failed to start checkout:", error);
+            alert("Error al iniciar el pago: " + (error.message || "Por favor intente nuevamente."));
         } finally {
             setIsStartingCheckout(false);
         }
@@ -240,9 +257,19 @@ const CheckoutPage = ({ setPage }) => {
                             </div>
                         </form>
                     ) : (
-                        <Elements options={{ clientSecret, appearance: { theme: 'stripe' } }} stripe={stripePromise}>
-                            <CheckoutForm clientSecret={clientSecret} saleId={saleId} total={subtotal} onSuccess={handleSuccess} />
-                        </Elements>
+                        <div className="space-y-6">
+                            {stripeKey && !stripeKey.includes('REPLACE_WITH_YOUR_KEY') ? (
+                                <Elements options={{ clientSecret, appearance: { theme: 'stripe' } }} stripe={stripePromise}>
+                                    <CheckoutForm clientSecret={clientSecret} saleId={saleId} total={subtotal} onSuccess={handleSuccess} />
+                                </Elements>
+                            ) : (
+                                <div className="bg-red-50 border border-red-200 p-6 rounded-lg text-red-700">
+                                    <h3 className="font-bold mb-2">Error de Configuración</h3>
+                                    <p className="text-sm">Falta la clave pública de Stripe (VITE_STRIPE_PUBLISHABLE_KEY). Por favor configure el archivo .env correctamente.</p>
+                                    <button onClick={() => setClientSecret('')} className="mt-4 text-xs font-bold uppercase underline">Volver al formulario</button>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
 
