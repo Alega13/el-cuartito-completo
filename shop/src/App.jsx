@@ -100,7 +100,7 @@ function App() {
             setIsCartOpen={setIsCartOpen}
           />
         )}
-        {page === 'checkout' && <CheckoutPage setPage={setPage} />}
+        {page === 'checkout' && <CheckoutPage setPage={setPage} setSaleId={setSearchSaleId} />}
         {page === 'success' && <SuccessPage setPage={setPage} saleId={searchSaleId} />}
       </main>
 

@@ -127,10 +127,10 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
     );
 };
 
-const CheckoutPage = ({ setPage }) => {
+const CheckoutPage = ({ setPage, setSaleId }) => {
     const { cartItems, subtotal, clearCart } = useCart();
     const [clientSecret, setClientSecret] = useState('');
-    const [saleId, setSaleId] = useState(null);
+    const [saleId, setSaleIdState] = useState(null);
     const [isFormSubmit, setIsFormSubmit] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -171,7 +171,8 @@ const CheckoutPage = ({ setPage }) => {
             }
 
             setClientSecret(data.clientSecret);
-            setSaleId(data.saleId);
+            setSaleIdState(data.saleId);
+            if (setSaleId) setSaleId(data.saleId); // Sink it to App state
             setIsFormSubmit(true);
         } catch (error) {
             console.error("Failed to start checkout:", error);
@@ -181,10 +182,11 @@ const CheckoutPage = ({ setPage }) => {
         }
     };
 
-    const handleSuccess = (saleId, paymentId, isPreliminary = false) => {
+    const handleSuccess = (passedSaleId, paymentId, isPreliminary = false) => {
+        const orderId = passedSaleId || saleId;
         const orderData = {
-            orderNumber: `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${saleId.slice(-5).toUpperCase()}`,
-            saleId,
+            orderNumber: `WEB-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${orderId.slice(-5).toUpperCase()}`,
+            saleId: orderId,
             paymentId,
             total: subtotal,
             items: cartItems,
@@ -196,6 +198,7 @@ const CheckoutPage = ({ setPage }) => {
 
         if (!isPreliminary) {
             clearCart();
+            if (setSaleId) setSaleId(orderId);
             setPage('success');
         }
     };
