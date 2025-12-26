@@ -54,6 +54,15 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                     if (!saleDoc.exists) return;
 
                     const saleData = saleDoc.data() as any;
+
+                    // Idempotency check: Skip if already processed by this exact payment intent
+                    const alreadyProcessed = saleData?.stripePaymentIntentId === paymentIntent.id && saleData?.status === 'completed';
+
+                    if (alreadyProcessed) {
+                        console.log(`✓ Webhook already processed for sale ${saleId} with payment intent ${paymentIntent.id}, skipping (idempotent)`);
+                        return;
+                    }
+
                     const isNew = saleData?.status === 'PENDING';
                     const isMissingData = saleData?.status === 'completed' && !saleData?.orderNumber;
 
@@ -112,6 +121,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             status: 'completed',
                             fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
+                            stripePaymentIntentId: paymentIntent.id, // NEW: For idempotency
                             paymentId: paymentIntent.id,
                             payment_method: paymentIntent.payment_method_types[0] || 'card',
                             customer: {

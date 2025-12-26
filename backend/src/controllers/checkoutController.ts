@@ -60,6 +60,7 @@ export const startCheckout = async (req: Request, res: Response) => {
             items: validatedItems,
             customer: customerData || null,
             fulfillment_status: 'pending',
+            stripePaymentIntentId: null, // Will be set by webhook
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
@@ -89,75 +90,28 @@ export const startCheckout = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * @deprecated This endpoint is deprecated and should not be called.
+ * Stock management is now handled exclusively by the Stripe webhook.
+ * This endpoint remains only for backwards compatibility and does nothing.
+ * 
+ * The correct flow is:
+ * 1. Frontend calls /checkout/start
+ * 2. Frontend calls stripe.confirmCardPayment
+ * 3. Stripe webhook handles stock reduction on payment_intent.succeeded
+ */
 export const confirmCheckout = async (req: Request, res: Response) => {
     try {
-        const { saleId, paymentId } = req.body;
-        const db = getDb();
+        const { saleId } = req.body;
 
-        // Transactional confirmation in Firestore
-        await db.runTransaction(async (transaction: admin.firestore.Transaction) => {
-            const saleRef = db.collection('sales').doc(saleId);
-            const saleDoc = await transaction.get(saleRef);
+        console.warn('⚠️  DEPRECATED: /checkout/confirm called. This endpoint does nothing. Stock is managed by webhook.');
 
-            if (!saleDoc.exists || saleDoc.data()?.status !== 'PENDING') {
-                throw new Error("Invalid or expired sale");
-            }
-
-            const saleData = saleDoc.data() as any;
-
-            // Generate order number (format: WEB-YYYYMMDD-XXXXX)
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const orderNumber = `WEB-${dateStr}-${saleId.slice(-5).toUpperCase()}`;
-
-            // Re-validate and deduct stock
-            for (const item of saleData.items) {
-                const productRef = db.collection('products').doc(item.productId);
-                const productDoc = await transaction.get(productRef);
-
-                if (!productDoc.exists || (productDoc.data() as any).stock < item.quantity) {
-                    throw new Error(`Stock unavailable for item ${item.productId}`);
-                }
-
-                transaction.update(productRef, {
-                    stock: admin.firestore.FieldValue.increment(-item.quantity),
-                    updated_at: admin.firestore.FieldValue.serverTimestamp()
-                });
-
-                // Record movement in Firestore
-                const movementRef = db.collection('inventory_movements').doc();
-                transaction.set(movementRef, {
-                    product_id: item.productId,
-                    change: -item.quantity,
-                    reason: 'sale',
-                    channel: 'online',
-                    saleId: saleId,
-                    orderNumber: orderNumber,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-
-            // Customer data enrichment (simplified as we don't have stripe shipping here yet, 
-            // but we use form data)
-            const customer = saleData.customer || {};
-            const enrichedCustomer = {
-                ...customer,
-                name: customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || 'Cliente',
-                email: customer.email || ''
-            };
-
-            transaction.update(saleRef, {
-                status: 'completed',
-                fulfillment_status: 'pending',
-                orderNumber: orderNumber,
-                paymentId: paymentId || 'MOCK_PAYMENT',
-                customer: enrichedCustomer,
-                completed_at: admin.firestore.FieldValue.serverTimestamp(),
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
-            });
+        // Return success but do nothing - webhook will handle everything
+        res.json({
+            success: true,
+            saleId,
+            message: 'Payment confirmation will be handled by Stripe webhook. Please wait for webhook processing.'
         });
-
-        res.json({ success: true, saleId, status: 'completed' });
 
     } catch (error: any) {
         console.error("Confirmation error:", error);

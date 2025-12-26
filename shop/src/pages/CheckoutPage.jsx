@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useCart } from '../context/CartContext';
-import { startCheckout, confirmCheckout } from '../services/api';
+import { startCheckout } from '../services/api';
 import defaultImage from '../assets/default-vinyl.png';
 
 // Input component defined outside to prevent re-creation on each render
@@ -74,20 +74,15 @@ const CheckoutForm = ({ clientSecret, saleId, total, onSuccess }) => {
             setMessage(error.message);
             setIsProcessing(false);
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-            // Payment succeeded - confirm with backend to update stock
-            setMessage("Payment successful! Processing your order...");
-            try {
-                await confirmCheckout(saleId, paymentIntent.id);
-                setTimeout(() => {
-                    onSuccess(saleId, paymentIntent.id);
-                }, 500);
-            } catch (err) {
-                console.error('Confirmation error:', err);
-                // Even if confirmation fails, payment succeeded
-                setTimeout(() => {
-                    onSuccess(saleId, paymentIntent.id);
-                }, 500);
-            }
+            // Payment succeeded! Stripe webhook will handle stock reduction automatically
+            setMessage("Payment successful! Your order is being processed...");
+
+            // No need to call confirmCheckout - webhook handles everything
+            // Just show success page
+            setTimeout(() => {
+                onSuccess(saleId, paymentIntent.id);
+            }, 500);
+
             setIsProcessing(false);
         } else {
             setMessage("Unexpected state.");
