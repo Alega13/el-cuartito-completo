@@ -200,17 +200,7 @@ const app = {
         const content = document.getElementById('app-content');
         content.innerHTML = '';
 
-        switch (view) {
-            case 'dashboard': this.renderDashboard(content); break;
-            case 'sales': this.renderSales(content); break;
-            case 'inventory': this.renderInventory(content); break;
-            case 'expenses': this.renderExpenses(content); break;
-            case 'consignments': this.renderConsignments(content); break;
-            case 'calendar': this.renderCalendar(content); break;
-            case 'vat': this.renderVAT(content); break;
-            case 'backup': this.renderBackup(content); break;
-            case 'settings': this.renderSettings(content); break;
-        }
+        this.refreshCurrentView();
     },
 
     renderCalendar(container) {
@@ -3390,11 +3380,10 @@ const app = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${onlineSales.sort((a, b) => {
-            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.date);
-            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.date);
-            return dateB - dateA;
-        }).map(sale => {
+                                ${onlineSales.map(s => {
+            const date = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.date || 0);
+            return { ...s, _sortDate: date.getTime() };
+        }).sort((a, b) => b._sortDate - a._sortDate).map(sale => {
             const customer = sale.customer || {};
             const orderNumber = sale.orderNumber || 'N/A';
             const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.date);
