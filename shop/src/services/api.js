@@ -49,9 +49,28 @@ export const releaseStock = async (productId, qty) => {
     }
 };
 
-export const startCheckout = async (items, customerData) => {
+export const calculateShipping = async (country, postalCode, city, orderTotal) => {
     try {
-        const response = await api.post('/checkout/start', { items, customerData });
+        const response = await api.post('/shipping/calculate', {
+            country,
+            postalCode,
+            city,
+            orderTotal
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Error calculating shipping:", error);
+        throw error;
+    }
+};
+
+export const startCheckout = async (items, customerData, shippingMethod) => {
+    try {
+        const response = await api.post('/checkout/start', {
+            items,
+            customerData,
+            shippingMethod
+        });
         return response.data;
     } catch (error) {
         console.error("Error starting checkout:", error);
