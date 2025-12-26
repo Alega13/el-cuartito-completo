@@ -152,7 +152,7 @@ const app = {
             this.refreshCurrentView();
         } catch (error) {
             console.error("Failed to load data:", error);
-            this.showToast("Error de conexión con el Servidor API", "error");
+            this.showToast("Error de conexión: " + error.message, "error");
         }
     },
 
