@@ -14,10 +14,10 @@ export const startCheckout = async (req: Request, res: Response) => {
             console.error("Stripe key missing or using mock");
             return res.status(500).json({ error: "Payment system not configured" });
         }
-        const { items, customerData } = req.body; // { recordId, quantity }[] + customer info
+        const { items, customerData, shippingMethod } = req.body; // Added shippingMethod
         const db = getDb();
 
-        let total = 0;
+        let itemsTotal = 0;
         const validatedItems = [];
 
         // Check availability in Firestore
@@ -34,7 +34,7 @@ export const startCheckout = async (req: Request, res: Response) => {
                 return res.status(400).json({ error: `Not enough stock for ${data.album}` });
             }
 
-            total += data.price * item.quantity;
+            itemsTotal += data.price * item.quantity;
             validatedItems.push({
                 productId: item.recordId,
                 quantity: item.quantity,
@@ -44,7 +44,11 @@ export const startCheckout = async (req: Request, res: Response) => {
             });
         }
 
-        // Create Pending Sale in Firestore with customer data
+        // Calculate shipping cost
+        const shippingCost = shippingMethod?.price || 0;
+        const total = itemsTotal + shippingCost;
+
+        // Create Pending Sale in Firestore with customer data and shipping info
         const saleRef = db.collection('sales').doc();
 
         // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
@@ -54,22 +58,32 @@ export const startCheckout = async (req: Request, res: Response) => {
 
         await saleRef.set({
             orderNumber, // Now included from the start
-            total_amount: total,
+            items_total: itemsTotal,
+            shipping_cost: shippingCost,
+            total_amount: total, // items + shipping
             channel: 'online',
             status: 'PENDING',
             items: validatedItems,
             customer: customerData || null,
+            shipping_method: shippingMethod ? {
+                id: shippingMethod.id,
+                method: shippingMethod.method,
+                price: shippingMethod.price,
+                estimatedDays: shippingMethod.estimatedDays
+            } : null,
             fulfillment_status: 'pending',
             stripePaymentIntentId: null, // Will be set by webhook
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Create Stripe PaymentIntent
+        // Create Stripe PaymentIntent with TOTAL (items + shipping)
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(total * 100),
+            amount: Math.round(total * 100), // Total includes shipping now
             currency: 'dkk',
             metadata: {
-                saleId: saleRef.id
+                saleId: saleRef.id,
+                shipping_method: shippingMethod?.method || 'TBD',
+                shipping_cost: shippingCost.toString()
             },
             automatic_payment_methods: {
                 enabled: true,
@@ -78,6 +92,8 @@ export const startCheckout = async (req: Request, res: Response) => {
 
         res.json({
             saleId: saleRef.id,
+            itemsTotal,
+            shippingCost,
             total,
             items: validatedItems,
             clientSecret: paymentIntent.client_secret,
