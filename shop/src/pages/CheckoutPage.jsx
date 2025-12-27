@@ -3,7 +3,7 @@ import { useCart } from '../context/CartContext';
 import CheckoutWizard from '../components/CheckoutWizard';
 
 const CheckoutPage = ({ setPage, setSaleId }) => {
-    const { cart } = useCart();
+    const { cartItems } = useCart();
 
     // Handle successful payment
     const handleSuccess = (saleId, paymentId, skipPreSave = false) => {
@@ -18,7 +18,7 @@ const CheckoutPage = ({ setPage, setSaleId }) => {
         }
     };
 
-    if (cart.length === 0) {
+    if (!cartItems || cartItems.length === 0) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
@@ -36,7 +36,7 @@ const CheckoutPage = ({ setPage, setSaleId }) => {
 
     return (
         <div className="min-h-screen bg-white">
-            <CheckoutWizard cart={cart} onSuccess={handleSuccess} />
+            <CheckoutWizard cart={cartItems} onSuccess={handleSuccess} />
         </div>
     );
 };
