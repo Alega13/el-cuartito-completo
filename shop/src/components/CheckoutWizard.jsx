@@ -119,6 +119,18 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
 
     const steps = ['DETALLES', 'ENVÍO', 'PAGO'];
 
+    // Safety check: handle undefined or empty cart
+    if (!cart || cart.length === 0) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold mb-4">Your cart is empty</h2>
+                    <p className="text-gray-600">Add some items before checking out</p>
+                </div>
+            </div>
+        );
+    }
+
     // Step 1: Customer details submitted
     const handleCustomerDetailsSubmit = (data) => {
         setCustomerData(data);
