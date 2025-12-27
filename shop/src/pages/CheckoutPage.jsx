@@ -2,14 +2,19 @@ import React from 'react';
 import { useCart } from '../context/CartContext';
 import CheckoutWizard from '../components/CheckoutWizard';
 
-const CheckoutPage = ({ onNavigate }) => {
+const CheckoutPage = ({ setPage, setSaleId }) => {
     const { cart } = useCart();
 
     // Handle successful payment
     const handleSuccess = (saleId, paymentId, skipPreSave = false) => {
+        // Save saleId for success page
+        if (setSaleId) {
+            setSaleId(saleId);
+        }
+
         // Navigate to success page
-        if (!skipPreSave) {
-            onNavigate('success', { saleId, paymentId });
+        if (!skipPreSave && setPage) {
+            setPage('success');
         }
     };
 
@@ -19,7 +24,7 @@ const CheckoutPage = ({ onNavigate }) => {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Your cart is empty</h2>
                     <button
-                        onClick={() => onNavigate('shop')}
+                        onClick={() => setPage && setPage('home')}
                         className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600"
                     >
                         Continue Shopping
