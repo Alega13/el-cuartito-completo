@@ -1980,7 +1980,7 @@ const app = {
             }
                                                     </div>
                                                 </td>
-                                                <td class="p-4 text-center text-sm text-slate-600">${s.quantity || (s.items ? s.items.length : 1)}</td>
+                                                <td class="p-4 text-center text-sm text-slate-600">${s.quantity || (s.items ? s.items.reduce((sum, i) => sum + (parseInt(i.quantity || i.qty) || 1), 0) : 1)}</td>
                                                 <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency(s.total)}</td>
                                                 <td class="p-4 text-center">
                                                     <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">${s.paymentMethod}</span>
