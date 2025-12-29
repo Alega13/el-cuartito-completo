@@ -40,7 +40,9 @@ export const startCheckout = async (req: Request, res: Response) => {
                 quantity: item.quantity,
                 unitPrice: data.price,
                 album: data.album,
-                artist: data.artist
+                artist: data.artist,
+                cover_image: data.cover_image || null,
+                cost: data.cost || 0
             });
         }
 
