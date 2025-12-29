@@ -116,6 +116,12 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
     const [clientSecret, setClientSecret] = useState(null);
     const [saleId, setSaleId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [addressData, setAddressData] = useState({
+        street: '',
+        city: '',
+        postalCode: '',
+        country: 'Denmark'
+    });
 
     const steps = ['DETALLES', 'ENVÍO', 'PAGO'];
 

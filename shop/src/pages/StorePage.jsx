@@ -3,7 +3,7 @@ import ProductCard from '../components/ProductCard';
 import { Filter, X } from 'lucide-react';
 
 
-const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery }) => {
+const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery, collectionFilter, onClearCollection }) => {
     const [selectedGenre, setSelectedGenre] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
 
@@ -14,6 +14,9 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
     const filteredProducts = products.filter(product => {
         // Genre Filter
         if (selectedGenre && product.genre !== selectedGenre) return false;
+
+        // Collection Filter
+        if (collectionFilter && (!product.collection || !product.collection.toLowerCase().includes(collectionFilter.toLowerCase()))) return false;
 
         // Search Filter
         if (searchQuery) {
@@ -29,6 +32,7 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
 
     const clearFilters = () => {
         setSelectedGenre(null);
+        if (onClearCollection) onClearCollection();
     };
 
     if (loading) {
@@ -49,6 +53,14 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
                     <div>
                         <h1 className="text-4xl font-bold tracking-tighter mb-2">CATALOGUE</h1>
                         <p className="text-black/60 italic font-medium">Curated selection of electronic sounds.</p>
+                        {collectionFilter && (
+                            <div className="mt-3 inline-flex items-center gap-2 bg-accent/10 text-accent px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
+                                <span>{collectionFilter}</span>
+                                <button onClick={onClearCollection} className="hover:text-accent/70">
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <button

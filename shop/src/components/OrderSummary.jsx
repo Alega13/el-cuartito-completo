@@ -13,7 +13,7 @@ const OrderSummary = ({ cart, shippingCost = 0, showShipping = false }) => {
                 {cart.map((item, index) => (
                     <div key={index} className="flex gap-3 pb-3 border-b border-gray-200">
                         <img
-                            src={item.coverImage || '/default-vinyl.png'}
+                            src={item.cover_image || item.coverImage || '/default-vinyl.png'}
                             alt={item.album}
                             className="w-16 h-16 object-cover rounded"
                         />

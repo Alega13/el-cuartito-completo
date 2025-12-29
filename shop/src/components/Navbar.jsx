@@ -84,7 +84,20 @@ const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
                                     className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
                                 >
                                     <button onClick={() => setPage('home')} className="hover:opacity-40 transition-opacity">Catalogue</button>
-                                    <a href="#" className="hover:opacity-40 transition-opacity">Agency</a>
+                                    <button
+                                        onClick={() => {
+                                            setPage('home');
+                                            setTimeout(() => {
+                                                const collectionsSection = document.querySelector('[data-section="collections"]');
+                                                if (collectionsSection) {
+                                                    collectionsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }
+                                            }, 100);
+                                        }}
+                                        className="hover:opacity-40 transition-opacity"
+                                    >
+                                        Collections
+                                    </button>
                                     <a href="#" className="hover:opacity-40 transition-opacity">About us</a>
                                 </motion.div>
 
@@ -146,7 +159,7 @@ const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
 
                         <div className="flex flex-col gap-8 text-3xl font-bold uppercase tracking-tighter">
                             <button onClick={() => { setPage('home'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Catalogue</button>
-                            <a href="#" className="hover:text-accent transition-colors">Agency</a>
+                            <a href="#" className="hover:text-accent transition-colors">Collections</a>
                             <a href="#" className="hover:text-accent transition-colors">About us</a>
                             <a href="#" className="hover:text-accent transition-colors">Contact</a>
                         </div>

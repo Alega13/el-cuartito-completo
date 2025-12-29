@@ -7,8 +7,10 @@ import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 import CheckoutPage from './pages/CheckoutPage';
 import SuccessPage from './pages/SuccessPage';
+import CollectionPage from './pages/CollectionPage';
 import CartDrawer from './components/CartDrawer';
 import GlobalPlayer from './components/GlobalPlayer';
+import Collections from './components/Collections';
 import logo from './assets/logo.png';
 
 function App() {
@@ -19,6 +21,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSaleId, setSearchSaleId] = useState(null);
+  const [collectionFilter, setCollectionFilter] = useState(null);
+  const [selectedCollection, setSelectedCollection] = useState(null);
 
   useEffect(() => {
     // Check for success page in URL (from Stripe redirect)
@@ -63,6 +67,11 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  const handleCollectionClick = (collectionName) => {
+    setSelectedCollection(collectionName);
+    setPage('collection');
+  };
+
 
   // Find products marked as "header" in storageLocation field
   const headerProducts = products.filter(p => p.storageLocation === 'header').slice(0, 3);
@@ -83,12 +92,19 @@ function App() {
                 setPage('product');
               }}
             />
+            <Collections
+              products={products}
+              onCollectionClick={handleCollectionClick}
+              data-section="collections"
+            />
             <StorePage
               products={products}
               loading={loading}
               setPage={setPage}
               setSelectedProduct={setSelectedProduct}
               searchQuery={searchQuery}
+              collectionFilter={collectionFilter}
+              onClearCollection={() => setCollectionFilter(null)}
             />
           </>
         )}
@@ -98,6 +114,15 @@ function App() {
             products={products}
             setSelectedProduct={setSelectedProduct}
             setIsCartOpen={setIsCartOpen}
+          />
+        )}
+        {page === 'collection' && (
+          <CollectionPage
+            collectionName={selectedCollection}
+            products={products}
+            setPage={setPage}
+            setSelectedProduct={setSelectedProduct}
+            onClose={() => setPage('home')}
           />
         )}
         {page === 'checkout' && <CheckoutPage setPage={setPage} setSaleId={setSearchSaleId} />}

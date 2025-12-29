@@ -1,6 +1,74 @@
-import api from './admin-api.js';
+// Firebase Firestore reference (initialized in index.html)
+const db = firebase.firestore();
 
 const auth = window.auth;
+
+const api = {
+    async createSale(saleData) {
+        return db.runTransaction(async (transaction) => {
+            const itemsWithData = [];
+
+            // 1. Validate stock and gather data
+            for (const item of saleData.items) {
+                const productRef = db.collection('products').doc(item.recordId || item.productId);
+                const productDoc = await transaction.get(productRef);
+
+                if (!productDoc.exists) {
+                    throw new Error(`Producto ${item.recordId} no encontrado`);
+                }
+
+                const productData = productDoc.data();
+                if (productData.stock < item.quantity) {
+                    throw new Error(`Stock insuficiente para ${productData.artist || 'Sin Artista'} - ${productData.album || 'Sin Album'}. Disponible: ${productData.stock}`);
+                }
+
+                itemsWithData.push({
+                    ref: productRef,
+                    data: productData,
+                    quantity: item.quantity,
+                    price: productData.price,
+                    cost: productData.cost || 0
+                });
+            }
+
+            // 2. Perform updates
+            const totalAmount = itemsWithData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+            const saleRef = db.collection('sales').doc();
+            transaction.set(saleRef, {
+                ...saleData,
+                total: totalAmount,
+                date: new Date().toISOString().split('T')[0],
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                items: itemsWithData.map(item => ({
+                    productId: item.ref.id,
+                    artist: item.data.artist,
+                    album: item.data.album,
+                    sku: item.data.sku,
+                    unitPrice: item.price,
+                    costAtSale: item.cost,
+                    qty: item.quantity
+                }))
+            });
+
+            for (const item of itemsWithData) {
+                transaction.update(item.ref, {
+                    stock: item.data.stock - item.quantity
+                });
+
+                const logRef = db.collection('inventory_logs').doc();
+                transaction.set(logRef, {
+                    type: 'SOLD',
+                    sku: item.data.sku || 'Unknown',
+                    album: item.data.album || 'Unknown',
+                    artist: item.data.artist || 'Unknown',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    details: 'Venta registrada (Admin)'
+                });
+            }
+        });
+    }
+};
 
 const app = {
     state: {
@@ -27,8 +95,7 @@ const app = {
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 try {
-                    const token = await user.getIdToken();
-                    api.setToken(token);
+                    // No need to set token - we use Firestore directly via Firebase SDK
 
                     document.getElementById('login-view').classList.add('hidden');
                     document.getElementById('main-app').classList.remove('hidden');
@@ -95,7 +162,8 @@ const app = {
                 btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i>';
             }
 
-            await api.updateFulfillmentStatus(id, status);
+            // Update fulfillment status directly in Firestore
+            await db.collection('sales').doc(id).update({ fulfillment_status: status });
             await this.loadData();
 
             // Re-render modal if open
@@ -128,31 +196,98 @@ const app = {
 
     async loadData() {
         try {
-            const [inventory, sales, expenses, events, consignors] = await Promise.all([
-                api.getInventory(),
-                api.getSales(),
-                api.getExpenses(),
-                api.getEvents(),
-                api.getConsignors()
+            // Load data directly from Firestore (no Railway needed)
+            const [inventorySnap, salesSnap, expensesSnap, eventsSnap, consignorsSnap] = await Promise.all([
+                db.collection('products').get(),
+                db.collection('sales').get(), // ✅ Removed orderBy to avoid filtering out documents
+                db.collection('expenses').orderBy('date', 'desc').get(),
+                db.collection('events').orderBy('date', 'desc').get(),
+                db.collection('consignors').get()
             ]);
 
-            this.state.inventory = inventory.map(i => ({
-                ...i,
-                condition: i.condition || 'VG', // Default condition
-                owner: i.owner || 'El Cuartito',
-                label: i.label || 'Desconocido',
-                storageLocation: i.storageLocation || 'Tienda',
-                cover_image: i.coverImage || null // Map coverImage -> cover_image for UI
+            this.state.inventory = inventorySnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,  // Firestore document ID
+                    ...data,     // This includes the 'sku' field from the document
+                    condition: data.condition || 'VG',
+                    owner: data.owner || 'El Cuartito',
+                    label: data.label || 'Desconocido',
+                    storageLocation: data.storageLocation || 'Tienda',
+                    cover_image: data.cover_image || data.coverImage || null
+                };
+            });
+
+            this.state.sales = salesSnap.docs.map(doc => {
+                const data = doc.data();
+                const sale = {
+                    id: doc.id,
+                    ...data,
+                    // Fallback: Generate date from timestamp if missing (for old online sales)
+                    date: data.date || (data.timestamp?.toDate ? data.timestamp.toDate().toISOString().split('T')[0] :
+                        data.created_at?.toDate ? data.created_at.toDate().toISOString().split('T')[0] :
+                            new Date().toISOString().split('T')[0])
+                };
+
+                // ✅ DATA NORMALIZATION: Ensure consistent field names across local and online sales
+                // This fixes NaN calculations by unifying field names
+
+                // Normalize total amount field (online sales use 'total_amount', local use 'total')
+                if (data.total_amount !== undefined && data.total === undefined) {
+                    sale.total = data.total_amount;
+                }
+
+                // Normalize payment method field (online: 'payment_method', local: 'paymentMethod')
+                if (data.payment_method && !data.paymentMethod) {
+                    sale.paymentMethod = data.payment_method;
+                }
+
+                // Normalize items array fields if items exist
+                if (sale.items && Array.isArray(sale.items)) {
+                    sale.items = sale.items.map(item => ({
+                        ...item,
+                        // Normalize price field (online: 'unitPrice', local: 'priceAtSale')
+                        priceAtSale: item.priceAtSale !== undefined ? item.priceAtSale : (item.unitPrice || 0),
+                        // Normalize quantity field (online: 'quantity', local: 'qty')
+                        qty: item.qty !== undefined ? item.qty : (item.quantity || 1),
+                        // Normalize cost field (online: 'cost', local: 'costAtSale')
+                        costAtSale: item.costAtSale !== undefined ? item.costAtSale : (item.cost || 0)
+                        // Keep original fields for reference if needed
+                    }));
+                }
+
+                return sale;
+            }).sort((a, b) => {
+                // ✅ Sort in-memory by date descending
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return dateB - dateA;
+            });
+
+            this.state.expenses = expensesSnap.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
             }));
-            this.state.sales = sales;
-            this.state.expenses = expenses;
-            this.state.events = events;
-            this.state.consignors = consignors;
+
+            this.state.events = eventsSnap.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            this.state.consignors = consignorsSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    // Map multiple possible field names to agreementSplit for UI consistency
+                    agreementSplit: data.split || data.agreementSplit || (data.percentage ? Math.round(data.percentage * 100) : 70)
+                };
+            });
 
             this.refreshCurrentView();
         } catch (error) {
             console.error("Failed to load data:", error);
-            this.showToast("Error de conexión: " + error.message, "error");
+            this.showToast("❌ Error de conexión: " + error.message, "error");
         }
     },
 
@@ -168,6 +303,7 @@ const app = {
             case 'expenses': this.renderExpenses(container); break;
             case 'consignments': this.renderConsignments(container); break;
             case 'vat': this.renderVAT(container); break;
+            case 'backup': this.renderBackup(container); break;
             case 'settings': this.renderSettings(container); break;
             case 'calendar': this.renderCalendar(container); break;
         }
@@ -438,9 +574,9 @@ const app = {
             createdAt: new Date().toISOString()
         };
 
-        api.createEvent(eventData)
+        db.collection('events').add(eventData)
             .then(() => {
-                this.showToast('Evento agregado');
+                this.showToast('✅ Evento agregado');
                 document.getElementById('modal-overlay').remove();
                 this.loadData();
             })
@@ -449,9 +585,9 @@ const app = {
 
     deleteEvent(id) {
         if (!confirm('¿Eliminar este evento?')) return;
-        api.deleteEvent(id)
+        db.collection('events').doc(id).delete()
             .then(() => {
-                this.showToast('Evento eliminado');
+                this.showToast('✅ Evento eliminado');
                 this.loadData();
             })
             .catch(err => console.error(err));
@@ -490,12 +626,19 @@ const app = {
 
                 <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
                     <h3 class="font-bold text-lg mb-4 text-red-700">Zona de Peligro</h3>
-                    <p class="text-red-600/80 text-sm mb-4">Esta acción borrará TODOS los datos de la base de datos (Inventario, Ventas, Gastos, Socios). No se puede deshacer.</p>
+                    <p class="text-red-600/80 text-sm mb-4">Estas acciones borran datos permanentemente y no se pueden deshacer.</p>
                     
-                    <button onclick="app.resetApplication()" class="w-full bg-white border-2 border-red-200 text-red-600 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
-                        <i class="ph-fill ph-trash text-xl"></i>
-                        Restablecer de Fábrica
-                    </button>
+                    <div class="space-y-3">
+                        <button type="button" onclick="app.resetSales()" class="w-full bg-white border-2 border-orange-200 text-orange-600 py-3 rounded-xl font-bold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2">
+                            <i class="ph-fill ph-receipt-x text-xl"></i>
+                            Borrar Todas las Ventas
+                        </button>
+                        <button type="button" onclick="app.resetApplication()" class="w-full bg-white border-2 border-red-200 text-red-600 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                            <i class="ph-fill ph-trash text-xl"></i>
+                            Restablecer de Fábrica
+                        </button>
+                    </div>
+                </div>
                 </div>
             </div>
         `;
@@ -586,7 +729,7 @@ const app = {
                 // Example: Import Inventory
                 if (data.inventory) {
                     data.inventory.forEach(item => {
-                        const ref = db.collection('inventory').doc(item.sku);
+                        const ref = db.collection('products').doc(item.sku);
                         batch.set(ref, item);
                     });
                 }
@@ -640,7 +783,53 @@ const app = {
         });
     },
 
+    resetSales() {
+        if (!confirm('⚠️ ADVERTENCIA ⚠️\n\nEsto borrará PERMANENTEMENTE todas las ventas (manuales y online) de la base de datos.\n\nEl inventario, gastos y socios NO serán afectados.\n\n¿Estás seguro?')) return;
+
+        const password = prompt('Para confirmar, ingresa la contraseña de administrador:');
+        if (password !== 'alejo13') {
+            alert('Contraseña incorrecta. Operación cancelada.');
+            return;
+        }
+
+        this.showToast('Borrando todas las ventas...');
+
+        // Delete only sales collection
+        db.collection('sales').get().then(snapshot => {
+            const batch = db.batch();
+            snapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            return batch.commit();
+        }).then(() => {
+            this.showToast('✅ Todas las ventas han sido eliminadas');
+            setTimeout(() => location.reload(), 1500);
+        }).catch(err => {
+            console.error(err);
+            alert('Error al borrar ventas: ' + err.message);
+        });
+    },
+
     // --- Helper Functions ---
+
+    // Helper to find product by SKU field (not document ID)
+    async findProductBySku(sku) {
+        try {
+            const snapshot = await db.collection('products').where('sku', '==', sku).get();
+            if (snapshot.empty) {
+                return null;
+            }
+            const doc = snapshot.docs[0];
+            return {
+                id: doc.id,
+                ref: doc.ref,
+                data: doc.data()
+            };
+        } catch (error) {
+            console.error('Error finding product by SKU:', error);
+            return null;
+        }
+    },
 
     logInventoryMovement(type, item) {
         let details = '';
@@ -828,48 +1017,54 @@ const app = {
         const sortedSales = [...filteredSales].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         // Financial Calculations
-        const totalRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
-
-        // Calculate Net Profit (Revenue - Cost)
-        // Consignments: Cost is the partner share
-        // Owned: Cost is the acquisition cost
-        // Calculate Net Profit & Partners Share
+        let totalRevenue = 0;
+        let totalNetProfit = 0;
+        let totalShippingCosts = 0;
         let partnersShare = 0;
 
-        const totalNetProfit = filteredSales.reduce((totalProfit, sale) => {
-            if (sale.items && Array.isArray(sale.items)) {
-                const saleProfit = sale.items.reduce((itemSum, item) => {
-                    const price = Number(item.priceAtSale) || 0;
-                    const qty = Number(item.qty) || Number(item.quantity) || 1;
+        filteredSales.forEach(sale => {
+            const saleTotal = Number(sale.total_amount) || Number(sale.total) || 0;
+            const shippingCost = Number(sale.shipping_cost) || 0;
 
-                    let cost = Number(item.costAtSale);
+            totalRevenue += saleTotal;
+            totalShippingCosts += shippingCost;
 
-                    // Find product to check owner and fallback cost
-                    const product = this.state.inventory.find(p => p.id === (item.productId || item.recordId));
+            const items = sale.items || [];
+            items.forEach(item => {
+                const price = Number(item.priceAtSale || item.unitPrice || item.price) || 0;
+                const qty = Number(item.quantity) || 1;
+                let cost = Number(item.costAtSale || item.cost) || 0;
 
-                    // Fallback cost if not in sale
-                    if (isNaN(cost)) {
+                const owner = (item.owner || '').toLowerCase();
+                const product = this.state.products ? this.state.products.find(p => p.id === item.productId || p.id === item.recordId) : null;
+
+                // Determine cost based on owner/consignment
+                if (owner === 'el cuartito') {
+                    // Owned items: cost should be 0 for profit calculation (entire sale price is profit)
+                    cost = 0;
+                } else if (owner && owner !== 'el cuartito') {
+                    // Consignment: cost is partner's share
+                    if (cost === 0 || isNaN(cost)) {
+                        const partner = this.state.consignors ? this.state.consignors.find(c => (c.name || '').toLowerCase() === owner) : null;
+                        const split = partner ? (partner.agreementSplit || partner.split || 70) : 70;
+                        cost = (price * (Number(split) || 70)) / 100;
+                    }
+                    partnersShare += (cost * qty);
+                } else {
+                    // Fallback: use product cost if available
+                    if (cost === 0 || isNaN(cost)) {
                         cost = product ? (Number(product.cost) || 0) : 0;
                     }
+                }
 
-                    // Check if consignment (Partners Share)
-                    const owner = (product && product.owner) ? product.owner.toLowerCase() : 'el cuartito';
-                    if (owner !== 'el cuartito') {
-                        partnersShare += (cost * qty);
-                    }
+                totalNetProfit += ((price - cost) * qty);
+            });
 
-                    return itemSum + ((price - cost) * qty);
-                }, 0);
-                return totalProfit + saleProfit;
+            // Legacy format fallback for old sales without items array
+            if (items.length === 0 && saleTotal > 0) {
+                totalNetProfit += saleTotal;
             }
-
-            // Legacy fallbacks if no items array
-            const legacyOwner = (sale.owner || 'el cuartito').toLowerCase();
-            if (legacyOwner !== 'el cuartito') {
-                partnersShare += (Number(sale.cost) || 0);
-            }
-            return totalProfit + (Number(sale.total) || 0);
-        }, 0);
+        });
 
         // Calculate Tax (VAT 25% included)
         // Formula: Gross / 1.25 = Net. Tax = Gross - Net.
@@ -965,7 +1160,7 @@ const app = {
                             </div>
                             <div class="text-right">
                                 <p class="text-xs text-slate-400 uppercase font-bold">Ganancia Neta</p>
-                                <p class="text-xl font-bold text-green-600">${this.formatCurrency(cuartitoShare)}</p>
+                                <p class="text-xl font-bold text-green-600">${this.formatCurrency(totalNetProfit)}</p>
                             </div>
                         
                         <!-- VAT Limit Progress -->
@@ -984,7 +1179,7 @@ const app = {
                                 <!-- Marker for 50k -->
                                 <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-red-300 z-10 opacity-50"></div>
                                 <div class="h-full bg-gradient-to-r from-brand-orange via-orange-400 to-red-500 transition-all duration-1000 ease-out shadow-[0_2px_10px_rgba(249,115,22,0.3)]" style="width: ${Math.min(((totalRevenue / 50000) * 100), 100)}%">
-                                    <div class="w-full h-full opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9InN0cmlwZXMiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDAgMEgyMHY0MHptMjAgLTIwTDIwIDIwHDAiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjc3RyaXBlcykiLz48L3N2Zz4')] animate-[slide_2s_linear_infinite]"></div>
+                                    <div class="w-full h-full opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9InN0cmlwZXMiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVybkVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDAgMEgyMHY0MHptMjAgLTIwTDIwIDIwHDAiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjc3RyaXBlcykiLz48L3N2Zz4')] animate-[slide_2s_linear_infinite]"></div>
                                 </div>
                             </div>
                             <div class="flex justify-between items-center mt-3">
@@ -997,14 +1192,18 @@ const app = {
                         </div>
                     </div>
 
-                    <div class="space-y-3">
+                        <div class="space-y-3">
                             <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
                                 <span class="text-sm font-bold text-green-700">El Cuartito</span>
-                                <span class="font-bold text-green-700">${this.formatCurrency(cuartitoShare)}</span>
+                                <span class="font-bold text-green-700">${this.formatCurrency(totalNetProfit)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
                                 <span class="text-sm font-bold text-blue-700">Socios (Pagos)</span>
                                 <span class="font-bold text-blue-700">${this.formatCurrency(partnersShare)}</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
+                                <span class="text-sm font-bold text-orange-700">Costos de Envío</span>
+                                <span class="font-bold text-orange-700">${this.formatCurrency(totalShippingCosts)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
                                 <span class="text-sm font-bold text-slate-600">Impuestos (Estimado)</span>
@@ -1085,7 +1284,7 @@ const app = {
                                         <td class="py-3 text-slate-500">${this.formatDate(sale.date)}</td>
                                         <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(sale.total)}</td>
                                     </tr>
-                                `).join('') || '<tr><td colspan="3" class="text-center py-4 text-slate-400">No hay ventas recientes</td></tr>'}
+                                `).join('') || '<tr><td colspan="3" class="p-8 text-center text-slate-400">No hay ventas recientes</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -1330,7 +1529,7 @@ const app = {
                                             <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple"></i>
                                             </button>
-                                            <button onclick="app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir al Carrito">
+                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir al Carrito">
                                                 <i class="ph-bold ph-shopping-cart"></i>
                                             </button>
                                             <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Imprimir Etiqueta">
@@ -1465,7 +1664,7 @@ const app = {
                         <hr class="border-slate-50">
                         <!-- Simplified Filters -->
                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Género</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Género</label>
                             <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
                                 ${allGenres.map(g => `<option value="${g}" ${this.state.filterGenre === g ? 'selected' : ''}>${g}</option>`).join('')}
@@ -1479,14 +1678,14 @@ const app = {
                             </select>
                         </div>
                          <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
                             <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
                                 ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
                             </select>
                         </div>
                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Dueño</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Dueño</label>
                             <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
                                 ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
@@ -1889,7 +2088,13 @@ const app = {
                             ${['El Cuartito', ...this.state.consignors.map(c => c.name)].map(owner => {
             const stockCount = this.state.inventory.filter(i => i.owner === owner).reduce((sum, i) => sum + i.stock, 0);
             const soldCount = filteredSales.reduce((sum, s) => {
-                if (s.owner === owner) return sum + (s.quantity || 1);
+                if (s.owner === owner) {
+                    // Calculate quantity from items array, or fallback to s.quantity
+                    const qty = s.items && Array.isArray(s.items) ?
+                        s.items.reduce((itemSum, i) => itemSum + (parseInt(i.quantity || i.qty) || 1), 0) :
+                        (parseInt(s.quantity) || 1);
+                    return sum + qty;
+                }
                 if (s.items && Array.isArray(s.items)) return sum + s.items.filter(i => i.owner === owner).length;
                 return sum;
             }, 0);
@@ -2229,6 +2434,19 @@ const app = {
                                                     <input name="label" id="input-label" value="${item.label || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm">
                                                 </div>
                                                 <div class="col-span-2 md:col-span-1">
+                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Collection</label>
+                                                    <select name="collection" id="input-collection" onchange="app.handleCollectionChange(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
+                                                        <option value="">Sin Colección</option>
+                                                        <option value="Detroit Techno" ${item.collection === 'Detroit Techno' ? 'selected' : ''}>Detroit Techno</option>
+                                                        <option value="Ambient Essentials" ${item.collection === 'Ambient Essentials' ? 'selected' : ''}>Ambient Essentials</option>
+                                                        <option value="Staff Picks" ${item.collection === 'Staff Picks' ? 'selected' : ''}>Staff Picks</option>
+                                                        <option value="other" ${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? 'selected' : ''}>Otro...</option>
+                                                    </select>
+                                                    <div id="custom-collection-container" class="${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? '' : 'hidden'} mt-2">
+                                                        <input name="custom_collection" id="custom-collection-input" value="${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? item.collection : ''}" placeholder="Nombre de la colección" class="w-full bg-white border border-brand-orange rounded-xl p-2 text-sm focus:outline-none">
+                                                    </div>
+                                                </div>
+                                                <div class="col-span-2 md:col-span-1">
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género</label>
                                                     <select name="genre" onchange="app.checkCustomInput(this, 'custom-genre-container')" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         ${allGenres.map(g => `<option ${item.genre === g ? 'selected' : ''}>${g}</option>`).join('')}
@@ -2237,6 +2455,13 @@ const app = {
                                                     <div id="custom-genre-container" class="hidden mt-2">
                                                         <input name="custom_genre" placeholder="Nuevo Género" class="w-full bg-white border border-brand-orange rounded-xl p-2 text-sm focus:outline-none">
                                                     </div>
+                                                </div>
+                                                
+                                                <!-- Collection Note (conditional) -->
+                                                <div id="collection-note-container" class="col-span-2 ${item.collection ? '' : 'hidden'}">
+                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Collection Note</label>
+                                                    <textarea name="collectionNote" id="input-collection-note" placeholder="¿Por qué elegiste este disco para esta colección?" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm resize-none">${item.collectionNote || ''}</textarea>
+                                                    <p class="text-xs text-slate-400 mt-1">Aparecerá como descripción editorial en la página de la colección</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -2252,7 +2477,7 @@ const app = {
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Dueño</label>
                                                     <select name="owner" id="modal-owner" onchange="app.handlePriceChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none font-medium text-sm">
                                                         <option value="El Cuartito" ${item.owner === 'El Cuartito' ? 'selected' : ''}>El Cuartito (Propio)</option>
-                                                        ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name} (${c.agreementSplit}%)</option>`).join('')}
+                                                        ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.split || c.agreementSplit || 70}" ${item.owner === c.name ? 'selected' : ''}>${c.name} (${c.split || c.agreementSplit || 70}%)</option>`).join('')}
                                                     </select>
                                                 </div>
                                                 <div class="col-span-3 md:col-span-1">
@@ -2301,11 +2526,11 @@ const app = {
                                                     <i class="ph-fill ph-globe text-green-600 text-xl"></i>
                                                 </div>
                                                 <div>
-                                                    <label class="text-sm font-bold text-green-900 cursor-pointer" for="checkbox-availableOnline">Disponible Online</label>
+                                                    <label class="text-sm font-bold text-green-900 cursor-pointer" for="checkbox-is-online">Disponible Online</label>
                                                     <p class="text-xs text-green-700">Mostrar en la tienda web</p>
                                                 </div>
                                             </div>
-                                            <input type="checkbox" id="checkbox-availableOnline" name="availableOnline" ${item.availableOnline ? 'checked' : ''} class="w-6 h-6 text-green-600 rounded border-green-300 focus:ring-green-500 cursor-pointer">
+                                            <input type="checkbox" id="checkbox-is-online" name="is_online" ${item.is_online ? 'checked' : ''} class="w-6 h-6 text-green-600 rounded border-green-300 focus:ring-green-500 cursor-pointer">
                                         </div>
 
                                         <div class="pt-2 flex gap-4">
@@ -2518,6 +2743,35 @@ const app = {
         } else {
             container.classList.add('hidden');
             container.querySelector('input').required = false;
+        }
+    },
+
+    toggleCollectionNote(collectionValue) {
+        const container = document.getElementById('collection-note-container');
+        if (container && collectionValue && collectionValue !== '') {
+            container.classList.remove('hidden');
+        } else if (container) {
+            container.classList.add('hidden');
+        }
+    },
+
+    handleCollectionChange(value) {
+        const customContainer = document.getElementById('custom-collection-container');
+        const noteContainer = document.getElementById('collection-note-container');
+
+        // Show/hide custom input
+        if (value === 'other') {
+            customContainer?.classList.remove('hidden');
+            customContainer?.querySelector('input')?.focus();
+        } else {
+            customContainer?.classList.add('hidden');
+        }
+
+        // Show/hide collection note
+        if (value && value !== '') {
+            noteContainer?.classList.remove('hidden');
+        } else {
+            noteContainer?.classList.add('hidden');
         }
     },
 
@@ -2975,7 +3229,7 @@ const app = {
         const batch = db.batch();
         const itemsToDelete = []; // Track for logging
         this.state.selectedItems.forEach(sku => {
-            const ref = db.collection('inventory').doc(sku);
+            const ref = db.collection('products').doc(sku);
             const item = this.state.inventory.find(i => i.sku === sku);
             if (item) itemsToDelete.push(item);
             batch.delete(ref);
@@ -2987,10 +3241,11 @@ const app = {
             itemsToDelete.forEach(item => this.logInventoryMovement('DELETE', item));
             this.state.selectedItems.clear();
         }).catch(err => {
-            console.error(err);
+            console.error("Error logging movement:", err);
             alert('Error al eliminar');
         });
-    }, openAddExpenseModal() {
+    },
+    openAddExpenseModal() {
         // Custom Categories Logic
         const defaultCategories = ['Alquiler', 'Servicios', 'Marketing', 'Suministros', 'Honorarios'];
         const allCategories = [...new Set([...defaultCategories, ...(this.state.customCategories || [])])];
@@ -3046,60 +3301,62 @@ const app = {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
-    handleAddVinyl(e, editSku) {
+    async handleAddVinyl(e, editSku) {
         e.preventDefault();
         const formData = new FormData(e.target);
 
         let genre = formData.get('genre');
         if (genre === 'other') {
             genre = formData.get('custom_genre');
-            // Note: Custom genre saving to settings is not yet migrated to new API
-            // For now we just use the string value
         }
 
+        let collection = formData.get('collection');
+        if (collection === 'other') {
+            collection = formData.get('custom_collection');
+        }
+
+        const sku = formData.get('sku');
+
         const recordData = {
-            sku: formData.get('sku'),
+            sku: sku,  // Include SKU as a field
             artist: formData.get('artist'),
             album: formData.get('album'),
             genre: genre,
             label: formData.get('label'),
-            condition: formData.get('status'), // Form uses 'status'
+            collection: collection || null,
+            collectionNote: formData.get('collectionNote') || null,
+            condition: formData.get('status'),
             price: parseFloat(formData.get('price')),
             cost: parseFloat(formData.get('cost')) || 0,
             stock: parseInt(formData.get('stock')),
             storageLocation: formData.get('storageLocation'),
             owner: formData.get('owner'),
-            availableOnline: formData.get('availableOnline') === 'on',
-            coverImage: formData.get('cover_image') || null
+            is_online: formData.get('is_online') === 'on',
+            cover_image: formData.get('cover_image') || null,
+            created_at: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        // Handle Edit
-        if (editSku) {
-            const item = this.state.inventory.find(i => i.sku === editSku);
-            if (!item) { alert('Error: Item not found'); return; }
+        try {
+            if (editSku) {
+                // Update existing - find by SKU first
+                const product = await this.findProductBySku(editSku);
+                if (!product) {
+                    this.showToast('❌ Producto no encontrado', 'error');
+                    return;
+                }
+                await product.ref.update(recordData);
+                this.showToast('✅ Disco actualizado');
+            } else {
+                // Create new with auto-generated ID
+                await db.collection('products').add(recordData);
+                this.showToast('✅ Disco agregado al inventario');
+            }
 
-            api.updateRecord(item.id, recordData)
-                .then(() => {
-                    this.showToast('Disco actualizado');
-                    document.getElementById('modal-overlay').remove();
-                    this.loadData();
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Error al actualizar: " + (err.message || 'desconocido'));
-                });
-        } else {
-            // Create
-            api.createRecord(recordData)
-                .then(() => {
-                    this.showToast('Disco agregado al inventario');
-                    document.getElementById('modal-overlay').remove();
-                    this.loadData();
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Error al crear disco: " + err.message);
-                });
+            document.getElementById('modal-overlay').remove();
+            this.loadData();
+        } catch (err) {
+            console.error(err);
+            this.showToast('❌ Error: ' + (err.message || 'desconocido'), 'error');
         }
     },
 
@@ -3132,7 +3389,7 @@ const app = {
                                                                 <button onclick="document.getElementById('delete-confirm-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                                                     Cancelar
                                                                 </button>
-                                                                <button onclick="app.confirmDelete(${item.id})" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
+                                                                <button onclick="app.confirmDelete('${item.sku}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
                                                                     Eliminar
                                                                 </button>
                                                             </div>
@@ -3143,7 +3400,7 @@ const app = {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
-    confirmDelete(recordId) {
+    async confirmDelete(sku) {
         // Close confirmation modal
         const modal = document.getElementById('delete-confirm-modal');
         if (modal) modal.remove();
@@ -3152,15 +3409,22 @@ const app = {
         const productModal = document.getElementById('modal-overlay');
         if (productModal) productModal.remove();
 
-        api.deleteRecord(recordId)
-            .then(() => {
-                this.showToast('Disco eliminado');
-                this.loadData();
-            })
-            .catch(error => {
-                console.error("Error removing document: ", error);
-                alert("Error al eliminar el disco: " + error.message);
-            });
+        try {
+            // Find product by SKU field first
+            const product = await this.findProductBySku(sku);
+            if (!product) {
+                this.showToast('❌ Producto no encontrado', 'error');
+                return;
+            }
+
+            // Delete using the real document ID
+            await product.ref.delete();
+            this.showToast('✅ Disco eliminado');
+            this.loadData();
+        } catch (error) {
+            console.error("Error removing document: ", error);
+            this.showToast('❌ Error al eliminar: ' + error.message, 'error');
+        }
     },
 
     handleSaleSubmit(e) {
@@ -3372,11 +3636,13 @@ const app = {
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Orden</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Dirección</th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Método Envío</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Pago</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Envío</th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado Envío</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                                    <th class="px-6 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -3417,6 +3683,15 @@ const app = {
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
+                                                    ${sale.shipping_method ? `
+                                                        <div class="font-semibold text-brand-dark">${sale.shipping_method.method || 'Standard'}</div>
+                                                        <div class="text-xs text-slate-500">DKK ${(sale.shipping_method.price || 0).toFixed(2)}</div>
+                                                        ${sale.shipping_method.estimatedDays ? `<div class="text-[10px] text-slate-400">${sale.shipping_method.estimatedDays} días</div>` : ''}
+                                                    ` : '<span class="text-xs text-slate-400">No especificado</span>'}
+                                                </div>
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm">
                                                     <div class="font-medium capitalize text-xs">${sale.payment_method || sale.paymentMethod || 'card'}</div>
                                                 </div>
                                             </td>
@@ -3442,6 +3717,11 @@ const app = {
                                                     ${displayDate.toLocaleDateString('es-ES')}
                                                     <div class="text-[10px] text-slate-400">${displayDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
                                                 </div>
+                                            </td>
+                                            <td class="px-6 py-4 text-center" onclick="event.stopPropagation()">
+                                                <button onclick="app.deleteSale('${sale.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Pedido">
+                                                    <i class="ph-fill ph-trash"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                     `;
@@ -3577,6 +3857,41 @@ const app = {
                                     <p class="font-mono text-[9px] break-all bg-white p-2 rounded border border-slate-200">${sale.paymentId || 'N/A'}</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Shipping Method Info (NEW) -->
+                    <div class="space-y-4">
+                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-truck text-brand-orange"></i> Método de Envío
+                        </h3>
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 text-sm text-brand-dark">
+                            ${sale.shipping_method ? `
+                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span class="text-slate-500 text-xs">Método</span>
+                                    <span class="font-bold">${sale.shipping_method.method || 'Standard'}</span>
+                                </div>
+                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                    <span class="text-slate-500 text-xs">Costo</span>
+                                    <span class="font-bold">DKK ${(sale.shipping_method.price || 0).toFixed(2)}</span>
+                                </div>
+                                ${sale.shipping_method.estimatedDays ? `
+                                    <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
+                                        <span class="text-slate-500 text-xs">Tiempo estimado</span>
+                                        <span class="font-bold">${sale.shipping_method.estimatedDays} días</span>
+                                    </div>
+                                ` : ''}
+                                ${sale.shipping_method.id ? `
+                                    <div class="space-y-1">
+                                        <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">ID Método</span>
+                                        <p class="font-mono text-[9px] bg-white p-2 rounded border border-slate-200">${sale.shipping_method.id}</p>
+                                    </div>
+                                ` : ''}
+                            ` : `
+                                <div class="text-center py-4">
+                                    <p class="text-slate-400 text-sm">No se especificó método de envío</p>
+                                </div>
+                            `}
                         </div>
                     </div>
 
@@ -3782,27 +4097,74 @@ const app = {
         this.openCheckoutModal();
     },
 
-    deleteSale(id) {
+    async deleteSale(id) {
         if (!confirm('¿Eliminar esta venta y restaurar stock?')) return;
 
         const sale = this.state.sales.find(s => s.id === id);
-        if (!sale) return;
+        if (!sale) {
+            this.showToast('❌ Venta no encontrada', 'error');
+            return;
+        }
 
-        const batch = db.batch();
-        const saleRef = db.collection('sales').doc(id);
+        try {
+            const batch = db.batch();
+            const saleRef = db.collection('sales').doc(id);
+            batch.delete(saleRef);
 
-        // Only restore stock if the item still exists in inventory (it should)
-        // If we deleted the item, this might fail. But assuming item exists:
-        const inventoryRef = db.collection('inventory').doc(sale.sku);
+            // Restore stock based on sale type
+            if (sale.items && Array.isArray(sale.items)) {
+                // Multi-item sale (both in-store and online)
+                for (const item of sale.items) {
+                    // Try to find product by multiple methods
+                    const productId = item.productId || item.recordId;
+                    const sku = item.sku || item.record?.sku;
+                    const quantity = parseInt(item.quantity || item.qty) || 1;
 
-        batch.delete(saleRef);
-        batch.update(inventoryRef, {
-            stock: firebase.firestore.FieldValue.increment(sale.quantity)
-        });
+                    let product = null;
 
-        batch.commit()
-            .then(() => this.showToast('Venta eliminada y stock restaurado'))
-            .catch(err => console.error(err));
+                    // Method 1: Try finding by product/record ID (most reliable for online sales)
+                    if (productId) {
+                        try {
+                            const productDoc = await db.collection('products').doc(productId).get();
+                            if (productDoc.exists) {
+                                product = { ref: productDoc.ref, data: productDoc.data() };
+                            }
+                        } catch (e) {
+                            console.warn('Could not find product by ID:', productId);
+                        }
+                    }
+
+                    // Method 2: Fallback to SKU search (for local sales)
+                    if (!product && sku) {
+                        product = await this.findProductBySku(sku);
+                    }
+
+                    if (product) {
+                        batch.update(product.ref, {
+                            stock: firebase.firestore.FieldValue.increment(quantity)
+                        });
+                    } else {
+                        console.warn('Could not restore stock for item:', item);
+                    }
+                }
+            } else if (sale.sku) {
+                // Legacy single-item sale
+                const product = await this.findProductBySku(sale.sku);
+                if (product) {
+                    const quantity = parseInt(sale.quantity) || 1;
+                    batch.update(product.ref, {
+                        stock: firebase.firestore.FieldValue.increment(quantity)
+                    });
+                }
+            }
+
+            await batch.commit();
+            this.showToast('✅ Venta eliminada y stock restaurado');
+            this.loadData();
+        } catch (err) {
+            console.error('Error deleting sale:', err);
+            this.showToast('❌ Error al eliminar venta: ' + err.message, 'error');
+        }
     },
 
 
@@ -4006,17 +4368,17 @@ const app = {
             const existing = this.state.expenses.find(e => e.id === id);
             if (existing) expenseData.date = existing.date;
 
-            api.updateExpense(id, expenseData)
+            db.collection('expenses').doc(id).update(expenseData)
                 .then(() => {
-                    this.showToast('Gasto actualizado');
+                    this.showToast('✅ Gasto actualizado');
                     this.loadData();
                 })
                 .catch(err => console.error(err));
         } else {
             // Create
-            api.createExpense(expenseData)
+            db.collection('expenses').add(expenseData)
                 .then(() => {
-                    this.showToast('Gasto registrado');
+                    this.showToast('✅ Gasto registrado');
                     this.loadData();
                 })
                 .catch(err => console.error(err));
@@ -4027,9 +4389,9 @@ const app = {
 
     deleteExpense(id) {
         if (!confirm('¿Eliminar este gasto?')) return;
-        api.deleteExpense(id)
+        db.collection('expenses').doc(id).delete()
             .then(() => {
-                this.showToast('Gasto eliminado');
+                this.showToast('✅ Gasto eliminado');
                 this.loadData();
             })
             .catch(err => console.error(err));
@@ -4055,13 +4417,46 @@ const app = {
             const partnerItems = this.state.inventory.filter(i => i.owner === partnerName);
             const inStockCount = partnerItems.reduce((acc, curr) => acc + curr.stock, 0);
 
-            // Sales (Flat structure assumption)
-            const soldItems = this.state.sales.filter(s => s.owner === partnerName).sort((a, b) => new Date(b.date) - new Date(a.date));
-            const totalSold = soldItems.reduce((acc, curr) => acc + curr.quantity, 0);
+            // Comprehensive Item Extraction for this partner (supporting multi-item sales)
+            const soldItems = [];
+            this.state.sales.forEach(s => {
+                const partnerRelatedItems = (s.items || []).filter(item => {
+                    if ((item.owner || '').toLowerCase() === partnerName.toLowerCase()) return true;
+                    const product = this.state.inventory.find(p => p.id === (item.productId || item.recordId));
+                    return product && (product.owner || '').toLowerCase() === partnerName.toLowerCase();
+                });
 
-            // Financials: Cost is what is owed to partner
-            const totalDue = soldItems.reduce((acc, curr) => acc + (curr.cost || 0), 0);
-            const alreadyPaid = soldItems.filter(s => s.payoutStatus === 'paid').reduce((acc, curr) => acc + (curr.cost || 0), 0);
+                partnerRelatedItems.forEach(item => {
+                    const price = Number(item.priceAtSale || item.unitPrice || 0);
+                    const split = c.agreementSplit || c.split || 70;
+                    const calculatedCost = (price * split) / 100;
+
+                    soldItems.push({
+                        ...item,
+                        id: s.id,
+                        date: s.date,
+                        cost: item.costAtSale || item.cost || calculatedCost, // Owed to partner
+                        payoutStatus: s.payoutStatus || 'pending',
+                        payoutDate: s.payoutDate || null
+                    });
+                });
+
+                // Legacy fallback for sales without items array
+                if ((!s.items || s.items.length === 0) && (s.owner || '').toLowerCase() === partnerName.toLowerCase()) {
+                    soldItems.push({
+                        ...s,
+                        album: s.album || s.sku || 'Record',
+                        cost: s.cost || ((Number(s.total) || 0) * (c.agreementSplit || 70) / 100)
+                    });
+                }
+            });
+
+            soldItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+            const totalSold = soldItems.reduce((acc, curr) => acc + (Number(curr.qty || curr.quantity) || 1), 0);
+
+            // Financials
+            const totalDue = soldItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+            const alreadyPaid = soldItems.filter(s => s.payoutStatus === 'paid').reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
             const pendingPay = totalDue - alreadyPaid;
 
             return `
@@ -4070,7 +4465,7 @@ const app = {
                                 <div>
                                     <h3 class="font-display text-xl font-bold text-brand-dark">${c.name}</h3>
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">${c.agreementSplit}% Acuerdo</span>
+                                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">${c.agreementSplit || c.split || 70}% Acuerdo</span>
                                     </div>
                                 </div>
                                 <button onclick="app.deleteConsignor('${c.id}')" class="text-slate-300 hover:text-red-400 transition-colors">
@@ -4199,28 +4594,28 @@ const app = {
             phone: formData.get('phone')
         };
 
-        api.createConsignor(newConsignor)
+        db.collection('consignors').add(newConsignor)
             .then(() => {
-                this.showToast('Socio registrado correctamente');
+                this.showToast('✅ Socio registrado correctamente');
                 document.getElementById('modal-overlay').remove();
                 this.loadData();
             })
             .catch(err => {
                 console.error(err);
-                alert('Error al crear socio: ' + err.message);
+                this.showToast('❌ Error al crear socio: ' + err.message, 'error');
             });
     },
 
     deleteConsignor(id) {
         if (!confirm('¿Eliminar este socio?')) return;
-        api.deleteConsignor(id)
+        db.collection('consignors').doc(id).delete()
             .then(() => {
-                this.showToast('Socio eliminado');
+                this.showToast('✅ Socio eliminado');
                 this.loadData();
             })
             .catch(err => {
                 console.error(err);
-                alert('Error al eliminar socio: ' + err.message);
+                this.showToast('❌ Error al eliminar socio: ' + err.message, 'error');
             });
     },
 
@@ -4327,25 +4722,36 @@ const app = {
         const resultsContainer = document.getElementById('discogs-results');
         if (!query) return;
 
-        // Try getting token from settings
-        let token = localStorage.getItem('discogs_token');
+        // Get token from localStorage
+        const token = localStorage.getItem('discogs_token');
 
         if (!token) {
-            // Check if user provided it in old variable (fallback)
-            token = "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz"; // Default fallback
-            // Ideally we prompt user or show error, but for now fallback to the known token if valid, 
-            // or alert them.
-            if (!localStorage.getItem('discogs_token_warned')) {
-                alert("Por favor configura tu Token de Discogs en Configuración (Tuerca).");
-                localStorage.setItem('discogs_token_warned', 'true');
-            }
+            resultsContainer.innerHTML = `
+                <div class="text-center py-4 px-3">
+                    <p class="text-xs text-red-500 font-bold mb-2">⚠️ Token de Discogs no configurado</p>
+                    <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
+                        class="text-xs font-bold text-brand-orange hover:underline">
+                        Ir a Configuración →
+                    </button>
+                </div>
+            `;
+            resultsContainer.classList.remove('hidden');
+            return;
         }
 
-        resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse">Buscando en Discogs...</p>';
+        resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>';
         resultsContainer.classList.remove('hidden');
 
         fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
-            .then(res => res.json())
+            .then(res => {
+                if (res.status === 401) {
+                    throw new Error('Token inválido o expirado');
+                }
+                if (!res.ok) {
+                    throw new Error(`Error ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.results && data.results.length > 0) {
                     resultsContainer.innerHTML = data.results.slice(0, 10).map(r => `
@@ -4359,12 +4765,20 @@ const app = {
                         </div>
                     `).join('');
                 } else {
-                    resultsContainer.innerHTML = '<p class="text-xs text-slate-400">No se encontraron resultados.</p>';
+                    resultsContainer.innerHTML = '<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>';
                 }
             })
             .catch(err => {
                 console.error(err);
-                resultsContainer.innerHTML = '<p class="text-xs text-red-400">Error al buscar. Revisa tu Token.</p>';
+                resultsContainer.innerHTML = `
+                    <div class="text-center py-4 px-3">
+                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${err.message}</p>
+                        <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
+                            class="text-xs font-bold text-brand-orange hover:underline">
+                            Verificar Token en Configuración →
+                        </button>
+                    </div>
+                `;
             });
     },
 

@@ -46,6 +46,8 @@ const SuccessPage = ({ setPage, saleId }) => {
                             saleId: targetId,
                             paymentId: data.paymentId || 'Processing',
                             total: data.total_amount,
+                            itemsTotal: data.items_total || 0,
+                            shippingCost: data.shipping_cost || 0,
                             items: data.items,
                             customer: data.customer
                         });
@@ -174,11 +176,11 @@ const SuccessPage = ({ setPage, saleId }) => {
                             <div className="border-t border-white/20 pt-8 space-y-4">
                                 <div className="flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
                                     <span>Subtotal</span>
-                                    <span>DKK {orderData?.total || 0}</span>
+                                    <span>DKK {orderData?.itemsTotal || 0}</span>
                                 </div>
                                 <div className="flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
                                     <span>Shipping</span>
-                                    <span>Calculated later</span>
+                                    <span>{orderData?.shippingCost === 0 ? 'GRATIS' : `DKK ${orderData?.shippingCost}`}</span>
                                 </div>
                                 <div className="flex justify-between items-end pt-4 border-t border-white/10">
                                     <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40">Total Paid</h2>

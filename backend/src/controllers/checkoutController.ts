@@ -50,19 +50,22 @@ export const startCheckout = async (req: Request, res: Response) => {
         const shippingCost = shippingMethod?.price || 0;
         const total = itemsTotal + shippingCost;
 
-        // Create Pending Sale in Firestore with customer data and shipping info
-        const saleRef = db.collection('sales').doc();
-
         // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-        const orderNumber = `WEB-${dateStr}-${saleRef.id.slice(-5).toUpperCase()}`;
+        const tempId = db.collection('sales').doc().id; // Get temp ID for orderNumber
+        const orderNumber = `WEB-${dateStr}-${tempId.slice(-5).toUpperCase()}`;
 
-        await saleRef.set({
-            orderNumber, // Now included from the start
+        // Format date for admin panel compatibility (YYYY-MM-DD)
+        const dateForAdmin = now.toISOString().split('T')[0];
+
+        // Create Pending Sale in Firestore with customer data and shipping info
+        const saleRef = await db.collection('sales').add({
+            orderNumber,
+            date: dateForAdmin,
             items_total: itemsTotal,
-            shipping_cost: shippingCost,
-            total_amount: total, // items + shipping
+            shipping_cost: shippingCost || 0,
+            total_amount: total,
             channel: 'online',
             status: 'PENDING',
             items: validatedItems,
@@ -74,13 +77,14 @@ export const startCheckout = async (req: Request, res: Response) => {
                 estimatedDays: shippingMethod.estimatedDays
             } : null,
             fulfillment_status: 'pending',
-            stripePaymentIntentId: null, // Will be set by webhook
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            stripePaymentIntentId: null,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            created_at: admin.firestore.FieldValue.serverTimestamp()
         });
 
         // Create Stripe PaymentIntent with TOTAL (items + shipping)
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(total * 100), // Total includes shipping now
+            amount: Math.round(total * 100),
             currency: 'dkk',
             metadata: {
                 saleId: saleRef.id,
@@ -91,6 +95,32 @@ export const startCheckout = async (req: Request, res: Response) => {
                 enabled: true,
             },
         });
+
+        // IMMEDIATE STOCK REDUCTION for local development 
+        // Webhook won't work on localhost but will work in production
+        console.log('🔄 Reducing stock immediately (local development mode)...');
+        try {
+            for (const item of validatedItems) {
+                await db.collection('products').doc(item.productId).update({
+                    stock: admin.firestore.FieldValue.increment(-item.quantity),
+                    updated_at: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Also log inventory movement
+                await db.collection('inventory_movements').add({
+                    product_id: item.productId,
+                    change: -item.quantity,
+                    reason: 'sale',
+                    channel: 'online',
+                    saleId: saleRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            console.log('✅ Stock reduced successfully');
+        } catch (stockError) {
+            console.error('❌ Stock reduction error:', stockError);
+            // Don't fail the checkout if stock update fails
+        }
 
         res.json({
             saleId: saleRef.id,
