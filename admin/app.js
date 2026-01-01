@@ -921,7 +921,7 @@ const app = {
         `;
 
         try {
-            const response = await fetch('http://localhost:3001/discogs/sync', {
+            const response = await fetch('https://el-cuartito-completo.onrender.com/discogs/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -3452,7 +3452,7 @@ const app = {
                 if (existingProduct && existingProduct.discogs_listing_id) {
                     // Update existing listing
                     try {
-                        const response = await fetch(`http://localhost:3001/discogs/update-listing/${existingProduct.discogs_listing_id}`, {
+                        const response = await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${existingProduct.discogs_listing_id}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ product: recordData })
@@ -3468,7 +3468,7 @@ const app = {
                 } else if (releaseId) {
                     // Create new listing
                     try {
-                        const response = await fetch('http://localhost:3001/discogs/create-listing', {
+                        const response = await fetch('https://el-cuartito-completo.onrender.com/discogs/create-listing', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ releaseId: parseInt(releaseId), product: recordData })
@@ -3563,7 +3563,7 @@ const app = {
             if (product.data.discogs_listing_id) {
                 console.log('Attempting to delete from Discogs:', product.data.discogs_listing_id);
                 try {
-                    const response = await fetch(`http://localhost:3001/discogs/delete-listing/${product.data.discogs_listing_id}`, {
+                    const response = await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${product.data.discogs_listing_id}`, {
                         method: 'DELETE'
                     });
                     console.log('Discogs delete response status:', response.status);
