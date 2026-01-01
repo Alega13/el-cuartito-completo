@@ -34,10 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const firebaseController = __importStar(require("../controllers/firebaseController"));
-const auth_1 = require("../middlewares/auth");
+const shippingController = __importStar(require("../controllers/shippingController"));
 const router = (0, express_1.Router)();
-router.get('/', auth_1.isAdmin, firebaseController.getSales);
-router.post('/', auth_1.isAdmin, firebaseController.createSale);
-router.patch('/:id/fulfillment', auth_1.isAdmin, firebaseController.updateFulfillmentStatus);
+// Calculate shipping rates for an address
+router.post('/calculate', shippingController.calculateShipping);
+// Get all shipping zones (public endpoint)
+router.get('/zones', shippingController.getShippingZones);
 exports.default = router;

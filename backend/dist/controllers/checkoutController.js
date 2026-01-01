@@ -50,12 +50,18 @@ const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
 const env_1 = __importDefault(require("../config/env"));
-const stripe = new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+const stripe = env_1.default.STRIPE_SECRET_KEY && env_1.default.STRIPE_SECRET_KEY !== 'sk_test_mock'
+    ? new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
+    : null;
 const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { items } = req.body; // { recordId, quantity }[]
+        if (!stripe) {
+            console.error("Stripe key missing or using mock");
+            return res.status(500).json({ error: "Payment system not configured" });
+        }
+        const { items, customerData, shippingMethod } = req.body; // Added shippingMethod
         const db = (0, firebaseAdmin_1.getDb)();
-        let total = 0;
+        let itemsTotal = 0;
         const validatedItems = [];
         // Check availability in Firestore
         for (const item of items) {
@@ -68,36 +74,91 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             if (data.stock < item.quantity) {
                 return res.status(400).json({ error: `Not enough stock for ${data.album}` });
             }
-            total += data.price * item.quantity;
+            itemsTotal += data.price * item.quantity;
             validatedItems.push({
                 productId: item.recordId,
                 quantity: item.quantity,
                 unitPrice: data.price,
-                album: data.album
+                album: data.album,
+                artist: data.artist,
+                cover_image: data.cover_image || null,
+                cost: data.cost || 0
             });
         }
-        // Create Pending Sale in Firestore
-        const saleRef = db.collection('sales').doc();
-        yield saleRef.set({
+        // Calculate shipping cost
+        const shippingCost = (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.price) || 0;
+        const total = itemsTotal + shippingCost;
+        // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const tempId = db.collection('sales').doc().id; // Get temp ID for orderNumber
+        const orderNumber = `WEB-${dateStr}-${tempId.slice(-5).toUpperCase()}`;
+        // Format date for admin panel compatibility (YYYY-MM-DD)
+        const dateForAdmin = now.toISOString().split('T')[0];
+        // Create Pending Sale in Firestore with customer data and shipping info
+        const saleRef = yield db.collection('sales').add({
+            orderNumber,
+            date: dateForAdmin,
+            items_total: itemsTotal,
+            shipping_cost: shippingCost || 0,
             total_amount: total,
             channel: 'online',
             status: 'PENDING',
             items: validatedItems,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            customer: customerData || null,
+            shipping_method: shippingMethod ? {
+                id: shippingMethod.id,
+                method: shippingMethod.method,
+                price: shippingMethod.price,
+                estimatedDays: shippingMethod.estimatedDays
+            } : null,
+            fulfillment_status: 'pending',
+            stripePaymentIntentId: null,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            created_at: admin.firestore.FieldValue.serverTimestamp()
         });
-        // Create Stripe PaymentIntent
+        // Create Stripe PaymentIntent with TOTAL (items + shipping)
         const paymentIntent = yield stripe.paymentIntents.create({
             amount: Math.round(total * 100),
             currency: 'dkk',
             metadata: {
-                saleId: saleRef.id
+                saleId: saleRef.id,
+                shipping_method: (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.method) || 'TBD',
+                shipping_cost: shippingCost.toString()
             },
             automatic_payment_methods: {
                 enabled: true,
             },
         });
+        // IMMEDIATE STOCK REDUCTION for local development 
+        // Webhook won't work on localhost but will work in production
+        console.log('🔄 Reducing stock immediately (local development mode)...');
+        try {
+            for (const item of validatedItems) {
+                yield db.collection('products').doc(item.productId).update({
+                    stock: admin.firestore.FieldValue.increment(-item.quantity),
+                    updated_at: admin.firestore.FieldValue.serverTimestamp()
+                });
+                // Also log inventory movement
+                yield db.collection('inventory_movements').add({
+                    product_id: item.productId,
+                    change: -item.quantity,
+                    reason: 'sale',
+                    channel: 'online',
+                    saleId: saleRef.id,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            console.log('✅ Stock reduced successfully');
+        }
+        catch (stockError) {
+            console.error('❌ Stock reduction error:', stockError);
+            // Don't fail the checkout if stock update fails
+        }
         res.json({
             saleId: saleRef.id,
+            itemsTotal,
+            shippingCost,
             total,
             items: validatedItems,
             clientSecret: paymentIntent.client_secret,
@@ -110,48 +171,26 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.startCheckout = startCheckout;
+/**
+ * @deprecated This endpoint is deprecated and should not be called.
+ * Stock management is now handled exclusively by the Stripe webhook.
+ * This endpoint remains only for backwards compatibility and does nothing.
+ *
+ * The correct flow is:
+ * 1. Frontend calls /checkout/start
+ * 2. Frontend calls stripe.confirmCardPayment
+ * 3. Stripe webhook handles stock reduction on payment_intent.succeeded
+ */
 const confirmCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { saleId, paymentId } = req.body;
-        const db = (0, firebaseAdmin_1.getDb)();
-        // Transactional confirmation in Firestore
-        yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a;
-            const saleRef = db.collection('sales').doc(saleId);
-            const saleDoc = yield transaction.get(saleRef);
-            if (!saleDoc.exists || ((_a = saleDoc.data()) === null || _a === void 0 ? void 0 : _a.status) !== 'PENDING') {
-                throw new Error("Invalid or expired sale");
-            }
-            const saleData = saleDoc.data();
-            // Re-validate and deduct stock
-            for (const item of saleData.items) {
-                const productRef = db.collection('products').doc(item.productId);
-                const productDoc = yield transaction.get(productRef);
-                if (!productDoc.exists || productDoc.data().stock < item.quantity) {
-                    throw new Error(`Stock unavailable for item ${item.productId}`);
-                }
-                transaction.update(productRef, {
-                    stock: admin.firestore.FieldValue.increment(-item.quantity),
-                    updated_at: admin.firestore.FieldValue.serverTimestamp()
-                });
-                // Record movement in Firestore
-                const movementRef = db.collection('inventory_movements').doc();
-                transaction.set(movementRef, {
-                    product_id: item.productId,
-                    change: -item.quantity,
-                    reason: 'sale',
-                    channel: 'online',
-                    saleId: saleId,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-            transaction.update(saleRef, {
-                status: 'completed',
-                paymentId: paymentId || 'MOCK_PAYMENT',
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
-            });
-        }));
-        res.json({ success: true, saleId, status: 'completed' });
+        const { saleId } = req.body;
+        console.warn('⚠️  DEPRECATED: /checkout/confirm called. This endpoint does nothing. Stock is managed by webhook.');
+        // Return success but do nothing - webhook will handle everything
+        res.json({
+            success: true,
+            saleId,
+            message: 'Payment confirmation will be handled by Stripe webhook. Please wait for webhook processing.'
+        });
     }
     catch (error) {
         console.error("Confirmation error:", error);

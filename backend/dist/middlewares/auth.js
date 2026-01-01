@@ -43,7 +43,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isAdmin = void 0;
-const admin = __importStar(require("firebase-admin"));
+const firebaseAdmin_1 = __importStar(require("../config/firebaseAdmin"));
 const isAdmin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -51,7 +51,9 @@ const isAdmin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
     }
     const token = authHeader.split('Bearer ')[1];
     try {
-        const decodedToken = yield admin.auth().verifyIdToken(token);
+        // Ensure Firebase is initialized before using auth
+        (0, firebaseAdmin_1.getDb)();
+        const decodedToken = yield firebaseAdmin_1.default.auth().verifyIdToken(token);
         req.user = decodedToken;
         next();
     }

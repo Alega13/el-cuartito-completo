@@ -2450,7 +2450,6 @@ const app = {
 
                         <!-- Hidden Fields -->
                         <input type="hidden" name="cover_image" id="input-cover-image" value="${item.cover_image || ''}">
-                        <input type="hidden" name="discogs_release_id" id="input-discogs-release-id" value="${item.discogs_release_id || ''}">
                             <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
                                 <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
                                     <!-- Fixed: Add hidden SKU input for form data -->
@@ -2561,55 +2560,7 @@ const app = {
                                             </div>
                                         </div>
 
-                                        <!-- Publishing Channels -->
-                                        <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-100 space-y-4">
-                                            <div class="flex items-center gap-2 mb-4">
-                                                <i class="ph-fill ph-broadcast text-purple-600 text-xl"></i>
-                                                <h4 class="text-sm font-bold text-purple-900 uppercase tracking-wide">Canales de Publicación</h4>
-                                            </div>
-                                            
-                                            <!-- WebShop Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-storefront text-green-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-green-900 cursor-pointer" for="channel-webshop">🌐 Publicar en WebShop</label>
-                                                        <p class="text-xs text-green-700">Visible en la tienda online</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-webshop" name="publish_webshop" ${item.publish_webshop !== false && item.is_online !== false ? 'checked' : ''} class="w-6 h-6 text-green-600 rounded border-green-300 focus:ring-green-500 cursor-pointer">
-                                            </div>
-
-                                            <!-- Discogs Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-vinyl-record text-purple-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-purple-900 cursor-pointer" for="channel-discogs">💿 Publicar en Discogs</label>
-                                                        <p class="text-xs text-purple-700">Crear listing en Discogs Marketplace</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-discogs" name="publish_discogs" ${item.publish_discogs === true || item.discogs_listing_id ? 'checked' : ''} class="w-6 h-6 text-purple-600 rounded border-purple-300 focus:ring-purple-500 cursor-pointer">
-                                            </div>
-
-                                            <!-- Local Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-house text-blue-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-blue-900 cursor-pointer" for="channel-local">📍 Disponible en Local</label>
-                                                        <p class="text-xs text-blue-700">Disponible en tienda física</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-local" name="publish_local" ${item.publish_local !== false ? 'checked' : ''} class="w-6 h-6 text-blue-600 rounded border-blue-300 focus:ring-blue-500 cursor-pointer">
-                                            </div>
-                                        </div>
+                                        <!-- Disponible Online Checkbox -->
 
                                         <div class="pt-2 flex gap-4">
                                             <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">Cancelar</button>
@@ -3395,13 +3346,8 @@ const app = {
 
         const sku = formData.get('sku');
 
-        // Get publishing flags
-        const publishWebshop = formData.get('publish_webshop') === 'on';
-        const publishDiscogs = formData.get('publish_discogs') === 'on';
-        const publishLocal = formData.get('publish_local') === 'on';
-
         const recordData = {
-            sku: sku,
+            sku: sku,  // Include SKU as a field
             artist: formData.get('artist'),
             album: formData.get('album'),
             genre: genre,
@@ -3414,18 +3360,12 @@ const app = {
             stock: parseInt(formData.get('stock')),
             storageLocation: formData.get('storageLocation'),
             owner: formData.get('owner'),
-            is_online: publishWebshop, // backward compatibility
-            publish_webshop: publishWebshop,
-            publish_discogs: publishDiscogs,
-            publish_local: publishLocal,
+            is_online: formData.get('is_online') === 'on',
             cover_image: formData.get('cover_image') || null,
             created_at: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         try {
-            let productId = null;
-            let existingProduct = null;
-
             if (editSku) {
                 // Update existing - find by SKU first
                 const product = await this.findProductBySku(editSku);
@@ -3433,62 +3373,12 @@ const app = {
                     this.showToast('❌ Producto no encontrado', 'error');
                     return;
                 }
-                existingProduct = product.data;
-                productId = product.id;
                 await product.ref.update(recordData);
                 this.showToast('✅ Disco actualizado');
             } else {
                 // Create new with auto-generated ID
-                const docRef = await db.collection('products').add(recordData);
-                productId = docRef.id;
+                await db.collection('products').add(recordData);
                 this.showToast('✅ Disco agregado al inventario');
-            }
-
-            // Handle Discogs publishing
-            if (publishDiscogs) {
-                const releaseId = formData.get('discogs_release_id');
-
-                // Check if we need to create or update Discogs listing
-                if (existingProduct && existingProduct.discogs_listing_id) {
-                    // Update existing listing
-                    try {
-                        const response = await fetch(`http://localhost:3001/discogs/update-listing/${existingProduct.discogs_listing_id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ product: recordData })
-                        });
-                        const result = await response.json();
-                        if (result.success) {
-                            this.showToast('💿 Listing de Discogs actualizado');
-                        }
-                    } catch (error) {
-                        console.error('Error updating Discogs listing:', error);
-                        this.showToast('⚠️ Error actualizando Discogs (producto guardado localmente)', 'warning');
-                    }
-                } else if (releaseId) {
-                    // Create new listing
-                    try {
-                        const response = await fetch('http://localhost:3001/discogs/create-listing', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ releaseId: parseInt(releaseId), product: recordData })
-                        });
-                        const result = await response.json();
-                        if (result.success && result.listingId) {
-                            // Update product with discogs_listing_id
-                            await db.collection('products').doc(productId).update({
-                                discogs_listing_id: String(result.listingId),
-                                discogs_release_id: parseInt(releaseId)
-                            });
-                            this.showToast('💿 Publicado en Discogs!');
-                        }
-                    } catch (error) {
-                        console.error('Error creating Discogs listing:', error);
-                        this.showToast('⚠️ Error publicando en Discogs (producto guardado localmente)', 'warning');
-                    }
-                } else {
-                    this.showToast('⚠️ Necesitas buscar el disco en Discogs primero para publicarlo', 'warning');
-                }
             }
 
             document.getElementById('modal-overlay').remove();
@@ -3554,33 +3444,6 @@ const app = {
             if (!product) {
                 this.showToast('❌ Producto no encontrado', 'error');
                 return;
-            }
-
-            console.log('Product to delete:', product.data);
-            console.log('Has discogs_listing_id?', product.data.discogs_listing_id);
-
-            // If product has discogs_listing_id, delete from Discogs first
-            if (product.data.discogs_listing_id) {
-                console.log('Attempting to delete from Discogs:', product.data.discogs_listing_id);
-                try {
-                    const response = await fetch(`http://localhost:3001/discogs/delete-listing/${product.data.discogs_listing_id}`, {
-                        method: 'DELETE'
-                    });
-                    console.log('Discogs delete response status:', response.status);
-                    const result = await response.json();
-                    console.log('Discogs delete result:', result);
-                    if (result.success) {
-                        console.log('Discogs listing deleted successfully');
-                        this.showToast('💿 Eliminado de Discogs');
-                    } else {
-                        this.showToast('⚠️ ' + (result.error || 'Error en Discogs'), 'warning');
-                    }
-                } catch (error) {
-                    console.error('Error deleting from Discogs:', error);
-                    this.showToast('⚠️ Error eliminando de Discogs, pero continuando...', 'warning');
-                }
-            } else {
-                console.log('No discogs_listing_id found, skipping Discogs deletion');
             }
 
             // Delete using the real document ID
@@ -4975,12 +4838,6 @@ const app = {
                     preview.querySelector('img').src = imgUrl;
                     preview.classList.remove('hidden');
                 }
-            }
-
-            // Save Discogs Release ID for publishing
-            const releaseIdInput = document.getElementById('input-discogs-release-id');
-            if (releaseIdInput && release.id) {
-                releaseIdInput.value = release.id;
             }
 
             // Genre Auto-Complete

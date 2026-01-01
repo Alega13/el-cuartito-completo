@@ -6,4 +6,5 @@ const router = (0, express_1.Router)();
 router.post('/sale', firebaseController_1.createSale);
 router.post('/reserve', firebaseController_1.reserveStock);
 router.post('/release', firebaseController_1.releaseStock);
+router.patch('/:id/fulfillment', firebaseController_1.updateFulfillmentStatus);
 exports.default = router;

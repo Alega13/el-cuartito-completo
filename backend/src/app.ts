@@ -9,6 +9,7 @@ import eventRoutes from './routes/eventRoutes';
 import consignorRoutes from './routes/consignorRoutes';
 import firebaseRecordRoutes from './routes/firebaseRecordRoutes';
 import firebaseSaleRoutes from './routes/firebaseSaleRoutes';
+import discogsRoutes from './routes/discogsRoutes';
 import healthRoutes from './routes/health';
 import { stripeWebhookHandler } from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
@@ -42,6 +43,9 @@ app.use('/consignors', consignorRoutes);
 // Firebase-backed routes
 app.use('/firebase/records', firebaseRecordRoutes);
 app.use('/firebase/sales', firebaseSaleRoutes);
+
+// Discogs integration
+app.use('/discogs', discogsRoutes);
 
 
 // Health check endpoint

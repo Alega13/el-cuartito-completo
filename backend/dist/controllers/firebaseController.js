@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
+exports.updateFulfillmentStatus = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const normalizeProduct = (data, id) => {
@@ -116,19 +116,9 @@ const deleteProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     try {
         const { id } = req.params;
         const db = (0, firebaseAdmin_1.getDb)();
-        // Dependency check: simple check if items array contains this productId
-        // Note: 'array-contains-any' needs specific structure. 
-        // For simplicity, we'll just check if there are documents where items contains an object with this productId.
-        // Firestore doesn't support 'array-contains' on object fields well without indexing.
-        // Alternative: get all sales and filter, or just allow deletion and warn.
-        // For now, let's assume if we can find any sale with this product.
-        const salesWithProduct = yield db.collection('sales')
-            .where('items', 'array-contains-any', [{ productId: id }])
-            .limit(1)
-            .get();
-        if (!salesWithProduct.empty) {
-            return res.status(400).json({ error: 'Cannot delete product with existing sales.' });
-        }
+        // Dependency check removed to allow deletion. 
+        // Sales data is denormalized (album/artist stored in sale), so deleting product won't break history display.
+        // However, calculating historical profit for old sales without costAtSale might be less accurate (fallback to 0).
         yield db.collection('products').doc(id).delete();
         res.status(204).send();
     }
@@ -185,22 +175,46 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     // items: [{ productId, qty, priceAtSale, album }]
     try {
         const db = (0, firebaseAdmin_1.getDb)();
+        // Normalize items - accept both recordId/productId and quantity/qty
+        const normalizedItems = items.map((item) => {
+            const normalized = {
+                productId: item.productId || item.recordId,
+                qty: item.qty || item.quantity || 1,
+            };
+            if (item.priceAtSale !== undefined)
+                normalized.priceAtSale = item.priceAtSale;
+            if (item.price !== undefined)
+                normalized.priceAtSale = item.price;
+            if (item.album !== undefined)
+                normalized.album = item.album;
+            return normalized;
+        });
         const saleId = yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
-            var _a;
-            // 1. Validate all items have enough stock
-            for (const item of items) {
+            let calculatedTotal = 0;
+            // 1. Validate all items have enough stock AND calculate total
+            for (const item of normalizedItems) {
+                if (!item.productId) {
+                    throw new Error('Missing productId/recordId in sale item');
+                }
                 const productRef = db.collection('products').doc(item.productId);
                 const productDoc = yield transaction.get(productRef);
                 if (!productDoc.exists) {
                     throw new Error(`Product ${item.productId} not found`);
                 }
-                const currentStock = ((_a = productDoc.data()) === null || _a === void 0 ? void 0 : _a.stock) || 0;
+                const productData = productDoc.data();
+                const currentStock = (productData === null || productData === void 0 ? void 0 : productData.stock) || 0;
                 if (currentStock < item.qty) {
                     throw new Error(`Insufficient stock for product ${item.album || item.productId}`);
                 }
+                // Use price from request if available (e.g. override), otherwise use product price
+                const price = item.priceAtSale || productData.price || 0;
+                item.priceAtSale = price; // Store the price used in the item
+                item.costAtSale = productData.cost || 0; // Store cost for profit calculation
+                item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
+                calculatedTotal += price * item.qty;
             }
             // 2. Decrement stock and Prepare Sale document
-            for (const item of items) {
+            for (const item of normalizedItems) {
                 const productRef = db.collection('products').doc(item.productId);
                 transaction.update(productRef, {
                     stock: admin.firestore.FieldValue.increment(-item.qty),
@@ -210,19 +224,19 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 const movementRef = db.collection('inventory_movements').doc();
                 transaction.set(movementRef, {
                     product_id: item.productId,
-                    album: item.album || 'Unknown',
+                    album: item.album,
                     change: -item.qty,
                     reason: 'sale',
-                    channel: channel || 'online',
+                    channel: channel || 'local',
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
             const saleRef = db.collection('sales').doc();
             transaction.set(saleRef, {
-                items,
-                channel: channel || 'online',
-                total_amount: totalAmount,
-                paymentMethod: paymentMethod || 'STRIPE',
+                items: normalizedItems,
+                channel: channel || 'local',
+                total_amount: totalAmount || calculatedTotal,
+                paymentMethod: paymentMethod || 'CASH',
                 customerName: customerName || null,
                 customerEmail: customerEmail || null,
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
@@ -249,3 +263,22 @@ const getSales = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.getSales = getSales;
+const updateFulfillmentStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        const db = (0, firebaseAdmin_1.getDb)();
+        if (!['pending', 'preparing', 'shipped', 'delivered'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid fulfillment status' });
+        }
+        yield db.collection('sales').doc(id).update({
+            fulfillment_status: status,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        res.json({ success: true, id, fulfillment_status: status });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.updateFulfillmentStatus = updateFulfillmentStatus;
