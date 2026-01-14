@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ShoppingBag, Search, Menu, X, ArrowLeft } from 'lucide-react';
+import { Search, Menu, X, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useCart } from '../context/CartContext';
 import logo from '../assets/logo.png';
 
-const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
-    const { totalItems } = useCart();
+const Navbar = ({ page, setPage, setSearchQuery }) => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const inputRef = useRef(null);
 
@@ -83,21 +81,8 @@ const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
                                     layout="position"
                                     className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
                                 >
-                                    <button onClick={() => setPage('home')} className="hover:opacity-40 transition-opacity">Catalogue</button>
-                                    <button
-                                        onClick={() => {
-                                            setPage('home');
-                                            setTimeout(() => {
-                                                const collectionsSection = document.querySelector('[data-section="collections"]');
-                                                if (collectionsSection) {
-                                                    collectionsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }
-                                            }, 100);
-                                        }}
-                                        className="hover:opacity-40 transition-opacity"
-                                    >
-                                        Collections
-                                    </button>
+                                    <button onClick={() => setPage('catalog')} className="hover:opacity-40 transition-opacity">Catalog</button>
+                                    <button onClick={() => setPage('collections')} className="hover:opacity-40 transition-opacity">Collections</button>
                                     <a href="#" className="hover:opacity-40 transition-opacity">About us</a>
                                 </motion.div>
 
@@ -113,17 +98,6 @@ const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
                                         className="p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
                                     >
                                         <Search size={18} strokeWidth={2.5} />
-                                    </button>
-                                    <button
-                                        onClick={() => setIsCartOpen(true)}
-                                        className="p-2 hover:bg-black/5 rounded-full transition-colors relative"
-                                    >
-                                        <ShoppingBag size={18} strokeWidth={2.5} />
-                                        {totalItems > 0 && (
-                                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-black text-white text-[8px] font-bold rounded-full flex items-center justify-center border-2 border-white">
-                                                {totalItems}
-                                            </span>
-                                        )}
                                     </button>
                                     <button
                                         onClick={() => setIsMobileMenuOpen(true)}
@@ -158,8 +132,8 @@ const Navbar = ({ page, setPage, setIsCartOpen, setSearchQuery }) => {
                         </div>
 
                         <div className="flex flex-col gap-8 text-3xl font-bold uppercase tracking-tighter">
-                            <button onClick={() => { setPage('home'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Catalogue</button>
-                            <a href="#" className="hover:text-accent transition-colors">Collections</a>
+                            <button onClick={() => { setPage('catalog'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Catalog</button>
+                            <button onClick={() => { setPage('collections'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Collections</button>
                             <a href="#" className="hover:text-accent transition-colors">About us</a>
                             <a href="#" className="hover:text-accent transition-colors">Contact</a>
                         </div>

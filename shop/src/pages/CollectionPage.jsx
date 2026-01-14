@@ -1,9 +1,7 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { useCart } from '../context/CartContext';
 
 const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct, onClose }) => {
-    const { addToCart } = useCart();
 
     // Filter products by collection
     const collectionProducts = products.filter(p =>
@@ -107,24 +105,16 @@ const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct,
                                         </div>
                                     </div>
 
-                                    {/* CTA Buttons */}
-                                    <div className="flex flex-col sm:flex-row gap-4">
-                                        <button
-                                            onClick={() => {
-                                                setSelectedProduct(product);
-                                                setPage('product');
-                                            }}
-                                            className="px-8 py-4 bg-black text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black/80 transition-all"
-                                        >
-                                            View Full Details →
-                                        </button>
-                                        <button
-                                            onClick={() => addToCart(product)}
-                                            className="px-8 py-4 border border-black text-black text-xs font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white transition-all"
-                                        >
-                                            Add to Cart
-                                        </button>
-                                    </div>
+                                    {/* CTA Button */}
+                                    <button
+                                        onClick={() => {
+                                            setSelectedProduct(product);
+                                            setPage('product');
+                                        }}
+                                        className="px-8 py-4 bg-black text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black/80 transition-all"
+                                    >
+                                        View Full Details →
+                                    </button>
                                 </div>
 
                                 {/* Image Side */}

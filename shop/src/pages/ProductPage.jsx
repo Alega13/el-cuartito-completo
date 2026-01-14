@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Plus, Check } from 'lucide-react';
-
-import { useCart } from '../context/CartContext';
+import { motion } from 'framer-motion';
+import { Play, Pause, ExternalLink } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import defaultImage from '../assets/default-vinyl.png';
 import ProductCard from '../components/ProductCard';
 
 
 const ProductPage = ({ product: initialProduct, products = [], setSelectedProduct }) => {
-    const { addToCart } = useCart();
     const { playTrack, currentTrack, isPlaying, currentProduct } = usePlayer();
 
-    const [added, setAdded] = useState(false);
     const [product, setProduct] = useState(initialProduct);
 
     // Scroll to top when product changes
@@ -105,12 +101,6 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
 
 
     if (!product) return null;
-
-    const handleAddToCart = () => {
-        addToCart(product);
-        setAdded(true);
-        setTimeout(() => setAdded(false), 2000);
-    };
 
     const onPlayClick = (track, index) => {
         const trackData = { ...track, index };
@@ -242,46 +232,38 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-1">Vinyl 12"</span>
                             <span className="text-lg font-bold">DKK {product.price}</span>
                         </div>
-                        <button
-                            onClick={handleAddToCart}
-                            disabled={product.stock === 0}
-                            className="flex items-center gap-2 bg-black text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-black/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <AnimatePresence mode="wait">
-                                {product.stock === 0 ? (
-                                    <motion.div
-                                        key="nostock"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="flex items-center gap-2"
+                        {(() => {
+                            // Generate Discogs URL if available
+                            const discogsUrl = product.discogs_url ||
+                                (product.discogsId ? `https://www.discogs.com/sell/list?release_id=${product.discogsId}&ev=rb` : null);
+
+                            if (discogsUrl) {
+                                return (
+                                    <a
+                                        href={discogsUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 bg-black text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-black/80 transition-colors"
                                     >
-                                        SIN STOCK
-                                    </motion.div>
-                                ) : added ? (
-                                    <motion.div
-                                        key="check"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        exit={{ scale: 0 }}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Check size={18} />
-                                        ADDED
-                                    </motion.div>
-                                ) : (
-                                    <motion.div
-                                        key="plus"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        exit={{ scale: 0 }}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Plus size={18} />
-                                        ADD TO BASKET
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </button>
+                                        <ExternalLink size={18} />
+                                        BUY ON DISCOGS
+                                    </a>
+                                );
+                            }
+
+                            // Fallback: Physical store only
+                            return (
+                                <div className="flex items-center gap-3 text-right">
+                                    <div className="max-w-xs">
+                                        <p className="text-sm font-bold text-black/80 leading-tight">Available at our physical store</p>
+                                        <p className="text-xs text-black/50 mt-1">Vesterbro, Copenhagen</p>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
+                                        <span className="text-xl">🏪</span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

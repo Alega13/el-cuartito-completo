@@ -165,21 +165,28 @@ export class DiscogsService {
      * @param product - Product data
      * @returns Listing ID
      */
-    async createListing(releaseId: number, product: NormalizedProduct): Promise<number> {
+    async createListing(releaseId: number, product: any): Promise<number> {
         try {
+            const listingData: any = {
+                release_id: releaseId,
+                condition: this.reverseMapCondition(product.condition),
+                price: product.price,
+                quantity: product.stock || 1, // Stock quantity
+                status: product.stock > 0 ? 'For Sale' : 'Draft',
+                comments: product.comments || undefined,
+                location: 'Denmark',
+                weight: 0, // Will be calculated by Discogs
+                format_quantity: 1
+            };
+
+            // Add sleeve_condition if provided
+            if (product.sleeveCondition) {
+                listingData.sleeve_condition = this.reverseMapCondition(product.sleeveCondition);
+            }
+
             const response = await axios.post(
                 `${this.baseUrl}/marketplace/listings`,
-                {
-                    release_id: releaseId,
-                    condition: this.reverseMapCondition(product.condition),
-                    price: product.price,
-                    quantity: product.stock || 1, // Stock quantity
-                    status: product.stock > 0 ? 'For Sale' : 'Draft',
-                    comments: product.album ? `${product.artist} - ${product.album}` : undefined,
-                    location: 'Denmark',
-                    weight: 0, // Will be calculated by Discogs
-                    format_quantity: 1
-                },
+                listingData,
                 {
                     headers: {
                         'Authorization': `Discogs token=${this.token}`,
@@ -200,18 +207,25 @@ export class DiscogsService {
     /**
      * Update an existing Discogs listing
      */
-    async updateListing(listingId: string, product: NormalizedProduct): Promise<void> {
+    async updateListing(listingId: string, product: any): Promise<void> {
         try {
+            const listingData: any = {
+                release_id: product.discogs_release_id,
+                condition: this.reverseMapCondition(product.condition),
+                price: product.price,
+                quantity: product.stock || 1, // Update stock/quantity
+                status: product.stock > 0 ? 'For Sale' : 'Draft', // Set to Draft if out of stock
+                comments: product.comments || undefined
+            };
+
+            // Add sleeve_condition if provided
+            if (product.sleeveCondition) {
+                listingData.sleeve_condition = this.reverseMapCondition(product.sleeveCondition);
+            }
+
             await axios.post(
                 `${this.baseUrl}/marketplace/listings/${listingId}`,
-                {
-                    release_id: product.discogs_release_id,
-                    condition: this.reverseMapCondition(product.condition),
-                    price: product.price,
-                    quantity: product.stock || 1, // Update stock/quantity
-                    status: product.stock > 0 ? 'For Sale' : 'Draft', // Set to Draft if out of stock
-                    comments: product.album ? `${product.artist} - ${product.album}` : undefined
-                },
+                listingData,
                 {
                     headers: {
                         'Authorization': `Discogs token=${this.token}`,

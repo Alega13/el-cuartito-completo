@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../config/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 
 const SuccessPage = ({ setPage, saleId }) => {
     const [orderData, setOrderData] = useState(null);
@@ -22,45 +20,14 @@ const SuccessPage = ({ setPage, saleId }) => {
                     }
                 } catch (err) {
                     console.error('Error parsing local order data:', err);
-                }
-            }
-
-            // Fallback: Fetch from Firestore if no local data or saleId mismatch
-            let targetId = saleId;
-            if (!targetId && localData) {
-                try {
-                    targetId = JSON.parse(localData).saleId;
-                } catch (e) {
-                    console.error('Safe targetId extraction failed:', e);
-                }
-            }
-
-            if (targetId) {
-                try {
-                    console.log('Fetching from Firestore:', targetId);
-                    const docSnap = await getDoc(doc(db, 'sales', targetId));
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        setOrderData({
-                            orderNumber: data.orderNumber || 'Pending...',
-                            saleId: targetId,
-                            paymentId: data.paymentId || 'Processing',
-                            total: data.total_amount,
-                            itemsTotal: data.items_total || 0,
-                            shippingCost: data.shipping_cost || 0,
-                            items: data.items,
-                            customer: data.customer
-                        });
-                    } else {
-                        setError(true);
-                    }
-                } catch (err) {
-                    console.error('Firestore fetch error:', err);
                     setError(true);
                 }
             } else {
+                // No local data available
+                console.warn('No order data found in sessionStorage');
                 setError(true);
             }
+
             setLoading(false);
         };
 

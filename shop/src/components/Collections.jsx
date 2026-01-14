@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Collections = ({ products, onCollectionClick }) => {
+const Collections = ({ products, onCollectionClick, isFullPage = false }) => {
     const collections = [
         {
             name: "Detroit Techno",
@@ -26,51 +26,54 @@ const Collections = ({ products, onCollectionClick }) => {
         ).length;
     };
 
+    const containerClass = isFullPage
+        ? "min-h-screen bg-background pt-24 pb-20"
+        : "";
+
+    const contentClass = isFullPage
+        ? "max-w-7xl mx-auto px-6"
+        : "max-w-7xl mx-auto px-6 py-20";
+
     return (
-        <section className="max-w-7xl mx-auto px-6 py-20" data-section="collections">
-            <div className="mb-12">
-                <h2 className="text-5xl md:text-6xl font-bold tracking-tighter uppercase mb-4 italic text-black">
-                    Curated Collections
-                </h2>
-                <p className="text-black/60 font-medium">Hand-picked selections from our catalog</p>
-            </div>
+        <div className={containerClass}>
+            <section className={contentClass} data-section="collections">
+                <div className="mb-12">
+                    {isFullPage && (
+                        <div className="text-sm font-medium text-black/40 mb-4">/ Collections</div>
+                    )}
+                    <h2 className="text-5xl md:text-6xl font-light tracking-tight mb-4">
+                        Curated Collections
+                    </h2>
+                    <p className="text-black/60 font-medium">Hand-picked selections from our catalog</p>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {collections.map((collection, idx) => {
-                    const count = getCollectionCount(collection.name);
-                    if (count === 0) return null; // Don't show empty collections
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                    {collections.map((collection, idx) => {
+                        const count = getCollectionCount(collection.name);
+                        if (count === 0) return null;
 
-                    return (
-                        <button
-                            key={idx}
-                            onClick={() => onCollectionClick(collection.name)}
-                            className="group relative h-64 rounded-2xl overflow-hidden transition-all hover:scale-[1.02] hover:shadow-2xl"
-                        >
-                            <div className={`absolute inset-0 bg-gradient-to-br ${collection.gradient}`} />
-                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-
-                            <div className="relative h-full flex flex-col justify-end p-8">
-                                <h3 className="text-3xl md:text-4xl font-bold text-white mb-2 italic tracking-tight">
-                                    {collection.name.split(' ').map((word, i) => (
-                                        <React.Fragment key={i}>
-                                            {word}
-                                            {i < collection.name.split(' ').length - 1 && <br />}
-                                        </React.Fragment>
-                                    ))}
-                                </h3>
-                                <p className="text-white/80 text-sm font-medium mb-3">{collection.description}</p>
-                                <div className="flex items-center gap-2 text-white/60 text-xs font-bold uppercase tracking-widest">
-                                    <span>{count} {count === 1 ? 'Record' : 'Records'}</span>
-                                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => onCollectionClick(collection.name)}
+                                className="group text-left border-l-2 border-black/10 pl-6 py-6 hover:border-black transition-colors"
+                            >
+                                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-3">
+                                    LOC. 0{idx + 1}
                                 </div>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-        </section>
+                                <h3 className="text-3xl md:text-4xl font-light tracking-tight mb-2 group-hover:opacity-60 transition-opacity">
+                                    {collection.name}
+                                </h3>
+                                <p className="text-sm text-black/60 mb-4">{collection.description}</p>
+                                <div className="text-xs text-black/40">
+                                    {count} {count === 1 ? 'Record' : 'Records'}
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </section>
+        </div>
     );
 };
 

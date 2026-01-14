@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All collections: Only authenticated users (admin panel)
+    // Note: Backend uses Firebase Admin SDK which BYPASSES these rules
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

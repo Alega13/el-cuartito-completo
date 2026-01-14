@@ -58,10 +58,10 @@ const Hero = ({ products, onViewProduct }) => {
                 >
                     {/* Text Section */}
                     <div>
-                        <h2 className="text-[10px] font-bold uppercase tracking-[0.4em] text-black/40 mb-6">Our Choice of the Week</h2>
-                        <h1 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.9] mb-8 uppercase">
+                        <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-6">Our Choice of the Week</h2>
+                        <h1 className="text-5xl md:text-7xl font-light tracking-tight leading-[0.9] mb-8">
                             {product.album} <br />
-                            <span className="text-accent italic font-normal">{product.artist}</span>
+                            <span className="text-black/60">{product.artist}</span>
                         </h1>
                         <button
                             onClick={() => onViewProduct(product)}

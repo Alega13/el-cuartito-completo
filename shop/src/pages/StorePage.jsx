@@ -51,8 +51,8 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
             <header className="mb-12">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tighter mb-2">CATALOGUE</h1>
-                        <p className="text-black/60 italic font-medium">Curated selection of electronic sounds.</p>
+                        <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-2">CATALOGUE</h1>
+                        <p className="text-black/60 font-medium">Curated selection of electronic sounds.</p>
                         {collectionFilter && (
                             <div className="mt-3 inline-flex items-center gap-2 bg-accent/10 text-accent px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
                                 <span>{collectionFilter}</span>

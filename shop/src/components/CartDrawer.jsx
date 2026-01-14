@@ -112,16 +112,23 @@ const CartDrawer = ({ isOpen, onClose, setPage }) => {
                                 <span className="text-xs font-bold text-black/40 uppercase tracking-widest">Subtotal</span>
                                 <span className="text-xl font-bold tracking-tighter">DKK {subtotal}</span>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setPage('checkout');
-                                    onClose();
-                                }}
-                                className="w-full bg-black text-white py-4 rounded-sm font-bold text-sm tracking-widest uppercase hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                disabled={cartItems.length === 0}
+
+                            {cartItems.length > 0 && (
+                                <div className="bg-orange-50 border border-orange-100 rounded-sm p-3 text-center">
+                                    <p className="text-[10px] text-orange-900 leading-relaxed">
+                                        To purchase these records, visit our Discogs shop where they're available for sale.
+                                    </p>
+                                </div>
+                            )}
+
+                            <a
+                                href="https://www.discogs.com/seller/elcuartitorecords.dk"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`w-full bg-black text-white py-4 rounded-sm font-bold text-sm tracking-widest uppercase hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${cartItems.length === 0 ? 'pointer-events-none opacity-30' : ''}`}
                             >
-                                Checkout
-                            </button>
+                                View Our Discogs Shop →
+                            </a>
                         </div>
                     </motion.div>
                 </>

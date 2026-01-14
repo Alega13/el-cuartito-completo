@@ -2527,12 +2527,32 @@ const app = {
                                                     <input name="storageLocation" value="${item.storageLocation || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm" placeholder="A1">
                                                 </div>
                                                 <div class="col-span-3 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado</label>
+                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado del Vinilo</label>
                                                     <select name="status" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option ${item.status === 'NM' ? 'selected' : ''}>NM</option>
-                                                        <option ${item.status === 'VG+' ? 'selected' : ''}>VG+</option>
-                                                        <option ${item.status === 'VG' ? 'selected' : ''}>VG</option>
-                                                        <option ${item.status === 'G' ? 'selected' : ''}>G</option>
+                                                        <option value="M" ${item.status === 'M' ? 'selected' : ''}>Mint (M)</option>
+                                                        <option value="NM" ${item.status === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
+                                                        <option value="VG+" ${item.status === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
+                                                        <option value="VG" ${item.status === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
+                                                        <option value="G+" ${item.status === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
+                                                        <option value="G" ${item.status === 'G' ? 'selected' : ''}>Good (G)</option>
+                                                        <option value="F" ${item.status === 'F' ? 'selected' : ''}>Fair (F)</option>
+                                                        <option value="P" ${item.status === 'P' ? 'selected' : ''}>Poor (P)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-span-3 md:col-span-2">
+                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado de la Funda</label>
+                                                    <select name="sleeveCondition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
+                                                        <option value="" ${!item.sleeveCondition ? 'selected' : ''}>Not Graded</option>
+                                                        <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
+                                                        <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
+                                                        <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>Mint (M)</option>
+                                                        <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
+                                                        <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
+                                                        <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
+                                                        <option value="G+" ${item.sleeveCondition === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
+                                                        <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>Good (G)</option>
+                                                        <option value="F" ${item.sleeveCondition === 'F' ? 'selected' : ''}>Fair (F)</option>
+                                                        <option value="P" ${item.sleeveCondition === 'P' ? 'selected' : ''}>Poor (P)</option>
                                                     </select>
                                                 </div>
                                             </div>
@@ -2558,6 +2578,23 @@ const app = {
                                             <div class="flex justify-between items-center px-1">
                                                 <p class="text-[10px] text-slate-400" id="cost-helper">Ingresa Costo y Margen para calcular precio.</p>
                                                 <p class="text-[10px] text-slate-400 font-mono">${item.sku}</p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Comments field for Discogs -->
+                                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+                                            <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
+                                                <i class="ph-fill ph-note text-brand-orange"></i> Comentarios (para Discogs)
+                                            </h4>
+                                            <div>
+                                                <textarea 
+                                                    name="comments" 
+                                                    rows="3" 
+                                                    maxlength="255"
+                                                    placeholder="Ej: Limited edition, colored vinyl, gatefold sleeve..." 
+                                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm resize-none"
+                                                >${item.comments || ''}</textarea>
+                                                <p class="text-xs text-slate-400 mt-1">Opcional. Se mostrará en la descripción de Discogs (máx 255 caracteres).</p>
                                             </div>
                                         </div>
 
@@ -3409,6 +3446,8 @@ const app = {
             collection: collection || null,
             collectionNote: formData.get('collectionNote') || null,
             condition: formData.get('status'),
+            sleeveCondition: formData.get('sleeveCondition') || '',
+            comments: formData.get('comments') || '',
             price: parseFloat(formData.get('price')),
             cost: parseFloat(formData.get('cost')) || 0,
             stock: parseInt(formData.get('stock')),
