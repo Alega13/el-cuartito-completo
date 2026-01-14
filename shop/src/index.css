@@ -33,3 +33,13 @@ body {
 #root {
   width: 100%;
 }
+
+/* Slow spin animation for vinyl icon */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}

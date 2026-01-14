@@ -1523,58 +1523,62 @@ const app = {
                                         class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
                                         ${filteredInventory.length > 0 && filteredInventory.every(i => this.state.selectedItems.has(i.sku)) ? 'checked' : ''}>
                                 </th>
-                                <th class="p-4 rounded-tl-2xl">Disco</th>
-                                <th class="p-4">Sello</th>
-                                <th class="p-4">Estado</th>
-                                <th class="p-4">Precio</th>
-                                <th class="p-4">Stock</th>
-                                <th class="p-4 text-right rounded-tr-2xl">Acciones</th>
+                                <th class="p-3 rounded-tl-2xl">Disco</th>
+                                <th class="p-3">Sello</th>
+                                <th class="p-3 text-center w-16">Estado</th>
+                                <th class="p-3 text-right w-20">Precio</th>
+                                <th class="p-3 text-center w-16">Stock</th>
+                                <th class="p-3 text-center w-12" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-500"></i></th>
+                                <th class="p-3 text-right rounded-tr-2xl w-32">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
                             ${filteredInventory.map(item => `
                                 <tr class="hover:bg-orange-50/30 transition-colors group cursor-pointer relative ${this.state.selectedItems.has(item.sku) ? 'bg-orange-50/50' : ''}" 
                                     onclick="app.openProductModal('${item.sku.replace(/'/g, "\\'")}')">
-                                    <td class="p-4" onclick="event.stopPropagation()">
-                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\'")}')" 
+                                    <td class="p-3" onclick="event.stopPropagation()">
+                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\'")}')"
                                             class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
                                             ${this.state.selectedItems.has(item.sku) ? 'checked' : ''}>
                                     </td>
-                                    <td class="p-4">
-                                        <div class="flex items-center gap-4">
-                                            <div class="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-sm border border-slate-100">
+                                    <td class="p-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-sm border border-slate-100">
                                                 ${item.cover_image
                             ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
-                            : `<i class="ph-fill ph-disc text-xl"></i>`
+                            : `<i class="ph-fill ph-disc text-lg"></i>`
                         }
                                             </div>
-                                            <div>
-                                                <div class="font-bold text-brand-dark text-[15px] truncate max-w-[200px]" title="${item.album}">${item.album}</div>
-                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[200px]">${item.artist}</div>
+                                            <div class="min-w-0">
+                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[180px]" title="${item.album}">${item.album}</div>
+                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[180px]">${item.artist}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="p-4 text-sm text-slate-500 font-medium max-w-[100px] truncate">${item.label || '-'}</td>
-                                    <td class="p-4">${this.getStatusBadge(item.condition)}</td>
-                                    <td class="p-4 font-bold text-brand-dark font-display">${this.formatCurrency(item.price)}</td>
-                                    <td class="p-4">
-                                        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
+                                    <td class="p-3 text-xs text-slate-500 font-medium max-w-[80px] truncate">${item.label || '-'}</td>
+                                    <td class="p-3 text-center">${this.getStatusBadge(item.condition)}</td>
+                                    <td class="p-3 text-right font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price)}</td>
+                                    <td class="p-3 text-center">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
                                             ${item.stock}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-right" onclick="event.stopPropagation()">
-                                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
-                                                <i class="ph-bold ph-pencil-simple"></i>
+                                    <td class="p-3 text-center">
+                                        ${item.discogs_listing_id
+                            ? `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-100 text-purple-600" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>`
+                            : `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>`
+                        }
+                                    </td>
+                                    <td class="p-3 text-right" onclick="event.stopPropagation()">
+                                        <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
+                                                <i class="ph-bold ph-pencil-simple text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-8 h-8 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir al Carrito">
-                                                <i class="ph-bold ph-shopping-cart"></i>
+                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir">
+                                                <i class="ph-bold ph-shopping-cart text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Imprimir Etiqueta">
-                                                <i class="ph-bold ph-printer"></i>
-                                            </button>
-                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
-                                                <i class="ph-bold ph-trash"></i>
+                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
+                                                <i class="ph-bold ph-trash text-sm"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -1604,13 +1608,20 @@ const app = {
             const currentOwnerFilter = this.state.filterOwner || 'all';
             const currentLabelFilter = this.state.filterLabel || 'all';
             const currentStorageFilter = this.state.filterStorage || 'all';
+            const currentDiscogsFilter = this.state.filterDiscogs || 'all';
 
             const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
             const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
             const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
             const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
 
-            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage;
+            // Discogs filter logic
+            const hasDiscogs = !!item.discogs_listing_id;
+            const matchesDiscogs = currentDiscogsFilter === 'all' ||
+                (currentDiscogsFilter === 'yes' && hasDiscogs) ||
+                (currentDiscogsFilter === 'no' && !hasDiscogs);
+
+            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
         });
 
         // Sort Logic
@@ -1731,6 +1742,14 @@ const app = {
                             <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
                                 ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Publicado en Discogs</label>
+                            <select onchange="app.state.filterDiscogs = this.value; app.refreshCurrentView()" class="w-full bg-purple-50 border border-purple-200 rounded-lg p-2 text-sm outline-none focus:border-purple-500">
+                                <option value="all" ${(this.state.filterDiscogs || 'all') === 'all' ? 'selected' : ''}>Todos</option>
+                                <option value="yes" ${this.state.filterDiscogs === 'yes' ? 'selected' : ''}>✅ Sí</option>
+                                <option value="no" ${this.state.filterDiscogs === 'no' ? 'selected' : ''}>❌ No</option>
                             </select>
                         </div>
                     </div>

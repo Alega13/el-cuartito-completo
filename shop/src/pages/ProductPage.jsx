@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Play, Pause, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Pause, ExternalLink, Disc3 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import defaultImage from '../assets/default-vinyl.png';
 import ProductCard from '../components/ProductCard';
+import VinylSidePlayer from '../components/VinylSidePlayer';
 
 
 const ProductPage = ({ product: initialProduct, products = [], setSelectedProduct }) => {
     const { playTrack, currentTrack, isPlaying, currentProduct } = usePlayer();
 
     const [product, setProduct] = useState(initialProduct);
+    const [showVinylPlayer, setShowVinylPlayer] = useState(false);
 
     // Scroll to top when product changes
     useEffect(() => {
@@ -19,6 +21,8 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     useEffect(() => {
         if (!initialProduct?.id) return;
         setProduct(initialProduct);
+        // Close vinyl player when product changes
+        setShowVinylPlayer(false);
     }, [initialProduct?.id]);
 
     // Helper to check if image is valid
@@ -105,6 +109,10 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     const onPlayClick = (track, index) => {
         const trackData = { ...track, index };
         playTrack(trackData, product, tracks, discogsVideos);
+        // Auto-open vinyl player when playing
+        if (!showVinylPlayer) {
+            setShowVinylPlayer(true);
+        }
     };
 
     const handleRecommendationClick = (recProduct) => {
@@ -114,12 +122,39 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
         setSelectedProduct(recProduct);
     };
 
+    const handleVinylPlayerToggle = () => {
+        setShowVinylPlayer(!showVinylPlayer);
+    };
+
     return (
         <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+            {/* Listen on Vinyl Button - Top Right */}
+            <AnimatePresence>
+                {!showVinylPlayer && (
+                    <motion.button
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        onClick={handleVinylPlayerToggle}
+                        className="fixed top-24 right-6 z-50 flex items-center gap-2 bg-black text-white px-4 py-2.5 rounded-full shadow-lg hover:bg-black/80 transition-all hover:scale-105"
+                    >
+                        <Disc3 size={18} className="animate-spin-slow" />
+                        <span className="text-sm font-bold uppercase tracking-wider">Escuchar en Vinilo</span>
+                    </motion.button>
+                )}
+            </AnimatePresence>
+
+            {/* Main Layout - Animated Grid */}
+            <motion.div
+                className="grid gap-12 lg:gap-8"
+                animate={{
+                    gridTemplateColumns: showVinylPlayer ? '1fr 1fr 380px' : '1fr 1fr',
+                }}
+                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            >
                 {/* Left Column: Tracklist & Info */}
                 <motion.div
-                    key={product.id + "-info"} // Animate on change
+                    key={product.id + "-info"}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.6 }}
@@ -127,9 +162,20 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                 >
                     <div>
                         <div className="flex items-center gap-4 mb-2">
-                            <h1 className="text-5xl font-bold tracking-tighter uppercase">{product.artist}</h1>
+                            <motion.h1
+                                className="font-bold tracking-tighter uppercase"
+                                animate={{ fontSize: showVinylPlayer ? '2.5rem' : '3rem' }}
+                                transition={{ duration: 0.4 }}
+                            >
+                                {product.artist}
+                            </motion.h1>
                         </div>
-                        <p className="text-2xl font-medium text-black/60">{product.album}</p>
+                        <motion.p
+                            className="font-medium text-black/60"
+                            animate={{ fontSize: showVinylPlayer ? '1.25rem' : '1.5rem' }}
+                        >
+                            {product.album}
+                        </motion.p>
                         <div className="mt-6 flex gap-4 text-xs font-bold uppercase tracking-widest text-black/40">
                             <span>{product.label || 'Indie Label'}</span>
                             <span>—</span>
@@ -185,24 +231,51 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                     </div>
                 </motion.div>
 
-                {/* Right Column: Album Artwork */}
+                {/* Center Column: Album Artwork */}
                 <motion.div
-                    key={product.id + "-art"} // Animate on change
+                    key={product.id + "-art"}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    className="h-fit order-1 lg:order-2 w-3/4 mx-auto lg:w-full" // Constrained width on mobile, full on desktop
+                    className="h-fit order-1 lg:order-2"
                 >
-                    <div className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5">
+                    <motion.div
+                        className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5 mx-auto"
+                        animate={{
+                            maxWidth: showVinylPlayer ? '320px' : '100%',
+                        }}
+                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                    >
                         <img
                             src={imageSrc}
                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                             alt={product.album}
                             className="w-full h-full object-cover"
                         />
-                    </div>
+                    </motion.div>
                 </motion.div>
-            </div>
+
+                {/* Right Column: Vinyl Player (Conditional) */}
+                <AnimatePresence>
+                    {showVinylPlayer && (
+                        <motion.div
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: 'auto' }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                            className="order-3 hidden lg:block"
+                        >
+                            <div className="sticky top-32">
+                                <VinylSidePlayer
+                                    product={product}
+                                    isVisible={showVinylPlayer}
+                                    onClose={() => setShowVinylPlayer(false)}
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
 
             {/* Recommendations Section */}
             {recommendations.length > 0 && (

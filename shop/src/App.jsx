@@ -6,7 +6,7 @@ import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 import CollectionPage from './pages/CollectionPage';
 import CatalogPage from './pages/CatalogPage';
-import GlobalPlayer from './components/GlobalPlayer';
+import TurntablePlayer from './components/TurntablePlayer';
 import Collections from './components/Collections';
 import Footer from './components/Footer';
 import logo from './assets/logo.png';
@@ -121,6 +121,7 @@ function App() {
 
 
       <Footer />
+      <TurntablePlayer />
     </div>
   );
 }
