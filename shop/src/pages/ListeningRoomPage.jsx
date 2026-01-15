@@ -23,8 +23,8 @@ const ListeningRoomPage = ({ products = [] }) => {
     const containerRef = useRef(null);
 
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-    const CARD_WIDTH = 180;
-    const CARD_GAP = 16;
+    const CARD_WIDTH = 320;
+    const CARD_GAP = 24;
 
     const formatTime = (seconds) => {
         if (isNaN(seconds)) return '0:00';
@@ -95,22 +95,24 @@ const ListeningRoomPage = ({ products = [] }) => {
 
     // Continuous slow scroll when not shuffling
     useEffect(() => {
-        if (!isShuffling && products.length > 0) {
+        if (!isShuffling && products.length > 0 && !currentProduct) {
             const totalWidth = products.length * (CARD_WIDTH + CARD_GAP);
 
             carouselControls.start({
-                x: [-totalWidth],
+                x: [0, -totalWidth],
                 transition: {
                     repeat: Infinity,
                     repeatType: "loop",
-                    duration: products.length * 3,
+                    duration: products.length * 4,
                     ease: "linear"
                 }
             });
+        } else if (!isShuffling) {
+            carouselControls.stop();
         }
 
         return () => carouselControls.stop();
-    }, [isShuffling, products.length]);
+    }, [isShuffling, products.length, currentProduct]);
 
     const trackTitle = currentTrack?.title || 'Press Shuffle to Start';
     const artistText = currentProduct?.artist || '';
@@ -312,14 +314,13 @@ const ListeningRoomPage = ({ products = [] }) => {
                     ref={containerRef}
                 >
                     {/* Gradient fade edges */}
-                    <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-                    <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
+                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
 
                     {/* Carousel */}
                     <motion.div
-                        className="flex gap-4 py-8"
+                        className="flex gap-6 py-8 pl-8"
                         animate={carouselControls}
-                        style={{ x: 0 }}
                     >
                         {displayProducts.map((product, index) => {
                             const imageSrc = isValidImage(product.cover_image) ? product.cover_image : defaultImage;
@@ -328,9 +329,9 @@ const ListeningRoomPage = ({ products = [] }) => {
                             return (
                                 <motion.div
                                     key={`${product.id}-${index}`}
-                                    className={`flex-shrink-0 w-44 transition-all duration-300 ${isSelected ? 'scale-110 z-20' : 'opacity-70 hover:opacity-100'}`}
+                                    className={`flex-shrink-0 w-72 transition-all duration-500 ${isSelected ? 'scale-105 z-20' : 'opacity-60 hover:opacity-100'}`}
                                 >
-                                    <div className={`aspect-square rounded-lg overflow-hidden shadow-lg ${isSelected ? 'ring-2 ring-black ring-offset-2' : ''}`}>
+                                    <div className={`aspect-square rounded-xl overflow-hidden shadow-xl ${isSelected ? 'ring-4 ring-black ring-offset-4' : ''}`}>
                                         <img
                                             src={imageSrc}
                                             alt={product.album}
@@ -338,9 +339,9 @@ const ListeningRoomPage = ({ products = [] }) => {
                                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                                         />
                                     </div>
-                                    <div className="mt-3 text-center">
-                                        <p className="text-xs font-bold truncate">{product.album}</p>
-                                        <p className="text-[10px] text-black/40 truncate">{product.artist}</p>
+                                    <div className="mt-4 text-center">
+                                        <p className="text-sm font-bold truncate">{product.album}</p>
+                                        <p className="text-xs text-black/40 truncate mt-1">{product.artist}</p>
                                     </div>
                                 </motion.div>
                             );
