@@ -48,14 +48,14 @@ const VinylSidePlayer = ({ product, onClose, isVisible, isMini = false, onExpand
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 100 }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-4 top-1/2 -translate-y-1/2 z-[85] flex flex-col items-center"
+                        className="fixed right-4 top-1/2 -translate-y-1/2 z-[85]"
                     >
                         {/* Mini Player Container */}
-                        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-black/5 p-3 flex flex-col items-center gap-3">
+                        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-black/5 p-4 flex flex-col items-center gap-4 relative w-28">
                             {/* Close Button */}
                             <button
                                 onClick={onClose}
-                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/80 text-white flex items-center justify-center hover:bg-black transition-colors shadow-lg"
+                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/80 text-white flex items-center justify-center hover:bg-black transition-colors shadow-lg z-10"
                             >
                                 <X size={12} />
                             </button>
@@ -99,50 +99,41 @@ const VinylSidePlayer = ({ product, onClose, isVisible, isMini = false, onExpand
                             </div>
 
                             {/* Track Info */}
-                            <div className="text-center max-w-[80px]">
+                            <div className="text-center w-full px-1">
                                 <p className="text-[10px] font-bold truncate">{trackTitle}</p>
                                 <p className="text-[8px] text-black/40 truncate">{artistText}</p>
                             </div>
 
-                            {/* Mini Progress Ring */}
-                            <svg className="w-14 h-14 -rotate-90">
-                                <circle
-                                    cx="28"
-                                    cy="28"
-                                    r="24"
-                                    fill="none"
-                                    stroke="rgba(0,0,0,0.1)"
-                                    strokeWidth="3"
+                            {/* Progress Bar */}
+                            <div className="w-full h-1 bg-black/10 rounded-full overflow-hidden">
+                                <motion.div
+                                    className="h-full bg-black rounded-full"
+                                    style={{ width: `${progress}%` }}
                                 />
-                                <motion.circle
-                                    cx="28"
-                                    cy="28"
-                                    r="24"
-                                    fill="none"
-                                    stroke="black"
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeDasharray={`${2 * Math.PI * 24}`}
-                                    strokeDashoffset={2 * Math.PI * 24 * (1 - progress / 100)}
-                                />
-                            </svg>
+                            </div>
 
-                            {/* Play/Pause Button */}
-                            <motion.button
-                                onClick={togglePlay}
-                                className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center shadow-lg -mt-12"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                            >
-                                {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
-                            </motion.button>
-
-                            {/* Skip Buttons */}
-                            <div className="flex items-center gap-2">
-                                <button onClick={playPrev} className="w-7 h-7 flex items-center justify-center text-black/40 hover:text-black">
+                            {/* Controls Row */}
+                            <div className="flex items-center justify-center gap-2">
+                                <button
+                                    onClick={playPrev}
+                                    className="w-8 h-8 flex items-center justify-center text-black/40 hover:text-black transition-colors rounded-full hover:bg-black/5"
+                                >
                                     <SkipBack size={14} fill="currentColor" />
                                 </button>
-                                <button onClick={playNext} className="w-7 h-7 flex items-center justify-center text-black/40 hover:text-black">
+
+                                <motion.button
+                                    onClick={togglePlay}
+                                    className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center shadow-lg"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                >
+                                    {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                                </motion.button>
+
+                                <button
+                                    onClick={playNext}
+                                    className="w-8 h-8 flex items-center justify-center text-black/40 hover:text-black transition-colors rounded-full hover:bg-black/5"
+                                >
                                     <SkipForward size={14} fill="currentColor" />
                                 </button>
                             </div>
@@ -151,7 +142,7 @@ const VinylSidePlayer = ({ product, onClose, isVisible, isMini = false, onExpand
                             {onExpand && (
                                 <button
                                     onClick={onExpand}
-                                    className="text-[9px] font-bold uppercase tracking-wider text-black/40 hover:text-black flex items-center gap-1 mt-1"
+                                    className="text-[9px] font-bold uppercase tracking-wider text-black/40 hover:text-black flex items-center gap-1 transition-colors"
                                 >
                                     <Maximize2 size={10} />
                                     <span>Ver Album</span>
