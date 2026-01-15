@@ -294,7 +294,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
             )}
 
             {/* Bottom Fixed Container: ONLY ADD TO CART NOW */}
-            <div className={`fixed bottom-0 left-0 right-0 z-[80] transition-all duration-500 ${currentProduct ? 'mb-[73px]' : 'mb-0'}`}>
+            <div className="fixed bottom-0 left-0 right-0 z-[80]">
                 {/* Add to Cart Bar */}
                 <div className="bg-white border-t border-black/5 px-6 py-4 md:px-10 relative z-20">
                     <div className="max-w-7xl mx-auto flex items-center justify-between">
