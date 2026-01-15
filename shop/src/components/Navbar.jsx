@@ -81,9 +81,9 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                                     layout="position"
                                     className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
                                 >
+                                    <button onClick={() => setPage('listening')} className="hover:opacity-40 transition-opacity">Listening Room</button>
                                     <button onClick={() => setPage('catalog')} className="hover:opacity-40 transition-opacity">Catalog</button>
                                     <button onClick={() => setPage('collections')} className="hover:opacity-40 transition-opacity">Collections</button>
-                                    <a href="#" className="hover:opacity-40 transition-opacity">About us</a>
                                 </motion.div>
 
                                 <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
@@ -132,10 +132,9 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                         </div>
 
                         <div className="flex flex-col gap-8 text-3xl font-bold uppercase tracking-tighter">
+                            <button onClick={() => { setPage('listening'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Listening Room</button>
                             <button onClick={() => { setPage('catalog'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Catalog</button>
                             <button onClick={() => { setPage('collections'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Collections</button>
-                            <a href="#" className="hover:text-accent transition-colors">About us</a>
-                            <a href="#" className="hover:text-accent transition-colors">Contact</a>
                         </div>
 
                         <div className="mt-auto text-sm font-medium text-black/40">
