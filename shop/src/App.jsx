@@ -6,7 +6,6 @@ import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 import CollectionPage from './pages/CollectionPage';
 import CatalogPage from './pages/CatalogPage';
-import TurntablePlayer from './components/TurntablePlayer';
 import VinylSidePlayer from './components/VinylSidePlayer';
 import Collections from './components/Collections';
 import Footer from './components/Footer';
@@ -146,7 +145,6 @@ function App() {
       )}
 
       <Footer />
-      <TurntablePlayer />
     </div>
   );
 }
