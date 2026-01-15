@@ -48,21 +48,25 @@ const ListeningRoomPage = ({ products = [] }) => {
         const spins = 2; // Number of full rotations
         const targetOffset = -(randomIndex * (CARD_WIDTH + CARD_GAP));
 
+        // Animate carousel
         try {
-            // Animate: accelerate through multiple loops, then decelerate to target
             await carouselControls.start({
                 x: [0, -totalWidth * spins + targetOffset],
                 transition: {
                     duration: 3,
-                    ease: [0.12, 0, 0.39, 0], // Ease out - starts fast, slows down
+                    ease: [0.12, 0, 0.39, 0],
                 }
             });
-
-            // Snap to position (wrap around)
             carouselControls.set({ x: targetOffset });
-            setSelectedIndex(randomIndex);
+        } catch (e) {
+            // Animation cancelled, that's ok
+        }
 
-            // Fetch and play random track from this album
+        setSelectedIndex(randomIndex);
+        setIsShuffling(false); // Reset shuffling state immediately after animation
+
+        // Fetch and play random track from this album (runs in background)
+        try {
             const token = "BVpmDeAWjZxLXksEHfHPjAztaNfYoUEsFrRxCLwK";
             let releaseId = randomProduct.discogsId;
 
@@ -87,9 +91,7 @@ const ListeningRoomPage = ({ products = [] }) => {
                 }
             }
         } catch (error) {
-            console.error("Error playing track:", error);
-        } finally {
-            setIsShuffling(false);
+            console.error("Error fetching/playing track:", error);
         }
     };
 
