@@ -48,21 +48,21 @@ const ListeningRoomPage = ({ products = [] }) => {
         const spins = 2; // Number of full rotations
         const targetOffset = -(randomIndex * (CARD_WIDTH + CARD_GAP));
 
-        // Animate: accelerate through multiple loops, then decelerate to target
-        await carouselControls.start({
-            x: [0, -totalWidth * spins + targetOffset],
-            transition: {
-                duration: 3,
-                ease: [0.12, 0, 0.39, 0], // Ease out - starts fast, slows down
-            }
-        });
-
-        // Snap to position (wrap around)
-        carouselControls.set({ x: targetOffset });
-        setSelectedIndex(randomIndex);
-
-        // Fetch and play random track from this album
         try {
+            // Animate: accelerate through multiple loops, then decelerate to target
+            await carouselControls.start({
+                x: [0, -totalWidth * spins + targetOffset],
+                transition: {
+                    duration: 3,
+                    ease: [0.12, 0, 0.39, 0], // Ease out - starts fast, slows down
+                }
+            });
+
+            // Snap to position (wrap around)
+            carouselControls.set({ x: targetOffset });
+            setSelectedIndex(randomIndex);
+
+            // Fetch and play random track from this album
             const token = "BVpmDeAWjZxLXksEHfHPjAztaNfYoUEsFrRxCLwK";
             let releaseId = randomProduct.discogsId;
 
@@ -88,9 +88,9 @@ const ListeningRoomPage = ({ products = [] }) => {
             }
         } catch (error) {
             console.error("Error playing track:", error);
+        } finally {
+            setIsShuffling(false);
         }
-
-        setIsShuffling(false);
     };
 
     // Continuous slow scroll when not shuffling
