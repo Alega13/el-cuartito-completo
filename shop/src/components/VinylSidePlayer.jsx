@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipBack, SkipForward, X, Volume2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Volume2, Maximize2 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
-const VinylSidePlayer = ({ product, onClose, isVisible }) => {
+const VinylSidePlayer = ({ product, onClose, isVisible, isMini = false, onExpand }) => {
     const {
         currentTrack,
         isPlaying,
@@ -38,6 +38,133 @@ const VinylSidePlayer = ({ product, onClose, isVisible }) => {
     const artistText = currentProduct?.artist || product?.artist || '';
     const trackTitle = currentTrack?.title || 'Select a track';
 
+    // MINI MODE - Compact sidebar for catalog browsing
+    if (isMini) {
+        return (
+            <AnimatePresence>
+                {isVisible && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 100 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 100 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                        className="fixed right-4 top-1/2 -translate-y-1/2 z-[85] flex flex-col items-center"
+                    >
+                        {/* Mini Player Container */}
+                        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-black/5 p-3 flex flex-col items-center gap-3">
+                            {/* Close Button */}
+                            <button
+                                onClick={onClose}
+                                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-black/80 text-white flex items-center justify-center hover:bg-black transition-colors shadow-lg"
+                            >
+                                <X size={12} />
+                            </button>
+
+                            {/* Mini Spinning Vinyl */}
+                            <div className="relative w-20 h-20">
+                                <div className="absolute inset-0 rounded-full bg-neutral-200 shadow-inner" />
+                                <motion.div
+                                    className="absolute inset-1 rounded-full bg-gradient-to-br from-neutral-900 via-neutral-800 to-black overflow-hidden"
+                                    animate={{ rotate: isPlaying ? 360 : 0 }}
+                                    transition={{
+                                        repeat: isPlaying ? Infinity : 0,
+                                        duration: 1.8,
+                                        ease: "linear"
+                                    }}
+                                >
+                                    {/* Grooves */}
+                                    <div className="absolute inset-2 rounded-full border border-white/[0.05]" />
+                                    <div className="absolute inset-4 rounded-full border border-white/[0.05]" />
+                                    <div className="absolute inset-6 rounded-full border border-white/[0.05]" />
+
+                                    {/* Center Label */}
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
+                                            <span className="text-[6px] font-bold text-black/60 uppercase tracking-tight text-center leading-tight">
+                                                {artistText.substring(0, 8)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+
+                                {/* Mini Tonearm */}
+                                <motion.div
+                                    className="absolute -top-1 -right-1 origin-top-right z-10"
+                                    animate={{ rotate: isPlaying ? 18 : -5 }}
+                                    transition={{ type: "spring", damping: 15 }}
+                                >
+                                    <div className="w-2 h-2 rounded-full bg-neutral-500" />
+                                    <div className="absolute top-1.5 right-0.5 w-[2px] h-8 bg-neutral-500 rounded-full origin-top transform -rotate-12" />
+                                </motion.div>
+                            </div>
+
+                            {/* Track Info */}
+                            <div className="text-center max-w-[80px]">
+                                <p className="text-[10px] font-bold truncate">{trackTitle}</p>
+                                <p className="text-[8px] text-black/40 truncate">{artistText}</p>
+                            </div>
+
+                            {/* Mini Progress Ring */}
+                            <svg className="w-14 h-14 -rotate-90">
+                                <circle
+                                    cx="28"
+                                    cy="28"
+                                    r="24"
+                                    fill="none"
+                                    stroke="rgba(0,0,0,0.1)"
+                                    strokeWidth="3"
+                                />
+                                <motion.circle
+                                    cx="28"
+                                    cy="28"
+                                    r="24"
+                                    fill="none"
+                                    stroke="black"
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeDasharray={`${2 * Math.PI * 24}`}
+                                    strokeDashoffset={2 * Math.PI * 24 * (1 - progress / 100)}
+                                />
+                            </svg>
+
+                            {/* Play/Pause Button */}
+                            <motion.button
+                                onClick={togglePlay}
+                                className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center shadow-lg -mt-12"
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                            >
+                                {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                            </motion.button>
+
+                            {/* Skip Buttons */}
+                            <div className="flex items-center gap-2">
+                                <button onClick={playPrev} className="w-7 h-7 flex items-center justify-center text-black/40 hover:text-black">
+                                    <SkipBack size={14} fill="currentColor" />
+                                </button>
+                                <button onClick={playNext} className="w-7 h-7 flex items-center justify-center text-black/40 hover:text-black">
+                                    <SkipForward size={14} fill="currentColor" />
+                                </button>
+                            </div>
+
+                            {/* Expand Button */}
+                            {onExpand && (
+                                <button
+                                    onClick={onExpand}
+                                    className="text-[9px] font-bold uppercase tracking-wider text-black/40 hover:text-black flex items-center gap-1 mt-1"
+                                >
+                                    <Maximize2 size={10} />
+                                    <span>Ver Album</span>
+                                </button>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        );
+    }
+
+    // FULL MODE - Original side player for product page
     return (
         <AnimatePresence>
             {isVisible && (

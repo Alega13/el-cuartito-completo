@@ -8,10 +8,9 @@ import VinylSidePlayer from '../components/VinylSidePlayer';
 
 
 const ProductPage = ({ product: initialProduct, products = [], setSelectedProduct }) => {
-    const { playTrack, currentTrack, isPlaying, currentProduct } = usePlayer();
+    const { playTrack, currentTrack, isPlaying, currentProduct, showSidePlayer, setShowSidePlayer } = usePlayer();
 
     const [product, setProduct] = useState(initialProduct);
-    const [showVinylPlayer, setShowVinylPlayer] = useState(false);
 
     // Scroll to top when product changes
     useEffect(() => {
@@ -21,8 +20,6 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     useEffect(() => {
         if (!initialProduct?.id) return;
         setProduct(initialProduct);
-        // Close vinyl player when product changes
-        setShowVinylPlayer(false);
     }, [initialProduct?.id]);
 
     // Helper to check if image is valid
@@ -110,8 +107,8 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
         const trackData = { ...track, index };
         playTrack(trackData, product, tracks, discogsVideos);
         // Auto-open vinyl player when playing
-        if (!showVinylPlayer) {
-            setShowVinylPlayer(true);
+        if (!showSidePlayer) {
+            setShowSidePlayer(true);
         }
     };
 
@@ -123,14 +120,14 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     };
 
     const handleVinylPlayerToggle = () => {
-        setShowVinylPlayer(!showVinylPlayer);
+        setShowSidePlayer(!showSidePlayer);
     };
 
     return (
         <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto">
             {/* Listen on Vinyl Button - Top Right */}
             <AnimatePresence>
-                {!showVinylPlayer && (
+                {!showSidePlayer && (
                     <motion.button
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -148,7 +145,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
             <motion.div
                 className="grid gap-12 lg:gap-8"
                 animate={{
-                    gridTemplateColumns: showVinylPlayer ? '1fr 1fr 380px' : '1fr 1fr',
+                    gridTemplateColumns: showSidePlayer ? '1fr 1fr 380px' : '1fr 1fr',
                 }}
                 transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
@@ -164,7 +161,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                         <div className="flex items-center gap-4 mb-2">
                             <motion.h1
                                 className="font-bold tracking-tighter uppercase"
-                                animate={{ fontSize: showVinylPlayer ? '2.5rem' : '3rem' }}
+                                animate={{ fontSize: showSidePlayer ? '2.5rem' : '3rem' }}
                                 transition={{ duration: 0.4 }}
                             >
                                 {product.artist}
@@ -172,7 +169,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                         </div>
                         <motion.p
                             className="font-medium text-black/60"
-                            animate={{ fontSize: showVinylPlayer ? '1.25rem' : '1.5rem' }}
+                            animate={{ fontSize: showSidePlayer ? '1.25rem' : '1.5rem' }}
                         >
                             {product.album}
                         </motion.p>
@@ -242,7 +239,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                     <motion.div
                         className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5 mx-auto"
                         animate={{
-                            maxWidth: showVinylPlayer ? '320px' : '100%',
+                            maxWidth: showSidePlayer ? '320px' : '100%',
                         }}
                         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                     >
@@ -257,7 +254,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
 
                 {/* Right Column: Vinyl Player (Conditional) */}
                 <AnimatePresence>
-                    {showVinylPlayer && (
+                    {showSidePlayer && (
                         <motion.div
                             initial={{ opacity: 0, width: 0 }}
                             animate={{ opacity: 1, width: 'auto' }}
@@ -268,8 +265,8 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                             <div className="sticky top-32">
                                 <VinylSidePlayer
                                     product={product}
-                                    isVisible={showVinylPlayer}
-                                    onClose={() => setShowVinylPlayer(false)}
+                                    isVisible={showSidePlayer}
+                                    onClose={() => setShowSidePlayer(false)}
                                 />
                             </div>
                         </motion.div>

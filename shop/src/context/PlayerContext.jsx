@@ -24,6 +24,9 @@ export const PlayerProvider = ({ children }) => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
 
+    // Side Player visibility (global)
+    const [showSidePlayer, setShowSidePlayer] = useState(false);
+
     // Refs
     const audioRef = useRef(null);
     const youtubePlayerRef = useRef(null);
@@ -304,7 +307,9 @@ export const PlayerProvider = ({ children }) => {
             playNext,
             playPrev,
             handleSeek,
-            closePlayer
+            closePlayer,
+            showSidePlayer,
+            setShowSidePlayer
         }}>
             {children}
 

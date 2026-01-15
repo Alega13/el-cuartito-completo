@@ -7,8 +7,10 @@ import ProductPage from './pages/ProductPage';
 import CollectionPage from './pages/CollectionPage';
 import CatalogPage from './pages/CatalogPage';
 import TurntablePlayer from './components/TurntablePlayer';
+import VinylSidePlayer from './components/VinylSidePlayer';
 import Collections from './components/Collections';
 import Footer from './components/Footer';
+import { usePlayer } from './context/PlayerContext';
 import logo from './assets/logo.png';
 
 function App() {
@@ -19,6 +21,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [collectionFilter, setCollectionFilter] = useState(null);
   const [selectedCollection, setSelectedCollection] = useState(null);
+
+  const { showSidePlayer, setShowSidePlayer, currentProduct } = usePlayer();
 
   useEffect(() => {
     // Fetch products from Railway backend API
@@ -58,9 +62,20 @@ function App() {
     setPage('collection');
   };
 
+  const handleExpandPlayer = () => {
+    // Navigate to current product page
+    if (currentProduct) {
+      setSelectedProduct(currentProduct);
+      setPage('product');
+    }
+  };
+
 
   // Find products marked as "header" in storageLocation field
   const headerProducts = products.filter(p => p.storageLocation === 'header').slice(0, 3);
+
+  // Determine if we're on product page (full mode) or elsewhere (mini mode)
+  const isOnProductPage = page === 'product';
 
   return (
     <div className="min-h-screen bg-background text-black selection:bg-accent selection:text-white">
@@ -119,6 +134,16 @@ function App() {
         )}
       </main>
 
+      {/* Global Mini Vinyl Player (shows when not on product page) */}
+      {!isOnProductPage && showSidePlayer && (
+        <VinylSidePlayer
+          product={currentProduct}
+          isVisible={showSidePlayer}
+          onClose={() => setShowSidePlayer(false)}
+          isMini={true}
+          onExpand={handleExpandPlayer}
+        />
+      )}
 
       <Footer />
       <TurntablePlayer />
@@ -127,3 +152,4 @@ function App() {
 }
 
 export default App;
+
