@@ -108,6 +108,51 @@ export class DiscogsService {
     }
 
     /**
+     * Fetch orders from Discogs marketplace
+     * Returns orders that have been paid but may not be shipped yet
+     */
+    async fetchOrders(): Promise<any[]> {
+        const allOrders: any[] = [];
+        let currentPage = 1;
+        let totalPages = 1;
+
+        try {
+            while (currentPage <= totalPages) {
+                const response = await axios.get(
+                    `${this.baseUrl}/marketplace/orders`,
+                    {
+                        headers: {
+                            'Authorization': `Discogs token=${this.token}`,
+                            'User-Agent': 'ElCuartitoRecords/1.0'
+                        },
+                        params: {
+                            page: currentPage,
+                            per_page: 50,
+                            sort: 'created',
+                            sort_order: 'desc'
+                        }
+                    }
+                );
+
+                allOrders.push(...response.data.orders);
+                totalPages = response.data.pagination.pages;
+                currentPage++;
+
+                if (currentPage <= totalPages) {
+                    await this.sleep(1000);
+                }
+            }
+
+            console.log(`Fetched ${allOrders.length} orders from Discogs`);
+            return allOrders;
+        } catch (error: any) {
+            console.error('Error fetching Discogs orders:', error.response?.data || error.message);
+            throw new Error(`Failed to fetch Discogs orders: ${error.message}`);
+        }
+    }
+
+
+    /**
      * Normalize Discogs listing to Firebase product schema
      */
     private normalizeProduct(listing: DiscogsListing): NormalizedProduct {
@@ -263,6 +308,33 @@ export class DiscogsService {
             throw new Error(`Failed to delete Discogs listing: ${error.response?.data?.message || error.message}`);
         }
     }
+
+    /**
+     * Get price suggestions for a release
+     * Requires seller permissions in token
+     */
+    async getPriceSuggestions(releaseId: number): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseUrl}/marketplace/price_suggestions/${releaseId}`,
+                {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                }
+            );
+            return response.data;
+        } catch (error: any) {
+            console.error('Error fetching price suggestions:', error.response?.data || error.message);
+            // Some tokens might not have seller permissions, return null instead of throwing
+            if (error.response?.status === 403 || error.response?.status === 404) {
+                return null;
+            }
+            throw error;
+        }
+    }
+
 
     /**
      * Reverse map our condition format to Discogs format

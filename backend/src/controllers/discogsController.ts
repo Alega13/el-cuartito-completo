@@ -181,6 +181,137 @@ export const getSyncStatus = async (req: Request, res: Response) => {
 };
 
 /**
+ * Sync orders from Discogs - creates sales for orders that haven't been synced yet
+ */
+export const syncOrders = async (req: Request, res: Response) => {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+
+        console.log('Starting Discogs orders sync...');
+
+        const discogsService = new DiscogsService(username, token);
+        const orders = await discogsService.fetchOrders();
+
+        const db = getDb();
+        const result = {
+            success: true,
+            ordersProcessed: 0,
+            salesCreated: 0,
+            alreadySynced: 0,
+            errors: [] as string[]
+        };
+
+        for (const order of orders) {
+            try {
+                // Skip if not a completed/paid order
+                const validStatuses = ['Payment Received', 'Shipped', 'Merged'];
+                if (!validStatuses.includes(order.status)) {
+                    continue;
+                }
+
+                // Check if this order was already synced
+                const existingOrderQuery = await db.collection('sales')
+                    .where('discogs_order_id', '==', order.id)
+                    .limit(1)
+                    .get();
+
+                if (!existingOrderQuery.empty) {
+                    result.alreadySynced++;
+                    continue;
+                }
+
+                // Extract order details
+                const orderDate = new Date(order.created);
+                const totalBruto = order.total?.value || 0;
+                const shipping = order.shipping?.value || 0;
+
+                const netAmount = totalBruto;
+
+                // Map items from order
+                const items = order.items.map((item: any) => ({
+                    discogs_listing_id: String(item.id),
+                    artist: item.release?.artist || 'Unknown',
+                    album: item.release?.title || 'Unknown',
+                    priceAtSale: item.price?.value || 0,
+                    qty: 1,
+                    costAtSale: 0
+                }));
+
+                // Create sale record
+                await db.collection('sales').add({
+                    discogs_order_id: order.id,
+                    channel: 'discogs',
+                    status: 'pending_review',
+                    total: netAmount,
+                    originalTotal: totalBruto,
+                    discogsFee: 0,
+                    paypalFee: 0,
+                    totalFees: 0,
+                    shipping: shipping,
+                    date: orderDate.toISOString().split('T')[0],
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    customerName: order.buyer?.username || 'Discogs Buyer',
+                    customerEmail: order.buyer?.email || null,
+                    paymentMethod: 'Discogs Payout',
+                    items: items,
+                    shippingAddress: order.shipping_address || null,
+                    orderStatus: order.status,
+                    needsReview: true
+                });
+
+
+
+                console.log(`✅ Created sale for Discogs order ${order.id}: ${items.map((i: any) => i.album).join(', ')}`);
+                result.salesCreated++;
+                result.ordersProcessed++;
+
+                // Update stock for matching products
+                for (const item of items) {
+                    const productQuery = await db.collection('products')
+                        .where('discogs_listing_id', '==', item.discogs_listing_id)
+                        .limit(1)
+                        .get();
+
+                    if (!productQuery.empty) {
+                        const productDoc = productQuery.docs[0];
+                        const currentStock = productDoc.data().stock || 0;
+                        await productDoc.ref.update({
+                            stock: Math.max(0, currentStock - 1)
+                        });
+                        console.log(`  📦 Updated stock for ${item.album}`);
+                    }
+                }
+
+            } catch (orderError: any) {
+                result.errors.push(`Order ${order.id}: ${orderError.message}`);
+            }
+        }
+
+        const message = `Synced ${result.ordersProcessed} orders. Created ${result.salesCreated} sales. ${result.alreadySynced} already synced.`;
+        console.log(message);
+
+        res.json({
+            ...result,
+            message
+        });
+
+    } catch (error: any) {
+        console.error('Orders sync failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+/**
  * Create a new Discogs listing
  */
 export const createListing = async (req: Request, res: Response) => {
@@ -289,3 +420,42 @@ export const deleteListing = async (req: Request, res: Response) => {
         });
     }
 };
+
+/**
+ * Get price suggestions for a release
+ */
+export const getPriceSuggestions = async (req: Request, res: Response) => {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+
+        const { releaseId } = req.params;
+
+        if (!releaseId) {
+            return res.status(400).json({
+                error: 'releaseId is required'
+            });
+        }
+
+        const discogsService = new DiscogsService(username, token);
+        const suggestions = await discogsService.getPriceSuggestions(parseInt(releaseId));
+
+        res.json({
+            success: true,
+            suggestions
+        });
+    } catch (error: any) {
+        console.error('Fetch price suggestions failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+

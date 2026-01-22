@@ -291,3 +291,46 @@ export const updateFulfillmentStatus = async (req: Request, res: Response) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+export const updateSaleValue = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { netReceived } = req.body; // The actual amount received after fees
+        const db = getDb();
+
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+        const originalTotal = saleData.originalTotal || saleData.total || 0;
+        const newNetReceived = parseFloat(netReceived);
+
+        if (isNaN(newNetReceived)) {
+            return res.status(400).json({ error: 'Invalid netReceived amount' });
+        }
+
+        const totalFees = originalTotal - newNetReceived;
+
+        await saleRef.update({
+            total: newNetReceived, // Update with the actual received amount
+            totalFees: totalFees,
+            status: 'completed', // Move from pending_review to completed
+            needsReview: false,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({
+            success: true,
+            id,
+            newTotal: newNetReceived,
+            fees: totalFees
+        });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
