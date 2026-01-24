@@ -502,7 +502,20 @@ export const readyForPickup = async (req: Request, res: Response) => {
 // Diagnostic endpoint to test email sending
 export const testEmail = async (req: Request, res: Response) => {
     try {
-        const { email, orderId, orderNumber } = req.body;
+        const { email, orderId, orderNumber, listRecent } = req.body;
+
+        // Mode 0: List recent orders (Debugging aid)
+        if (listRecent) {
+            const db = getDb();
+            const snap = await db.collection('sales').orderBy('createdAt', 'desc').limit(5).get();
+            const recentOrders = snap.docs.map(doc => ({
+                id: doc.id,
+                orderNumber: doc.data().orderNumber,
+                customerEmail: doc.data().customerEmail || doc.data().email || doc.data().customer?.email,
+                createdAt: doc.data().createdAt
+            }));
+            return res.json({ success: true, recentOrders });
+        }
 
         let saleData: any = null;
         let debugId = orderId;
