@@ -495,3 +495,35 @@ export const readyForPickup = async (req: Request, res: Response) => {
         });
     }
 };
+// Diagnostic endpoint to test email sending
+export const testEmail = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email is required' });
+
+        const dummyOrder = {
+            orderNumber: 'TEST-12345',
+            customerName: 'Test User',
+            customerEmail: email,
+            items: [{ album: 'Test Album', artist: 'Test Artist', quantity: 1, unitPrice: 100 }]
+        };
+
+        const dummyShipment = {
+            tracking_number: 'TEST-TRACK-999',
+            carrier: 'TestCarrier'
+        };
+
+        console.log(`🧪 [TEST-EMAIL] Triggering sendShipOrderEmail to ${email}...`);
+
+        // Use await to catch errors from the internal sendShipOrderEmail
+        await sendShipOrderEmail(dummyOrder, dummyShipment);
+
+        res.json({
+            success: true,
+            message: `Email test triggered for ${email}. Check Railway logs for "✅ Tracking notification sent successfully" or errors.`
+        });
+    } catch (error: any) {
+        console.error('❌ [TEST-EMAIL] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};

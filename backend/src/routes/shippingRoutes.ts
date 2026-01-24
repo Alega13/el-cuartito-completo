@@ -15,5 +15,6 @@ router.post('/ship-order', shippingController.shipOrder);
 router.post('/manual-ship', shippingController.manualShipOrder);
 router.post('/ready-for-pickup', shippingController.readyForPickup);
 router.get('/shipment-label/:shipmentId', shippingController.getShipmentLabel);
+router.post('/test-email', shippingController.testEmail);
 
 export default router;

@@ -8,8 +8,10 @@ const LOGO_URL = 'https://elcuartito.dk/logo.jpg';
 export const sendOrderConfirmationEmail = async (orderData: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
-            console.warn('⚠️  RESEND_API_KEY not configured. Skipping email sending.');
+            console.warn('⚠️  [MAIL-SERVICE] RESEND_API_KEY is not configured or is using placeholder.');
             return;
+        } else {
+            console.log(`✅ [MAIL-SERVICE] API Key detected (Starts with: ${config.RESEND_API_KEY.substring(0, 7)}...)`);
         }
 
         console.log('📧 Starting sendOrderConfirmationEmail for order:', orderData.orderNumber);
