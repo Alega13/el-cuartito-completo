@@ -271,6 +271,90 @@ export const getSales = async (req: Request, res: Response) => {
     }
 };
 
+export const getSaleById = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+        const doc = await db.collection('sales').doc(id).get();
+
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const data = doc.data();
+        // Return only necessary fields for the success page (avoid leaking sensitive admin data if any)
+        const publicData = {
+            id: doc.id,
+            orderNumber: data?.orderNumber,
+            total_amount: data?.total_amount,
+            items_total: data?.items_total,
+            shipping_cost: data?.shipping_cost,
+            status: data?.status,
+            customer: data?.customer || null,
+            items: data?.items || [],
+            shipping_method: data?.shipping_method,
+            date: data?.date
+        };
+
+        res.json(publicData);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Trigger confirmation flow manually for local development
+ * (Since Stripe webhooks don't reach localhost)
+ */
+import { sendOrderConfirmationEmail } from '../services/mailService';
+export const confirmLocalPayment = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { paymentIntentId } = req.body;
+        console.log(`📡 [LOCAL CONFIRM] Received request for sale: ${id}`);
+
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            console.error(`❌ [LOCAL CONFIRM] Sale not found: ${id}`);
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+        console.log(`📡 [LOCAL CONFIRM] Sale details: Number=${saleData.orderNumber}, Status=${saleData.status}`);
+
+        // Only process if not already completed
+        if (saleData.status !== 'completed') {
+            console.log(`📡 [LOCAL CONFIRM] Updating sale ${id} to completed and sending email...`);
+            await saleRef.update({
+                status: 'completed',
+                stripePaymentIntentId: paymentIntentId,
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Trigger email
+            await sendOrderConfirmationEmail({
+                ...saleData,
+                status: 'completed'
+            });
+        } else {
+            console.log(`📡 [LOCAL CONFIRM] Sale ${id} already completed.`);
+            // SEND EMAIL ANYWAY FOR DEBUGGING if requested? Let's just do it to be sure.
+            await sendOrderConfirmationEmail({
+                ...saleData,
+                status: 'completed'
+            });
+        }
+
+        res.json({ success: true, message: 'Local confirmation processed' });
+    } catch (error: any) {
+        console.error('❌ [LOCAL CONFIRM] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export const updateFulfillmentStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -333,4 +417,3 @@ export const updateSaleValue = async (req: Request, res: Response) => {
         res.status(500).json({ error: error.message });
     }
 };
-

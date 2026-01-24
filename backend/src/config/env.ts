@@ -4,9 +4,6 @@ import path from 'path';
 // Load environment variables from .env file
 // Load environment variables from .env file
 const result = dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-console.log("Dotenv result:", result.error ? result.error.message : 'loaded ok');
-
-console.log("Current ENV keys:", Object.keys(process.env).filter(k => k.includes('FIREBASE') || k.includes('STRIPE')));
 
 const getEnvVar = (name: string, defaultValue?: string): string => {
     const value = process.env[name] || defaultValue;
@@ -24,6 +21,10 @@ interface Config {
     STRIPE_SECRET_KEY: string;
     STRIPE_WEBHOOK_SECRET: string;
     FRONTEND_URL: string;
+    RESEND_API_KEY: string;
+    SHIPMONDO_API_USER: string;
+    SHIPMONDO_API_KEY: string;
+    SHIPMONDO_SANDBOX: boolean;
 }
 
 export const config: Config = {
@@ -38,6 +39,10 @@ export const config: Config = {
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+    RESEND_API_KEY: process.env.RESEND_API_KEY || 're_placeholder',
+    SHIPMONDO_API_USER: getEnvVar('SHIPMONDO_API_USER'),
+    SHIPMONDO_API_KEY: getEnvVar('SHIPMONDO_API_KEY'),
+    SHIPMONDO_SANDBOX: process.env.SHIPMONDO_SANDBOX === 'true',
 };
 
 export default config;

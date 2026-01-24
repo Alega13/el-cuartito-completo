@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import config from '../config/env';
 import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
+import { sendOrderConfirmationEmail } from '../services/mailService';
 
 // Initialize Stripe only if key exists
 const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test_mock'
@@ -117,7 +118,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             } : null)
                         };
 
-                        transaction.update(saleRef, {
+                        const updatedSaleData = {
                             status: 'completed',
                             fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
@@ -131,9 +132,28 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             },
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()
-                        });
+                        };
+
+                        transaction.update(saleRef, updatedSaleData);
 
                         console.log(`✅ Payment confirmed and stock updated for sale ${saleId}, order ${orderNumber}`);
+
+                        // Send confirmation email asynchronously after transaction
+                        const finalOrderData = {
+                            ...saleData,
+                            ...updatedSaleData,
+                            // Ensure numeric values for template if they were Firestore FieldValues
+                            items_total: saleData.items_total,
+                            shipping_cost: saleData.shipping_cost,
+                            total_amount: saleData.total_amount
+                        };
+
+                        // Execute email sending in the background to not delay webhook response
+                        setTimeout(() => {
+                            sendOrderConfirmationEmail(finalOrderData).catch(e =>
+                                console.error('Error in background email sending:', e)
+                            );
+                        }, 1);
                     } else {
                         console.log('Sale not found or already processed:', saleId);
                     }
