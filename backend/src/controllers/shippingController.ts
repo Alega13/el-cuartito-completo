@@ -502,22 +502,37 @@ export const readyForPickup = async (req: Request, res: Response) => {
 // Diagnostic endpoint to test email sending
 export const testEmail = async (req: Request, res: Response) => {
     try {
-        const { email, orderId } = req.body;
+        const { email, orderId, orderNumber } = req.body;
+
+        let saleData: any = null;
+        let debugId = orderId;
 
         // Mode 1: Debug specific order
         // This mode fetches the real order data and tries to send the email exactly as the production system would.
-        if (orderId) {
-            console.log(`🧪 [TEST-EMAIL] Debugging real order: ${orderId}`);
+        if (orderId || orderNumber) {
             const db = getDb();
-            const saleRef = db.collection('sales').doc(orderId);
-            const saleDoc = await saleRef.get();
 
-            if (!saleDoc.exists) {
-                return res.status(404).json({ error: 'Order not found' });
+            if (orderId) {
+                console.log(`🧪 [TEST-EMAIL] Debugging real order by ID: ${orderId}`);
+                const saleDoc = await db.collection('sales').doc(orderId).get();
+                if (saleDoc.exists) {
+                    saleData = saleDoc.data();
+                    if (!saleData.id) saleData.id = orderId;
+                }
+            } else if (orderNumber) {
+                console.log(`🧪 [TEST-EMAIL] Debugging real order by Number: ${orderNumber}`);
+                const snap = await db.collection('sales').where('orderNumber', '==', orderNumber).limit(1).get();
+                if (!snap.empty) {
+                    const doc = snap.docs[0];
+                    saleData = doc.data();
+                    saleData.id = doc.id; // Critical: Ensure ID is preserved
+                    debugId = doc.id;
+                }
             }
 
-            const saleData = saleDoc.data() as any;
-            if (!saleData.id) saleData.id = orderId; // Ensure ID is present for templates
+            if (!saleData) {
+                return res.status(404).json({ error: 'Order not found', searched: { orderId, orderNumber } });
+            }
 
             const shippingInfo = saleData.shipment || {
                 tracking_number: 'TEST-DEBUG-123',
@@ -528,7 +543,8 @@ export const testEmail = async (req: Request, res: Response) => {
 
             return res.json({
                 mode: 'real_order_debug',
-                orderId,
+                debugId,
+                foundOrderNumber: saleData.orderNumber,
                 rawDataKeys: Object.keys(saleData),
                 customerField: saleData.customer,
                 emailDetectionResult: result
