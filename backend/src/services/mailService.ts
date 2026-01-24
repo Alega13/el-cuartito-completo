@@ -3,7 +3,7 @@ import config from '../config/env';
 
 const resend = new Resend(config.RESEND_API_KEY);
 
-const LOGO_URL = 'https://el-cuartito-app.web.app/logo.jpg';
+const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo.jpg';
 
 export const sendOrderConfirmationEmail = async (orderData: any) => {
     try {
