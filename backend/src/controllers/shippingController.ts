@@ -1,4 +1,8 @@
 import { Request, Response } from 'express';
+import { shipmondoService } from '../services/shipmondoService';
+import { getDb } from '../config/firebaseAdmin';
+import * as admin from 'firebase-admin';
+import { sendShippingNotificationEmail, sendShipOrderEmail, sendPickupReadyEmail } from '../services/mailService';
 
 // Shipping rate configuration
 interface ShippingRate {
@@ -163,6 +167,249 @@ export const getShippingZones = async (req: Request, res: Response) => {
         console.error('Get shipping zones error:', error);
         res.status(500).json({
             error: 'Failed to get shipping zones',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Create a shipment on Shipmondo for a specific sale
+ */
+export const createShipment = async (req: Request, res: Response) => {
+    try {
+        const { saleId } = req.params;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(saleId);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+
+        // Call Shipmondo service
+        const shipment = await shipmondoService.createShipment(saleData);
+
+        // Update sale with shipping info
+        const shippingInfo = {
+            shipment_id: shipment.id || null,
+            tracking_number: shipment.tracking_number || null,
+            label_url: shipment.labels?.[0]?.url || null, // Assuming the first label
+            status: 'created',
+            carrier: shipment.product_code || 'GLS',
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await saleRef.update({
+            shipment: shippingInfo,
+            fulfillment_status: 'shipped', // Update global fulfillment status
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Trigger shipping notification email
+        await sendShippingNotificationEmail(saleData, shippingInfo);
+
+        res.json({
+            success: true,
+            shipment_id: shipment.id,
+            tracking_number: shipment.tracking_number,
+            label_url: shipment.labels?.[0]?.url
+        });
+    } catch (error: any) {
+        console.error('Error in createShipment controller:', error);
+        res.status(500).json({
+            error: 'Failed to create shipment',
+            message: error.response?.data || error.message
+        });
+    }
+};
+
+/**
+ * Get labels for a shipment
+ */
+export const getShipmentLabel = async (req: Request, res: Response) => {
+    try {
+        const { shipmentId } = req.params;
+        const labels = await shipmondoService.getShipmentLabel(shipmentId);
+        res.json(labels);
+    } catch (error: any) {
+        console.error('Error in getShipmentLabel controller:', error);
+        res.status(500).json({
+            error: 'Failed to fetch shipment label',
+            message: error.response?.data || error.message
+        });
+    }
+};
+
+/**
+ * Dispatch an order (New requested endpoint POST /api/ship-order)
+ * Receives { orderId } in body
+ */
+export const shipOrder = async (req: Request, res: Response) => {
+    try {
+        const { orderId } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({ error: 'orderId is required in body' });
+        }
+
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(orderId);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+
+        console.log(`🚀 [SHIP-ORDER] Dispatching order ${orderId}`);
+
+        // Step B & C: Call Shipmondo API
+        const shipment = await shipmondoService.createShipment(saleData);
+
+        // Step D: Update Firestore
+        const trackingNumber = shipment.tracking_number || null;
+        const labelUrl = shipment.labels?.[0]?.url || null;
+
+        const shippingInfo = {
+            shipment_id: shipment.id || null,
+            tracking_number: trackingNumber,
+            label_url: labelUrl,
+            status: 'created',
+            carrier: shipment.product_code || 'GLS',
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await saleRef.update({
+            status: 'shipped', // Specific requested status
+            shipment: shippingInfo,
+            fulfillment_status: 'shipped',
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Step E: Send Email via Resend
+        await sendShipOrderEmail(saleData, shippingInfo);
+
+        // Response: Success + PDF URL
+        res.json({
+            success: true,
+            message: 'Order shipped successfully',
+            trackingNumber: trackingNumber,
+            labelUrl: labelUrl
+        });
+
+    } catch (error: any) {
+        console.error('❌ [SHIP-ORDER] Error:', error.response?.data || error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to ship order',
+            message: error.response?.data || error.message
+        });
+    }
+};
+
+/**
+ * Manually ship an order with a tracking number
+ * Receives { orderId, trackingNumber } in body
+ */
+export const manualShipOrder = async (req: Request, res: Response) => {
+    try {
+        const { orderId, trackingNumber } = req.body;
+
+        if (!orderId || !trackingNumber) {
+            return res.status(400).json({ error: 'orderId and trackingNumber are required' });
+        }
+
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(orderId);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+
+        console.log(`🚀 [MANUAL-SHIP] Shipping order ${orderId} with tracking ${trackingNumber}`);
+
+        const shippingInfo = {
+            tracking_number: trackingNumber,
+            status: 'shipped',
+            carrier: 'Manual', // Default to manual
+            created_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await saleRef.update({
+            status: 'shipped',
+            shipment: shippingInfo,
+            fulfillment_status: 'shipped',
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Send Email via Resend
+        await sendShipOrderEmail(saleData, shippingInfo);
+
+        res.json({
+            success: true,
+            message: 'Order shipped manually successfully',
+            trackingNumber: trackingNumber
+        });
+
+    } catch (error: any) {
+        console.error('❌ [MANUAL-SHIP] Error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to ship order manually',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Mark an order as ready for local pickup
+ * Receives { orderId } in body
+ */
+export const readyForPickup = async (req: Request, res: Response) => {
+    try {
+        const { orderId } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({ error: 'orderId is required' });
+        }
+
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(orderId);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+
+        console.log(`🚀 [PICKUP-READY] Marking order ${orderId} as ready for pickup`);
+
+        await saleRef.update({
+            status: 'ready_for_pickup',
+            fulfillment_status: 'ready_for_pickup',
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Send Email via Resend
+        await sendPickupReadyEmail(saleData);
+
+        res.json({
+            success: true,
+            message: 'Order marked as ready for pickup successfully'
+        });
+
+    } catch (error: any) {
+        console.error('❌ [PICKUP-READY] Error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to mark order as ready for pickup',
             message: error.message
         });
     }

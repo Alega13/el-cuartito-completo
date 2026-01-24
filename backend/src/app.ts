@@ -50,6 +50,7 @@ app.use('/discogs', discogsRoutes);
 
 // Health check endpoint
 app.use('/api', healthRoutes);
+app.use('/api', shippingRoutes); // Added to support /api/ship-order
 
 app.get('/', (req, res) => {
     res.send("<h1>El Cuartito API is running 🎵</h1><p>Go to <a href='/records/online'>/records/online</a> to see products.</p>");
