@@ -514,7 +514,12 @@ export const testEmail = async (req: Request, res: Response) => {
                 customerEmail: doc.data().customerEmail || doc.data().email || doc.data().customer?.email,
                 createdAt: doc.data().createdAt
             }));
-            return res.json({ success: true, recentOrders });
+            return res.json({
+                success: true,
+                projectId: (admin.app().options.credential as any)?.projectId || 'unknown',
+                collectionSize: snap.size,
+                recentOrders
+            });
         }
 
         let saleData: any = null;
