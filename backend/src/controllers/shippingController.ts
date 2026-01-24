@@ -107,11 +107,11 @@ export const calculateShipping = async (req: Request, res: Response) => {
         const euCountries = [
             'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'EE', 'FR', 'DE', 'GR',
             'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT',
-            'RO', 'SK', 'SI', 'ES',
+            'RO', 'SK', 'SI', 'ES', 'SE', 'FI', 'NO',
             'AUSTRIA', 'BELGIUM', 'BULGARIA', 'CROATIA', 'CYPRUS', 'CZECH REPUBLIC',
             'ESTONIA', 'FRANCE', 'GERMANY', 'GREECE', 'HUNGARY', 'IRELAND', 'ITALY',
             'LATVIA', 'LITHUANIA', 'LUXEMBOURG', 'MALTA', 'NETHERLANDS', 'POLAND',
-            'PORTUGAL', 'ROMANIA', 'SLOVAKIA', 'SLOVENIA', 'SPAIN'
+            'PORTUGAL', 'ROMANIA', 'SLOVAKIA', 'SLOVENIA', 'SPAIN', 'SWEDEN', 'FINLAND', 'NORWAY'
         ];
         const isEU = euCountries.includes(normalizedCountry);
 
