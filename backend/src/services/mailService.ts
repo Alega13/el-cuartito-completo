@@ -197,8 +197,9 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
         const customerEmail = customer.email || orderData.customerEmail || orderData.email || orderData.stripe_info?.email;
         const customerName = customer.firstName || orderData.customerName || customer.name || orderData.name || 'Customer';
 
-        console.log(`📧 Attempting to send tracking email for Order ${orderData.orderNumber || orderData.id}`);
-        console.log(`📧 Destination: ${customerEmail} (${customerName})`);
+        console.log(`📧 [DEBUG-MAIL] orderData keys: ${Object.keys(orderData).join(', ')}`);
+        console.log(`📧 [DEBUG-MAIL] Detected email: "${customerEmail}"`);
+        console.log(`📧 [DEBUG-MAIL] Detected name: "${customerName}"`);
 
         if (!customerEmail || customerEmail === '-' || customerEmail === 'null' || customerEmail === 'null@null.com') {
             console.warn('⚠️  No valid customer email found. Skipping tracking email.');
