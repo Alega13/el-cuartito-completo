@@ -367,14 +367,16 @@ export const shipOrder = async (req: Request, res: Response) => {
         });
 
         // Step E: Send Email via Resend
-        await sendShipOrderEmail(saleData, shippingInfo);
+        const mailResult = await sendShipOrderEmail(saleData, shippingInfo);
 
         // Response: Success + PDF URL
         res.json({
             success: true,
             message: 'Order shipped successfully',
             trackingNumber: trackingNumber,
-            labelUrl: labelUrl
+            labelUrl: labelUrl,
+            emailSent: mailResult.success,
+            emailError: mailResult.error
         });
 
     } catch (error: any) {
@@ -429,16 +431,14 @@ export const manualShipOrder = async (req: Request, res: Response) => {
         });
 
         // Send Email via Resend
-        try {
-            await sendShipOrderEmail(saleData, shippingInfo);
-        } catch (mailError: any) {
-            console.error('⚠️  Failed to send tracking email (continuing):', mailError.message);
-        }
+        const mailResult = await sendShipOrderEmail(saleData, shippingInfo);
 
         res.json({
             success: true,
             message: 'Order shipped manually successfully',
-            trackingNumber: trackingNumber
+            trackingNumber: trackingNumber,
+            emailSent: mailResult.success,
+            emailError: mailResult.error
         });
 
     } catch (error: any) {

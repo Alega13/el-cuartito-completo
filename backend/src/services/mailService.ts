@@ -9,7 +9,7 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
             console.warn('⚠️  [MAIL-SERVICE] RESEND_API_KEY is not configured or is using placeholder.');
-            return;
+            return { success: false, error: 'Resend API Key missing' };
         } else {
             console.log(`✅ [MAIL-SERVICE] API Key detected (Starts with: ${config.RESEND_API_KEY.substring(0, 7)}...)`);
         }
@@ -112,12 +112,14 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
 
         if (error) {
             console.error('❌ Resend Error (Order Confirmation):', JSON.stringify(error, null, 2));
-            return;
+            return { success: false, error };
         }
 
         console.log('✅ Order confirmation email sent successfully:', data?.id);
-    } catch (error) {
+        return { success: true, id: data?.id };
+    } catch (error: any) {
         console.error('❌ [MAIL-SERVICE] Exception in sendOrderConfirmationEmail:', error);
+        return { success: false, error: error.message };
     }
 };
 
@@ -125,22 +127,22 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
             console.warn('⚠️  RESEND_API_KEY not configured. Skipping shipping notification.');
-            return;
+            return { success: false, error: 'Resend API Key missing' };
         }
 
         console.log('📧 Starting sendShippingNotificationEmail for order:', orderData.orderNumber);
 
-        const customerEmail = orderData.customer?.email;
-        const customerName = orderData.customer?.firstName || 'Customer';
+        const customerEmail = orderData.customer?.email || orderData.customerEmail || orderData.email;
+        const customerName = orderData.customer?.firstName || orderData.customerName || 'Customer';
 
         if (!customerEmail) {
             console.error('❌ Cannot send email: No customer email found.');
-            return;
+            return { success: false, error: 'No customer email found' };
         }
 
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
-            to: [customerEmail],
+            to: [customerEmail.trim().toLowerCase()],
             subject: `Your order is on its way! 🚚 - El Cuartito Records`,
             html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
@@ -176,12 +178,14 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
 
         if (error) {
             console.error('❌ Resend Error (Shipping Notification):', JSON.stringify(error, null, 2));
-            return;
+            return { success: false, error };
         }
 
         console.log('✅ Shipping notification sent successfully:', data?.id);
-    } catch (error) {
+        return { success: true, id: data?.id };
+    } catch (error: any) {
         console.error('❌ [MAIL-SERVICE] Exception in sendShippingNotificationEmail:', error);
+        return { success: false, error: error.message };
     }
 };
 
@@ -189,7 +193,7 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
             console.warn('⚠️  RESEND_API_KEY not configured. Skipping sendShipOrderEmail.');
-            return;
+            return { success: false, error: 'Resend API Key missing' };
         }
 
         // Robust customer extraction
@@ -216,12 +220,12 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
 
         if (!customerEmail || customerEmail === '-' || customerEmail === 'null' || customerEmail === 'null@null.com') {
             console.warn('⚠️  No valid customer email found. Skipping tracking email.');
-            return;
+            return { success: false, error: 'No valid customer email found' };
         }
 
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
-            to: [customerEmail],
+            to: [customerEmail.trim().toLowerCase()],
             subject: `Your order is on its way! 🚚 - El Cuartito Records`,
             html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
@@ -257,19 +261,21 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
 
         if (error) {
             console.error('❌ Resend Error in sendShipOrderEmail:', JSON.stringify(error, null, 2));
-            return;
+            return { success: false, error };
         }
 
         console.log('✅ Tracking notification sent successfully:', data?.id);
-    } catch (error) {
+        return { success: true, id: data?.id };
+    } catch (error: any) {
         console.error('❌ [MAIL-SERVICE] Exception in sendShipOrderEmail:', error);
+        return { success: false, error: error.message };
     }
 };
 
 export const sendPickupReadyEmail = async (orderData: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder') {
-            return;
+            return { success: false, error: 'Resend API Key missing' };
         }
 
         const customerEmail = orderData.customer?.email || orderData.customerEmail;
@@ -315,11 +321,13 @@ export const sendPickupReadyEmail = async (orderData: any) => {
 
         if (error) {
             console.error('❌ Resend Error (Pickup):', JSON.stringify(error, null, 2));
-            return;
+            return { success: false, error };
         }
 
         console.log('✅ Pickup ready email sent successfully:', data?.id);
-    } catch (error) {
+        return { success: true, id: data?.id };
+    } catch (error: any) {
         console.error('❌ [MAIL-SERVICE] Exception in sendPickupReadyEmail:', error);
+        return { success: false, error: error.message };
     }
 };
