@@ -175,47 +175,74 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
 
         console.log('✅ Shipping notification sent successfully:', data?.id);
     } catch (error) {
-        console.error('❌ Exception in sendShippingNotificationEmail:', error);
+        console.error('❌ [MAIL-SERVICE] Exception in sendShippingNotificationEmail:', error);
     }
 };
 
 export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
     try {
-        if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder') {
+        if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
+            console.warn('⚠️  RESEND_API_KEY not configured. Skipping sendShipOrderEmail.');
             return;
         }
 
-        const customerEmail = orderData.customer?.email || orderData.customerEmail;
-        const customerName = orderData.customer?.firstName || orderData.customerName || 'Customer';
+        // Robust customer extraction
+        const customer = orderData.customer || {};
+        const customerEmail = customer.email || orderData.customerEmail || orderData.email || orderData.stripe_info?.email;
+        const customerName = customer.firstName || orderData.customerName || customer.name || orderData.name || 'Customer';
+
+        console.log(`📧 Attempting to send tracking email for Order ${orderData.orderNumber || orderData.id}`);
+        console.log(`📧 Destination: ${customerEmail} (${customerName})`);
+
+        if (!customerEmail || customerEmail === '-' || customerEmail === 'null' || customerEmail === 'null@null.com') {
+            console.warn('⚠️  No valid customer email found. Skipping tracking email.');
+            return;
+        }
 
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: "Your order is on its way! 🚚",
+            subject: `Your order is on its way! 🚚 - El Cuartito Records`,
             html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; text-align: center;">
-                    <img src="${LOGO_URL}" alt="El Cuartito" style="width: 80px; height: 80px; border-radius: 40px; margin-bottom: 20px;">
-                    <h2>Great news, ${customerName}!</h2>
-                    <p style="color: #666;">Your order has been dispatched and is now with the carrier.</p>
-                    <p><strong>Tracking Number:</strong> <span style="color: #f97316;">${shipmentInfo.tracking_number}</span></p>
-                    <div style="margin: 30px 0;">
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
+                    <div style="text-align: center; margin-bottom: 40px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 100px; height: 100px; border-radius: 50px; margin-bottom: 15px;">
+                        <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
+                    </div>
+
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Great news, ${customerName}!</h2>
+                        <p style="color: #666; line-height: 1.5;">Your order <strong>${orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : 'Pending')}</strong> has been dispatched and is now with the carrier.</p>
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Tracking Information</h3>
+                        <p style="margin-bottom: 20px; font-size: 18px;">
+                            <strong>Tracking Number:</strong> <br>
+                            <span style="color: #f97316; font-weight: bold; font-size: 24px; display: block; margin: 10px 0;">${shipmentInfo.tracking_number}</span>
+                        </p>
                         <a href="https://app.shipmondo.com/tracking/${shipmentInfo.tracking_number}" 
-                           style="background: #f97316; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                           style="background: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; display: inline-block; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
                            Track My Order 🚚
                         </a>
                     </div>
-                    ${shipmentInfo.label_url ? `
-                        <p style="font-size: 14px; color: #999;">You can also download your shipping label here:</p>
-                        <a href="${shipmentInfo.label_url}" style="color: #f97316; font-weight: bold;">Download PDF Label</a>
-                    ` : ''}
-                    <p style="margin-top: 40px; color: #999; font-size: 12px;">El Cuartito Records — Copenhagen, Denmark</p>
+
+                    <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
+                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
+                        <p>Dybbølsgade 14, 1721 København V, Denmark</p>
+                    </div>
                 </div>
             `
         });
 
-        if (error) console.error('❌ Resend Error:', error);
+        if (error) {
+            console.error('❌ Resend Error in sendShipOrderEmail:', error);
+            return;
+        }
+
+        console.log('✅ Tracking notification sent successfully:', data?.id);
     } catch (error) {
-        console.error('❌ Exception in sendShipOrderEmail:', error);
+        console.error('❌ [MAIL-SERVICE] Exception in sendShipOrderEmail:', error);
     }
 };
 

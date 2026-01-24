@@ -33,6 +33,22 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
         { code: 'IT', name: 'Italy' },
         { code: 'AT', name: 'Austria' },
         { code: 'PL', name: 'Poland' },
+        { code: 'PT', name: 'Portugal' },
+        { code: 'IE', name: 'Ireland' },
+        { code: 'GR', name: 'Greece' },
+        { code: 'CZ', name: 'Czech Republic' },
+        { code: 'HU', name: 'Hungary' },
+        { code: 'RO', name: 'Romania' },
+        { code: 'BG', name: 'Bulgaria' },
+        { code: 'HR', name: 'Croatia' },
+        { code: 'SK', name: 'Slovakia' },
+        { code: 'SI', name: 'Slovenia' },
+        { code: 'LT', name: 'Lithuania' },
+        { code: 'LV', name: 'Latvia' },
+        { code: 'EE', name: 'Estonia' },
+        { code: 'LU', name: 'Luxembourg' },
+        { code: 'CY', name: 'Cyprus' },
+        { code: 'MT', name: 'Malta' },
     ];
 
     const handleCalculateShipping = async () => {

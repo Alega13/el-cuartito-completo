@@ -426,7 +426,11 @@ export const manualShipOrder = async (req: Request, res: Response) => {
         });
 
         // Send Email via Resend
-        await sendShipOrderEmail(saleData, shippingInfo);
+        try {
+            await sendShipOrderEmail(saleData, shippingInfo);
+        } catch (mailError: any) {
+            console.error('⚠️  Failed to send tracking email (continuing):', mailError.message);
+        }
 
         res.json({
             success: true,
