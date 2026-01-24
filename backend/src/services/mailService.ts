@@ -193,10 +193,23 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
         }
 
         // Robust customer extraction
-        const customer = orderData.customer || {};
-        const customerEmail = customer.email || orderData.customerEmail || orderData.email || orderData.stripe_info?.email;
-        const customerName = customer.firstName || orderData.customerName || customer.name || orderData.name || 'Customer';
+        const customer = orderData.customer;
+        let customerEmail = orderData.customerEmail || orderData.email || orderData.stripe_info?.email;
 
+        if (customer) {
+            if (typeof customer === 'string') {
+                if (customer.includes('@')) customerEmail = customer;
+            } else if (typeof customer === 'object') {
+                customerEmail = customer.email || customerEmail;
+            }
+        }
+
+        const customerName = (typeof customer === 'object' ? (customer.firstName || customer.name) : null)
+            || orderData.customerName
+            || orderData.name
+            || 'Customer';
+
+        console.log(`📧 [DEBUG-MAIL] orderData ID: ${orderData.id || 'N/A'}`);
         console.log(`📧 [DEBUG-MAIL] orderData keys: ${Object.keys(orderData).join(', ')}`);
         console.log(`📧 [DEBUG-MAIL] Detected email: "${customerEmail}"`);
         console.log(`📧 [DEBUG-MAIL] Detected name: "${customerName}"`);
