@@ -507,13 +507,15 @@ export const testEmail = async (req: Request, res: Response) => {
         // Mode 0: List recent orders (Debugging aid)
         if (listRecent) {
             const db = getDb();
-            // Try timestamp instead of createdAt
-            const snap = await db.collection('sales').orderBy('timestamp', 'desc').limit(5).get();
+            // Raw dump of any 5 docs
+            const snap = await db.collection('sales').limit(5).get();
             const recentOrders = snap.docs.map(doc => ({
                 id: doc.id,
                 orderNumber: doc.data().orderNumber,
-                customerEmail: doc.data().customerEmail || doc.data().email || doc.data().customer?.email,
-                timestamp: doc.data().timestamp
+                // Debug: Include all keys to inspect structure
+                keys: Object.keys(doc.data()),
+                timestamp: doc.data().timestamp,
+                createdAt: doc.data().createdAt
             }));
             return res.json({
                 success: true,
