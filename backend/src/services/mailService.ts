@@ -109,13 +109,13 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
         });
 
         if (error) {
-            console.error('❌ Error sending confirmation email via Resend:', error);
+            console.error('❌ Resend Error (Order Confirmation):', JSON.stringify(error, null, 2));
             return;
         }
 
         console.log('✅ Order confirmation email sent successfully:', data?.id);
     } catch (error) {
-        console.error('❌ Exception in sendOrderConfirmationEmail:', error);
+        console.error('❌ [MAIL-SERVICE] Exception in sendOrderConfirmationEmail:', error);
     }
 };
 
@@ -169,7 +169,7 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
         });
 
         if (error) {
-            console.error('❌ Error sending shipping notification via Resend:', error);
+            console.error('❌ Resend Error (Shipping Notification):', JSON.stringify(error, null, 2));
             return;
         }
 
@@ -293,8 +293,13 @@ export const sendPickupReadyEmail = async (orderData: any) => {
             `
         });
 
-        if (error) console.error('❌ Resend Error (Pickup):', error);
+        if (error) {
+            console.error('❌ Resend Error (Pickup):', JSON.stringify(error, null, 2));
+            return;
+        }
+
+        console.log('✅ Pickup ready email sent successfully:', data?.id);
     } catch (error) {
-        console.error('❌ Exception in sendPickupReadyEmail:', error);
+        console.error('❌ [MAIL-SERVICE] Exception in sendPickupReadyEmail:', error);
     }
 };
