@@ -236,7 +236,7 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
         });
 
         if (error) {
-            console.error('❌ Resend Error in sendShipOrderEmail:', error);
+            console.error('❌ Resend Error in sendShipOrderEmail:', JSON.stringify(error, null, 2));
             return;
         }
 
