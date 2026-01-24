@@ -139,7 +139,7 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: `Your order ${orderData.orderNumber} has been shipped! - El Cuartito Records`,
+            subject: `Your order is on its way! 🚚 - El Cuartito Records`,
             html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
                     <div style="text-align: center; margin-bottom: 40px;">
@@ -147,22 +147,26 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
                         <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
                     </div>
 
-                    <div style="margin-bottom: 30px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
                         <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Great news, ${customerName}!</h2>
-                        <p style="color: #666; line-height: 1.5;">Your order <strong>${orderData.orderNumber}</strong> is on its way.</p>
+                        <p style="color: #666; line-height: 1.5;">Your order <strong>${orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : 'Pending')}</strong> has been dispatched via ${shipmentInfo.carrier} and is now with the carrier.</p>
                     </div>
 
-                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Shipping Information</h3>
-                        <p style="margin-bottom: 10px; font-size: 16px;">
-                            <strong>Carrier:</strong> ${shipmentInfo.carrier}<br>
-                            <strong>Tracking Number:</strong> <span style="color: #f97316; font-weight: bold;">${shipmentInfo.tracking_number}</span>
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Tracking Information</h3>
+                        <p style="margin-bottom: 20px; font-size: 18px;">
+                            <strong>Tracking Number:</strong> <br>
+                            <span style="color: #f97316; font-weight: bold; font-size: 24px; display: block; margin: 10px 0;">${shipmentInfo.tracking_number}</span>
                         </p>
-                        <p style="font-size: 12px; color: #666;">You can track your package using the tracking number on the carrier's website.</p>
+                        <a href="https://app.shipmondo.com/tracking/${shipmentInfo.tracking_number}" 
+                           style="background: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; display: inline-block; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
+                           Track My Order 🚚
+                        </a>
                     </div>
 
                     <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
                         <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
+                        <p>Dybbølsgade 14, 1721 København V, Denmark</p>
                     </div>
                 </div>
             `
