@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = 'https://el-cuartito-shop.up.railway.app';
+const isLocal = window.location.hostname === 'localhost';
+const API_URL = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -49,13 +50,14 @@ export const releaseStock = async (productId, qty) => {
     }
 };
 
-export const calculateShipping = async (country, postalCode, city, orderTotal) => {
+export const calculateShipping = async (country, postalCode, city, orderTotal, itemCount) => {
     try {
         const response = await api.post('/shipping/calculate', {
             country,
             postalCode,
             city,
-            orderTotal
+            orderTotal,
+            itemCount
         });
         return response.data;
     } catch (error) {
@@ -84,6 +86,26 @@ export const confirmCheckout = async (saleId, paymentId) => {
         return response.data;
     } catch (error) {
         console.error("Error confirming checkout:", error);
+        throw error;
+    }
+};
+
+export const getSale = async (saleId) => {
+    try {
+        const response = await api.get(`/sales/public/${saleId}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching sale:", error);
+        throw error;
+    }
+};
+
+export const confirmLocalPayment = async (saleId, paymentIntentId) => {
+    try {
+        const response = await api.post(`/sales/public/${saleId}/confirm-local`, { paymentIntentId });
+        return response.data;
+    } catch (error) {
+        console.error("Error confirming local payment:", error);
         throw error;
     }
 };

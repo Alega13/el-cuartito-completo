@@ -45,11 +45,13 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
         setError('');
 
         try {
+            const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
             const result = await calculateShipping(
                 address.country,
                 address.postalCode,
                 address.city,
-                cartTotal
+                cartTotal,
+                totalItems
             );
 
             setShippingRates(result.rates || []);
