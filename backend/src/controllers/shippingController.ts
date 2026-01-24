@@ -498,10 +498,44 @@ export const readyForPickup = async (req: Request, res: Response) => {
         });
     }
 };
+
 // Diagnostic endpoint to test email sending
 export const testEmail = async (req: Request, res: Response) => {
     try {
-        const { email } = req.body;
+        const { email, orderId } = req.body;
+
+        // Mode 1: Debug specific order
+        // This mode fetches the real order data and tries to send the email exactly as the production system would.
+        if (orderId) {
+            console.log(`🧪 [TEST-EMAIL] Debugging real order: ${orderId}`);
+            const db = getDb();
+            const saleRef = db.collection('sales').doc(orderId);
+            const saleDoc = await saleRef.get();
+
+            if (!saleDoc.exists) {
+                return res.status(404).json({ error: 'Order not found' });
+            }
+
+            const saleData = saleDoc.data() as any;
+            if (!saleData.id) saleData.id = orderId; // Ensure ID is present for templates
+
+            const shippingInfo = saleData.shipment || {
+                tracking_number: 'TEST-DEBUG-123',
+                carrier: 'DebugCarrier'
+            };
+
+            const result = await sendShipOrderEmail(saleData, shippingInfo);
+
+            return res.json({
+                mode: 'real_order_debug',
+                orderId,
+                rawDataKeys: Object.keys(saleData),
+                customerField: saleData.customer,
+                emailDetectionResult: result
+            });
+        }
+
+        // Mode 2: Simple email test
         if (!email) return res.status(400).json({ error: 'Email is required' });
 
         const dummyOrder = {
@@ -518,12 +552,12 @@ export const testEmail = async (req: Request, res: Response) => {
 
         console.log(`🧪 [TEST-EMAIL] Triggering sendShipOrderEmail to ${email}...`);
 
-        // Use await to catch errors from the internal sendShipOrderEmail
-        await sendShipOrderEmail(dummyOrder, dummyShipment);
+        const result = await sendShipOrderEmail(dummyOrder, dummyShipment);
 
         res.json({
             success: true,
-            message: `Email test triggered for ${email}. Check Railway logs for "✅ Tracking notification sent successfully" or errors.`
+            message: `Email test triggered for ${email}. Check Railway logs for "✅ Tracking notification sent successfully" or errors.`,
+            result
         });
     } catch (error: any) {
         console.error('❌ [TEST-EMAIL] Error:', error.message);
