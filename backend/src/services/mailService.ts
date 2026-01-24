@@ -3,6 +3,8 @@ import config from '../config/env';
 
 const resend = new Resend(config.RESEND_API_KEY);
 
+const LOGO_URL = 'https://elcuartito.dk/logo.jpg';
+
 export const sendOrderConfirmationEmail = async (orderData: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
@@ -11,7 +13,6 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
         }
 
         console.log('📧 Starting sendOrderConfirmationEmail for order:', orderData.orderNumber);
-        console.log('📧 Customer email:', orderData.customer?.email);
 
         const { customer, items, orderNumber, total_amount, items_total, shipping_cost } = orderData;
         const customerEmail = customer?.email;
@@ -24,7 +25,10 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
 
         const itemsHtml = items.map((item: any) => `
             <tr>
-                <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee;">
+                <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
+                    <img src="${item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+                </td>
+                <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
                     <div style="font-weight: bold; color: #333;">${item.album}</div>
                     <div style="font-size: 12px; color: #666; text-transform: uppercase;">${item.artist}</div>
                 </td>
@@ -38,29 +42,31 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
         `).join('');
 
         const { data, error } = await resend.emails.send({
-            from: 'El Cuartito <hola@elcuartito.dk>',
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: `Confirmation of Order ${orderNumber} - El Cuartito Records`,
+            subject: `Order Confirmation ${orderNumber} - El Cuartito Records`,
             html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333;">
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
                     <div style="text-align: center; margin-bottom: 40px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 120px; height: 120px; border-radius: 60px; margin-bottom: 15px; border: 4px solid #f9f9f9;">
                         <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
                         <p style="font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px;">Copenhagen, Denmark</p>
                     </div>
 
                     <div style="margin-bottom: 30px;">
-                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">¡Gracias por tu compra, ${customer?.firstName}!</h2>
-                        <p style="color: #666; line-height: 1.5;">Hemos recibido tu pedido <strong>${orderNumber}</strong> y ya estamos trabajando en él. Te notificaremos en cuanto sea enviado.</p>
+                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Thanks for your purchase, ${customer?.firstName}!</h2>
+                        <p style="color: #666; line-height: 1.5;">We have received your order <strong>${orderNumber}</strong> and are preparing it for shipment. We will notify you as soon as it is on its way.</p>
                     </div>
 
                     <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Resumen del Pedido</h3>
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Order Summary</h3>
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr>
-                                    <th style="text-align: left; font-size: 12px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Artículo</th>
-                                    <th style="text-align: center; font-size: 12px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Cant.</th>
-                                    <th style="text-align: right; font-size: 12px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Precio</th>
+                                    <th style="text-align: left; font-size: 11px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee; width: 60px;"></th>
+                                    <th style="text-align: left; font-size: 11px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Item</th>
+                                    <th style="text-align: center; font-size: 11px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Qty</th>
+                                    <th style="text-align: right; font-size: 11px; color: #999; text-transform: uppercase; padding-bottom: 10px; border-bottom: 2px solid #eeeeee;">Price</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -70,22 +76,22 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
 
                         <div style="margin-top: 20px;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #666; font-size: 14px;">
-                                <span>Subtotal:</span>
+                                <span style="flex: 1;">Subtotal:</span>
                                 <span>DKK ${items_total.toFixed(2)}</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #666; font-size: 14px;">
-                                <span>Envío:</span>
+                                <span style="flex: 1;">Shipping:</span>
                                 <span>DKK ${shipping_cost.toFixed(2)}</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #eeeeee; font-weight: 900; font-size: 18px;">
-                                <span>Total:</span>
+                            <div style="display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #eeeeee; font-weight: 900; font-size: 18px; color: #f97316;">
+                                <span style="flex: 1;">Total:</span>
                                 <span>DKK ${total_amount.toFixed(2)}</span>
                             </div>
                         </div>
                     </div>
 
                     <div style="margin-bottom: 40px;">
-                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 10px; letter-spacing: 1px;">Dirección de Envío</h3>
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 10px; letter-spacing: 1px;">Shipping Address</h3>
                         <p style="color: #666; font-size: 14px; line-height: 1.5; margin: 0;">
                             ${customerName}<br>
                             ${customer?.address}<br>
@@ -95,8 +101,8 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
                     </div>
 
                     <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
-                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. Todos los derechos reservados.</p>
-                        <p>Copenhagen, Denmark</p>
+                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
+                        <p>Dybbølsgade 14, 1721 København V, Denmark</p>
                     </div>
                 </div>
             `
@@ -123,7 +129,7 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
         console.log('📧 Starting sendShippingNotificationEmail for order:', orderData.orderNumber);
 
         const customerEmail = orderData.customer?.email;
-        const customerName = orderData.customer?.firstName || 'Cliente';
+        const customerName = orderData.customer?.firstName || 'Customer';
 
         if (!customerEmail) {
             console.error('❌ Cannot send email: No customer email found.');
@@ -131,32 +137,32 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
         }
 
         const { data, error } = await resend.emails.send({
-            from: 'El Cuartito <hola@elcuartito.dk>',
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: `Tu pedido ${orderData.orderNumber} ha sido enviado - El Cuartito Records`,
+            subject: `Your order ${orderData.orderNumber} has been shipped! - El Cuartito Records`,
             html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333;">
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
                     <div style="text-align: center; margin-bottom: 40px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 100px; height: 100px; border-radius: 50px; margin-bottom: 15px;">
                         <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
                     </div>
 
                     <div style="margin-bottom: 30px;">
-                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">¡Buenas noticias, ${customerName}!</h2>
-                        <p style="color: #666; line-height: 1.5;">Tu pedido <strong>${orderData.orderNumber}</strong> ya está en camino.</p>
+                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Great news, ${customerName}!</h2>
+                        <p style="color: #666; line-height: 1.5;">Your order <strong>${orderData.orderNumber}</strong> is on its way.</p>
                     </div>
 
                     <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Información de Envío</h3>
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Shipping Information</h3>
                         <p style="margin-bottom: 10px; font-size: 16px;">
-                            <strong>Transportista:</strong> ${shipmentInfo.carrier}<br>
-                            <strong>Número de Seguimiento:</strong> <span style="color: #f97316; font-weight: bold;">${shipmentInfo.tracking_number}</span>
+                            <strong>Carrier:</strong> ${shipmentInfo.carrier}<br>
+                            <strong>Tracking Number:</strong> <span style="color: #f97316; font-weight: bold;">${shipmentInfo.tracking_number}</span>
                         </p>
-                        <p style="font-size: 12px; color: #666;">Puedes seguir tu paquete usando el número de seguimiento en la web del transportista.</p>
+                        <p style="font-size: 12px; color: #666;">You can track your package using the tracking number on the carrier's website.</p>
                     </div>
 
                     <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
-                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. Todos los derechos reservados.</p>
-                        <p>Copenhagen, Denmark</p>
+                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
                     </div>
                 </div>
             `
@@ -180,28 +186,29 @@ export const sendShipOrderEmail = async (orderData: any, shipmentInfo: any) => {
         }
 
         const customerEmail = orderData.customer?.email || orderData.customerEmail;
-        const customerName = orderData.customer?.firstName || orderData.customerName || 'Cliente';
+        const customerName = orderData.customer?.firstName || orderData.customerName || 'Customer';
 
         const { data, error } = await resend.emails.send({
-            from: 'El Cuartito Records <hola@elcuartito.dk>', // Professional domain email
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: "¡Tu pedido va en camino! 🚚",
+            subject: "Your order is on its way! 🚚",
             html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2>¡Buenas noticias, ${customerName}!</h2>
-                    <p>Tu pedido ha salido y ya está en manos del transportista.</p>
-                    <p><strong>Número de Seguimiento:</strong> ${shipmentInfo.tracking_number}</p>
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; text-align: center;">
+                    <img src="${LOGO_URL}" alt="El Cuartito" style="width: 80px; height: 80px; border-radius: 40px; margin-bottom: 20px;">
+                    <h2>Great news, ${customerName}!</h2>
+                    <p style="color: #666;">Your order has been dispatched and is now with the carrier.</p>
+                    <p><strong>Tracking Number:</strong> <span style="color: #f97316;">${shipmentInfo.tracking_number}</span></p>
                     <div style="margin: 30px 0;">
                         <a href="https://app.shipmondo.com/tracking/${shipmentInfo.tracking_number}" 
-                           style="background: #e67e22; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                           Seguir mi Pedido 🚚
+                           style="background: #f97316; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                           Track My Order 🚚
                         </a>
                     </div>
                     ${shipmentInfo.label_url ? `
-                        <p>También puedes descargar tu etiqueta de envío aquí:</p>
-                        <a href="${shipmentInfo.label_url}" style="color: #e67e22;">Descargar Etiqueta PDF</a>
+                        <p style="font-size: 14px; color: #999;">You can also download your shipping label here:</p>
+                        <a href="${shipmentInfo.label_url}" style="color: #f97316; font-weight: bold;">Download PDF Label</a>
                     ` : ''}
-                    <p style="margin-top: 40px; color: #7f8c8d; font-size: 12px;">El Cuartito Records</p>
+                    <p style="margin-top: 40px; color: #999; font-size: 12px;">El Cuartito Records — Copenhagen, Denmark</p>
                 </div>
             `
         });
@@ -219,32 +226,42 @@ export const sendPickupReadyEmail = async (orderData: any) => {
         }
 
         const customerEmail = orderData.customer?.email || orderData.customerEmail;
-        const customerName = orderData.customer?.firstName || orderData.customerName || 'Cliente';
+        const customerName = orderData.customer?.firstName || orderData.customerName || 'Customer';
 
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
             to: [customerEmail],
-            subject: "¡Tu pedido está listo para retirar! 💿",
+            subject: "Your order is ready for pickup! 💿",
             html: `
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2>¡Hola, ${customerName}!</h2>
-                    <p>¡Buenas noticias! Tu pedido <strong>${orderData.orderNumber || orderData.id.slice(0, 8)}</strong> ya está preparado y listo para que pases a buscarlo.</p>
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito" style="width: 100px; height: 100px; border-radius: 50px;">
+                        <h2 style="margin-top: 20px;">Hi, ${customerName}!</h2>
+                        <p style="color: #666; font-size: 16px;">Good news! Your order <strong>${orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : 'Pending')}</strong> is now prepared and ready for you to pick it up.</p>
+                    </div>
                     
                     <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin: 30px 0; border: 1px solid #eee;">
-                        <h3 style="margin-top: 0; color: #f97316;">📍 Punto de Retiro</h3>
-                        <p style="margin-bottom: 5px;"><strong>El Cuartito Records</strong></p>
+                        <h3 style="margin-top: 0; color: #f97316; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">📍 Pickup Location</h3>
+                        <p style="margin-bottom: 5px; font-weight: bold;">El Cuartito Records</p>
                         <p style="margin-bottom: 5px;">Dybbølsgade 14</p>
                         <p style="margin-bottom: 5px;">1721 København V, Denmark</p>
                     </div>
 
                     <div style="margin-bottom: 30px;">
-                        <h3 style="color: #666; font-size: 14px; text-transform: uppercase;">Horarios de Atención</h3>
-                        <p style="font-size: 14px; color: #444;">Lunes a Viernes: 11:00 - 18:00<br>Sábados: 11:00 - 16:00</p>
+                        <h3 style="color: #999; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Opening Hours</h3>
+                        <p style="font-size: 14px; color: #444; line-height: 1.6;">
+                            Monday to Friday: 11:00 - 18:00<br>
+                            Saturday: 11:00 - 16:00
+                        </p>
                     </div>
 
-                    <p>Por favor, recuerda traer tu número de pedido o el nombre de quien realizó la compra.</p>
+                    <div style="padding: 20px; background-color: #fff8f1; border-radius: 8px; border-left: 4px solid #f97316;">
+                        <p style="margin: 0; font-size: 14px; color: #854d0e;">Please remember to bring your order number or the name used for the purchase.</p>
+                    </div>
                     
-                    <p style="margin-top: 40px; color: #7f8c8d; font-size: 12px;">¡Te esperamos!<br>El Cuartito Records</p>
+                    <div style="text-align: center; margin-top: 40px;">
+                        <p style="color: #999; font-size: 12px;">We are looking forward to seeing you!<br><strong>El Cuartito Records</strong></p>
+                    </div>
                 </div>
             `
         });
