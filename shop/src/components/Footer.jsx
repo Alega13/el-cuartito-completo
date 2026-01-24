@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
     return (
@@ -9,20 +10,20 @@ const Footer = () => {
                     <div>
                         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-6">Index</h3>
                         <ul className="space-y-3">
-                            <li><a href="/" className="text-sm hover:opacity-60 transition-opacity">Home</a></li>
-                            <li><a href="/catalog" className="text-sm hover:opacity-60 transition-opacity">Catalog</a></li>
-                            <li><a href="/collections" className="text-sm hover:opacity-60 transition-opacity">Collections</a></li>
-                            <li><a href="/about" className="text-sm hover:opacity-60 transition-opacity">About</a></li>
+                            <li><Link to="/" className="text-sm hover:opacity-60 transition-opacity">Home</Link></li>
+                            <li><Link to="/catalog" className="text-sm hover:opacity-60 transition-opacity">Catalog</Link></li>
+                            <li><Link to="/collections" className="text-sm hover:opacity-60 transition-opacity">Collections</Link></li>
+                            <li><Link to="/about" className="text-sm hover:opacity-60 transition-opacity">About</Link></li>
                         </ul>
                     </div>
 
                     {/* LEGAL */}
                     <div>
-                        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-6">Legal</h3>
+                        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-6">Information</h3>
                         <ul className="space-y-3">
-                            <li><a href="/terms" className="text-sm hover:opacity-60 transition-opacity">Terms</a></li>
-                            <li><a href="/privacy" className="text-sm hover:opacity-60 transition-opacity">Privacy</a></li>
-                            <li><a href="/impressum" className="text-sm hover:opacity-60 transition-opacity">Impressum</a></li>
+                            <li><Link to="/shipping" className="text-sm hover:opacity-60 transition-opacity">Shipping & Returns</Link></li>
+                            <li><Link to="/terms" className="text-sm hover:opacity-60 transition-opacity">Terms & Conditions</Link></li>
+                            <li><Link to="/privacy" className="text-sm hover:opacity-60 transition-opacity">Privacy Policy</Link></li>
                         </ul>
                     </div>
 

@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteListing = exports.updateListing = exports.createListing = exports.getSyncStatus = exports.syncInventory = void 0;
+exports.getPriceSuggestions = exports.deleteListing = exports.updateListing = exports.createListing = exports.syncOrders = exports.getSyncStatus = exports.syncInventory = void 0;
 const discogsService_1 = require("../services/discogsService");
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
@@ -193,6 +193,120 @@ const getSyncStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* 
 });
 exports.getSyncStatus = getSyncStatus;
 /**
+ * Sync orders from Discogs - creates sales for orders that haven't been synced yet
+ */
+const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d;
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+        console.log('Starting Discogs orders sync...');
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const orders = yield discogsService.fetchOrders();
+        const db = (0, firebaseAdmin_1.getDb)();
+        const result = {
+            success: true,
+            ordersProcessed: 0,
+            salesCreated: 0,
+            alreadySynced: 0,
+            errors: []
+        };
+        for (const order of orders) {
+            try {
+                // Skip if not a completed/paid order
+                const validStatuses = ['Payment Received', 'Shipped', 'Merged'];
+                if (!validStatuses.includes(order.status)) {
+                    continue;
+                }
+                // Check if this order was already synced
+                const existingOrderQuery = yield db.collection('sales')
+                    .where('discogs_order_id', '==', order.id)
+                    .limit(1)
+                    .get();
+                if (!existingOrderQuery.empty) {
+                    result.alreadySynced++;
+                    continue;
+                }
+                // Extract order details
+                const orderDate = new Date(order.created);
+                const totalBruto = ((_a = order.total) === null || _a === void 0 ? void 0 : _a.value) || 0;
+                const shipping = ((_b = order.shipping) === null || _b === void 0 ? void 0 : _b.value) || 0;
+                const netAmount = totalBruto;
+                // Map items from order
+                const items = order.items.map((item) => {
+                    var _a, _b, _c;
+                    return ({
+                        discogs_listing_id: String(item.id),
+                        artist: ((_a = item.release) === null || _a === void 0 ? void 0 : _a.artist) || 'Unknown',
+                        album: ((_b = item.release) === null || _b === void 0 ? void 0 : _b.title) || 'Unknown',
+                        priceAtSale: ((_c = item.price) === null || _c === void 0 ? void 0 : _c.value) || 0,
+                        qty: 1,
+                        costAtSale: 0
+                    });
+                });
+                // Create sale record
+                yield db.collection('sales').add({
+                    discogs_order_id: order.id,
+                    channel: 'discogs',
+                    status: 'pending_review',
+                    total: netAmount,
+                    originalTotal: totalBruto,
+                    discogsFee: 0,
+                    paypalFee: 0,
+                    totalFees: 0,
+                    shipping: shipping,
+                    date: orderDate.toISOString().split('T')[0],
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    customerName: ((_c = order.buyer) === null || _c === void 0 ? void 0 : _c.username) || 'Discogs Buyer',
+                    customerEmail: ((_d = order.buyer) === null || _d === void 0 ? void 0 : _d.email) || null,
+                    paymentMethod: 'Discogs Payout',
+                    items: items,
+                    shippingAddress: order.shipping_address || null,
+                    orderStatus: order.status,
+                    needsReview: true
+                });
+                console.log(`✅ Created sale for Discogs order ${order.id}: ${items.map((i) => i.album).join(', ')}`);
+                result.salesCreated++;
+                result.ordersProcessed++;
+                // Update stock for matching products
+                for (const item of items) {
+                    const productQuery = yield db.collection('products')
+                        .where('discogs_listing_id', '==', item.discogs_listing_id)
+                        .limit(1)
+                        .get();
+                    if (!productQuery.empty) {
+                        const productDoc = productQuery.docs[0];
+                        const currentStock = productDoc.data().stock || 0;
+                        yield productDoc.ref.update({
+                            stock: Math.max(0, currentStock - 1)
+                        });
+                        console.log(`  📦 Updated stock for ${item.album}`);
+                    }
+                }
+            }
+            catch (orderError) {
+                result.errors.push(`Order ${order.id}: ${orderError.message}`);
+            }
+        }
+        const message = `Synced ${result.ordersProcessed} orders. Created ${result.salesCreated} sales. ${result.alreadySynced} already synced.`;
+        console.log(message);
+        res.json(Object.assign(Object.assign({}, result), { message }));
+    }
+    catch (error) {
+        console.error('Orders sync failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+exports.syncOrders = syncOrders;
+/**
  * Create a new Discogs listing
  */
 const createListing = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -291,3 +405,37 @@ const deleteListing = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.deleteListing = deleteListing;
+/**
+ * Get price suggestions for a release
+ */
+const getPriceSuggestions = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+        const { releaseId } = req.params;
+        if (!releaseId) {
+            return res.status(400).json({
+                error: 'releaseId is required'
+            });
+        }
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const suggestions = yield discogsService.getPriceSuggestions(parseInt(releaseId));
+        res.json({
+            success: true,
+            suggestions
+        });
+    }
+    catch (error) {
+        console.error('Fetch price suggestions failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+exports.getPriceSuggestions = getPriceSuggestions;

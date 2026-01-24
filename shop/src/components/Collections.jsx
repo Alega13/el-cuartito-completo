@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const Collections = ({ products, onCollectionClick, isFullPage = false }) => {
+const Collections = ({ products, isFullPage = false }) => {
+    const navigate = useNavigate();
     const collections = [
         {
             name: "Detroit Techno",
@@ -55,7 +57,7 @@ const Collections = ({ products, onCollectionClick, isFullPage = false }) => {
                         return (
                             <button
                                 key={idx}
-                                onClick={() => onCollectionClick(collection.name)}
+                                onClick={() => navigate(`/collection/${encodeURIComponent(collection.name)}`)}
                                 className="group text-left border-l-2 border-black/10 pl-6 py-6 hover:border-black transition-colors"
                             >
                                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-3">

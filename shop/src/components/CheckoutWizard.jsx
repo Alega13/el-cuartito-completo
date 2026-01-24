@@ -27,16 +27,20 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
             return;
         }
 
+
         setIsProcessing(true);
         setMessage(null);
 
         // Save order data before redirect
         onSuccess(saleId, "pending", true);
 
+        const returnUrl = `${window.location.origin}/checkout/success?saleId=${saleId}`;
+        console.log('🔥 STRIPE RETURN URL:', returnUrl);
+
         const { error, paymentIntent } = await stripe.confirmPayment({
             elements,
             confirmParams: {
-                return_url: `${window.location.origin}/?page=success&saleId=${saleId}`,
+                return_url: returnUrl,
             },
             redirect: 'if_required'
         });
@@ -47,7 +51,8 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
             setMessage("Payment successful! Your order is being processed...");
             setTimeout(() => {
-                onSuccess(saleId, paymentIntent.id);
+                // Pass clientSecret so the success page can verify the payment
+                onSuccess(saleId, paymentIntent.id, false, clientSecret);
             }, 500);
             setIsProcessing(false);
         } else {

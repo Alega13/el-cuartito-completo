@@ -91,7 +91,7 @@ const FREE_SHIPPING_THRESHOLD = 500;
  */
 export const calculateShipping = async (req: Request, res: Response) => {
     try {
-        const { country, postalCode, city, orderTotal } = req.body;
+        const { country, postalCode, city, orderTotal, itemCount = 1 } = req.body;
 
         if (!country) {
             return res.status(400).json({
@@ -99,37 +99,113 @@ export const calculateShipping = async (req: Request, res: Response) => {
             });
         }
 
-        // Normalize country input (handle both codes and full names)
+        // Normalize country input
         const normalizedCountry = country.trim().toUpperCase();
+        const isDenmark = normalizedCountry === 'DK' || normalizedCountry === 'DENMARK';
 
-        // Find matching shipping zone
-        let matchingZone: ShippingZone | undefined;
+        // EU Countries list for logic
+        const euCountries = [
+            'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'EE', 'FR', 'DE', 'GR',
+            'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT',
+            'RO', 'SK', 'SI', 'ES',
+            'AUSTRIA', 'BELGIUM', 'BULGARIA', 'CROATIA', 'CYPRUS', 'CZECH REPUBLIC',
+            'ESTONIA', 'FRANCE', 'GERMANY', 'GREECE', 'HUNGARY', 'IRELAND', 'ITALY',
+            'LATVIA', 'LITHUANIA', 'LUXEMBOURG', 'MALTA', 'NETHERLANDS', 'POLAND',
+            'PORTUGAL', 'ROMANIA', 'SLOVAKIA', 'SLOVENIA', 'SPAIN'
+        ];
+        const isEU = euCountries.includes(normalizedCountry);
 
-        for (const zone of SHIPPING_ZONES) {
-            const countryMatch = zone.countries.find(c =>
-                c.toUpperCase() === normalizedCountry ||
-                c.toUpperCase() === country.trim()
-            );
+        let rates: ShippingRate[] = [];
 
-            if (countryMatch) {
-                matchingZone = zone;
-                break;
-            }
-        }
+        if (isDenmark) {
+            // DAO Shop Pickup
+            // 1 vinyl: 50kr
+            // 2-4 vinyls: 55kr
+            let daoPickupPrice = itemCount <= 1 ? 50 : 55;
+            rates.push({
+                id: 'dao_pickup',
+                method: 'DAO Parcel Shop (Pickup)',
+                price: daoPickupPrice,
+                estimatedDays: '2-3',
+                description: 'Recoger en punto DAO cercano'
+            });
 
-        // If no zone found, return error (we don't ship there)
-        if (!matchingZone) {
-            return res.status(400).json({
-                error: 'Shipping to this country is not available',
-                message: 'Lo sentimos, no realizamos envíos a este país.'
+            // DAO Home Delivery
+            // 1 vinyl: 60kr
+            // 2-4 vinyls: 70kr
+            let daoHomePrice = itemCount <= 1 ? 60 : 70;
+            rates.push({
+                id: 'dao_home',
+                method: 'DAO Home Delivery',
+                price: daoHomePrice,
+                estimatedDays: '2-3',
+                description: 'Entrega a domicilio con DAO'
+            });
+
+            // GLS Pickup
+            // 1 vinyl: 50kr
+            // 2-7 vinyls: 70kr
+            let glsPickupPrice = itemCount <= 1 ? 50 : 70;
+            rates.push({
+                id: 'gls_pickup',
+                method: 'GLS Parcel Shop (Pickup)',
+                price: glsPickupPrice,
+                estimatedDays: '1-2',
+                description: 'Recoger en punto GLS cercano'
+            });
+
+            // GLS Home Delivery
+            // 1 vinyl: 80kr
+            // 2-7 vinyls: 100kr
+            let glsHomePrice = itemCount <= 1 ? 80 : 100;
+            rates.push({
+                id: 'gls_home',
+                method: 'GLS Home Delivery',
+                price: glsHomePrice,
+                estimatedDays: '1-2',
+                description: 'Entrega a domicilio con GLS'
+            });
+
+        } else if (isEU) {
+            // EU GLS Pickup
+            // 1 vinyl: 105kr
+            // 2-7 vinyls: 130kr
+            let euPickupPrice = itemCount <= 1 ? 105 : 130;
+            rates.push({
+                id: 'eu_gls_pickup',
+                method: 'GLS International (Pickup)',
+                price: euPickupPrice,
+                estimatedDays: '4-6',
+                description: 'Recoger en punto GLS (Europa)'
+            });
+
+            // EU GLS Home Delivery
+            // 1 vinyl: 120kr
+            // 2-7 vinyls: 150kr
+            let euHomePrice = itemCount <= 1 ? 120 : 150;
+            rates.push({
+                id: 'eu_gls_home',
+                method: 'GLS International (Home)',
+                price: euHomePrice,
+                estimatedDays: '3-5',
+                description: 'Entrega a domicilio (Europa)'
+            });
+        } else {
+            // Fallback for other countries (Nordics or others not explicitly in EU list)
+            // Use old EU standard for now as fallback
+            rates.push({
+                id: 'intl_standard',
+                method: 'International Standard',
+                price: 150,
+                estimatedDays: '7-10',
+                description: 'Envío internacional estándar'
             });
         }
 
-        // Check for free shipping eligibility
+        // Apply Free Shipping if applicable
         const isFreeShipping = orderTotal && orderTotal >= FREE_SHIPPING_THRESHOLD;
 
-        // Prepare rates
-        let rates = matchingZone.rates.map(rate => ({
+        const finalRates = rates.map(rate => ({
             ...rate,
             price: isFreeShipping ? 0 : rate.price,
             originalPrice: rate.price,
@@ -138,7 +214,8 @@ export const calculateShipping = async (req: Request, res: Response) => {
 
         res.json({
             country: normalizedCountry,
-            rates,
+            itemCount,
+            rates: finalRates,
             freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
             qualifiesForFreeShipping: isFreeShipping,
             orderTotal: orderTotal || 0

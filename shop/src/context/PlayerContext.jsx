@@ -18,6 +18,7 @@ export const PlayerProvider = ({ children }) => {
     // Audio State
     const [currentTrack, setCurrentTrack] = useState(null); // { index, title, url, source, duration, ... }
     const [isPlaying, setIsPlaying] = useState(false);
+    const [activeVideos, setActiveVideos] = useState([]); // Store videos for current release
     const [previews, setPreviews] = useState({}); // Cache: { trackIndex: { url, source } }
 
     // Progress
@@ -168,23 +169,25 @@ export const PlayerProvider = ({ children }) => {
         setCurrentProduct(product);
         setPlaylist(tracksList);
         setIsPlaying(true); // Optimistic
+        setShowSidePlayer(true); // Always ensure side player is visible when playing
+        if (discogsVideos && discogsVideos.length > 0) setActiveVideos(discogsVideos);
 
         // Check cache (use a composite key of productID + trackIndex)
         const cacheKey = `${product.id}-${track.index}`;
         let preview = previews[cacheKey];
 
         if (!preview) {
-            // 1. iTunes
-            preview = await fetchItunesPreview(track, product);
+            // 1. YouTube (Priority as per user request to avoid mismatches)
+            preview = findYoutubeVideo(track, product, discogsVideos);
 
-            // 2. Bandcamp
+            // 2. iTunes
             if (!preview) {
-                preview = await fetchBandcampPreview(track, product);
+                preview = await fetchItunesPreview(track, product);
             }
 
-            // 3. YouTube
+            // 3. Bandcamp
             if (!preview) {
-                preview = findYoutubeVideo(track, product, discogsVideos);
+                preview = await fetchBandcampPreview(track, product);
             }
 
             if (preview) {
@@ -220,14 +223,14 @@ export const PlayerProvider = ({ children }) => {
         // Note: track.index needs to be reliable.
         const idx = currentTrack.index;
         const nextIdx = (idx + 1) % playlist.length;
-        playTrack(playlist[nextIdx], currentProduct, playlist, []); // Note: discogsVideos might be missing if we don't store them in 'currentProduct'
+        playTrack(playlist[nextIdx], currentProduct, playlist, activeVideos);
     };
 
     const playPrev = () => {
         if (!currentTrack || playlist.length === 0) return;
         const idx = currentTrack.index;
         const prevIdx = (idx - 1 + playlist.length) % playlist.length;
-        playTrack(playlist[prevIdx], currentProduct, playlist, []);
+        playTrack(playlist[prevIdx], currentProduct, playlist, activeVideos);
     };
 
     const handleSeek = (newTime) => {
@@ -309,7 +312,9 @@ export const PlayerProvider = ({ children }) => {
             handleSeek,
             closePlayer,
             showSidePlayer,
-            setShowSidePlayer
+            setShowSidePlayer,
+            playlist,
+            activeVideos
         }}>
             {children}
 

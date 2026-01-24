@@ -1,12 +1,14 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Plus, Minus, Trash2 } from 'lucide-react';
+import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useNavigate } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
 
 
-const CartDrawer = ({ isOpen, onClose, setPage }) => {
+const CartDrawer = ({ isOpen, onClose }) => {
     const { cartItems, removeFromCart, updateQuantity, subtotal } = useCart();
+    const navigate = useNavigate();
 
     return (
         <AnimatePresence>
@@ -114,21 +116,24 @@ const CartDrawer = ({ isOpen, onClose, setPage }) => {
                             </div>
 
                             {cartItems.length > 0 && (
-                                <div className="bg-orange-50 border border-orange-100 rounded-sm p-3 text-center">
-                                    <p className="text-[10px] text-orange-900 leading-relaxed">
-                                        To purchase these records, visit our Discogs shop where they're available for sale.
+                                <div className="bg-green-50 border border-green-100 rounded-sm p-3 text-center">
+                                    <p className="text-[10px] text-green-900 leading-relaxed">
+                                        Secure checkout with Stripe. Shipping calculated at checkout.
                                     </p>
                                 </div>
                             )}
 
-                            <a
-                                href="https://www.discogs.com/seller/elcuartitorecords.dk"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`w-full bg-black text-white py-4 rounded-sm font-bold text-sm tracking-widest uppercase hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${cartItems.length === 0 ? 'pointer-events-none opacity-30' : ''}`}
+                            <button
+                                onClick={() => {
+                                    onClose();
+                                    navigate('/checkout');
+                                }}
+                                disabled={cartItems.length === 0}
+                                className={`w-full bg-black text-white py-4 rounded-sm font-bold text-sm tracking-widest uppercase hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                             >
-                                View Our Discogs Shop →
-                            </a>
+                                Proceed to Checkout
+                                <ArrowRight size={16} />
+                            </button>
                         </div>
                     </motion.div>
                 </>

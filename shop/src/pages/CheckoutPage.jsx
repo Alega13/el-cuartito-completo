@@ -1,20 +1,19 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import CheckoutWizard from '../components/CheckoutWizard';
 
-const CheckoutPage = ({ setPage, setSaleId }) => {
+const CheckoutPage = () => {
     const { cartItems } = useCart();
+    const navigate = useNavigate();
 
     // Handle successful payment
-    const handleSuccess = (saleId, paymentId, skipPreSave = false) => {
-        // Save saleId for success page
-        if (setSaleId) {
-            setSaleId(saleId);
-        }
-
-        // Navigate to success page
-        if (!skipPreSave && setPage) {
-            setPage('success');
+    const handleSuccess = (saleId, paymentId, skipPreSave = false, clientSecret = null) => {
+        // When payment succeeds without Stripe redirect (if_required mode)
+        // we need to manually navigate to the success page with the client secret and saleId
+        if (!skipPreSave && paymentId && paymentId !== "pending" && clientSecret) {
+            // Payment completed successfully, redirect to success page
+            navigate(`/checkout/success?payment_intent_client_secret=${clientSecret}&saleId=${saleId}`);
         }
     };
 
@@ -24,7 +23,7 @@ const CheckoutPage = ({ setPage, setSaleId }) => {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Your cart is empty</h2>
                     <button
-                        onClick={() => setPage && setPage('home')}
+                        onClick={() => navigate('/')}
                         className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600"
                     >
                         Continue Shopping

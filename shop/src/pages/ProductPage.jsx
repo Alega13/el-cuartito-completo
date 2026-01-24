@@ -1,26 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, ExternalLink, Disc3 } from 'lucide-react';
+import { Play, Pause, ExternalLink, Disc3, ShoppingCart, Check } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
+import { useCart } from '../context/CartContext';
 import defaultImage from '../assets/default-vinyl.png';
 import ProductCard from '../components/ProductCard';
 import VinylSidePlayer from '../components/VinylSidePlayer';
+import SEO from '../components/SEO';
 
 
-const ProductPage = ({ product: initialProduct, products = [], setSelectedProduct }) => {
+const ProductPage = ({ products = [] }) => {
+    const { productId } = useParams();
+    const navigate = useNavigate();
     const { playTrack, currentTrack, isPlaying, currentProduct, showSidePlayer, setShowSidePlayer } = usePlayer();
+    const { addToCart, cartItems } = useCart();
+    const [addedToCart, setAddedToCart] = useState(false);
 
-    const [product, setProduct] = useState(initialProduct);
+    // Find product from URL params or use the passed product (if any - handling legacy)
+    const urlProduct = productId ? products.find(p => p.id === productId || p.id === parseInt(productId)) : null;
+
+    // We can just use urlProduct directly instead of state if we want, or sync state
+    const [product, setProduct] = useState(urlProduct);
+
+    // Sync product when ID changes
+    useEffect(() => {
+        if (urlProduct) {
+            setProduct(urlProduct);
+        }
+    }, [urlProduct]);
+
 
     // Scroll to top when product changes
     useEffect(() => {
         window.scrollTo(0, 0);
-    }, [initialProduct?.id]);
-
-    useEffect(() => {
-        if (!initialProduct?.id) return;
-        setProduct(initialProduct);
-    }, [initialProduct?.id]);
+    }, [productId]);
 
     // Helper to check if image is valid
     const isValidImage = (url) => {
@@ -32,7 +46,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
         return true;
     };
 
-    const imageSrc = isValidImage(product.cover_image) ? product.cover_image : defaultImage;
+    const imageSrc = product && isValidImage(product.cover_image) ? product.cover_image : defaultImage;
 
     const [tracks, setTracks] = useState([]);
     const [loadingTracks, setLoadingTracks] = useState(true);
@@ -101,7 +115,21 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     const recommendations = getRecommendations();
 
 
-    if (!product) return null;
+    if (!product) {
+        // Handle loading or not found state
+        if (products.length === 0) {
+            // Likely still loading products
+            return (
+                <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto flex items-center justify-center min-h-[50vh]">
+                    <div className="animate-pulse flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 rounded-full border-4 border-black/5 border-t-black animate-spin"></div>
+                        <p className="text-xs font-bold tracking-widest text-black/20 uppercase">Loading Details...</p>
+                    </div>
+                </div>
+            )
+        }
+        return <div className="pt-32 pb-40 px-6">Product not found.</div>;
+    }
 
     const onPlayClick = (track, index) => {
         const trackData = { ...track, index };
@@ -113,18 +141,31 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
     };
 
     const handleRecommendationClick = (recProduct) => {
+        // Navigate
+        navigate(`/product/${recProduct.id}`);
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        // Set new product
-        setSelectedProduct(recProduct);
     };
 
     const handleVinylPlayerToggle = () => {
         setShowSidePlayer(!showSidePlayer);
     };
 
+    // SEO data
+    const seoTitle = `${product.artist} - ${product.album}`;
+    const seoDescription = `Buy ${product.album} by ${product.artist} on vinyl. ${product.genre ? `Genre: ${product.genre}.` : ''} Condition: ${product.status || 'VG'}. Available at El Cuartito Records, Copenhagen.`;
+
     return (
         <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto">
+            {/* Dynamic SEO */}
+            <SEO
+                title={seoTitle}
+                description={seoDescription}
+                image={imageSrc}
+                url={`/product/${product.id}`}
+                type="product"
+            />
+
             {/* Listen on Vinyl Button - Top Right */}
             <AnimatePresence>
                 {!showSidePlayer && (
@@ -178,7 +219,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                             <span>—</span>
                             <span>{product.year || '2024'}</span>
                             <span>—</span>
-                            <span>{product.genre}</span>
+                            <span>{[product.genre, product.genre2, product.genre3, product.genre4, product.genre5].filter(Boolean).join(', ')}</span>
                         </div>
                     </div>
 
@@ -293,7 +334,7 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                 </div>
             )}
 
-            {/* Bottom Fixed Container: ONLY ADD TO CART NOW */}
+            {/* Bottom Fixed Container: ADD TO CART */}
             <div className="fixed bottom-0 left-0 right-0 z-[80]">
                 {/* Add to Cart Bar */}
                 <div className="bg-white border-t border-black/5 px-6 py-4 md:px-10 relative z-20">
@@ -302,38 +343,39 @@ const ProductPage = ({ product: initialProduct, products = [], setSelectedProduc
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-1">Vinyl 12"</span>
                             <span className="text-lg font-bold">DKK {product.price}</span>
                         </div>
-                        {(() => {
-                            // Generate Discogs URL if available
-                            const discogsUrl = product.discogs_url ||
-                                (product.discogsId ? `https://www.discogs.com/sell/list?release_id=${product.discogsId}&ev=rb` : null);
-
-                            if (discogsUrl) {
-                                return (
-                                    <a
-                                        href={discogsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-2 bg-black text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-black/80 transition-colors"
-                                    >
-                                        <ExternalLink size={18} />
-                                        BUY ON DISCOGS
-                                    </a>
-                                );
-                            }
-
-                            // Fallback: Physical store only
-                            return (
-                                <div className="flex items-center gap-3 text-right">
-                                    <div className="max-w-xs">
-                                        <p className="text-sm font-bold text-black/80 leading-tight">Available at our physical store</p>
-                                        <p className="text-xs text-black/50 mt-1">Vesterbro, Copenhagen</p>
-                                    </div>
-                                    <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center">
-                                        <span className="text-xl">🏪</span>
-                                    </div>
+                        {product.stock > 0 ? (
+                            <button
+                                onClick={() => {
+                                    addToCart(product);
+                                    setAddedToCart(true);
+                                    setTimeout(() => setAddedToCart(false), 2000);
+                                }}
+                                disabled={addedToCart}
+                                className={`flex items-center gap-2 px-8 py-3 rounded-sm font-bold text-sm transition-all ${addedToCart
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-black text-white hover:bg-black/80'
+                                    }`}
+                            >
+                                {addedToCart ? (
+                                    <>
+                                        <Check size={18} />
+                                        ADDED TO CART
+                                    </>
+                                ) : (
+                                    <>
+                                        <ShoppingCart size={18} />
+                                        ADD TO CART
+                                    </>
+                                )}
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-3 text-right">
+                                <div className="max-w-xs">
+                                    <p className="text-sm font-bold text-red-600 leading-tight">Out of Stock</p>
+                                    <p className="text-xs text-black/50 mt-1">Check back soon</p>
                                 </div>
-                            );
-                        })()}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -230,6 +230,11 @@
                     <i class="ph-duotone ph-storefront text-xl group-hover:scale-110 transition-transform"></i>
                     <span>🌐 Ventas WebShop</span>
                 </button>
+                <button onclick="app.navigate('shipping')" id="nav-d-shipping"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-truck text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>📦 Envíos</span>
+                </button>
                 <button onclick="app.navigate('discogsSales')" id="nav-d-discogsSales"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-vinyl-record text-xl group-hover:scale-110 transition-transform"></i>
@@ -340,6 +345,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-bank text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">VAT</span>
+            </button>
+            <button onclick="app.navigate('shipping'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-truck text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Envíos</span>
             </button>
             <button onclick="app.navigate('backup'); app.toggleMobileMenu()"
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">

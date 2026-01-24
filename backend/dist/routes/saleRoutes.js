@@ -38,6 +38,9 @@ const firebaseController = __importStar(require("../controllers/firebaseControll
 const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
 router.get('/', auth_1.isAdmin, firebaseController.getSales);
+router.get('/public/:id', firebaseController.getSaleById);
+router.post('/public/:id/confirm-local', firebaseController.confirmLocalPayment);
 router.post('/', auth_1.isAdmin, firebaseController.createSale);
 router.patch('/:id/fulfillment', auth_1.isAdmin, firebaseController.updateFulfillmentStatus);
+router.patch('/:id/value', auth_1.isAdmin, firebaseController.updateSaleValue);
 exports.default = router;

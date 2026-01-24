@@ -38,6 +38,7 @@ app.use('/firebase/sales', firebaseSaleRoutes_1.default);
 app.use('/discogs', discogsRoutes_1.default);
 // Health check endpoint
 app.use('/api', health_1.default);
+app.use('/api', shippingRoutes_1.default); // Added to support /api/ship-order
 app.get('/', (req, res) => {
     res.send("<h1>El Cuartito API is running 🎵</h1><p>Go to <a href='/records/online'>/records/online</a> to see products.</p>");
 });

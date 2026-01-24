@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateFulfillmentStatus = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
+exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const normalizeProduct = (data, id) => {
@@ -263,6 +263,78 @@ const getSales = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.getSales = getSales;
+const getSaleById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        const doc = yield db.collection('sales').doc(id).get();
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const data = doc.data();
+        // Return only necessary fields for the success page (avoid leaking sensitive admin data if any)
+        const publicData = {
+            id: doc.id,
+            orderNumber: data === null || data === void 0 ? void 0 : data.orderNumber,
+            total_amount: data === null || data === void 0 ? void 0 : data.total_amount,
+            items_total: data === null || data === void 0 ? void 0 : data.items_total,
+            shipping_cost: data === null || data === void 0 ? void 0 : data.shipping_cost,
+            status: data === null || data === void 0 ? void 0 : data.status,
+            customer: (data === null || data === void 0 ? void 0 : data.customer) || null,
+            items: (data === null || data === void 0 ? void 0 : data.items) || [],
+            shipping_method: data === null || data === void 0 ? void 0 : data.shipping_method,
+            date: data === null || data === void 0 ? void 0 : data.date
+        };
+        res.json(publicData);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.getSaleById = getSaleById;
+/**
+ * Trigger confirmation flow manually for local development
+ * (Since Stripe webhooks don't reach localhost)
+ */
+const mailService_1 = require("../services/mailService");
+const confirmLocalPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { paymentIntentId } = req.body;
+        console.log(`📡 [LOCAL CONFIRM] Received request for sale: ${id}`);
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists) {
+            console.error(`❌ [LOCAL CONFIRM] Sale not found: ${id}`);
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const saleData = saleDoc.data();
+        console.log(`📡 [LOCAL CONFIRM] Sale details: Number=${saleData.orderNumber}, Status=${saleData.status}`);
+        // Only process if not already completed
+        if (saleData.status !== 'completed') {
+            console.log(`📡 [LOCAL CONFIRM] Updating sale ${id} to completed and sending email...`);
+            yield saleRef.update({
+                status: 'completed',
+                stripePaymentIntentId: paymentIntentId,
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+            // Trigger email
+            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
+        }
+        else {
+            console.log(`📡 [LOCAL CONFIRM] Sale ${id} already completed.`);
+            // SEND EMAIL ANYWAY FOR DEBUGGING if requested? Let's just do it to be sure.
+            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
+        }
+        res.json({ success: true, message: 'Local confirmation processed' });
+    }
+    catch (error) {
+        console.error('❌ [LOCAL CONFIRM] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.confirmLocalPayment = confirmLocalPayment;
 const updateFulfillmentStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -282,3 +354,39 @@ const updateFulfillmentStatus = (req, res) => __awaiter(void 0, void 0, void 0, 
     }
 });
 exports.updateFulfillmentStatus = updateFulfillmentStatus;
+const updateSaleValue = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { netReceived } = req.body; // The actual amount received after fees
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const saleData = saleDoc.data();
+        const originalTotal = saleData.originalTotal || saleData.total || 0;
+        const newNetReceived = parseFloat(netReceived);
+        if (isNaN(newNetReceived)) {
+            return res.status(400).json({ error: 'Invalid netReceived amount' });
+        }
+        const totalFees = originalTotal - newNetReceived;
+        yield saleRef.update({
+            total: newNetReceived, // Update with the actual received amount
+            totalFees: totalFees,
+            status: 'completed', // Move from pending_review to completed
+            needsReview: false,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        res.json({
+            success: true,
+            id,
+            newTotal: newNetReceived,
+            fees: totalFees
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.updateSaleValue = updateSaleValue;

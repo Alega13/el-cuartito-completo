@@ -61,6 +61,46 @@ class DiscogsService {
         });
     }
     /**
+     * Fetch orders from Discogs marketplace
+     * Returns orders that have been paid but may not be shipped yet
+     */
+    fetchOrders() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            const allOrders = [];
+            let currentPage = 1;
+            let totalPages = 1;
+            try {
+                while (currentPage <= totalPages) {
+                    const response = yield axios_1.default.get(`${this.baseUrl}/marketplace/orders`, {
+                        headers: {
+                            'Authorization': `Discogs token=${this.token}`,
+                            'User-Agent': 'ElCuartitoRecords/1.0'
+                        },
+                        params: {
+                            page: currentPage,
+                            per_page: 50,
+                            sort: 'created',
+                            sort_order: 'desc'
+                        }
+                    });
+                    allOrders.push(...response.data.orders);
+                    totalPages = response.data.pagination.pages;
+                    currentPage++;
+                    if (currentPage <= totalPages) {
+                        yield this.sleep(1000);
+                    }
+                }
+                console.log(`Fetched ${allOrders.length} orders from Discogs`);
+                return allOrders;
+            }
+            catch (error) {
+                console.error('Error fetching Discogs orders:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                throw new Error(`Failed to fetch Discogs orders: ${error.message}`);
+            }
+        });
+    }
+    /**
      * Normalize Discogs listing to Firebase product schema
      */
     normalizeProduct(listing) {
@@ -116,17 +156,22 @@ class DiscogsService {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c;
             try {
-                const response = yield axios_1.default.post(`${this.baseUrl}/marketplace/listings`, {
+                const listingData = {
                     release_id: releaseId,
                     condition: this.reverseMapCondition(product.condition),
                     price: product.price,
                     quantity: product.stock || 1, // Stock quantity
                     status: product.stock > 0 ? 'For Sale' : 'Draft',
-                    comments: product.album ? `${product.artist} - ${product.album}` : undefined,
+                    comments: product.comments || undefined,
                     location: 'Denmark',
                     weight: 0, // Will be calculated by Discogs
                     format_quantity: 1
-                }, {
+                };
+                // Add sleeve_condition if provided
+                if (product.sleeveCondition) {
+                    listingData.sleeve_condition = this.reverseMapCondition(product.sleeveCondition);
+                }
+                const response = yield axios_1.default.post(`${this.baseUrl}/marketplace/listings`, listingData, {
                     headers: {
                         'Authorization': `Discogs token=${this.token}`,
                         'User-Agent': 'ElCuartitoRecords/1.0',
@@ -149,14 +194,19 @@ class DiscogsService {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b, _c;
             try {
-                yield axios_1.default.post(`${this.baseUrl}/marketplace/listings/${listingId}`, {
+                const listingData = {
                     release_id: product.discogs_release_id,
                     condition: this.reverseMapCondition(product.condition),
                     price: product.price,
                     quantity: product.stock || 1, // Update stock/quantity
                     status: product.stock > 0 ? 'For Sale' : 'Draft', // Set to Draft if out of stock
-                    comments: product.album ? `${product.artist} - ${product.album}` : undefined
-                }, {
+                    comments: product.comments || undefined
+                };
+                // Add sleeve_condition if provided
+                if (product.sleeveCondition) {
+                    listingData.sleeve_condition = this.reverseMapCondition(product.sleeveCondition);
+                }
+                yield axios_1.default.post(`${this.baseUrl}/marketplace/listings/${listingId}`, listingData, {
                     headers: {
                         'Authorization': `Discogs token=${this.token}`,
                         'User-Agent': 'ElCuartitoRecords/1.0',
@@ -189,6 +239,32 @@ class DiscogsService {
             catch (error) {
                 console.error('Error deleting Discogs listing:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
                 throw new Error(`Failed to delete Discogs listing: ${((_c = (_b = error.response) === null || _b === void 0 ? void 0 : _b.data) === null || _c === void 0 ? void 0 : _c.message) || error.message}`);
+            }
+        });
+    }
+    /**
+     * Get price suggestions for a release
+     * Requires seller permissions in token
+     */
+    getPriceSuggestions(releaseId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c;
+            try {
+                const response = yield axios_1.default.get(`${this.baseUrl}/marketplace/price_suggestions/${releaseId}`, {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                });
+                return response.data;
+            }
+            catch (error) {
+                console.error('Error fetching price suggestions:', ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                // Some tokens might not have seller permissions, return null instead of throwing
+                if (((_b = error.response) === null || _b === void 0 ? void 0 : _b.status) === 403 || ((_c = error.response) === null || _c === void 0 ? void 0 : _c.status) === 404) {
+                    return null;
+                }
+                throw error;
             }
         });
     }

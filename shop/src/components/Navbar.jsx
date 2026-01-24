@@ -1,13 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Menu, X, ArrowLeft } from 'lucide-react';
+import { Search, Menu, X, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useSelections } from '../context/SelectionsContext';
+import { useCart } from '../context/CartContext';
+import CartDrawer from './CartDrawer';
 import logo from '../assets/logo.png';
 
-const Navbar = ({ page, setPage, setSearchQuery }) => {
+const Navbar = ({ setSearchQuery }) => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const inputRef = useRef(null);
-
+    const [isCartOpen, setIsCartOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { totalItems } = useCart();
+
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { navTargetRef } = useSelections();
+
+    // Check if we're in listening room mode
+    const isListeningMode = location.pathname === '/listening';
+    const isHome = location.pathname === '/';
 
     useEffect(() => {
         if (isSearchOpen && inputRef.current) {
@@ -19,6 +32,140 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
         setIsSearchOpen(false);
         setSearchQuery('');
     };
+
+    // Minimized navbar for Listening Room - Expandable arrow design
+    if (isListeningMode) {
+        return (
+            <nav className="fixed top-4 left-0 z-50 group">
+                <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center"
+                >
+                    {/* Arrow button - always visible */}
+                    <div
+                        className="listening-nav-trigger"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '40px',
+                            height: '40px',
+                            background: 'rgba(40, 40, 40, 0.95)',
+                            backdropFilter: 'blur(10px)',
+                            borderRadius: '0 20px 20px 0',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                    >
+                        <ArrowLeft size={16} style={{ color: 'rgba(255,255,255,0.7)' }} />
+                    </div>
+
+                    {/* Expandable menu - shows on hover */}
+                    <div
+                        className="listening-nav-menu"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '16px',
+                            background: 'rgba(40, 40, 40, 0.95)',
+                            backdropFilter: 'blur(10px)',
+                            padding: '8px 20px 8px 0',
+                            borderRadius: '0 20px 20px 0',
+                            marginLeft: '-20px',
+                            maxWidth: '0',
+                            overflow: 'hidden',
+                            opacity: '0',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                    >
+                        <img src={logo} alt="El Cuartito" style={{ height: '24px', width: 'auto' }} />
+                        <Link
+                            to="/"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.1em',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'color 0.2s',
+                                textDecoration: 'none'
+                            }}
+                            onMouseEnter={(e) => e.target.style.color = '#fff'}
+                            onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                        >
+                            Home
+                        </Link>
+                        <Link
+                            to="/catalog"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.1em',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'color 0.2s',
+                                textDecoration: 'none'
+                            }}
+                            onMouseEnter={(e) => e.target.style.color = '#fff'}
+                            onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                        >
+                            Catalog
+                        </Link>
+                        <Link
+                            to="/collections"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.1em',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'color 0.2s',
+                                textDecoration: 'none'
+                            }}
+                            onMouseEnter={(e) => e.target.style.color = '#fff'}
+                            onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                        >
+                            Collections
+                        </Link>
+                    </div>
+                </motion.div>
+
+                {/* CSS-in-JS styles for hover effect */}
+                <style>{`
+                    .listening-nav-trigger:hover + .listening-nav-menu,
+                    .listening-nav-menu:hover {
+                        max-width: 400px !important;
+                        opacity: 1 !important;
+                        padding-left: 16px !important;
+                    }
+                    .group:hover .listening-nav-trigger {
+                        border-radius: 0 !important;
+                        background: transparent !important;
+                    }
+                    .group:hover .listening-nav-menu {
+                        max-width: 400px !important;
+                        opacity: 1 !important;
+                        padding-left: 16px !important;
+                        margin-left: -40px !important;
+                        padding-left: 56px !important;
+                    }
+                `}</style>
+            </nav>
+        );
+    }
 
     return (
         <>
@@ -53,27 +200,28 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                         ) : (
                             <>
                                 <motion.div className="flex items-center gap-2 md:gap-4 mr-2 md:mr-6">
-                                    {page !== 'home' && (
+                                    {!isHome && (
                                         <motion.button
                                             initial={{ opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             exit={{ opacity: 0, x: -10 }}
-                                            onClick={() => setPage('home')}
+                                            onClick={() => navigate('/')}
                                             className="p-1 hover:bg-black/5 rounded-full transition-colors"
                                         >
                                             <ArrowLeft size={18} />
                                         </motion.button>
                                     )}
 
-                                    <motion.button
+                                    <motion.div
                                         key="logo"
                                         layout="position"
                                         whileTap={{ scale: 0.95 }}
-                                        onClick={() => setPage('home')}
                                         className="flex items-center"
                                     >
-                                        <img src={logo} alt="El Cuartito" className="h-8 md:h-10 w-auto object-contain" />
-                                    </motion.button>
+                                        <Link to="/">
+                                            <img src={logo} alt="El Cuartito" className="h-8 md:h-10 w-auto object-contain cursor-pointer" />
+                                        </Link>
+                                    </motion.div>
                                 </motion.div>
 
                                 <motion.div
@@ -81,9 +229,9 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                                     layout="position"
                                     className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
                                 >
-                                    <button onClick={() => setPage('listening')} className="hover:opacity-40 transition-opacity">Listening Room</button>
-                                    <button onClick={() => setPage('catalog')} className="hover:opacity-40 transition-opacity">Catalog</button>
-                                    <button onClick={() => setPage('collections')} className="hover:opacity-40 transition-opacity">Collections</button>
+                                    <Link to="/listening" ref={navTargetRef} className="hover:opacity-40 transition-opacity">Listening Room</Link>
+                                    <Link to="/catalog" className="hover:opacity-40 transition-opacity">Catalog</Link>
+                                    <Link to="/collections" className="hover:opacity-40 transition-opacity">Collections</Link>
                                 </motion.div>
 
                                 <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
@@ -98,6 +246,17 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                                         className="p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
                                     >
                                         <Search size={18} strokeWidth={2.5} />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsCartOpen(true)}
+                                        className="relative p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
+                                    >
+                                        <ShoppingBag size={18} strokeWidth={2.5} />
+                                        {totalItems > 0 && (
+                                            <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                                {totalItems}
+                                            </span>
+                                        )}
                                     </button>
                                     <button
                                         onClick={() => setIsMobileMenuOpen(true)}
@@ -132,9 +291,9 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                         </div>
 
                         <div className="flex flex-col gap-8 text-3xl font-bold uppercase tracking-tighter">
-                            <button onClick={() => { setPage('listening'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Listening Room</button>
-                            <button onClick={() => { setPage('catalog'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Catalog</button>
-                            <button onClick={() => { setPage('collections'); setIsMobileMenuOpen(false); }} className="text-left hover:text-accent transition-colors">Collections</button>
+                            <Link to="/listening" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Listening Room</Link>
+                            <Link to="/catalog" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Catalog</Link>
+                            <Link to="/collections" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Collections</Link>
                         </div>
 
                         <div className="mt-auto text-sm font-medium text-black/40">
@@ -143,6 +302,9 @@ const Navbar = ({ page, setPage, setSearchQuery }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Cart Drawer */}
+            <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
         </>
     );
 };

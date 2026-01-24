@@ -3,7 +3,7 @@ import ProductCard from '../components/ProductCard';
 import { Filter, X } from 'lucide-react';
 
 
-const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery, collectionFilter, onClearCollection }) => {
+const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCollection }) => {
     const [selectedGenre, setSelectedGenre] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
 
@@ -51,7 +51,7 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
             <header className="mb-12">
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
-                        <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-2">CATALOGUE</h1>
+                        <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-2">Catalog</h1>
                         <p className="text-black/60 font-medium">Curated selection of electronic sounds.</p>
                         {collectionFilter && (
                             <div className="mt-3 inline-flex items-center gap-2 bg-accent/10 text-accent px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
@@ -109,13 +109,7 @@ const StorePage = ({ products, loading, setPage, setSelectedProduct, searchQuery
             ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-4 md:gap-x-8">
                     {filteredProducts.map(product => (
-                        <div
-                            key={product.id}
-                            onClick={() => {
-                                setSelectedProduct(product);
-                                setPage('product');
-                            }}
-                        >
+                        <div key={product.id}>
                             <ProductCard product={{
                                 ...product,
                                 image: product.cover_image,

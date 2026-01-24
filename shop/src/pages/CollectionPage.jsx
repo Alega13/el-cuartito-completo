@@ -1,11 +1,15 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import SEO from '../components/SEO';
 
-const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct, onClose }) => {
+const CollectionPage = ({ products }) => {
+    const { collectionName } = useParams();
+    const navigate = useNavigate();
 
     // Filter products by collection
     const collectionProducts = products.filter(p =>
-        p.collection && p.collection.toLowerCase() === collectionName.toLowerCase()
+        p.collection && p.collection.toLowerCase() === decodeURIComponent(collectionName).toLowerCase()
     );
 
     // Collection descriptions
@@ -26,7 +30,7 @@ const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct,
             <div className="min-h-screen pt-32 pb-20 px-6">
                 <div className="max-w-7xl mx-auto">
                     <button
-                        onClick={onClose}
+                        onClick={() => navigate('/collections')}
                         className="mb-8 flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:opacity-60 transition-opacity"
                     >
                         <ArrowLeft size={16} /> Back
@@ -40,12 +44,17 @@ const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct,
 
     return (
         <div className="min-h-screen bg-white">
+            <SEO
+                title={`${collectionName} Collection`}
+                description={description}
+                url={`/collection/${encodeURIComponent(collectionName)}`}
+            />
             {/* Main Content */}
             <main className="pt-32 pb-20">
                 {/* Back Button */}
                 <div className="px-8 md:px-16 mb-12">
                     <button
-                        onClick={onClose}
+                        onClick={() => navigate('/collections')}
                         className="text-xs font-medium uppercase tracking-[0.2em] hover:opacity-60 transition-opacity flex items-center gap-2"
                     >
                         <ArrowLeft size={14} /> Back to Store
@@ -107,10 +116,7 @@ const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct,
 
                                     {/* CTA Button */}
                                     <button
-                                        onClick={() => {
-                                            setSelectedProduct(product);
-                                            setPage('product');
-                                        }}
+                                        onClick={() => navigate(`/product/${product.id}`)}
                                         className="px-8 py-4 bg-black text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black/80 transition-all"
                                     >
                                         View Full Details →
@@ -126,6 +132,8 @@ const CollectionPage = ({ collectionName, products, setPage, setSelectedProduct,
                                         <img
                                             src={product.cover_image || '/default-vinyl.png'}
                                             alt={product.album}
+                                            loading="lazy"
+                                            decoding="async"
                                             className="w-full h-full object-cover"
                                         />
                                     </div>

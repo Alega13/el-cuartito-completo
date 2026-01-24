@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
 
 
-const Hero = ({ products, onViewProduct }) => {
+const Hero = ({ products }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const navigate = useNavigate();
 
     // Auto-rotate every 10 seconds
     useEffect(() => {
@@ -64,7 +66,7 @@ const Hero = ({ products, onViewProduct }) => {
                             <span className="text-black/60">{product.artist}</span>
                         </h1>
                         <button
-                            onClick={() => onViewProduct(product)}
+                            onClick={() => navigate(`/product/${product.id}`)}
                             className="border-b-2 border-black pb-2 font-bold text-sm tracking-widest hover:text-accent hover:border-accent transition-all"
                         >
                             DISCOVER THE SOUND

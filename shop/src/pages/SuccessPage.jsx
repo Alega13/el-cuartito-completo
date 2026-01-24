@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const SuccessPage = ({ setPage, saleId }) => {
+const SuccessPage = ({ saleId }) => {
     const [orderData, setOrderData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchOrder = async () => {
@@ -32,7 +34,7 @@ const SuccessPage = ({ setPage, saleId }) => {
         };
 
         fetchOrder();
-    }, [setPage, saleId]);
+    }, [saleId]);
 
     if (loading) {
         return (
@@ -48,7 +50,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                 <h1 className="text-2xl font-bold mb-4">Lo sentimos, no pudimos cargar los detalles.</h1>
                 <p className="text-black/60 mb-8">Tu pago fue procesado con éxito, pero no encontramos los datos del pedido en esta sesión.</p>
                 <button
-                    onClick={() => setPage('home')}
+                    onClick={() => navigate('/')}
                     className="bg-black text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest"
                 >
                     Volver a la Tienda
@@ -130,7 +132,7 @@ const SuccessPage = ({ setPage, saleId }) => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-bold truncate uppercase tracking-tight">{item?.album}</p>
-                                            <p className="text-[10px] font-medium text-white/50 uppercase tracking-widest">{item?.artist}</p>
+                                            <p className="text-xs font-medium text-white/50 uppercase tracking-widest">{item?.artist}</p>
                                             <div className="flex justify-between items-end mt-2">
                                                 <p className="text-[9px] font-bold text-white/30 uppercase">Qty: {item?.quantity}</p>
                                                 <p className="text-xs font-bold">DKK {item?.price}</p>
@@ -160,7 +162,7 @@ const SuccessPage = ({ setPage, saleId }) => {
 
                 <div className="mt-32 pt-12 border-t border-black/10">
                     <button
-                        onClick={() => setPage('home')}
+                        onClick={() => navigate('/')}
                         className="group flex items-center gap-4 text-xs font-bold uppercase tracking-[0.4em] hover:text-orange-600 transition-colors"
                     >
                         <svg className="w-4 h-4 transform group-hover:-translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">

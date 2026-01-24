@@ -1,19 +1,24 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Headphones, Check } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSelections } from '../context/SelectionsContext';
 import defaultImage from '../assets/default-vinyl.png';
+import SEO from '../components/SEO';
 
-const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
+const CatalogPage = ({ products }) => {
     const [selectedGenres, setSelectedGenres] = useState([]);
     const [selectedFormats, setSelectedFormats] = useState([]);
     const [sortBy, setSortBy] = useState('recent');
     const [artistSearch, setArtistSearch] = useState('');
+    const navigate = useNavigate();
+    const { isInSelections, toggleSelection } = useSelections();
 
     // Filter products with stock
     const availableProducts = products.filter(p => p.stock > 0);
 
     // Get unique genres and formats
-    const genres = [...new Set(availableProducts.map(p => p.genre).filter(Boolean))];
+    const genres = [...new Set(availableProducts.flatMap(p => [p.genre, p.genre2, p.genre3, p.genre4, p.genre5]).filter(Boolean))];
     const formats = ['Vinyl 12"', 'Vinyl 7"', 'Digital']; // Can be dynamic if you have this field
 
     // Apply filters
@@ -21,7 +26,13 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
 
     if (selectedGenres.length > 0) {
         filteredProducts = filteredProducts.filter(p =>
-            selectedGenres.some(g => p.genre?.toLowerCase().includes(g.toLowerCase()))
+            selectedGenres.some(g =>
+                p.genre?.toLowerCase().includes(g.toLowerCase()) ||
+                p.genre2?.toLowerCase().includes(g.toLowerCase()) ||
+                p.genre3?.toLowerCase().includes(g.toLowerCase()) ||
+                p.genre4?.toLowerCase().includes(g.toLowerCase()) ||
+                p.genre5?.toLowerCase().includes(g.toLowerCase())
+            )
         );
     }
 
@@ -67,12 +78,17 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
 
     return (
         <div className="min-h-screen bg-background pt-32 pb-20">
+            <SEO
+                title="Catalog"
+                description="Browse our complete collection of hand-picked vinyl records. Filter by genre, search by artist. Techno, ambient, electronic & more from Copenhagen."
+                url="/catalog"
+            />
             <div className="max-w-7xl mx-auto px-6">
 
                 <div className="flex gap-12">
 
                     {/* Sidebar Filters */}
-                    <div className="w-64 flex-shrink-0 sticky top-32 self-start hidden md:block">
+                    <div className="w-64 flex-shrink-0 sticky top-32 self-start hidden md:block max-h-[calc(100vh-10rem)] overflow-y-auto pr-4">
 
                         {/* Genre Filter */}
                         <div className="mb-10">
@@ -144,7 +160,7 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
                         {/* Header */}
                         <div className="mb-12">
                             <h1 className="text-7xl md:text-8xl font-light tracking-tight mb-2">
-                                CATALOG
+                                Catalog
                             </h1>
                             <div className="text-sm text-black/40 font-medium">
                                 {sortedProducts.length} {sortedProducts.length === 1 ? 'ITEM' : 'ITEMS'} // {availableProducts.length} RESULTS FOUND
@@ -211,10 +227,7 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
                             {sortedProducts.map((product) => (
                                 <motion.div
                                     key={product.id}
-                                    onClick={() => {
-                                        setSelectedProduct(product);
-                                        setPage('product');
-                                    }}
+                                    onClick={() => navigate(`/product/${product.id}`)}
                                     className="group cursor-pointer"
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -225,6 +238,8 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
                                         <img
                                             src={isValidImage(product.cover_image) ? product.cover_image : defaultImage}
                                             alt={product.album}
+                                            loading="lazy"
+                                            decoding="async"
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                                         />
@@ -233,6 +248,22 @@ const CatalogPage = ({ products, setPage, setSelectedProduct }) => {
                                                 Sold Out
                                             </div>
                                         )}
+                                        {/* Save to Listening Room button */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSelection(product, e.currentTarget);
+                                            }}
+                                            className={`absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 z-10 shadow-md
+                                                ${isInSelections(product.id)
+                                                    ? 'bg-black text-white'
+                                                    : 'bg-white/95 text-black/70 hover:bg-black hover:text-white'
+                                                }
+                                                hover:scale-110`}
+                                            title={isInSelections(product.id) ? 'Remove from Listening Room' : 'Save to Listening Room'}
+                                        >
+                                            {isInSelections(product.id) ? <Check size={16} /> : <Headphones size={16} />}
+                                        </button>
                                     </div>
 
                                     {/* Info */}

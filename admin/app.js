@@ -3,6 +3,9 @@ const db = firebase.firestore();
 
 const auth = window.auth;
 
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const BASE_API_URL = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app';
+
 const api = {
     async createSale(saleData) {
         // Store items data for Discogs deletion after transaction
@@ -85,7 +88,7 @@ const api = {
             for (const item of itemsForDiscogsSync) {
                 if (item.discogs_listing_id) {
                     try {
-                        const response = await fetch(`http://localhost:3001/discogs/delete-listing/${item.discogs_listing_id}`, {
+                        const response = await fetch(`${BASE_API_URL}/discogs/delete-listing/${item.discogs_listing_id}`, {
                             method: 'DELETE'
                         });
                         if (response.ok) {
@@ -208,6 +211,53 @@ const app = {
         } catch (error) {
             console.error("Fulfillment update error:", error);
             this.showToast("Error al actualizar estado: " + error.message, "error");
+        }
+    },
+
+    async manualShipOrder(saleId) {
+        try {
+            const trackingNumber = prompt("Introduce el número de seguimiento:");
+            if (!trackingNumber) return; // User cancelled or empty
+
+            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Guardando...';
+            }
+
+            const response = await fetch(`${BASE_API_URL}/api/manual-ship`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ orderId: saleId, trackingNumber })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showToast('✅ Pedido marcado como enviado');
+                this.showToast('📧 Cliente notificado por email');
+
+                // Refresh data and reopen modal
+                await this.loadData();
+                const modal = document.getElementById('sale-detail-modal');
+                if (modal) {
+                    modal.remove();
+                    this.openSaleDetailModal(saleId);
+                }
+            } else {
+                throw new Error(result.error || result.message || 'Error desconocido');
+            }
+        } catch (error) {
+            console.error("Error shipping manually:", error);
+            this.showToast("❌ Error: " + (error.message || 'No se pudo procesar el envío'), 'error');
+            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar';
+            }
         }
     },
 
@@ -339,6 +389,7 @@ const app = {
             case 'backup': this.renderBackup(container); break;
             case 'settings': this.renderSettings(container); break;
             case 'calendar': this.renderCalendar(container); break;
+            case 'shipping': this.renderShipping(container); break;
         }
     },
 
@@ -452,6 +503,20 @@ const app = {
             </div>
         `;
         container.innerHTML = html;
+    },
+
+    getCustomerInfo(sale) {
+        const customer = sale.customer || {};
+        const name = sale.customerName || customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : '') || 'Cliente';
+        const email = sale.customerEmail || customer.email || '-';
+
+        let address = sale.address || customer.address || '-';
+        if (customer.shipping) {
+            const s = customer.shipping;
+            address = `${s.line1 || ''} ${s.line2 || ''}, ${s.city || ''}, ${s.postal_code || ''}, ${s.country || ''}`.trim().replace(/^,|,$/g, '');
+        }
+
+        return { name, email, address };
     },
 
     renderCalendarDaySummary(date) {
@@ -953,9 +1018,7 @@ const app = {
         `;
 
         try {
-            // Determine backend URL
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const backendUrl = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-completo.onrender.com';
+            const backendUrl = BASE_API_URL;
 
             // 1. Sync Inventory
             const invResponse = await fetch(`${backendUrl}/discogs/sync`, {
@@ -1091,6 +1154,50 @@ const app = {
         this.refreshCurrentView();
     },
 
+    async setReadyForPickup(saleId) {
+        try {
+            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Guardando...';
+            }
+
+            const response = await fetch(`${BASE_API_URL}/api/ready-for-pickup`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ orderId: saleId })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                this.showToast('✅ Pedido listo para retiro');
+                this.showToast('📧 Cliente notificado por email');
+
+                // Refresh data and reopen modal
+                await this.loadData();
+                const modal = document.getElementById('sale-detail-modal');
+                if (modal) {
+                    modal.remove();
+                    this.openSaleDetailModal(saleId);
+                }
+            } else {
+                throw new Error(result.error || result.message || 'Error desconocido');
+            }
+        } catch (error) {
+            console.error("Error setting ready for pickup:", error);
+            this.showToast("❌ Error: " + (error.message || 'No se pudo procesar el estado'), 'error');
+            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-storefront"></i> Listo para Retiro';
+            }
+        }
+    },
+
     renderDashboard(container) {
         // Calculate Metrics based on Filters
         const selectedMonths = this.state.filterMonths;
@@ -1112,47 +1219,51 @@ const app = {
         let partnersShare = 0;
 
         filteredSales.forEach(sale => {
-            const saleTotal = Number(sale.total_amount) || Number(sale.total) || 0;
+            const isDiscogs = sale.channel === 'discogs';
+            // Use originalTotal for Discogs to get the gross amount (what buyer paid)
+            const gross = Number(sale.originalTotal) || Number(sale.total_amount) || Number(sale.total) || 0;
+            const net = Number(sale.total) || Number(sale.total_amount) || 0;
+            const platformFee = isDiscogs ? (gross - net) : 0;
             const shippingCost = Number(sale.shipping_cost) || 0;
 
-            totalRevenue += saleTotal;
+            totalRevenue += gross;
             totalShippingCosts += shippingCost;
 
+            let saleProfit = 0;
             const items = sale.items || [];
-            items.forEach(item => {
-                const price = Number(item.priceAtSale || item.unitPrice || item.price) || 0;
-                const qty = Number(item.quantity) || 1;
-                let cost = Number(item.costAtSale || item.cost) || 0;
 
-                const owner = (item.owner || '').toLowerCase();
-                const product = this.state.products ? this.state.products.find(p => p.id === item.productId || p.id === item.recordId) : null;
+            if (items.length > 0) {
+                items.forEach(item => {
+                    const price = Number(item.priceAtSale || item.unitPrice || item.price) || 0;
+                    const qty = Number(item.qty || item.quantity) || 1;
+                    let itemCost = Number(item.costAtSale || item.cost) || 0;
 
-                // Determine cost based on owner/consignment
-                if (owner === 'el cuartito') {
-                    // Owned items: cost should be 0 for profit calculation (entire sale price is profit)
-                    cost = 0;
-                } else if (owner && owner !== 'el cuartito') {
-                    // Consignment: cost is partner's share
-                    if (cost === 0 || isNaN(cost)) {
-                        const partner = this.state.consignors ? this.state.consignors.find(c => (c.name || '').toLowerCase() === owner) : null;
-                        const split = partner ? (partner.agreementSplit || partner.split || 70) : 70;
-                        cost = (price * (Number(split) || 70)) / 100;
+                    const owner = (item.owner || '').toLowerCase();
+
+                    if (owner === 'el cuartito' || owner === '') {
+                        // Own stock: profit = price - investment cost
+                        // (if cost is 0, entire price is profit before ship/fees)
+                        itemCost = Number(item.costAtSale || item.cost) || 0;
+                    } else {
+                        // Consignment: cost is partner's share
+                        if (itemCost === 0 || isNaN(itemCost)) {
+                            const partner = this.state.consignors ? this.state.consignors.find(c => (c.name || '').toLowerCase() === owner) : null;
+                            const split = partner ? (partner.agreementSplit || partner.split || 70) : 70;
+                            itemCost = (price * (Number(split) || 70)) / 100;
+                            partnersShare += (itemCost * qty);
+                        } else {
+                            partnersShare += (itemCost * qty);
+                        }
                     }
-                    partnersShare += (cost * qty);
-                } else {
-                    // Fallback: use product cost if available
-                    if (cost === 0 || isNaN(cost)) {
-                        cost = product ? (Number(product.cost) || 0) : 0;
-                    }
-                }
-
-                totalNetProfit += ((price - cost) * qty);
-            });
-
-            // Legacy format fallback for old sales without items array
-            if (items.length === 0 && saleTotal > 0) {
-                totalNetProfit += saleTotal;
+                    saleProfit += ((price - itemCost) * qty);
+                });
+            } else {
+                // Fallback for sales without item details
+                saleProfit = gross;
             }
+
+            // Ganancia Neta = Beneficio Items - Comisiones Plataforma (El envío se cuenta aparte)
+            totalNetProfit += (saleProfit - platformFee);
         });
 
         // Calculate Tax (VAT 25% included)
@@ -1322,11 +1433,11 @@ const app = {
 
                         <div class="space-y-3">
                             <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
-                                <span class="text-sm font-bold text-green-700">El Cuartito</span>
+                                <span class="text-sm font-bold text-green-700">Ganancia El Cuartito</span>
                                 <span class="font-bold text-green-700">${this.formatCurrency(totalNetProfit)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <span class="text-sm font-bold text-blue-700">Socios (Pagos)</span>
+                                <span class="text-sm font-bold text-blue-700">Share Socios (Pagar)</span>
                                 <span class="font-bold text-blue-700">${this.formatCurrency(partnersShare)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
@@ -2322,6 +2433,7 @@ const app = {
                                             <th class="p-4 text-center">Cant.</th>
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-center">Pago</th>
+                                            <th class="p-4 text-center">Estado</th>
                                             <th class="p-4 w-10"></th>
                                         </tr>
                                     </thead>
@@ -2356,6 +2468,15 @@ const app = {
                                                 <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency(s.total)}</td>
                                                 <td class="p-4 text-center">
                                                     <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">${s.paymentMethod}</span>
+                                                </td>
+                                                <td class="p-4 text-center">
+                                                    ${s.status === 'shipped' ? `
+                                                        <span class="px-2 py-1 rounded bg-green-100 text-[10px] font-bold text-green-600 uppercase tracking-wide">Enviado</span>
+                                                    ` : (s.status === 'completed' || s.status === 'paid' ? `
+                                                        <span class="px-2 py-1 rounded bg-blue-100 text-[10px] font-bold text-blue-600 uppercase tracking-wide">Pagado</span>
+                                                    ` : `
+                                                        <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wide">${s.status || 'Pendiente'}</span>
+                                                    `)}
                                                 </td>
                                                 <td class="p-4 text-center" onclick="event.stopPropagation()">
                                                     <button onclick="app.deleteSale('${s.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Venta">
@@ -3255,79 +3376,99 @@ const app = {
                                                                     <i class="ph-bold ph-x text-2xl"></i>
                                                                 </button>
                                                                 <h2 class="font-display font-bold text-2xl mb-1">Detalle de Venta</h2>
-                                                                <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${sale.id.slice(0, 8)}</p>
+                                                                <div class="flex items-center gap-2">
+                                                                    <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${sale.id.slice(0, 8)}</p>
+                                                                    ${sale.status === 'shipped' ? `
+                                                                        <span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Enviado</span>
+                                                                    ` : (sale.status === 'ready_for_pickup' ? `
+                                                                        <span class="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Listo Retiro</span>
+                                                                    ` : (sale.status === 'completed' || sale.status === 'paid' ? `
+                                                                        <span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Pagado</span>
+                                                                    ` : ''))}
+                                                                </div>
                                                             </div>
 
-                                                            <div class="p-6 space-y-6">
-                                                                <!-- Info Grid -->
-                                                                <div class="grid grid-cols-2 gap-6">
-                                                                    <div>
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Fecha y Hora</label>
-                                                                        <p class="font-bold text-brand-dark">${date.toLocaleDateString()}</p>
-                                                                        <p class="text-xs text-slate-500">${date.toLocaleTimeString()}</p>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Vendedor</label>
-                                                                        <p class="font-bold text-brand-dark">${sale.seller || 'Sistema'}</p>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Cliente</label>
-                                                                        <p class="font-bold text-brand-dark">${sale.customerName || 'No registrado'}</p>
-                                                                        <p class="text-xs text-slate-500">${sale.customerEmail || ''}</p>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Canal / Pago</label>
-                                                                        <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-600 uppercase tracking-wide mr-1">${sale.channel || 'Tienda'}</span>
-                                                                        <span class="px-2 py-1 rounded bg-brand-orange/10 text-[10px] font-bold text-brand-orange uppercase tracking-wide">${sale.paymentMethod}</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <!-- Items List -->
-                                                                <div>
-                                                                    <label class="text-xs font-bold text-slate-400 uppercase block mb-2">Items Vendidos</label>
-                                                                    <div class="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                                                                        ${sale.items && sale.items.length > 0 ? sale.items.map(item => `
-                                    <div class="p-3 flex justify-between items-center">
-                                        <div class="truncate pr-4">
-                                            <p class="font-bold text-sm text-brand-dark truncate">${item.album}</p>
-                                            <p class="text-xs text-slate-500 truncate">${item.artist}</p>
-                                        </div>
-                                        <span class="font-bold text-brand-dark text-sm">${this.formatCurrency(item.price)}</span>
-                                    </div>
-                                `).join('') : `
-                                    <div class="p-3 flex justify-between items-center">
-                                        <div class="truncate pr-4">
-                                            <p class="font-bold text-sm text-brand-dark truncate">${sale.album || 'Venta Manual'}</p>
-                                            <p class="text-xs text-slate-500 truncate">${sale.artist || '-'}</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="block font-bold text-brand-dark text-sm">${this.formatCurrency(sale.total / (sale.quantity || 1))}</span>
-                                            ${sale.quantity > 1 ? `<span class="text-[10px] text-slate-500">x${sale.quantity}</span>` : ''}
-                                        </div>
-                                    </div>
-                                `}
+                                                                <!-- Customer & Shipping Info Section -->
+                                                                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                                                                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                                        <i class="ph-bold ph-user-circle text-base text-brand-orange"></i> Datos de Envío / Retiro
+                                                                    </h3>
+                                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        <div class="md:col-span-2">
+                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Nombre Completo</label>
+                                                                            <p class="font-bold text-brand-dark flex items-center gap-2">
+                                                                                ${this.getCustomerInfo(sale).name}
+                                                                                ${sale.channel === 'online' ? '<span class="px-1.5 py-0.5 rounded bg-brand-orange/10 text-[9px] text-brand-orange">Comprador Web</span>' : ''}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Email</label>
+                                                                            <p class="text-sm text-brand-dark font-medium">${this.getCustomerInfo(sale).email}</p>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Teléfono</label>
+                                                                            <p class="text-sm text-brand-dark font-medium">${sale.customer?.phone || '-'}</p>
+                                                                        </div>
+                                                                        <div class="md:col-span-2 pt-2 border-t border-slate-200/50">
+                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Dirección de Entrega</label>
+                                                                            <p class="text-sm text-brand-dark font-bold">${this.getCustomerInfo(sale).address}</p>
+                                                                            <p class="text-xs text-slate-500 font-medium">${sale.postalCode || ''} ${sale.city || ''}, ${sale.country || ''}</p>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
 
-                                                                <!-- Financials -->
-                                                                <div class="flex justify-between items-end pt-4 border-t border-slate-100">
-                                                                    <div>
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Nota</label>
-                                                                        <p class="text-sm text-brand-dark">${sale.comment || 'Sin notas'}</p>
+                                                                <!-- Shipmondo / Manual Tracking Status -->
+                                                                ${sale.shipment ? `
+                                                                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-100 flex justify-between items-center animate-fade-in">
+                                                                        <div>
+                                                                            <label class="text-[10px] font-bold text-brand-orange uppercase block mb-0.5">Estado del Envío</label>
+                                                                            <p class="text-sm font-bold text-brand-dark flex items-center gap-2">
+                                                                                <i class="ph-bold ph-package text-brand-orange"></i>
+                                                                                ${sale.shipment.tracking_number}
+                                                                            </p>
+                                                                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">${sale.shipment.carrier} • ${new Date(sale.shipment.created_at?.toDate ? sale.shipment.created_at.toDate() : sale.shipment.created_at).toLocaleDateString()}</p>
+                                                                        </div>
+                                                                        <a href="${sale.shipment.label_url || `https://app.shipmondo.com/tracking/${sale.shipment.tracking_number}`}" target="_blank" class="bg-white p-3 rounded-xl border border-orange-200 text-brand-orange hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm" title="Seguir Envío">
+                                                                            <i class="ph-bold ph-magnifying-glass text-xl"></i>
+                                                                        </a>
                                                                     </div>
-                                                                    <div class="text-right">
-                                                                        <label class="text-xs font-bold text-slate-400 uppercase block mb-1">Total Venta</label>
-                                                                        <p class="font-display font-bold text-3xl text-brand-orange">${this.formatCurrency(sale.total)}</p>
+                                                                ` : (sale.status === 'ready_for_pickup' ? `
+                                                                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-4 animate-fade-in">
+                                                                        <div class="bg-blue-500 text-white p-3 rounded-xl shadow-blue-200 shadow-lg">
+                                                                            <i class="ph-bold ph-storefront text-2xl"></i>
+                                                                        </div>
+                                                                        <div>
+                                                                            <label class="text-[10px] font-bold text-blue-500 uppercase block mb-0.5">Estado de Retiro</label>
+                                                                            <p class="text-sm font-bold text-brand-dark uppercase">Listo para Retirar en Local</p>
+                                                                            <p class="text-[10px] text-slate-500 font-medium">El cliente fue notificado por email.</p>
+                                                                        </div>
                                                                     </div>
-                                                                </div>
+                                                                ` : '')}
 
-                                                                <div class="flex gap-4 pt-2">
-                                                                    <button onclick="document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
-                                                                        Cerrar
-                                                                    </button>
-                                                                    <button onclick="app.deleteSale('${sale.id}'); document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-white border-2 border-red-50 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
-                                                                        Eliminar Venta
-                                                                    </button>
+                                                                <!-- Actions Section -->
+                                                                <div class="flex flex-col gap-3 py-4 border-t border-slate-100">
+                                                                    <div class="flex gap-3">
+                                                                        ${!sale.shipment && sale.customerEmail && (sale.status === 'completed' || sale.status === 'paid') ? `
+                                                                            <button onclick="app.setReadyForPickup('${sale.id}')" class="flex-1 py-4 bg-orange-100 text-brand-orange font-black rounded-2xl hover:bg-orange-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-sm flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
+                                                                                <i class="ph-bold ph-storefront text-lg"></i> Listo para Retiro
+                                                                            </button>
+                                                                        ` : ''}
+                                                                        
+                                                                        ${!sale.shipment && sale.customerEmail && (sale.status === 'completed' || sale.status === 'paid' || sale.status === 'ready_for_pickup') ? `
+                                                                            <button onclick="app.manualShipOrder('${sale.id}')" class="flex-1 py-4 bg-brand-dark text-white font-black rounded-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1 shadow-md flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
+                                                                                <i class="ph-bold ph-truck text-lg"></i> ${sale.status === 'ready_for_pickup' ? 'Finalmente Enviado' : 'Enviar por Correo'}
+                                                                            </button>
+                                                                        ` : ''}
+                                                                    </div>
+
+                                                                    <div class="flex gap-3">
+                                                                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs uppercase tracking-widest">
+                                                                            Cerrar
+                                                                        </button>
+                                                                        <button onclick="app.deleteSale('${sale.id}'); document.getElementById('sale-detail-modal').remove()" class="px-4 py-3 text-red-400 hover:text-red-600 transition-colors text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100">
+                                                                            Eliminar
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -5390,8 +5531,7 @@ const app = {
                         priceContent.innerHTML = '<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>';
                         pricePreview.classList.remove('hidden');
 
-                        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                        const backendUrl = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-completo.onrender.com';
+                        const backendUrl = BASE_API_URL;
 
                         fetch(`${backendUrl}/discogs/price-suggestions/${release.id}`)
                             .then(res => res.json())
@@ -5723,9 +5863,9 @@ const app = {
                                                 ${sale.discogs_order_id ? `<div class="text-[10px] text-purple-600 font-medium">Order: ${sale.discogs_order_id}</div>` : ''}
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-[10px] text-red-500">Total Fees: -${this.formatCurrency(discogsFee + paypalFee)}</div>
+                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(originalTotal - netReceived)}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">
-                                                    ${originalTotal > 0 ? `(${(((discogsFee + paypalFee) / originalTotal) * 100).toFixed(1)}%)` : ''}
+                                                    ${originalTotal > 0 ? `(${(((originalTotal - netReceived) / originalTotal) * 100).toFixed(1)}%)` : ''}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -5858,8 +5998,7 @@ const app = {
         btn.innerHTML = `<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...`;
 
         try {
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const backendUrl = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-completo.onrender.com';
+            const backendUrl = BASE_API_URL;
 
             // Get current Firebase ID token for authentication
             const token = await auth.currentUser.getIdToken();
@@ -5900,8 +6039,135 @@ const app = {
     },
 
 
-};
+    renderShipping(container) {
+        // Filter Sales for shipping (Online sales or those needing fulfillment)
+        const shippingSales = this.state.sales.filter(s =>
+            s.channel === 'online' || s.fulfillment_status === 'shipped' || (s.shipment && s.shipment.tracking_number)
+        );
 
+        const pendingShipping = shippingSales.filter(s => s.status === 'completed' || s.status === 'paid' || s.status === 'ready_for_pickup');
+        const completedShipping = shippingSales.filter(s => s.status === 'shipped');
+
+        const html = `
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">Gestión de Envíos</h2>
+                        <p class="text-slate-500 text-sm">Administra y notifica el estado de tus despachos online.</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
+                            <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
+                            <div>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase leading-none">Pendientes</p>
+                                <p class="text-xl font-display font-bold text-brand-dark">${pendingShipping.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs/Filters -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
+                    <div class="p-6">
+                        <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
+                            <i class="ph-fill ph-truck text-brand-orange"></i> Pedidos por Despachar
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Orden</th>
+                                        <th class="p-4">Cliente</th>
+                                        <th class="p-4">Email</th>
+                                        <th class="p-4">Dirección / Destino</th>
+                                        <th class="p-4">Fecha Pago</th>
+                                        <th class="p-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-orange-50">
+                                    ${pendingShipping.length === 0 ? `
+                                        <tr>
+                                            <td colspan="5" class="p-12 text-center">
+                                                <i class="ph-duotone ph-package text-5xl text-slate-200 mb-3 block"></i>
+                                                <p class="text-slate-400 italic">No hay envíos pendientes. ¡Todo al día! 🎉</p>
+                                            </td>
+                                        </tr>
+                                    ` : pendingShipping.sort((a, b) => new Date(b.timestamp?.toDate ? b.timestamp.toDate() : b.timestamp) - new Date(a.timestamp?.toDate ? a.timestamp.toDate() : a.timestamp)).map(s => {
+            const customerInfo = this.getCustomerInfo(s);
+            return `
+                                        <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                            <td class="p-4 text-sm font-bold text-brand-orange">#${s.id.slice(0, 8)}</td>
+                                            <td class="p-4">
+                                                <div class="text-sm font-bold text-brand-dark">${customerInfo.name}</div>
+                                            </td>
+                                            <td class="p-4 text-sm text-slate-500">${customerInfo.email}</td>
+                                            <td class="p-4">
+                                                <div class="text-xs text-slate-600 truncate max-w-[200px]">${customerInfo.address}</div>
+                                                <div class="text-[10px] text-slate-400 font-medium">${s.city || ''} ${s.country || ''}</div>
+                                            </td>
+                                            <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.date)}</td>
+                                            <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                                <div class="flex flex-col gap-2">
+                                                    ${s.status !== 'ready_for_pickup' ? `
+                                                        <button onclick="app.setReadyForPickup('${s.id}')" class="bg-orange-100 text-brand-orange px-4 py-2 rounded-lg text-xs font-bold hover:bg-orange-200 transition-colors flex items-center gap-2 mx-auto w-full justify-center">
+                                                            <i class="ph-bold ph-storefront"></i> Listo Retiro
+                                                        </button>
+                                                    ` : ''}
+                                                    <button onclick="app.manualShipOrder('${s.id}')" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto w-full justify-center">
+                                                        <i class="ph-bold ph-truck"></i> ${s.status === 'ready_for_pickup' ? 'Enviado' : 'Despachar'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed Section -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden opacity-80">
+                    <div class="p-6 bg-slate-50/50 border-b border-slate-100">
+                        <h3 class="font-bold text-slate-500 flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle text-green-500"></i> Despachos Recientes
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-bold">
+                                <tr>
+                                    <th class="p-4">Orden</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Tracking Number</th>
+                                    <th class="p-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                 ${completedShipping.slice(0, 10).sort((a, b) => new Date(b.updated_at?.toDate ? b.updated_at.toDate() : b.updated_at) - new Date(a.updated_at?.toDate ? a.updated_at.toDate() : a.updated_at)).map(s => {
+            const customerInfo = this.getCustomerInfo(s);
+            return `
+                                    <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                        <td class="p-4 text-sm font-medium text-slate-400">#${s.id.slice(0, 8)}</td>
+                                        <td class="p-4 text-sm text-slate-500">${customerInfo.name}</td>
+                                        <td class="p-4 text-sm font-mono text-slate-400">${s.shipment?.tracking_number || '-'}</td>
+                                        <td class="p-4 text-right">
+                                            <span class="px-2 py-1 rounded bg-green-100 text-green-600 text-[10px] font-bold uppercase">Enviado</span>
+                                        </td>
+                                    </tr>
+                                    `;
+        }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+};
 
 // Make app global for HTML event attributes
 window.app = app;

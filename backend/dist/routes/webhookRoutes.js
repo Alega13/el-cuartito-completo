@@ -50,6 +50,7 @@ const stripe_1 = __importDefault(require("stripe"));
 const env_1 = __importDefault(require("../config/env"));
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
+const mailService_1 = require("../services/mailService");
 // Initialize Stripe only if key exists
 const stripe = env_1.default.STRIPE_SECRET_KEY && env_1.default.STRIPE_SECRET_KEY !== 'sk_test_mock'
     ? new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
@@ -142,7 +143,7 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                                 country: saleData.customer.country || 'Denmark'
                             } : null)
                         };
-                        transaction.update(saleRef, {
+                        const updatedSaleData = {
                             status: 'completed',
                             fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
@@ -153,8 +154,17 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                              }),
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()
-                        });
+                        };
+                        transaction.update(saleRef, updatedSaleData);
                         console.log(`✅ Payment confirmed and stock updated for sale ${saleId}, order ${orderNumber}`);
+                        // Send confirmation email asynchronously after transaction
+                        const finalOrderData = Object.assign(Object.assign(Object.assign({}, saleData), updatedSaleData), { 
+                            // Ensure numeric values for template if they were Firestore FieldValues
+                            items_total: saleData.items_total, shipping_cost: saleData.shipping_cost, total_amount: saleData.total_amount });
+                        // Execute email sending in the background to not delay webhook response
+                        setTimeout(() => {
+                            (0, mailService_1.sendOrderConfirmationEmail)(finalOrderData).catch(e => console.error('Error in background email sending:', e));
+                        }, 1);
                     }
                     else {
                         console.log('Sale not found or already processed:', saleId);
