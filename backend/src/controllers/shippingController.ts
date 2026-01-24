@@ -410,6 +410,9 @@ export const manualShipOrder = async (req: Request, res: Response) => {
         const saleData = saleDoc.data() as any;
 
         console.log(`🚀 [MANUAL-SHIP] Shipping order ${orderId} with tracking ${trackingNumber}`);
+        console.log(`📦 [MANUAL-SHIP] Sale Data Keys: ${Object.keys(saleData).join(', ')}`);
+        console.log(`📦 [MANUAL-SHIP] Customer Field: ${JSON.stringify(saleData.customer || 'null')}`);
+        console.log(`📦 [MANUAL-SHIP] customerEmail Field: ${saleData.customerEmail || 'null'}`);
 
         const shippingInfo = {
             tracking_number: trackingNumber,
