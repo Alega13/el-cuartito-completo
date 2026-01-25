@@ -1,11 +1,11 @@
-(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))o(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const r of a.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&o(r)}).observe(document,{childList:!0,subtree:!0});function s(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function o(n){if(n.ep)return;n.ep=!0;const a=s(n);fetch(n.href,a)}})();const v=firebase.firestore(),M=window.auth,V=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",T=V?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",_={async createSale(t){let e=[];if(await v.runTransaction(async s=>{const o=[];for(const l of t.items){const i=v.collection("products").doc(l.recordId||l.productId),d=await s.get(i);if(!d.exists)throw new Error(`Producto ${l.recordId} no encontrado`);const c=d.data();if(c.stock<l.quantity)throw new Error(`Stock insuficiente para ${c.artist||"Sin Artista"} - ${c.album||"Sin Album"}. Disponible: ${c.stock}`);o.push({ref:i,data:c,quantity:l.quantity,price:c.price,cost:c.cost||0})}const n=o.reduce((l,i)=>l+i.price*i.quantity,0),a=t.customTotal!==void 0?t.customTotal:n,r=v.collection("sales").doc();s.set(r,{...t,total:a,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:o.map(l=>({productId:l.ref.id,artist:l.data.artist,album:l.data.album,sku:l.data.sku,unitPrice:l.price,costAtSale:l.cost,qty:l.quantity}))});for(const l of o){s.update(l.ref,{stock:l.data.stock-l.quantity});const i=v.collection("inventory_logs").doc();s.set(i,{type:"SOLD",sku:l.data.sku||"Unknown",album:l.data.album||"Unknown",artist:l.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=o.map(l=>({discogs_listing_id:l.data.discogs_listing_id,artist:l.data.artist,album:l.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const o=await fetch(`${T}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});o.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await o.text())}catch(o){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,o)}}}},P={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:localStorage.getItem("el-cuartito-settings")?JSON.parse(localStorage.getItem("el-cuartito-settings")).vatActive:!1},async init(){M.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),3e4),this.renderDashboard(document.getElementById("app-content")),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}})},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,o=document.getElementById("login-error"),n=document.getElementById("login-btn");o.classList.add("hidden"),n.disabled=!0,n.innerHTML="<span>Cargando...</span>";try{await M.signInWithEmailAndPassword(e,s)}catch(a){console.error("Login error:",a),o.innerText="Error: "+a.message,o.classList.remove("hidden"),n.disabled=!1,n.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var o,n,a;try{const r=((o=t==null?void 0:t.target)==null?void 0:o.closest("button"))||((a=(n=window.event)==null?void 0:n.target)==null?void 0:a.closest("button"));if(r){r.disabled=!0;const l=r.innerHTML;r.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await v.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(r){console.error("Fulfillment update error:",r),this.showToast("Error al actualizar estado: "+r.message,"error")}},async manualShipOrder(t){var e,s,o,n,a,r;try{const l=prompt("Introduce el número de seguimiento:");if(!l)return;const i=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));i&&(i.disabled=!0,i.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const d=await fetch(`${T}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:l})}),c=await d.json();if(d.ok&&c.success){this.showToast("✅ Pedido marcado como enviado"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const b=document.getElementById("sale-detail-modal");b&&(b.remove(),this.openSaleDetailModal(t))}else throw new Error(c.error||c.message||"Error desconocido")}catch(l){console.error("Error shipping manually:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el envío"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await M.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,o,n]=await Promise.all([v.collection("products").get(),v.collection("sales").get(),v.collection("expenses").orderBy("date","desc").get(),v.collection("events").orderBy("date","desc").get(),v.collection("consignors").get()]);this.state.inventory=t.docs.map(a=>{const r=a.data();return{id:a.id,...r,condition:r.condition||"VG",owner:r.owner||"El Cuartito",label:r.label||"Desconocido",storageLocation:r.storageLocation||"Tienda",cover_image:r.cover_image||r.coverImage||null}}),this.state.sales=e.docs.map(a=>{var i,d;const r=a.data(),l={id:a.id,...r,date:r.date||((i=r.timestamp)!=null&&i.toDate?r.timestamp.toDate().toISOString().split("T")[0]:(d=r.created_at)!=null&&d.toDate?r.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return r.total_amount!==void 0&&r.total===void 0&&(l.total=r.total_amount),r.payment_method&&!r.paymentMethod&&(l.paymentMethod=r.payment_method),l.items&&Array.isArray(l.items)&&(l.items=l.items.map(c=>({...c,priceAtSale:c.priceAtSale!==void 0?c.priceAtSale:c.unitPrice||0,qty:c.qty!==void 0?c.qty:c.quantity||1,costAtSale:c.costAtSale!==void 0?c.costAtSale:c.cost||0}))),l}).sort((a,r)=>{const l=new Date(a.date);return new Date(r.date)-l}),this.state.expenses=s.docs.map(a=>({id:a.id,...a.data()})),this.state.events=o.docs.map(a=>({id:a.id,...a.data()})),this.state.consignors=n.docs.map(a=>{const r=a.data();return{id:a.id,...r,agreementSplit:r.split||r.agreementSplit||(r.percentage?Math.round(r.percentage*100):70)}}),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"vat":this.renderVAT(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break}},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(n=>{n.classList.remove("bg-orange-50","text-brand-orange"),n.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const o=document.getElementById("app-content");o.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),o=e.getMonth(),n=new Date(s,o,1),r=new Date(s,o+1,0).getDate(),l=n.getDay()===0?6:n.getDay()-1,i=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],d=b=>{const p=`${s}-${String(o+1).padStart(2,"0")}-${String(b).padStart(2,"0")}`,u=this.state.sales.some(f=>f.date===p),x=this.state.expenses.some(f=>f.date===p),h=this.state.events.some(f=>f.date===p);return{hasSales:u,hasExpenses:x,hasEvents:h}},c=`
+(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))r(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const o of a.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&r(o)}).observe(document,{childList:!0,subtree:!0});function s(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function r(n){if(n.ep)return;n.ep=!0;const a=s(n);fetch(n.href,a)}})();const v=firebase.firestore(),j=window.auth,V=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",D=V?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",_={async createSale(t){let e=[];if(await v.runTransaction(async s=>{const r=[];for(const l of t.items){const i=v.collection("products").doc(l.recordId||l.productId),d=await s.get(i);if(!d.exists)throw new Error(`Producto ${l.recordId} no encontrado`);const c=d.data();if(c.stock<l.quantity)throw new Error(`Stock insuficiente para ${c.artist||"Sin Artista"} - ${c.album||"Sin Album"}. Disponible: ${c.stock}`);r.push({ref:i,data:c,quantity:l.quantity,price:c.price,cost:c.cost||0})}const n=r.reduce((l,i)=>l+i.price*i.quantity,0),a=t.customTotal!==void 0?t.customTotal:n,o=v.collection("sales").doc();s.set(o,{...t,total:a,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:r.map(l=>({productId:l.ref.id,artist:l.data.artist,album:l.data.album,sku:l.data.sku,unitPrice:l.price,costAtSale:l.cost,qty:l.quantity}))});for(const l of r){s.update(l.ref,{stock:l.data.stock-l.quantity});const i=v.collection("inventory_logs").doc();s.set(i,{type:"SOLD",sku:l.data.sku||"Unknown",album:l.data.album||"Unknown",artist:l.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=r.map(l=>({discogs_listing_id:l.data.discogs_listing_id,artist:l.data.artist,album:l.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const r=await fetch(`${D}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});r.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await r.text())}catch(r){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,r)}}}},A={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:localStorage.getItem("el-cuartito-settings")?JSON.parse(localStorage.getItem("el-cuartito-settings")).vatActive:!1},async init(){j.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),3e4),this.renderDashboard(document.getElementById("app-content")),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}})},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,r=document.getElementById("login-error"),n=document.getElementById("login-btn");r.classList.add("hidden"),n.disabled=!0,n.innerHTML="<span>Cargando...</span>";try{await j.signInWithEmailAndPassword(e,s)}catch(a){console.error("Login error:",a),r.innerText="Error: "+a.message,r.classList.remove("hidden"),n.disabled=!1,n.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var r,n,a;try{const o=((r=t==null?void 0:t.target)==null?void 0:r.closest("button"))||((a=(n=window.event)==null?void 0:n.target)==null?void 0:a.closest("button"));if(o){o.disabled=!0;const l=o.innerHTML;o.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await v.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(o){console.error("Fulfillment update error:",o),this.showToast("Error al actualizar estado: "+o.message,"error")}},async manualShipOrder(t){var e,s,r,n,a,o;try{const l=prompt("Introduce el número de seguimiento:");if(!l)return;const i=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((r=(s=window.event)==null?void 0:s.target)==null?void 0:r.closest("button"));i&&(i.disabled=!0,i.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const d=await fetch(`${D}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:l})}),c=await d.json();if(d.ok&&c.success){if(this.showToast("✅ Pedido marcado como enviado"),c.emailSent)this.showToast("📧 Cliente notificado por email","success");else{const u=typeof c.emailError=="object"?JSON.stringify(c.emailError):c.emailError;this.showToast("⚠️ Pedido marcado pero EL EMAIL FALLÓ: "+u,"warning")}await this.loadData();const b=document.getElementById("sale-detail-modal");b&&(b.remove(),this.openSaleDetailModal(t))}else throw new Error(c.error||c.message||"Error desconocido")}catch(l){console.error("Error shipping manually:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el envío"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((o=(a=window.event)==null?void 0:a.target)==null?void 0:o.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await j.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,r,n]=await Promise.all([v.collection("products").get(),v.collection("sales").get(),v.collection("expenses").orderBy("date","desc").get(),v.collection("events").orderBy("date","desc").get(),v.collection("consignors").get()]);this.state.inventory=t.docs.map(a=>{const o=a.data();return{id:a.id,...o,condition:o.condition||"VG",owner:o.owner||"El Cuartito",label:o.label||"Desconocido",storageLocation:o.storageLocation||"Tienda",cover_image:o.cover_image||o.coverImage||null}}),this.state.sales=e.docs.map(a=>{var i,d;const o=a.data(),l={id:a.id,...o,date:o.date||((i=o.timestamp)!=null&&i.toDate?o.timestamp.toDate().toISOString().split("T")[0]:(d=o.created_at)!=null&&d.toDate?o.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return o.total_amount!==void 0&&o.total===void 0&&(l.total=o.total_amount),o.payment_method&&!o.paymentMethod&&(l.paymentMethod=o.payment_method),l.items&&Array.isArray(l.items)&&(l.items=l.items.map(c=>({...c,priceAtSale:c.priceAtSale!==void 0?c.priceAtSale:c.unitPrice||0,qty:c.qty!==void 0?c.qty:c.quantity||1,costAtSale:c.costAtSale!==void 0?c.costAtSale:c.cost||0}))),l}).sort((a,o)=>{const l=new Date(a.date);return new Date(o.date)-l}),this.state.expenses=s.docs.map(a=>({id:a.id,...a.data()})),this.state.events=r.docs.map(a=>({id:a.id,...a.data()})),this.state.consignors=n.docs.map(a=>{const o=a.data();return{id:a.id,...o,agreementSplit:o.split||o.agreementSplit||(o.percentage?Math.round(o.percentage*100):70)}}),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"vat":this.renderVAT(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break;case"pickups":this.renderPickups(t);break}},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(n=>{n.classList.remove("bg-orange-50","text-brand-orange"),n.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const r=document.getElementById("app-content");r.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),r=e.getMonth(),n=new Date(s,r,1),o=new Date(s,r+1,0).getDate(),l=n.getDay()===0?6:n.getDay()-1,i=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],d=b=>{const u=`${s}-${String(r+1).padStart(2,"0")}-${String(b).padStart(2,"0")}`,g=this.state.sales.some(f=>f.date===u),p=this.state.expenses.some(f=>f.date===u),m=this.state.events.some(f=>f.date===u);return{hasSales:g,hasExpenses:p,hasEvents:m}},c=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <div class="flex flex-col lg:flex-row gap-8 h-[calc(100vh-140px)]">
                     <!-- Calendar Grid -->
                     <div class="flex-1 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="font-display text-2xl font-bold text-brand-dark capitalize">
-                                ${i[o]} <span class="text-brand-orange">${s}</span>
+                                ${i[r]} <span class="text-brand-orange">${s}</span>
                             </h2>
                             <div class="flex gap-2">
                                 <button onclick="app.changeCalendarMonth(-1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
@@ -25,12 +25,12 @@
 
                         <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
                             ${Array(l).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join("")}
-                            ${Array.from({length:r},(b,p)=>{const u=p+1,x=`${s}-${String(o+1).padStart(2,"0")}-${String(u).padStart(2,"0")}`,h=e.getDate()===u,f=d(u),y=new Date().toDateString()===new Date(s,o,u).toDateString();return`
-                                    <button onclick="app.selectCalendarDate('${x}')" 
+                            ${Array.from({length:o},(b,u)=>{const g=u+1,p=`${s}-${String(r+1).padStart(2,"0")}-${String(g).padStart(2,"0")}`,m=e.getDate()===g,f=d(g),y=new Date().toDateString()===new Date(s,r,g).toDateString();return`
+                                    <button onclick="app.selectCalendarDate('${p}')" 
                                         class="relative rounded-xl p-2 flex flex-col items-center justify-start gap-1 transition-all border-2
-                                        ${h?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
+                                        ${m?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
                                         ${y?"bg-blue-50":""}">
-                                        <span class="text-sm font-bold ${h?"text-brand-orange":"text-slate-700"} ${y?"text-blue-600":""}">${u}</span>
+                                        <span class="text-sm font-bold ${m?"text-brand-orange":"text-slate-700"} ${y?"text-blue-600":""}">${g}</span>
                                         <div class="flex gap-1 mt-1">
                                             ${f.hasSales?'<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>':""}
                                             ${f.hasExpenses?'<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>':""}
@@ -47,7 +47,7 @@
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=c},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",o=t.customerEmail||e.email||"-";let n=t.address||e.address||"-";if(e.shipping){const a=e.shipping;n=`${a.line1||""} ${a.line2||""}, ${a.city||""}, ${a.postal_code||""}, ${a.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:o,address:n}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),o=this.state.sales.filter(i=>i.date===e),n=this.state.expenses.filter(i=>i.date===e),a=this.state.events.filter(i=>i.date===e),r=o.reduce((i,d)=>i+d.total,0),l=n.reduce((i,d)=>i+d.amount,0);return`
+        `;t.innerHTML=c},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",r=t.customerEmail||e.email||"-";let n=t.address||e.address||"-";if(e.shipping){const a=e.shipping;n=`${a.line1||""} ${a.line2||""}, ${a.city||""}, ${a.postal_code||""}, ${a.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:r,address:n}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),r=this.state.sales.filter(i=>i.date===e),n=this.state.expenses.filter(i=>i.date===e),a=this.state.events.filter(i=>i.date===e),o=r.reduce((i,d)=>i+d.total,0),l=n.reduce((i,d)=>i+d.amount,0);return`
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h3 class="font-display text-xl font-bold text-brand-dark capitalize">${s}</h3>
@@ -63,7 +63,7 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-green-50 p-3 rounded-xl border border-green-100">
                         <p class="text-[10px] font-bold text-green-600 uppercase">Ventas</p>
-                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(r)}</p>
+                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(o)}</p>
                     </div>
                     <div class="bg-red-50 p-3 rounded-xl border border-red-100">
                         <p class="text-[10px] font-bold text-red-600 uppercase">Gastos</p>
@@ -96,10 +96,10 @@
 
                 <!-- Sales List -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${o.length})</h4>
-                    ${o.length>0?`
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${r.length})</h4>
+                    ${r.length>0?`
                         <div class="space-y-2">
-                            ${o.map(i=>`
+                            ${r.map(i=>`
                                 <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
                                     <div class="truncate flex-1 pr-2">
                                         <span class="font-bold text-slate-700 block truncate">${i.album||"Venta rápida"}</span>
@@ -159,7 +159,7 @@
                     </form>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};v.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>console.error(o))},deleteEvent(t){confirm("¿Eliminar este evento?")&&v.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
+        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};v.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(r=>console.error(r))},deleteEvent(t){confirm("¿Eliminar este evento?")&&v.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
             <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Backup y Restauración</h2>
                 
@@ -224,17 +224,17 @@
                     </form>
                 </div>
             </div>
-        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=o=>{try{const n=JSON.parse(o.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const a=v.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),n.inventory&&n.inventory.forEach(r=>{const l=v.collection("products").doc(r.sku);a.set(l,r)}),a.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(n){alert("Error al leer el archivo de respaldo"),console.error(n)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
+        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=r=>{try{const n=JSON.parse(r.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const a=v.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),n.inventory&&n.inventory.forEach(o=>{const l=v.collection("products").doc(o.sku);a.set(l,o)}),a.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(n){alert("Error al leer el archivo de respaldo"),console.error(n)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
 
 Esto borrará PERMANENTEMENTE todo el inventario, ventas, gastos y socios de la base de datos.
 
-¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>v.collection(s).get().then(o=>{const n=v.batch();return o.docs.forEach(a=>{n.delete(a.ref)}),n.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),v.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
+¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>v.collection(s).get().then(r=>{const n=v.batch();return r.docs.forEach(a=>{n.delete(a.ref)}),n.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),v.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
 
 Esto borrará PERMANENTEMENTE todas las ventas (manuales y online) de la base de datos.
 
 El inventario, gastos y socios NO serán afectados.
 
-¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),v.collection("sales").get().then(e=>{const s=v.batch();return e.docs.forEach(o=>{s.delete(o.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await v.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),v.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(o=>console.error("Error logging movement:",o))},openInventoryLogModal(){v.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
+¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),v.collection("sales").get().then(e=>{const s=v.batch();return e.docs.forEach(r=>{s.delete(r.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await v.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),v.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(r=>console.error("Error logging movement:",r))},openInventoryLogModal(){v.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white rounded-3xl w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fadeIn">
                         <div class="flex justify-between items-center mb-6 shrink-0">
@@ -257,16 +257,16 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50 text-sm">
-                                    ${t.docs.map(o=>({id:o.id,...o.data()})).map(o=>{let n="bg-slate-100 text-slate-600";o.type==="ADD"&&(n="bg-green-100 text-green-700"),o.type==="DELETE"&&(n="bg-red-100 text-red-700"),o.type==="EDIT"&&(n="bg-blue-100 text-blue-700"),o.type==="SOLD"&&(n="bg-purple-100 text-purple-700");const a=o.timestamp?o.timestamp.toDate?o.timestamp.toDate():new Date(o.timestamp):new Date;return`
+                                    ${t.docs.map(r=>({id:r.id,...r.data()})).map(r=>{let n="bg-slate-100 text-slate-600";r.type==="ADD"&&(n="bg-green-100 text-green-700"),r.type==="DELETE"&&(n="bg-red-100 text-red-700"),r.type==="EDIT"&&(n="bg-blue-100 text-blue-700"),r.type==="SOLD"&&(n="bg-purple-100 text-purple-700");const a=r.timestamp?r.timestamp.toDate?r.timestamp.toDate():new Date(r.timestamp):new Date;return`
                                             <tr>
                                                 <td class="p-4 text-slate-500 whitespace-nowrap">
                                                     ${a.toLocaleDateString()} <span class="text-xs text-slate-400 opacity-75">${a.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
                                                 </td>
                                                 <td class="p-4">
-                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${n}">${o.type}</span>
+                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${n}">${r.type}</span>
                                                 </td>
-                                                <td class="p-4 font-bold text-brand-dark">${o.album||"Unknown"}</td>
-                                                <td class="p-4 font-mono text-xs text-slate-400">${o.sku||"N/A"}</td>
+                                                <td class="p-4 font-bold text-brand-dark">${r.album||"Unknown"}</td>
+                                                <td class="p-4 font-mono text-xs text-slate-400">${r.sku||"N/A"}</td>
                                             </tr>
                                         `}).join("")||'<tr><td colspan="4" class="p-8 text-center text-slate-400">No hay movimientos registrados</td></tr>'}
                                 </tbody>
@@ -277,7 +277,7 @@ El inventario, gastos y socios NO serán afectados.
             `;document.body.insertAdjacentHTML("beforeend",s)})},async syncWithDiscogs(){const t=document.getElementById("discogs-sync-btn");if(!t)return;const e=t.innerHTML;t.disabled=!0,t.innerHTML=`
             <i class="ph-bold ph-circle-notch text-xl animate-spin"></i>
             <span class="text-sm font-bold hidden sm:inline">Sincronizando...</span>
-        `;try{const s=T,n=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),r=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(n.success||r&&r.success){let l=`✅ Sincronizado: ${n.synced||0} productos`;r&&r.salesCreated>0&&(l+=`. ¡Detectadas ${r.salesCreated} nuevas ventas!`),this.showToast(l),await this.loadData(),this.refreshCurrentView()}else throw new Error(n.error||r&&r.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},getVatComponent(t){return this.state.vatActive?(parseFloat(t)||0)*.2:0},getNetPrice(t){return this.state.vatActive?t*.8:t},getRolling12MonthSales(){const t=new Date;return t.setFullYear(t.getFullYear()-1),this.state.sales.filter(e=>new Date(e.date)>=t).reduce((e,s)=>e+this.getNetPrice(s.total),0)},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,o)=>s-o),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,o,n,a,r;try{const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const i=await fetch(`${T}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),d=await i.json();if(i.ok&&d.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const c=document.getElementById("sale-detail-modal");c&&(c.remove(),this.openSaleDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(l){console.error("Error setting ready for pickup:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el estado"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro')}},renderDashboard(t){const e=this.state.filterMonths,s=this.state.filterYear,o=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],n=this.state.sales.filter(m=>{const g=new Date(m.date);return g.getFullYear()===s&&e.includes(g.getMonth())}),a=[...n].sort((m,g)=>new Date(g.date)-new Date(m.date));let r=0,l=0,i=0,d=0;n.forEach(m=>{const g=m.channel==="discogs",w=Number(m.originalTotal)||Number(m.total_amount)||Number(m.total)||0,$=Number(m.total)||Number(m.total_amount)||0,k=g?w-$:0,C=Number(m.shipping_cost)||0;r+=w,i+=C;let E=0;const D=m.items||[];D.length>0?D.forEach(S=>{const j=Number(S.priceAtSale||S.unitPrice||S.price)||0,L=Number(S.qty||S.quantity)||1;let I=Number(S.costAtSale||S.cost)||0;const A=(S.owner||"").toLowerCase();if(A==="el cuartito"||A==="")I=Number(S.costAtSale||S.cost)||0;else if(I===0||isNaN(I)){const B=this.state.consignors?this.state.consignors.find(N=>(N.name||"").toLowerCase()===A):null,F=B&&(B.agreementSplit||B.split)||70;I=j*(Number(F)||70)/100,d+=I*L}else d+=I*L;E+=(j-I)*L}):E=w,l+=E-k});const c=this.state.vatActive?r-r/1.25:0;this.state.inventory.reduce((m,g)=>m+g.price*g.stock,0);const b=this.state.inventory.reduce((m,g)=>m+g.stock,0);let p=0,u=0,x=0;this.state.inventory.forEach(m=>{const g=(m.owner||"").toLowerCase(),w=parseInt(m.stock)||0,$=parseFloat(m.price)||0,k=parseFloat(m.cost)||0;if(g==="el cuartito"||g==="")p+=k*w,u+=($-k)*w;else{let C=k;if(C===0){const D=this.state.consignors?this.state.consignors.find(j=>(j.name||"").toLowerCase()===g):null,S=D&&(D.agreementSplit||D.split)||70;C=$*(Number(S)||70)/100}const E=$-C;x+=E*w}});const h={};this.state.inventory.forEach(m=>{const g=m.owner||"El Cuartito";h[g]||(h[g]={count:0,value:0}),h[g].count+=parseInt(m.stock)||0,h[g].value+=(parseFloat(m.price)||0)*(parseInt(m.stock)||0)});const y=`
+        `;try{const s=D,n=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),o=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(n.success||o&&o.success){let l=`✅ Sincronizado: ${n.synced||0} productos`;o&&o.salesCreated>0&&(l+=`. ¡Detectadas ${o.salesCreated} nuevas ventas!`),this.showToast(l),await this.loadData(),this.refreshCurrentView()}else throw new Error(n.error||o&&o.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},getVatComponent(t){return this.state.vatActive?(parseFloat(t)||0)*.2:0},getNetPrice(t){return this.state.vatActive?t*.8:t},getRolling12MonthSales(){const t=new Date;return t.setFullYear(t.getFullYear()-1),this.state.sales.filter(e=>new Date(e.date)>=t).reduce((e,s)=>e+this.getNetPrice(s.total),0)},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,r)=>s-r),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,r,n,a,o;try{const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((r=(s=window.event)==null?void 0:s.target)==null?void 0:r.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const i=await fetch(`${D}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),d=await i.json();if(i.ok&&d.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const c=document.getElementById("sale-detail-modal");c&&(c.remove(),this.openSaleDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(l){console.error("Error setting ready for pickup:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el estado"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((o=(a=window.event)==null?void 0:a.target)==null?void 0:o.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro')}},renderDashboard(t){const e=this.state.filterMonths,s=this.state.filterYear,r=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],n=this.state.sales.filter(x=>{const h=new Date(x.date);return h.getFullYear()===s&&e.includes(h.getMonth())}),a=[...n].sort((x,h)=>new Date(h.date)-new Date(x.date));let o=0,l=0,i=0,d=0;n.forEach(x=>{const h=x.channel==="discogs",w=Number(x.originalTotal)||Number(x.total_amount)||Number(x.total)||0,k=Number(x.total)||Number(x.total_amount)||0,$=h?w-k:0,C=Number(x.shipping_cost)||0;o+=w,i+=C;let E=0;const I=x.items||[];I.length>0?I.forEach(S=>{const M=Number(S.priceAtSale||S.unitPrice||S.price)||0,L=Number(S.qty||S.quantity)||1;let T=Number(S.costAtSale||S.cost)||0;const P=(S.owner||"").toLowerCase();if(P==="el cuartito"||P==="")T=Number(S.costAtSale||S.cost)||0;else if(T===0||isNaN(T)){const B=this.state.consignors?this.state.consignors.find(N=>(N.name||"").toLowerCase()===P):null,F=B&&(B.agreementSplit||B.split)||70;T=M*(Number(F)||70)/100,d+=T*L}else d+=T*L;E+=(M-T)*L}):E=w,l+=E-$});const c=this.state.vatActive?o-o/1.25:0;this.state.inventory.reduce((x,h)=>x+h.price*h.stock,0);const b=this.state.inventory.reduce((x,h)=>x+h.stock,0);let u=0,g=0,p=0;this.state.inventory.forEach(x=>{const h=(x.owner||"").toLowerCase(),w=parseInt(x.stock)||0,k=parseFloat(x.price)||0,$=parseFloat(x.cost)||0;if(h==="el cuartito"||h==="")u+=$*w,g+=(k-$)*w;else{let C=$;if(C===0){const I=this.state.consignors?this.state.consignors.find(M=>(M.name||"").toLowerCase()===h):null,S=I&&(I.agreementSplit||I.split)||70;C=k*(Number(S)||70)/100}const E=k-C;p+=E*w}});const m={};this.state.inventory.forEach(x=>{const h=x.owner||"El Cuartito";m[h]||(m[h]={count:0,value:0}),m[h].count+=parseInt(x.stock)||0,m[h].value+=(parseFloat(x.price)||0)*(parseInt(x.stock)||0)});const y=`
     <div class="max-w-7xl mx-auto space-y-6 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!--Header -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -287,7 +287,7 @@ El inventario, gastos y socios NO serán afectados.
                         </button>
                         <div>
                             <h2 class="font-display text-3xl font-bold text-brand-dark">Dashboard</h2>
-                            <p class="text-slate-500">Resumen de <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(m=>this.getMonthName(m)).join(", ")} ${s} `}</span></p>
+                            <p class="text-slate-500">Resumen de <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(x=>this.getMonthName(x)).join(", ")} ${s} `}</span></p>
                         </div>
                     </div>
 
@@ -300,10 +300,10 @@ El inventario, gastos y socios NO serán afectados.
                             </select>
                         </div>
                         <div class="flex flex-wrap gap-1">
-                            ${o.map((m,g)=>`
-                                <button onclick="app.toggleMonthFilter(${g})" 
-                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${e.includes(g)?"bg-brand-orange text-white shadow-brand-orange/30":"bg-white border border-slate-100 text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
-                                    ${m}
+                            ${r.map((x,h)=>`
+                                <button onclick="app.toggleMonthFilter(${h})" 
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${e.includes(h)?"bg-brand-orange text-white shadow-brand-orange/30":"bg-white border border-slate-100 text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
+                                    ${x}
                                 </button>
                             `).join("")}
                         </div>
@@ -350,7 +350,7 @@ El inventario, gastos y socios NO serán afectados.
                         <div class="flex items-center justify-between mb-6">
                             <div>
                                 <p class="text-sm text-slate-500 uppercase font-bold">Ventas Totales</p>
-                                <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(r)}</p>
+                                <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(o)}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-xs text-slate-400 uppercase font-bold">Ganancia Neta</p>
@@ -366,20 +366,20 @@ El inventario, gastos y socios NO serán afectados.
                                     <p class="text-[10px] text-slate-400 font-medium">Ventas acumuladas (12 meses)</p>
                                 </div>
                                 <div class="text-right">
-                                    <span class="text-2xl font-display font-bold text-brand-dark">${Math.min((r/5e4*100).toFixed(1),100)}<span class="text-sm text-slate-400 ml-0.5">%</span></span>
+                                    <span class="text-2xl font-display font-bold text-brand-dark">${Math.min((o/5e4*100).toFixed(1),100)}<span class="text-sm text-slate-400 ml-0.5">%</span></span>
                                 </div>
                             </div>
                             <div class="h-5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
                                 <!-- Marker for 50k -->
                                 <div class="absolute right-0 top-0 bottom-0 w-0.5 bg-red-300 z-10 opacity-50"></div>
-                                <div class="h-full bg-gradient-to-r from-brand-orange via-orange-400 to-red-500 transition-all duration-1000 ease-out shadow-[0_2px_10px_rgba(249,115,22,0.3)]" style="width: ${Math.min(r/5e4*100,100)}%">
+                                <div class="h-full bg-gradient-to-r from-brand-orange via-orange-400 to-red-500 transition-all duration-1000 ease-out shadow-[0_2px_10px_rgba(249,115,22,0.3)]" style="width: ${Math.min(o/5e4*100,100)}%">
                                     <div class="w-full h-full opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9InN0cmlwZXMiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVybkVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDAgMEgyMHY0MHptMjAgLTIwTDIwIDIwHDAiIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjc3RyaXBlcykiLz48L3N2Zz4')] animate-[slide_2s_linear_infinite]"></div>
                                 </div>
                             </div>
                             <div class="flex justify-between items-center mt-3">
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">0 kr</p>
                                 <p class="text-xs text-brand-orange font-bold bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
-                                    ${r>=5e4?"⚠️ Límite Alcanzado":`Faltan ${this.formatCurrency(5e4-r)}`}
+                                    ${o>=5e4?"⚠️ Límite Alcanzado":`Faltan ${this.formatCurrency(5e4-o)}`}
                                 </p>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">50.000 kr</p>
                             </div>
@@ -416,26 +416,26 @@ El inventario, gastos y socios NO serán afectados.
                             <div class="grid grid-cols-2 gap-4 mb-4">
                                 <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center">
                                     <p class="text-[10px] text-slate-500 font-bold uppercase">Inversión (Stock Propio)</p>
-                                    <p class="text-lg font-bold text-slate-700">${this.formatCurrency(p)}</p>
+                                    <p class="text-lg font-bold text-slate-700">${this.formatCurrency(u)}</p>
                                 </div>
                                 <div class="p-4 bg-green-50 rounded-xl border border-green-100 text-center">
                                     <p class="text-[10px] text-green-600 font-bold uppercase">Ganancia Latente (Propia)</p>
-                                    <p class="text-lg font-bold text-green-700">${this.formatCurrency(u)}</p>
+                                    <p class="text-lg font-bold text-green-700">${this.formatCurrency(g)}</p>
                                 </div>
                                 <div class="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center col-span-2">
                                     <p class="text-[10px] text-purple-600 font-bold uppercase">Ganancia Latente (Socios)</p>
-                                    <p class="text-lg font-bold text-purple-700">${this.formatCurrency(x)}</p>
+                                    <p class="text-lg font-bold text-purple-700">${this.formatCurrency(p)}</p>
                                 </div>
                             </div>
 
                             <div class="space-y-1 mb-4 max-h-40 overflow-y-auto custom-scrollbar pr-2">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase mb-2">Por Dueño</h4>
-                                ${Object.entries(h).sort((m,g)=>g[1].count-m[1].count).map(([m,g])=>`
+                                ${Object.entries(m).sort((x,h)=>h[1].count-x[1].count).map(([x,h])=>`
                                 <div class="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                    <span class="font-bold text-slate-700 truncate max-w-[120px]" title="${m}">${m}</span>
+                                    <span class="font-bold text-slate-700 truncate max-w-[120px]" title="${x}">${x}</span>
                                     <div class="text-right">
-                                        <div class="font-bold text-brand-dark">${g.count} discos</div>
-                                        <div class="text-[10px] text-slate-500">${this.formatCurrency(g.value)}</div>
+                                        <div class="font-bold text-brand-dark">${h.count} discos</div>
+                                        <div class="text-[10px] text-slate-500">${this.formatCurrency(h.value)}</div>
                                     </div>
                                 </div>
                                 `).join("")}
@@ -487,13 +487,13 @@ El inventario, gastos y socios NO serán afectados.
                     </tr>
                 </thead>
                 <tbody class="text-sm">
-                    ${a.slice(0,5).map(m=>`
+                    ${a.slice(0,5).map(x=>`
                                     <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                                         <td class="py-3 font-medium text-brand-dark max-w-[200px] truncate">
-                                            ${m.album||(m.items&&m.items[0]?m.items[0].album:"Venta rápida")}
+                                            ${x.album||(x.items&&x.items[0]?x.items[0].album:"Venta rápida")}
                                         </td>
-                                        <td class="py-3 text-slate-500">${this.formatDate(m.date)}</td>
-                                        <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(m.total)}</td>
+                                        <td class="py-3 text-slate-500">${this.formatDate(x.date)}</td>
+                                        <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(x.total)}</td>
                                     </tr>
                                 `).join("")||'<tr><td colspan="3" class="p-8 text-center text-slate-400">No hay ventas recientes</td></tr>'}
                 </tbody>
@@ -501,13 +501,13 @@ El inventario, gastos y socios NO serán afectados.
         </div>
     </div>
             </div>
-    `;t.innerHTML=y,this.renderDashboardCharts(n)},renderInventoryCart(){const t=document.getElementById("inventory-cart-container");if(!t)return;if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden");const e=this.state.cart.map((s,o)=>`
+    `;t.innerHTML=y,this.renderDashboardCharts(n)},renderInventoryCart(){const t=document.getElementById("inventory-cart-container");if(!t)return;if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden");const e=this.state.cart.map((s,r)=>`
     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                 <div class="truncate pr-2">
                     <p class="font-bold text-xs text-brand-dark truncate">${s.album}</p>
                     <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(s.price)}</p>
                 </div>
-                <button onclick="app.removeFromCart(${o})" class="text-red-400 hover:text-red-600">
+                <button onclick="app.removeFromCart(${r})" class="text-red-400 hover:text-red-600">
                     <i class="ph-bold ph-x"></i>
                 </button>
             </div>
@@ -525,13 +525,13 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
                 <div class="pt-3 border-t border-slate-50 flex justify-between items-center mb-3">
                      <span class="text-xs font-bold text-slate-500">Total</span>
-                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s,o)=>s+o.price,0))}</span>
+                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s,r)=>s+r.price,0))}</span>
                 </div>
                 <button onclick="app.openCheckoutModal()" class="w-full py-2 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
                     Finalizar Venta
                 </button>
             </div>
-    `},renderInventoryContent(t,e,s,o,n){t.innerHTML=`
+    `},renderInventoryContent(t,e,s,r,n){t.innerHTML=`
             ${this.state.viewMode==="grid"?`
                 <!-- GRID VIEW -->
                 ${this.state.filterGenre==="all"&&this.state.filterOwner==="all"&&this.state.filterLabel==="all"&&this.state.filterStorage==="all"&&this.state.inventorySearch===""?`
@@ -549,7 +549,7 @@ El inventario, gastos y socios NO serán afectados.
                                             <i class="ph-bold ph-folder-notch text-2xl"></i>
                                         </div>
                                         <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(r=>r.genre===a).length} items</p>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.genre===a).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -561,13 +561,13 @@ El inventario, gastos y socios NO serán afectados.
                                 <i class="ph-fill ph-users text-blue-500"></i> Dueños
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                ${o.map(a=>`
+                                ${r.map(a=>`
                                     <div onclick="app.navigateInventoryFolder('owner', '${a}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
                                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
                                             <i class="ph-bold ph-folder-user text-2xl"></i>
                                         </div>
                                         <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(r=>r.owner===a).length} items</p>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.owner===a).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -585,7 +585,7 @@ El inventario, gastos y socios NO serán afectados.
                                             <i class="ph-bold ph-tag text-2xl"></i>
                                         </div>
                                         <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(r=>r.storageLocation===a).length} items</p>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.storageLocation===a).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -728,7 +728,7 @@ El inventario, gastos y socios NO serán afectados.
                     </table>
                 </div>
             `}
-`},renderInventory(t){const e=[...new Set(this.state.inventory.map(d=>d.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(d=>d.owner).filter(Boolean))].sort(),o=[...new Set(this.state.inventory.map(d=>d.label).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(d=>d.storageLocation).filter(Boolean))].sort(),a=this.state.inventory.filter(d=>{const c=this.state.inventorySearch.toLowerCase(),b=d.artist.toLowerCase().includes(c)||d.album.toLowerCase().includes(c)||d.sku.toLowerCase().includes(c),p=this.state.filterGenre||"all",u=this.state.filterOwner||"all",x=this.state.filterLabel||"all",h=this.state.filterStorage||"all",f=this.state.filterDiscogs||"all",y=p==="all"||d.genre===p,m=u==="all"||d.owner===u,g=x==="all"||d.label===x,w=h==="all"||d.storageLocation===h,$=!!d.discogs_listing_id;return b&&y&&m&&g&&w&&(f==="all"||f==="yes"&&$||f==="no"&&!$)}),r=this.state.sortBy||"dateDesc";a.sort((d,c)=>{if(r==="priceDesc")return(c.price||0)-(d.price||0);if(r==="priceAsc")return(d.price||0)-(c.price||0);if(r==="stockDesc")return(c.stock||0)-(d.stock||0);const b=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0,p=c.created_at?c.created_at.seconds?c.created_at.seconds*1e3:new Date(c.created_at).getTime():0;return r==="dateDesc"?p-b:r==="dateAsc"?b-p:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
+`},renderInventory(t){const e=[...new Set(this.state.inventory.map(d=>d.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(d=>d.owner).filter(Boolean))].sort(),r=[...new Set(this.state.inventory.map(d=>d.label).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(d=>d.storageLocation).filter(Boolean))].sort(),a=this.getFilteredInventory(),o=this.state.sortBy||"dateDesc";a.sort((d,c)=>{if(o==="priceDesc")return(c.price||0)-(d.price||0);if(o==="priceAsc")return(d.price||0)-(c.price||0);if(o==="stockDesc")return(c.stock||0)-(d.stock||0);const b=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0,u=c.created_at?c.created_at.seconds?c.created_at.seconds*1e3:new Date(c.created_at).getTime():0;return o==="dateDesc"?u-b:o==="dateAsc"?b-u:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
     <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
                     <!--Header(Search) -->
                     <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
@@ -737,6 +737,10 @@ El inventario, gastos y socios NO serán afectados.
                              <div class="flex gap-2">
                                 <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors">
                                     <i class="ph-bold ph-clock-counter-clockwise text-2xl"></i>
+                                </button>
+                                <button onclick="app.openBulkImportModal()" class="bg-emerald-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all" title="Carga Masiva CSV">
+                                    <i class="ph-bold ph-file-csv text-xl"></i>
+                                    <span class="text-sm font-bold hidden sm:inline">Importar</span>
                                 </button>
                                 <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-purple-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-purple-500/20 hover:bg-purple-600 transition-all" title="Sincronizar con Discogs">
                                     <i class="ph-bold ph-cloud-arrow-down text-xl"></i>
@@ -781,7 +785,7 @@ El inventario, gastos y socios NO serán afectados.
                     <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
                             <select onchange="app.state.sortBy = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-medium outline-none focus:border-brand-orange">
                                 <option value="dateDesc" ${this.state.sortBy==="dateDesc"?"selected":""}>Más Recientes</option>
                                 <option value="dateAsc" ${this.state.sortBy==="dateAsc"?"selected":""}>Más Antiguos</option>
@@ -810,7 +814,7 @@ El inventario, gastos y socios NO serán afectados.
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
                             <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
-                                ${o.map(d=>`<option value="${d}" ${this.state.filterLabel===d?"selected":""}>${d}</option>`).join("")}
+                                ${r.map(d=>`<option value="${d}" ${this.state.filterLabel===d?"selected":""}>${d}</option>`).join("")}
                             </select>
                         </div>
                         <div>
@@ -830,7 +834,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-    `);const i=document.getElementById("inventory-content-container");i&&this.renderInventoryContent(i,a,e,s,n)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const o=[],n=[],a=[];s.forEach(l=>{o.push(this.getMonthName(l).substring(0,3));const i=t.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.total,0),d=e.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.amount,0);n.push(i),a.push(d)});const r={};t.forEach(l=>{r[l.genre]=(r[l.genre]||0)+l.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:o,datasets:[{label:"Ventas",data:n,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:a,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[]){var d,c,b;const e=t.length>0?t:this.state.sales,s=(p,u)=>({type:"doughnut",data:{labels:Object.keys(p),datasets:[{data:Object.values(p),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),o={};e.forEach(p=>{const u=p.genre||"Desconocido";o[u]=(o[u]||0)+p.quantity}),this.genreChartInstance&&this.genreChartInstance.destroy();const n=(d=document.getElementById("genreChart"))==null?void 0:d.getContext("2d");n&&(this.genreChartInstance=new Chart(n,s(o)));const a={};e.forEach(p=>{const u=p.paymentMethod||"Desconocido";a[u]=(a[u]||0)+p.quantity}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const r=(c=document.getElementById("paymentChart"))==null?void 0:c.getContext("2d");r&&(this.paymentChartInstance=new Chart(r,s(a)));const l={};e.forEach(p=>{const u=p.channel||"Local";l[u]=(l[u]||0)+p.quantity}),this.channelChartInstance&&this.channelChartInstance.destroy();const i=(b=document.getElementById("channelChart"))==null?void 0:b.getContext("2d");i&&(this.channelChartInstance=new Chart(i,s(l)))},updateFilter(t,e){t==="month"&&(this.state.filterMonth=parseInt(e)),t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var b;const e=this.state.filterYear,s=this.state.filterMonths,o=((b=document.getElementById("sales-payment-filter"))==null?void 0:b.value)||"all",n=this.state.salesHistorySearch.toLowerCase(),a=this.state.sales.filter(p=>{const u=new Date(p.date),x=u.getFullYear()===e&&s.includes(u.getMonth()),h=o==="all"||p.paymentMethod===o,f=!n||p.items&&p.items.some(y=>{const m=y.record||{};return(m.album||"").toLowerCase().includes(n)||(m.artist||"").toLowerCase().includes(n)||(m.sku||"").toLowerCase().includes(n)});return x&&h&&f}),r=a.reduce((p,u)=>p+(parseFloat(u.total)||0),0),l=a.reduce((p,u)=>{const x=parseFloat(u.total)||0;let h=0;return u.items&&Array.isArray(u.items)?h=u.items.reduce((f,y)=>{var w;const m=parseFloat(y.costAtSale||((w=y.record)==null?void 0:w.cost)||0),g=parseInt(y.quantity||y.qty)||1;return f+m*g},0):h=(parseFloat(u.cost)||0)*(parseInt(u.quantity)||1),p+(x-h)},0),i=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],d=`
+    `);const i=document.getElementById("inventory-content-container");i&&this.renderInventoryContent(i,a,e,s,n)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const r=[],n=[],a=[];s.forEach(l=>{r.push(this.getMonthName(l).substring(0,3));const i=t.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.total,0),d=e.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.amount,0);n.push(i),a.push(d)});const o={};t.forEach(l=>{o[l.genre]=(o[l.genre]||0)+l.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:r,datasets:[{label:"Ventas",data:n,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:a,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[]){var d,c,b;const e=t.length>0?t:this.state.sales,s=(u,g)=>({type:"doughnut",data:{labels:Object.keys(u),datasets:[{data:Object.values(u),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),r={};e.forEach(u=>{const g=u.genre||"Desconocido";r[g]=(r[g]||0)+u.quantity}),this.genreChartInstance&&this.genreChartInstance.destroy();const n=(d=document.getElementById("genreChart"))==null?void 0:d.getContext("2d");n&&(this.genreChartInstance=new Chart(n,s(r)));const a={};e.forEach(u=>{const g=u.paymentMethod||"Desconocido";a[g]=(a[g]||0)+u.quantity}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const o=(c=document.getElementById("paymentChart"))==null?void 0:c.getContext("2d");o&&(this.paymentChartInstance=new Chart(o,s(a)));const l={};e.forEach(u=>{const g=u.channel||"Local";l[g]=(l[g]||0)+u.quantity}),this.channelChartInstance&&this.channelChartInstance.destroy();const i=(b=document.getElementById("channelChart"))==null?void 0:b.getContext("2d");i&&(this.channelChartInstance=new Chart(i,s(l)))},updateFilter(t,e){t==="month"&&(this.state.filterMonth=parseInt(e)),t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var g;const e=this.state.filterYear,s=this.state.filterMonths,r=((g=document.getElementById("sales-payment-filter"))==null?void 0:g.value)||"all",n=this.state.salesHistorySearch.toLowerCase(),a=this.state.sales.filter(p=>{const m=new Date(p.date),f=m.getFullYear()===e&&s.includes(m.getMonth()),y=r==="all"||p.paymentMethod===r,x=!n||p.items&&p.items.some(h=>{const w=h.record||{};return(w.album||"").toLowerCase().includes(n)||(w.artist||"").toLowerCase().includes(n)||(w.sku||"").toLowerCase().includes(n)});return f&&y&&x}),o=a.reduce((p,m)=>p+parseFloat(m.shipping||m.shipping_cost||0),0),i=a.reduce((p,m)=>p+(parseFloat(m.total)||0),0)-o,d=a.reduce((p,m)=>{const f=parseFloat(m.total)||0,y=parseFloat(m.shipping||m.shipping_cost||0),x=f-y;let h=0;return m.items&&Array.isArray(m.items)?h=m.items.reduce((w,k)=>{var E;const $=parseFloat(k.costAtSale||((E=k.record)==null?void 0:E.cost)||0),C=parseInt(k.quantity||k.qty)||1;return w+$*C},0):h=(parseFloat(m.cost)||0)*(parseInt(m.quantity)||1),p+(x-h)},0),c=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],b=`
     <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <!--Header & Filters-->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -847,9 +851,9 @@ El inventario, gastos y socios NO serán afectados.
                             </select>
                         </div>
                         <div class="flex flex-wrap gap-1 max-w-md justify-end">
-                            ${i.map((p,u)=>`
-                                <button onclick="app.toggleMonthFilter(${u})" 
-                                    class="px-2 py-1 rounded text-[10px] font-bold transition-all ${s.includes(u)?"bg-brand-orange text-white":"bg-white border border-orange-100 text-slate-400 hover:text-brand-orange"}">
+                            ${c.map((p,m)=>`
+                                <button onclick="app.toggleMonthFilter(${m})" 
+                                    class="px-2 py-1 rounded text-[10px] font-bold transition-all ${s.includes(m)?"bg-brand-orange text-white":"bg-white border border-orange-100 text-slate-400 hover:text-brand-orange"}">
                                     ${p}
                                 </button>
                             `).join("")}
@@ -859,18 +863,25 @@ El inventario, gastos y socios NO serán afectados.
                 
                 
                  <!--Sales Summary Cards(Moved to Top)-->
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                     <div class="bg-brand-orange text-white p-5 rounded-2xl shadow-lg shadow-brand-orange/20 relative overflow-hidden">
                         <div class="relative z-10">
-                            <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Totales</p>
-                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(r)}</h3>
+                            <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Productos</p>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(i)}</h3>
                         </div>
                         <i class="ph-fill ph-trend-up absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
                     </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                    <div class="bg-indigo-500 text-white p-5 rounded-2xl shadow-lg shadow-indigo-500/20 relative overflow-hidden">
+                        <div class="relative z-10">
+                            <p class="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-1">Fondos de Envío</p>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(o)}</h3>
+                        </div>
+                        <i class="ph-fill ph-truck absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden col-span-2 md:col-span-1">
                         <div class="relative z-10">
                             <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ganancia Neta</p>
-                            <h3 class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(l)}</h3>
+                            <h3 class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(d)}</h3>
                         </div>
                         <i class="ph-fill ph-coins absolute -right-4 -bottom-4 text-8xl text-brand-orange/5"></i>
                     </div>
@@ -893,7 +904,7 @@ El inventario, gastos y socios NO serán afectados.
                             
                             <!-- Cart Items List -->
                             <div class="space-y-3 mb-4 max-h-60 overflow-y-auto custom-scrollbar px-1">
-                                ${this.state.cart.map((p,u)=>`
+                                ${this.state.cart.map((p,m)=>`
                                     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                         <div class="truncate pr-2">
                                             <p class="font-bold text-xs text-brand-dark truncate">${p.album}</p>
@@ -901,7 +912,7 @@ El inventario, gastos y socios NO serán afectados.
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-xs text-brand-orange">${this.formatCurrency(p.price)}</span>
-                                            <button onclick="app.removeFromCart(${u}); app.renderSales(document.getElementById('app-content'))" class="text-slate-400 hover:text-red-500">
+                                            <button onclick="app.removeFromCart(${m}); app.renderSales(document.getElementById('app-content'))" class="text-slate-400 hover:text-red-500">
                                                 <i class="ph-bold ph-x"></i>
                                             </button>
                                         </div>
@@ -912,7 +923,7 @@ El inventario, gastos y socios NO serán afectados.
                             <!-- Cart Total -->
                             <div class="pt-3 border-t border-slate-100 flex justify-between items-center mb-4">
                                 <span class="text-sm font-bold text-slate-500">Total a Pagar</span>
-                                <span class="font-display font-bold text-brand-dark text-xl">${this.formatCurrency(this.state.cart.reduce((p,u)=>p+u.price,0))}</span>
+                                <span class="font-display font-bold text-brand-dark text-xl">${this.formatCurrency(this.state.cart.reduce((p,m)=>p+m.price,0))}</span>
                             </div>
 
                             <!-- Checkout Form (Embedded) -->
@@ -1038,15 +1049,15 @@ El inventario, gastos y socios NO serán afectados.
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
                         <h3 class="font-bold text-lg mb-4 text-brand-dark">Resumen de Socios</h3>
                          <div class="space-y-4">
-                            ${["El Cuartito",...this.state.consignors.map(p=>p.name)].map(p=>{const u=this.state.inventory.filter(m=>m.owner===p).reduce((m,g)=>m+g.stock,0),x=a.reduce((m,g)=>{if(g.owner===p){const w=g.items&&Array.isArray(g.items)?g.items.reduce(($,k)=>$+(parseInt(k.quantity||k.qty)||1),0):parseInt(g.quantity)||1;return m+w}return g.items&&Array.isArray(g.items)?m+g.items.filter(w=>w.owner===p).length:m},0),h=u+x,f=h>0?u/h*100:0,y=h>0?x/h*100:0;return`
+                            ${["El Cuartito",...this.state.consignors.map(p=>p.name)].map(p=>{const m=this.state.inventory.filter(w=>w.owner===p).reduce((w,k)=>w+k.stock,0),f=a.reduce((w,k)=>{if(k.owner===p){const $=k.items&&Array.isArray(k.items)?k.items.reduce((C,E)=>C+(parseInt(E.quantity||E.qty)||1),0):parseInt(k.quantity)||1;return w+$}return k.items&&Array.isArray(k.items)?w+k.items.filter($=>$.owner===p).length:w},0),y=m+f,x=y>0?m/y*100:0,h=y>0?f/y*100:0;return`
                                     <div>
                                         <div class="flex justify-between items-end mb-1">
                                             <span class="font-bold text-sm text-brand-dark">${p}</span>
-                                            <span class="text-xs text-slate-500">Stock: ${u} | Vendidos: ${x}</span>
+                                            <span class="text-xs text-slate-500">Stock: ${m} | Vendidos: ${f}</span>
                                         </div>
                                         <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                            <div style="width: ${f}%" class="h-full bg-blue-500"></div>
-                                            <div style="width: ${y}%" class="h-full bg-brand-orange"></div>
+                                            <div style="width: ${x}%" class="h-full bg-blue-500"></div>
+                                            <div style="width: ${h}%" class="h-full bg-brand-orange"></div>
                                         </div>
                                     </div>
                                 `}).join("")}
@@ -1074,20 +1085,21 @@ El inventario, gastos y socios NO serán afectados.
                                     </div>
                                     <!-- Payment Filter -->
                                     <select id="sales-payment-filter" onchange="app.renderSales(document.getElementById('app-content'))" class="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-3 py-1.5 outline-none focus:border-brand-orange">
-                                        <option value="all" ${o==="all"?"selected":""}>Todos</option>
-                                        <option value="MobilePay" ${o==="MobilePay"?"selected":""}>MobilePay</option>
-                                        <option value="Efectivo" ${o==="Efectivo"?"selected":""}>Efectivo</option>
-                                        <option value="Tarjeta" ${o==="Tarjeta"?"selected":""}>Tarjeta</option>
+                                        <option value="all" ${r==="all"?"selected":""}>Todos</option>
+                                        <option value="MobilePay" ${r==="MobilePay"?"selected":""}>MobilePay</option>
+                                        <option value="Efectivo" ${r==="Efectivo"?"selected":""}>Efectivo</option>
+                                        <option value="Tarjeta" ${r==="Tarjeta"?"selected":""}>Tarjeta</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
-                                    <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
+                                     <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
                                         <tr>
                                             <th class="p-4">Fecha</th>
                                             <th class="p-4">Item</th>
                                             <th class="p-4 text-center">Cant.</th>
+                                            <th class="p-4 text-right">Envío</th>
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-center">Pago</th>
                                             <th class="p-4 text-center">Estado</th>
@@ -1095,22 +1107,23 @@ El inventario, gastos y socios NO serán afectados.
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-orange-50">
-                                        ${a.sort((p,u)=>{const x=p.date&&p.date.toDate?p.date.toDate():new Date(p.date);return(u.date&&u.date.toDate?u.date.toDate():new Date(u.date))-x}).map(p=>{var u,x;return`
-                                            <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${p.id}')">
+                                        ${a.sort((p,m)=>{const f=p.date&&p.date.toDate?p.date.toDate():new Date(p.date);return(m.date&&m.date.toDate?m.date.toDate():new Date(m.date))-f}).map(p=>{var m,f;return`
+                                             <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${p.id}')">
                                                 <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
-                                                    ${this.formatDate(p.date)}
-                                                    <span class="block text-[10px] text-slate-400">${new Date(p.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                                                     ${this.formatDate(p.date)}
+                                                     <span class="block text-[10px] text-slate-400">${new Date(p.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex flex-col">
-                                                        ${p.items&&p.items.length>0?p.items.length===1?`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items[0].album||((u=p.items[0].record)==null?void 0:u.album)||"Desconocido"}</span>
-                     <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items[0].artist||((x=p.items[0].record)==null?void 0:x.artist)||"-"}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items.length} items</span>
-                     <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items.map(h=>{var f;return h.album||((f=h.record)==null?void 0:f.album)}).filter(Boolean).join(", ")}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.album||"Venta Manual"}</span>
-                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.artist||"-"}</span>`}
+                                                        ${p.items&&p.items.length>0?p.items.length===1?`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items[0].album||((m=p.items[0].record)==null?void 0:m.album)||"Desconocido"}</span>
+                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items[0].artist||((f=p.items[0].record)==null?void 0:f.artist)||"-"}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items.length} items</span>
+                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items.map(y=>{var x;return y.album||((x=y.record)==null?void 0:x.album)}).filter(Boolean).join(", ")}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.album||"Venta Manual"}</span>
+                                                             <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.artist||"-"}</span>`}
                                                     </div>
                                                 </td>
-                                                <td class="p-4 text-center text-sm text-slate-600">${p.quantity||(p.items?p.items.reduce((h,f)=>h+(parseInt(f.quantity||f.qty)||1),0):1)}</td>
-                                                <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency(p.total)}</td>
+                                                <td class="p-4 text-center text-sm text-slate-600">${p.quantity||(p.items?p.items.reduce((y,x)=>y+(parseInt(x.quantity||x.qty)||1),0):1)}</td>
+                                                <td class="p-4 text-right text-xs font-medium text-slate-500">${this.formatCurrency(p.shipping||p.shipping_cost||0)}</td>
+                                                <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency((parseFloat(p.total)||0)-parseFloat(p.shipping||p.shipping_cost||0))}</td>
                                                 <td class="p-4 text-center">
                                                     <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">${p.paymentMethod}</span>
                                                 </td>
@@ -1142,18 +1155,18 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-    `;t.innerHTML=d;const c=t.querySelector('input[placeholder="Buscar en historial..."]');c&&(c.focus(),c.setSelectionRange(c.value.length,c.value.length))},searchSku(t){const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(o=>o.artist.toLowerCase().includes(t.toLowerCase())||o.album.toLowerCase().includes(t.toLowerCase())||o.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(o=>`
-    <div onclick="app.selectSku('${o.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
+    `;t.innerHTML=b;const u=t.querySelector('input[placeholder="Buscar en historial..."]');u&&(u.focus(),u.setSelectionRange(u.value.length,u.value.length))},searchSku(t){const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(r=>r.artist.toLowerCase().includes(t.toLowerCase())||r.album.toLowerCase().includes(t.toLowerCase())||r.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(r=>`
+    <div onclick="app.selectSku('${r.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
                     <div>
-                        <p class="font-bold text-sm text-brand-dark">${o.album}</p>
-                        <p class="text-xs text-slate-500">${o.artist}</p>
+                        <p class="font-bold text-sm text-brand-dark">${r.album}</p>
+                        <p class="text-xs text-slate-500">${r.artist}</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(o.price)}</p>
-                        <p class="text-xs ${o.stock>0?"text-green-500":"text-red-500"}">Stock: ${o.stock}</p>
+                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(r.price)}</p>
+                        <p class="text-xs ${r.stock>0?"text-green-500":"text-red-500"}">Stock: ${r.stock}</p>
                     </div>
                 </div>
-    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(d=>d.sku===t);if(!e)return;const s=document.getElementById("input-price"),o=document.getElementById("input-qty");document.getElementById("form-total"),s&&(s.value=e.price),o&&(o.value=1),document.getElementById("input-sku").value=e.sku,document.getElementById("input-cost").value=e.cost,document.getElementById("input-genre").value=e.genre,document.getElementById("input-artist").value=e.artist,document.getElementById("input-album").value=e.album,document.getElementById("input-owner").value=e.owner,setTimeout(()=>{const d=document.getElementById("sku-results");d&&d.classList.add("hidden")},200);const n=document.getElementById("sku-search");n&&(n.value=`${e.artist} - ${e.album} `),this.updateTotal();const a=document.getElementById("btn-submit-sale"),r=document.getElementById("btn-submit-sale-modal"),l=e.stock<=0,i=d=>{d&&(l?(d.disabled=!0,d.classList.add("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-warning"></i> Sin Stock'):(d.disabled=!1,d.classList.remove("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-check"></i> Registrar Venta'))};i(a),i(r),l&&this.showToast("⚠️ Producto sin stock")},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",status:"NM",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const r=this.state.inventory.find(l=>l.sku===t);r&&(e=r,s=!0)}if(!s){const r=this.state.inventory.map(i=>{const d=i.sku.match(/^SKU\s*-\s*(\d+)/);return d?parseInt(d[1]):0}),l=Math.max(0,...r);e.sku=`SKU-${String(l+1).padStart(3,"0")}`}const o=["Minimal","Techno","House","Deep House","Electro"],n=[...new Set([...o,...this.state.customGenres||[]])],a=`
+    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(d=>d.sku===t);if(!e)return;const s=document.getElementById("input-price"),r=document.getElementById("input-qty");document.getElementById("form-total"),s&&(s.value=e.price),r&&(r.value=1),document.getElementById("input-sku").value=e.sku,document.getElementById("input-cost").value=e.cost,document.getElementById("input-genre").value=e.genre,document.getElementById("input-artist").value=e.artist,document.getElementById("input-album").value=e.album,document.getElementById("input-owner").value=e.owner,setTimeout(()=>{const d=document.getElementById("sku-results");d&&d.classList.add("hidden")},200);const n=document.getElementById("sku-search");n&&(n.value=`${e.artist} - ${e.album} `),this.updateTotal();const a=document.getElementById("btn-submit-sale"),o=document.getElementById("btn-submit-sale-modal"),l=e.stock<=0,i=d=>{d&&(l?(d.disabled=!0,d.classList.add("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-warning"></i> Sin Stock'):(d.disabled=!1,d.classList.remove("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-check"></i> Registrar Venta'))};i(a),i(o),l&&this.showToast("⚠️ Producto sin stock")},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",condition:"NM",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const o=this.state.inventory.find(l=>l.sku===t);o&&(e=o,s=!0)}if(!s){const o=this.state.inventory.map(i=>{const d=i.sku.match(/^SKU\s*-\s*(\d+)/);return d?parseInt(d[1]):0}),l=Math.max(0,...o);e.sku=`SKU-${String(l+1).padStart(3,"0")}`}const r=["Minimal","Techno","House","Deep House","Electro"],n=[...new Set([...r,...this.state.customGenres||[]])],a=`
     <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 shrink-0">
@@ -1182,9 +1195,12 @@ El inventario, gastos y socios NO serán afectados.
                                 ${s?'<button onclick="app.resyncMusic()" class="text-xs font-bold text-slate-400 hover:text-brand-orange ml-4 flex items-center gap-1"><i class="ph-bold ph-arrows-clockwise"></i> Resync Music</button>':""}
                             </div>
                             <div class="flex gap-2">
-                                <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
-                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                                <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista o ID..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
+                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20" title="Buscar">
                                         <i class="ph-bold ph-magnifying-glass"></i>
+                                    </button>
+                                    <button onclick="app.fetchDiscogsById()" class="bg-indigo-500 text-white w-10 rounded-xl font-bold hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20" title="Importar por ID">
+                                        <i class="ph-bold ph-download-simple"></i>
                                     </button>
                             </div>
                             <div id="discogs-results" class="mt-3 space-y-2 hidden max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl shadow-inner p-1"></div>
@@ -1274,7 +1290,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Principal</label>
                                                     <select name="genre" onchange="app.checkCustomInput(this, 'custom-genre-container')" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">Seleccionar...</option>
-                                                        ${n.map(r=>`<option ${e.genre===r?"selected":""}>${r}</option>`).join("")}
+                                                        ${n.map(o=>`<option ${e.genre===o?"selected":""}>${o}</option>`).join("")}
                                                         <option value="other">Otro...</option>
                                                     </select>
                                                     <div id="custom-genre-container" class="hidden mt-2">
@@ -1286,7 +1302,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Secundario</label>
                                                     <select name="genre2" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(r=>`<option ${e.genre2===r?"selected":""}>${r}</option>`).join("")}
+                                                        ${n.map(o=>`<option ${e.genre2===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1294,7 +1310,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Terciario</label>
                                                     <select name="genre3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(r=>`<option ${e.genre3===r?"selected":""}>${r}</option>`).join("")}
+                                                        ${n.map(o=>`<option ${e.genre3===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1302,7 +1318,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 4</label>
                                                     <select name="genre4" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(r=>`<option ${e.genre4===r?"selected":""}>${r}</option>`).join("")}
+                                                        ${n.map(o=>`<option ${e.genre4===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1310,7 +1326,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 5</label>
                                                     <select name="genre5" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(r=>`<option ${e.genre5===r?"selected":""}>${r}</option>`).join("")}
+                                                        ${n.map(o=>`<option ${e.genre5===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
                                                 
@@ -1334,7 +1350,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Dueño</label>
                                                     <select name="owner" id="modal-owner" onchange="app.handlePriceChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none font-medium text-sm">
                                                         <option value="El Cuartito" ${e.owner==="El Cuartito"?"selected":""}>El Cuartito (Propio)</option>
-                                                        ${this.state.consignors.map(r=>`<option value="${r.name}" data-split="${r.split||r.agreementSplit||70}" ${e.owner===r.name?"selected":""}>${r.name} (${r.split||r.agreementSplit||70}%)</option>`).join("")}
+                                                        ${this.state.consignors.map(o=>`<option value="${o.name}" data-split="${o.split||o.agreementSplit||70}" ${e.owner===o.name?"selected":""}>${o.name} (${o.split||o.agreementSplit||70}%)</option>`).join("")}
                                                     </select>
                                                 </div>
                                                 <div class="col-span-3 md:col-span-1">
@@ -1343,15 +1359,15 @@ El inventario, gastos y socios NO serán afectados.
                                                 </div>
                                                 <div class="col-span-3 md:col-span-1">
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado del Vinilo</label>
-                                                    <select name="status" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option value="M" ${e.status==="M"?"selected":""}>Mint (M)</option>
-                                                        <option value="NM" ${e.status==="NM"?"selected":""}>Near Mint (NM)</option>
-                                                        <option value="VG+" ${e.status==="VG+"?"selected":""}>Very Good Plus (VG+)</option>
-                                                        <option value="VG" ${e.status==="VG"?"selected":""}>Very Good (VG)</option>
-                                                        <option value="G+" ${e.status==="G+"?"selected":""}>Good Plus (G+)</option>
-                                                        <option value="G" ${e.status==="G"?"selected":""}>Good (G)</option>
-                                                        <option value="F" ${e.status==="F"?"selected":""}>Fair (F)</option>
-                                                        <option value="P" ${e.status==="P"?"selected":""}>Poor (P)</option>
+                                                    <select name="condition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
+                                                        <option value="M" ${e.condition==="M"?"selected":""}>Mint (M)</option>
+                                                        <option value="NM" ${e.condition==="NM"?"selected":""}>Near Mint (NM)</option>
+                                                        <option value="VG+" ${e.condition==="VG+"?"selected":""}>Very Good Plus (VG+)</option>
+                                                        <option value="VG" ${e.condition==="VG"?"selected":""}>Very Good (VG)</option>
+                                                        <option value="G+" ${e.condition==="G+"?"selected":""}>Good Plus (G+)</option>
+                                                        <option value="G" ${e.condition==="G"?"selected":""}>Good (G)</option>
+                                                        <option value="F" ${e.condition==="F"?"selected":""}>Fair (F)</option>
+                                                        <option value="P" ${e.condition==="P"?"selected":""}>Poor (P)</option>
                                                     </select>
                                                 </div>
                                                 <div class="col-span-3 md:col-span-2">
@@ -1474,7 +1490,7 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                         </div>
                 </div>
-                `;document.body.insertAdjacentHTML("beforeend",a)},openProductModal(t){console.log("Attempting to open modal for:",t);try{const e=this.state.inventory.find(n=>n.sku===t);if(!e){console.error("Item not found:",t),alert("Error: No se encontró el disco. Intenta recargar.");return}const s=document.getElementById("modal-overlay");s&&s.remove();const o=`
+                `;document.body.insertAdjacentHTML("beforeend",a)},openProductModal(t){console.log("Attempting to open modal for:",t);try{const e=this.state.inventory.find(n=>n.sku===t);if(!e){console.error("Item not found:",t),alert("Error: No se encontró el disco. Intenta recargar.");return}const s=document.getElementById("modal-overlay");s&&s.remove();const r=`
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-fadeIn" style="animation: fadeIn 0.3s forwards;">
 
@@ -1532,22 +1548,28 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                             </div>
 
-                            <div class="pt-4 flex gap-3">
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${e.sku}')" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20">
+                            <div class="pt-4 flex flex-wrap gap-3">
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${e.sku}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                     Editar
                                 </button>
-                                ${e.discogsUrl?`<a href="${e.discogsUrl}" target="_blank" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
+                                <button id="refresh-metadata-btn" onclick="app.refreshProductMetadata('${e.id||e.sku}')" 
+                                    class="flex-1 min-w-[120px] bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100 text-sm"
+                                    title="Actualizar datos desde Discogs">
+                                    <i class="ph-bold ph-arrows-clockwise"></i>
+                                    Re-sync
+                                </button>
+                                ${e.discogsUrl?`<a href="${e.discogsUrl}" target="_blank" class="flex-1 min-w-[120px] bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-disc"></i> Discogs
-                                   </a>`:`<a href="https://www.discogs.com/search/?q=${encodeURIComponent(e.artist+" "+e.album)}&type=release" target="_blank" class="flex-1 bg-slate-50 text-slate-400 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                                   </a>`:`<a href="https://www.discogs.com/search/?q=${encodeURIComponent(e.artist+" "+e.album)}&type=release" target="_blank" class="flex-1 min-w-[120px] bg-slate-50 text-slate-400 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-magnifying-glass"></i> Buscar
                                    </a>`}
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${e.sku}')" class="flex-1 bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100">
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${e.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
                                     <i class="ph-bold ph-list-numbers"></i> Tracks
                                 </button>
-                                <button onclick="app.addToCart('${e.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20">
+                                <button onclick="app.addToCart('${e.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
                                     <i class="ph-bold ph-shopping-cart"></i>
-                                    Vender (Carrito)
+                                    Vender
                                 </button>
                                 <button onclick="app.deleteVinyl('${e.sku}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
                                     <i class="ph-bold ph-trash text-xl"></i>
@@ -1556,7 +1578,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-                `;document.body.insertAdjacentHTML("beforeend",o)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-price");if(s){const a=parseFloat(s)/100;if(a>0){const r=t/a;n.value=Math.ceil(r)}}else{const r=1-(parseFloat(o.value)||0)/100;if(r>0){const l=t/r;n.value=Math.ceil(l)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-cost"),a=document.getElementById("cost-helper");if(s){const r=parseFloat(s)/100,l=t*r;n.value=Math.round(l),o.value=100-parseFloat(s),o.readOnly=!0,o.classList.add("opacity-50"),a&&(a.innerText=`Consignación: ${s}% Socio`)}else{const r=parseFloat(n.value)||0;if(r>0&&t>0){const l=(t-r)/r*100;o.value=Math.round(l)}o.readOnly=!1,o.classList.remove("opacity-50"),a&&(a.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const o=e*(1+t/100);s.value=Math.ceil(o)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var o;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(o=e==null?void 0:e.querySelector("input"))==null||o.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
+                `;document.body.insertAdjacentHTML("beforeend",r)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),r=document.getElementById("modal-margin"),n=document.getElementById("modal-price");if(s){const a=parseFloat(s)/100;if(a>0){const o=t/a;n.value=Math.ceil(o)}}else{const o=1-(parseFloat(r.value)||0)/100;if(o>0){const l=t/o;n.value=Math.ceil(l)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),r=document.getElementById("modal-margin"),n=document.getElementById("modal-cost"),a=document.getElementById("cost-helper");if(s){const o=parseFloat(s)/100,l=t*o;n.value=Math.round(l),r.value=100-parseFloat(s),r.readOnly=!0,r.classList.add("opacity-50"),a&&(a.innerText=`Consignación: ${s}% Socio`)}else{const o=parseFloat(n.value)||0;if(o>0&&t>0){const l=(t-o)/o*100;r.value=Math.round(l)}r.readOnly=!1,r.classList.remove("opacity-50"),a&&(a.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const r=e*(1+t/100);s.value=Math.ceil(r)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var r;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(r=e==null?void 0:e.querySelector("input"))==null||r.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
                 <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
                     <div class="min-w-0 pr-2">
                         <p class="font-bold text-xs text-brand-dark truncate">${s.album}</p>
@@ -1587,7 +1609,7 @@ El inventario, gastos y socios NO serán afectados.
                                     ${this.state.cart.length>0?`
                                 <div class="flex justify-between items-center mb-4 pt-2 border-t border-slate-200">
                                     <span class="text-sm font-bold text-slate-500">Total</span>
-                                    <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s,o)=>s+o.price,0))}</span>
+                                    <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s,r)=>s+r.price,0))}</span>
                                 </div>
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
                                     <i class="ph-bold ph-check-circle"></i> Finalizar Compra Carrito
@@ -1699,7 +1721,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </form>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation(),this.openAddSaleModal(),setTimeout(()=>{const s=document.getElementById("sku-search");s.value=t,this.searchSku(t),setTimeout(()=>{const o=document.getElementById("sku-results").firstElementChild;o&&o.click()},500)},200)},openSaleDetailModal(t){var o,n;const e=this.state.sales.find(a=>a.id===t);if(!e)return;new Date(e.date);const s=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation(),this.openAddSaleModal(),setTimeout(()=>{const s=document.getElementById("sku-search");s.value=t,this.searchSku(t),setTimeout(()=>{const r=document.getElementById("sku-results").firstElementChild;r&&r.click()},500)},200)},openSaleDetailModal(t){var r,n;const e=this.state.sales.find(a=>a.id===t);if(!e)return;new Date(e.date);const s=`
                                                     <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
                                                         <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
                                                             <div class="bg-brand-dark p-6 text-white relative">
@@ -1738,7 +1760,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                         <div>
                                                                             <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Teléfono</label>
-                                                                            <p class="text-sm text-brand-dark font-medium">${((o=e.customer)==null?void 0:o.phone)||"-"}</p>
+                                                                            <p class="text-sm text-brand-dark font-medium">${((r=e.customer)==null?void 0:r.phone)||"-"}</p>
                                                                         </div>
                                                                         <div class="md:col-span-2 pt-2 border-t border-slate-200/50">
                                                                             <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Dirección de Entrega</label>
@@ -1804,7 +1826,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},navigateInventoryFolder(t,e){t==="genre"&&(this.state.filterGenre=e),t==="owner"&&(this.state.filterOwner=e),t==="label"&&(this.state.filterLabel=e),t==="storage"&&(this.state.filterStorage=e),this.refreshCurrentView()},toggleSelection(t){this.state.selectedItems.has(t)?this.state.selectedItems.delete(t):this.state.selectedItems.add(t),this.refreshCurrentView()},openPrintLabelModal(t){const e=this.state.inventory.find(o=>o.sku===t);if(!e)return;const s=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},navigateInventoryFolder(t,e){t==="genre"&&(this.state.filterGenre=e),t==="owner"&&(this.state.filterOwner=e),t==="label"&&(this.state.filterLabel=e),t==="storage"&&(this.state.filterStorage=e),this.refreshCurrentView()},toggleSelection(t){this.state.selectedItems.has(t)?this.state.selectedItems.delete(t):this.state.selectedItems.add(t),this.refreshCurrentView()},openPrintLabelModal(t){const e=this.state.inventory.find(r=>r.sku===t);if(!e)return;const s=`
                                                     <div id="print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                                                         <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-orange-100 overflow-hidden max-h-[90vh] flex flex-col relative">
 
@@ -1918,7 +1940,7 @@ El inventario, gastos y socios NO serán afectados.
                 }
                                                         </style>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},toggleSelectAll(){this.state.filterYear;const t=this.state.inventorySearch.toLowerCase(),e=this.state.inventory.filter(s=>{const o=this.state.filterGenre==="all"||s.genre===this.state.filterGenre,n=this.state.filterOwner==="all"||s.owner===this.state.filterOwner,a=this.state.filterLabel==="all"||s.label===this.state.filterLabel,r=this.state.filterStorage==="all"||s.storageLocation===this.state.filterStorage,l=!t||s.album.toLowerCase().includes(t)||s.artist.toLowerCase().includes(t)||s.sku.toLowerCase().includes(t);return o&&n&&a&&r&&l});this.state.selectedItems.size===e.length?this.state.selectedItems.clear():e.forEach(s=>this.state.selectedItems.add(s.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=v.batch(),e=[];this.state.selectedItems.forEach(s=>{const o=v.collection("products").doc(s),n=this.state.inventory.find(a=>a.sku===s);n&&e.push(n),t.delete(o)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},getFilteredInventory(){const t=(this.state.inventorySearch||"").toLowerCase(),e=this.state.filterGenre||"all",s=this.state.filterOwner||"all",r=this.state.filterLabel||"all",n=this.state.filterStorage||"all",a=this.state.filterDiscogs||"all";return this.state.inventory.filter(o=>{const l=!t||o.artist.toLowerCase().includes(t)||o.album.toLowerCase().includes(t)||o.sku.toLowerCase().includes(t),i=e==="all"||o.genre===e,d=s==="all"||o.owner===s,c=r==="all"||o.label===r,b=n==="all"||o.storageLocation===n,u=!!o.discogs_listing_id;return l&&i&&d&&c&&b&&(a==="all"||a==="yes"&&u||a==="no"&&!u)})},toggleSelectAll(){const t=this.getFilteredInventory();t.length>0&&t.every(e=>this.state.selectedItems.has(e.sku))?t.forEach(e=>this.state.selectedItems.delete(e.sku)):t.forEach(e=>this.state.selectedItems.add(e.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=v.batch(),e=[];this.state.selectedItems.forEach(s=>{const r=v.collection("products").doc(s),n=this.state.inventory.find(a=>a.sku===s);n&&e.push(n),t.delete(r)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
                                                     <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                                                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
                                                             <div class="flex justify-between items-center mb-4">
@@ -1943,7 +1965,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         <div>
                                                                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
                                                                             <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                                ${[...new Set([...t,...this.state.customCategories||[]])].map(o=>`<option>${o}</option>`).join("")}
+                                                                                ${[...new Set([...t,...this.state.customCategories||[]])].map(r=>`<option>${r}</option>`).join("")}
                                                                                 <option value="other">Otra...</option>
                                                                             </select>
                                                                         </div>
@@ -1965,7 +1987,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </form>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let o=s.get("genre");o==="other"&&(o=s.get("custom_genre"));let n=s.get("collection");n==="other"&&(n=s.get("custom_collection"));const a=s.get("sku"),r=s.get("publish_webshop")==="on",l=s.get("publish_discogs")==="on",i=s.get("publish_local")==="on",d={sku:a,artist:s.get("artist"),album:s.get("album"),genre:o,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:n||null,collectionNote:s.get("collectionNote")||null,condition:s.get("status"),sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:r,publish_webshop:r,publish_discogs:l,publish_local:i,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let c=null,b=null;if(e){const p=await this.findProductBySku(e);if(!p){this.showToast("❌ Producto no encontrado","error");return}b=p.data,c=p.id,await p.ref.update(d),this.showToast("✅ Disco actualizado")}else c=(await v.collection("products").add(d)).id,this.showToast("✅ Disco agregado al inventario");if(l){const p=s.get("discogs_release_id");if(b&&b.discogs_listing_id)try{const x=await(await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${b.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:d})})).json();if(x.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(x.error||"Error desconocido")}catch(u){console.error("Error updating Discogs listing:",u),this.showToast(`⚠️ Error Discogs: ${u.message}`,"error")}else if(p)try{const x=await(await fetch("https://el-cuartito-completo.onrender.com/discogs/create-listing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(p),product:d})})).json();if(x.success&&x.listingId)await v.collection("products").doc(c).update({discogs_listing_id:String(x.listingId),discogs_release_id:parseInt(p)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(x.error||"Error desconocido")}catch(u){console.error("Error creating Discogs listing:",u);let x=u.message;(x.toLowerCase().includes("mp3")||x.toLowerCase().includes("digital")||x.toLowerCase().includes("format"))&&(x="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${x}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(c){console.error(c),this.showToast("❌ Error: "+(c.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(o=>o.sku===t);if(!e){alert("Error: Item not found");return}const s=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let r=s.get("genre");r==="other"&&(r=s.get("custom_genre"));let n=s.get("collection");n==="other"&&(n=s.get("custom_collection"));const a=s.get("sku"),o=s.get("publish_webshop")==="on",l=s.get("publish_discogs")==="on",i=s.get("publish_local")==="on",d={sku:a,artist:s.get("artist"),album:s.get("album"),genre:r,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:n||null,collectionNote:s.get("collectionNote")||null,condition:s.get("condition"),sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:o,publish_webshop:o,publish_discogs:l,publish_local:i,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let c=null,b=null;if(e){const u=await this.findProductBySku(e);if(!u){this.showToast("❌ Producto no encontrado","error");return}b=u.data,c=u.id,await u.ref.update(d),this.showToast("✅ Disco actualizado")}else c=(await v.collection("products").add(d)).id,this.showToast("✅ Disco agregado al inventario");if(l){const u=s.get("discogs_release_id");if(b&&b.discogs_listing_id)try{const p=await(await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${b.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:d})})).json();if(p.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(p.error||"Error desconocido")}catch(g){console.error("Error updating Discogs listing:",g),this.showToast(`⚠️ Error Discogs: ${g.message}`,"error")}else if(u)try{const p=await(await fetch("https://el-cuartito-completo.onrender.com/discogs/create-listing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(u),product:d})})).json();if(p.success&&p.listingId)await v.collection("products").doc(c).update({discogs_listing_id:String(p.listingId),discogs_release_id:parseInt(u)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(p.error||"Error desconocido")}catch(g){console.error("Error creating Discogs listing:",g);let p=g.message;(p.toLowerCase().includes("mp3")||p.toLowerCase().includes("digital")||p.toLowerCase().includes("format"))&&(p="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${p}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(c){console.error(c),this.showToast("❌ Error: "+(c.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(r=>r.sku===t);if(!e){alert("Error: Item not found");return}const s=`
                                                     <div id="delete-confirm-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                                                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all">
                                                             <div class="flex items-center gap-4 mb-4">
@@ -1992,7 +2014,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const o=await this.findProductBySku(t);if(!o){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",o.data),console.log("Has discogs_listing_id?",o.data.discogs_listing_id),o.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",o.data.discogs_listing_id);try{const n=await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${o.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",n.status);const a=await n.json();console.log("Discogs delete result:",a),a.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(a.error||"Error en Discogs"),"warning")}catch(n){console.error("Error deleting from Discogs:",n),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await o.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(o){console.error("Error removing document: ",o),this.showToast("❌ Error al eliminar: "+o.message,"error")}},handleSaleSubmit(t){var h,f,y,m,g,w,$;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(h=document.getElementById("input-sku"))==null?void 0:h.value);let o=parseInt(e.get("quantity"));isNaN(o)&&(o=parseInt((f=document.getElementById("input-qty"))==null?void 0:f.value)||1);let n=parseFloat(e.get("price"));isNaN(n)&&(n=parseFloat((y=document.getElementById("input-price"))==null?void 0:y.value)||0),parseFloat(e.get("cost")),e.get("date")||new Date().toISOString();const a=e.get("paymentMethod");e.get("soldAt"),e.get("comment");let r=e.get("artist");r||(r=(m=document.getElementById("input-artist"))==null?void 0:m.value);let l=e.get("album");l||(l=(g=document.getElementById("input-album"))==null?void 0:g.value);let i=e.get("genre");i||(i=(w=document.getElementById("input-genre"))==null?void 0:w.value);let d=e.get("owner");d||(d=($=document.getElementById("input-owner"))==null?void 0:$.value);const c=e.get("customerName"),b=e.get("customerEmail"),p=e.get("requestInvoice")==="on",u=this.state.inventory.find(k=>k.sku===s);if(!u){alert(`Producto con SKU "${s}" no encontrado en inventario`);return}const x={items:[{recordId:u.id,quantity:o}],paymentMethod:a||"CASH",customerName:c||"Venta Manual",customerEmail:b||null,source:"STORE"};_.createSale(x).then(()=>{this.showToast(p?"Venta registrada (Factura Solicitada)":"Venta registrada");const k=document.getElementById("modal-overlay");k&&k.remove();const C=t.target;C&&C.reset();const E=document.getElementById("form-total");E&&(E.innerText="$0.00");const D=document.getElementById("sku-search");D&&(D.value=""),this.loadData()}).catch(k=>{console.error("Error adding sale: ",k),alert("Error al registrar venta: "+(k.message||""))})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(a=>a.channel==="online"),s=e.filter(a=>a.status==="completed"),o=e.filter(a=>a.status==="PENDING"),n=s.reduce((a,r)=>a+(parseFloat(r.total_amount||r.total)||0),0);t.innerHTML=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const r=await this.findProductBySku(t);if(!r){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",r.data),console.log("Has discogs_listing_id?",r.data.discogs_listing_id),r.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",r.data.discogs_listing_id);try{const n=await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${r.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",n.status);const a=await n.json();console.log("Discogs delete result:",a),a.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(a.error||"Error en Discogs"),"warning")}catch(n){console.error("Error deleting from Discogs:",n),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await r.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(r){console.error("Error removing document: ",r),this.showToast("❌ Error al eliminar: "+r.message,"error")}},handleSaleSubmit(t){var m,f,y,x,h,w,k;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(m=document.getElementById("input-sku"))==null?void 0:m.value);let r=parseInt(e.get("quantity"));isNaN(r)&&(r=parseInt((f=document.getElementById("input-qty"))==null?void 0:f.value)||1);let n=parseFloat(e.get("price"));isNaN(n)&&(n=parseFloat((y=document.getElementById("input-price"))==null?void 0:y.value)||0),parseFloat(e.get("cost")),e.get("date")||new Date().toISOString();const a=e.get("paymentMethod");e.get("soldAt"),e.get("comment");let o=e.get("artist");o||(o=(x=document.getElementById("input-artist"))==null?void 0:x.value);let l=e.get("album");l||(l=(h=document.getElementById("input-album"))==null?void 0:h.value);let i=e.get("genre");i||(i=(w=document.getElementById("input-genre"))==null?void 0:w.value);let d=e.get("owner");d||(d=(k=document.getElementById("input-owner"))==null?void 0:k.value);const c=e.get("customerName"),b=e.get("customerEmail"),u=e.get("requestInvoice")==="on",g=this.state.inventory.find($=>$.sku===s);if(!g){alert(`Producto con SKU "${s}" no encontrado en inventario`);return}const p={items:[{recordId:g.id,quantity:r}],paymentMethod:a||"CASH",customerName:c||"Venta Manual",customerEmail:b||null,source:"STORE"};_.createSale(p).then(()=>{this.showToast(u?"Venta registrada (Factura Solicitada)":"Venta registrada");const $=document.getElementById("modal-overlay");$&&$.remove();const C=t.target;C&&C.reset();const E=document.getElementById("form-total");E&&(E.innerText="$0.00");const I=document.getElementById("sku-search");I&&(I.value=""),this.loadData()}).catch($=>{console.error("Error adding sale: ",$),alert("Error al registrar venta: "+($.message||""))})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(a=>a.channel==="online"),s=e.filter(a=>a.status==="completed"),r=e.filter(a=>a.status==="PENDING"),n=s.reduce((a,o)=>a+(parseFloat(o.total_amount||o.total)||0),0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -2023,7 +2045,7 @@ El inventario, gastos y socios NO serán afectados.
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-2xl font-bold text-brand-dark">${o.length}</div>
+                            <div class="text-2xl font-bold text-brand-dark">${r.length}</div>
                             <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Pendientes</div>
                         </div>
                         <div class="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
@@ -2073,18 +2095,18 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(a=>{var l;const r=(l=a.timestamp)!=null&&l.toDate?a.timestamp.toDate():new Date(a.date||0);return{...a,_sortDate:r.getTime()}}).sort((a,r)=>r._sortDate-a._sortDate).map(a=>{var u,x,h,f,y,m,g;const r=a.customer||{},l=a.orderNumber||"N/A",i=(u=a.timestamp)!=null&&u.toDate?a.timestamp.toDate():new Date(a.date),c=((x=a.completed_at)!=null&&x.toDate?a.completed_at.toDate():null)||i,b={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},p={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
+                                ${e.map(a=>{var l;const o=(l=a.timestamp)!=null&&l.toDate?a.timestamp.toDate():new Date(a.date||0);return{...a,_sortDate:o.getTime()}}).sort((a,o)=>o._sortDate-a._sortDate).map(a=>{var g,p,m,f,y,x,h;const o=a.customer||{},l=a.orderNumber||"N/A",i=(g=a.timestamp)!=null&&g.toDate?a.timestamp.toDate():new Date(a.date),c=((p=a.completed_at)!=null&&p.toDate?a.completed_at.toDate():null)||i,b={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},u={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
                                         <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openOnlineSaleDetailModal('${a.id}')">
                                             <td class="px-6 py-4">
                                                 <div class="font-mono text-sm font-bold text-brand-orange">${l}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${r.name||(r.firstName?`${r.firstName} ${r.lastName||""}`:"")||((h=r.stripe_info)==null?void 0:h.name)||"Cliente"}</div>
-                                                <div class="text-xs text-slate-500">${r.email||((f=r.stripe_info)==null?void 0:f.email)||"No email"}</div>
+                                                <div class="font-semibold text-brand-dark">${o.name||(o.firstName?`${o.firstName} ${o.lastName||""}`:"")||((m=o.stripe_info)==null?void 0:m.name)||"Cliente"}</div>
+                                                <div class="text-xs text-slate-500">${o.email||((f=o.stripe_info)==null?void 0:f.email)||"No email"}</div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm text-slate-600 truncate max-w-[200px]">
-                                                    ${((y=r.shipping)==null?void 0:y.line1)||r.address||((g=(m=r.stripe_info)==null?void 0:m.shipping)==null?void 0:g.line1)||"Sin dirección"}
+                                                    ${((y=o.shipping)==null?void 0:y.line1)||o.address||((h=(x=o.stripe_info)==null?void 0:x.shipping)==null?void 0:h.line1)||"Sin dirección"}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -2106,7 +2128,7 @@ El inventario, gastos y socios NO serán afectados.
                                             </td>
                                             <td class="px-6 py-4">
                                                 <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${b[a.status]||"bg-slate-50 text-slate-700"}">
-                                                    ${p[a.status]||a.status}
+                                                    ${u[a.status]||a.status}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4">
@@ -2133,7 +2155,7 @@ El inventario, gastos y socios NO serán afectados.
                 `}
             </div>
         </div>
-    `},openOnlineSaleDetailModal(t){var i,d,c;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=e.customer||{},o=s.stripe_info||{},n=s.shipping||o.shipping||{},a={line1:n.line1||s.address||"Sin dirección",line2:n.line2||"",city:n.city||s.city||"",postal:n.postal_code||s.postalCode||"",country:n.country||s.country||"Denmark"},r=`
+    `},openOnlineSaleDetailModal(t){var i,d,c;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=e.customer||{},r=s.stripe_info||{},n=s.shipping||r.shipping||{},a={line1:n.line1||s.address||"Sin dirección",line2:n.line2||"",city:n.city||s.city||"",postal:n.postal_code||s.postalCode||"",country:n.country||s.country||"Denmark"},o=`
             <p class="font-medium">${a.line1}</p>
             ${a.line2?`<p class="font-medium">${a.line2}</p>`:""}
             <p class="text-slate-500">${a.postal} ${a.city}</p>
@@ -2207,12 +2229,12 @@ El inventario, gastos y socios NO serán afectados.
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
                                     <div class="text-brand-dark space-y-0.5">
-                                        ${r}
+                                        ${o}
                                     </div>
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Contacto</p>
-                                    <p class="font-medium text-brand-dark">${s.email||o.email||"Sin email"}</p>
+                                    <p class="font-medium text-brand-dark">${s.email||r.email||"Sin email"}</p>
                                 </div>
                             </div>
                         </div>
@@ -2289,14 +2311,14 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${(e.items||[]).map(b=>{var p,u,x;return`
+                                    ${(e.items||[]).map(b=>{var u,g,p;return`
                                         <tr>
                                             <td class="px-4 py-3">
-                                                <p class="font-bold text-brand-dark">${b.album||((p=b.record)==null?void 0:p.album)||"Unknown"}</p>
-                                                <p class="text-xs text-slate-500">${b.artist||((u=b.record)==null?void 0:u.artist)||""}</p>
+                                                <p class="font-bold text-brand-dark">${b.album||((u=b.record)==null?void 0:u.album)||"Unknown"}</p>
+                                                <p class="text-xs text-slate-500">${b.artist||((g=b.record)==null?void 0:g.artist)||""}</p>
                                             </td>
                                             <td class="px-4 py-3 text-center font-medium">${b.quantity||1}</td>
-                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(b.unitPrice||((x=b.record)==null?void 0:x.price)||0).toFixed(2)}</td>
+                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(b.unitPrice||((p=b.record)==null?void 0:p.price)||0).toFixed(2)}</td>
                                         </tr>
                                     `}).join("")}
                                 </tbody>
@@ -2316,13 +2338,13 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
             </div>
         </div>
-    `;document.body.insertAdjacentHTML("beforeend",l)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),o=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const n=this.state.cart.reduce((a,r)=>a+r.price,0);o.innerText=this.formatCurrency(n),s.innerHTML=this.state.cart.map((a,r)=>`
+    `;document.body.insertAdjacentHTML("beforeend",l)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),r=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const n=this.state.cart.reduce((a,o)=>a+o.price,0);r.innerText=this.formatCurrency(n),s.innerHTML=this.state.cart.map((a,o)=>`
                                                                 <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                                                                     <div class="truncate pr-2">
                                                                         <p class="font-bold text-xs text-brand-dark truncate">${a.album}</p>
                                                                         <p class="text-[10px] text-slate-500 truncate">${a.price} kr.</p>
                                                                     </div>
-                                                                    <button onclick="app.removeFromCart(${r})" class="text-red-400 hover:text-red-600">
+                                                                    <button onclick="app.removeFromCart(${o})" class="text-red-400 hover:text-red-600">
                                                                         <i class="ph-bold ph-x"></i>
                                                                     </button>
                                                                 </div>
@@ -2428,7 +2450,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </form>
                                                                     </div>
                                                                 </div>
-                                                                `;document.body.insertAdjacentHTML("beforeend",e);const s=t,o=document.getElementById("checkout-final-price"),n=document.getElementById("discogs-fee-section"),a=document.getElementById("discogs-fee-value"),r=()=>{const l=parseFloat(o.value)||0,i=s-l;document.getElementById("checkout-total-value").innerText=this.formatCurrency(l),i>0?(n.classList.remove("hidden"),a.innerText=`- kr. ${i.toFixed(0)}`):n.classList.add("hidden")};o.addEventListener("input",r)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,o=this.state.cart.reduce((a,r)=>a+r.price,0),n={items:this.state.cart.map(a=>({recordId:a.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:o,feeDeducted:o-s};_.createSale(n).then(()=>{const a=n.channel==="Discogs"?" (Discogs listing eliminado)":"",r=n.feeDeducted>0?` | Fee: ${this.formatCurrency(n.feeDeducted)}`:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${a}${r}`),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(a=>{console.error("Error checkout",a),alert("Error al procesar venta: "+a.message)})},handleSalesViewCheckout(){if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}this.openCheckoutModal()},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(o=>o.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const o=v.batch(),n=v.collection("sales").doc(t);if(o.delete(n),e.items&&Array.isArray(e.items))for(const a of e.items){const r=a.productId||a.recordId,l=a.sku||((s=a.record)==null?void 0:s.sku),i=parseInt(a.quantity||a.qty)||1;let d=null;if(r)try{const c=await v.collection("products").doc(r).get();c.exists&&(d={ref:c.ref,data:c.data()})}catch{console.warn("Could not find product by ID:",r)}!d&&l&&(d=await this.findProductBySku(l)),d?o.update(d.ref,{stock:firebase.firestore.FieldValue.increment(i)}):console.warn("Could not restore stock for item:",a)}else if(e.sku){const a=await this.findProductBySku(e.sku);if(a){const r=parseInt(e.quantity)||1;o.update(a.ref,{stock:firebase.firestore.FieldValue.increment(r)})}}await o.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(o){console.error("Error deleting sale:",o),this.showToast("❌ Error al eliminar venta: "+o.message,"error")}},renderExpenses(t){const e=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=[...new Set([...e,...this.state.customCategories||[]])],o=(this.state.expensesSearch||"").toLowerCase(),n=this.state.expenses.filter(l=>!o||(l.description||"").toLowerCase().includes(o)||(l.category||"").toLowerCase().includes(o)),a=`
+                                                                `;document.body.insertAdjacentHTML("beforeend",e);const s=t,r=document.getElementById("checkout-final-price"),n=document.getElementById("discogs-fee-section"),a=document.getElementById("discogs-fee-value"),o=()=>{const l=parseFloat(r.value)||0,i=s-l;document.getElementById("checkout-total-value").innerText=this.formatCurrency(l),i>0?(n.classList.remove("hidden"),a.innerText=`- kr. ${i.toFixed(0)}`):n.classList.add("hidden")};r.addEventListener("input",o)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,r=this.state.cart.reduce((a,o)=>a+o.price,0),n={items:this.state.cart.map(a=>({recordId:a.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:r,feeDeducted:r-s};_.createSale(n).then(()=>{const a=n.channel==="Discogs"?" (Discogs listing eliminado)":"",o=n.feeDeducted>0?` | Fee: ${this.formatCurrency(n.feeDeducted)}`:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${a}${o}`),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(a=>{console.error("Error checkout",a),alert("Error al procesar venta: "+a.message)})},handleSalesViewCheckout(){if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}this.openCheckoutModal()},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(r=>r.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const r=v.batch(),n=v.collection("sales").doc(t);if(r.delete(n),e.items&&Array.isArray(e.items))for(const a of e.items){const o=a.productId||a.recordId,l=a.sku||((s=a.record)==null?void 0:s.sku),i=parseInt(a.quantity||a.qty)||1;let d=null;if(o)try{const c=await v.collection("products").doc(o).get();c.exists&&(d={ref:c.ref,data:c.data()})}catch{console.warn("Could not find product by ID:",o)}!d&&l&&(d=await this.findProductBySku(l)),d?r.update(d.ref,{stock:firebase.firestore.FieldValue.increment(i)}):console.warn("Could not restore stock for item:",a)}else if(e.sku){const a=await this.findProductBySku(e.sku);if(a){const o=parseInt(e.quantity)||1;r.update(a.ref,{stock:firebase.firestore.FieldValue.increment(o)})}}await r.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(r){console.error("Error deleting sale:",r),this.showToast("❌ Error al eliminar venta: "+r.message,"error")}},renderExpenses(t){const e=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=[...new Set([...e,...this.state.customCategories||[]])],r=(this.state.expensesSearch||"").toLowerCase(),n=this.state.expenses.filter(l=>!r||(l.description||"").toLowerCase().includes(r)||(l.category||"").toLowerCase().includes(r)),a=`
                                                                 <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                                                                     <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Gastos Operativos</h2>
 
@@ -2531,7 +2553,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `;t.innerHTML=a;const r=t.querySelector('input[placeholder="Buscar gasto..."]');r&&(r.focus(),r.setSelectionRange(r.value.length,r.value.length))},editExpense(t){if(!confirm("¿Seguro que deseas editar este gasto?"))return;const e=this.state.expenses.find(o=>o.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-description").value=e.description,document.getElementById("expense-amount").value=e.amount,document.getElementById("hasVat").checked=e.hasVat;const s=document.getElementById("expense-category");[...s.options].some(o=>o.value===e.category)?s.value=e.category:(s.value="other",P.checkCustomInput(s,"custom-expense-category-container"),document.querySelector('[name="custom_category"]').value=e.category),document.getElementById("expense-form-title").innerText="Editar Gasto",document.getElementById("expense-submit-btn").innerText="Actualizar",document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-form-title").innerText="Nuevo Gasto",document.getElementById("expense-submit-btn").innerText="Guardar",document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("custom-expense-category-container").classList.add("hidden")},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target);let s=e.get("category");if(s==="other"&&(s=e.get("custom_category"),this.state.customCategories||(this.state.customCategories=[]),!this.state.customCategories.includes(s))){const a=[...this.state.customCategories,s];v.collection("settings").doc("general").set({customCategories:a},{merge:!0})}const o={description:e.get("description"),category:s,amount:parseFloat(e.get("amount")),hasVat:e.get("hasVat")==="on",date:new Date().toISOString()},n=e.get("id");if(n){const a=this.state.expenses.find(r=>r.id===n);a&&(o.date=a.date),v.collection("expenses").doc(n).update(o).then(()=>{this.showToast("✅ Gasto actualizado"),this.loadData()}).catch(r=>console.error(r))}else v.collection("expenses").add(o).then(()=>{this.showToast("✅ Gasto registrado"),this.loadData()}).catch(a=>console.error(a));this.resetExpenseForm()},deleteExpense(t){confirm("¿Eliminar este gasto?")&&v.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Gasto eliminado"),this.loadData()}).catch(e=>console.error(e))},renderConsignments(t){if(!t)return;const e=`
+                                                                `;t.innerHTML=a;const o=t.querySelector('input[placeholder="Buscar gasto..."]');o&&(o.focus(),o.setSelectionRange(o.value.length,o.value.length))},editExpense(t){if(!confirm("¿Seguro que deseas editar este gasto?"))return;const e=this.state.expenses.find(r=>r.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-description").value=e.description,document.getElementById("expense-amount").value=e.amount,document.getElementById("hasVat").checked=e.hasVat;const s=document.getElementById("expense-category");[...s.options].some(r=>r.value===e.category)?s.value=e.category:(s.value="other",A.checkCustomInput(s,"custom-expense-category-container"),document.querySelector('[name="custom_category"]').value=e.category),document.getElementById("expense-form-title").innerText="Editar Gasto",document.getElementById("expense-submit-btn").innerText="Actualizar",document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-form-title").innerText="Nuevo Gasto",document.getElementById("expense-submit-btn").innerText="Guardar",document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("custom-expense-category-container").classList.add("hidden")},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target);let s=e.get("category");if(s==="other"&&(s=e.get("custom_category"),this.state.customCategories||(this.state.customCategories=[]),!this.state.customCategories.includes(s))){const a=[...this.state.customCategories,s];v.collection("settings").doc("general").set({customCategories:a},{merge:!0})}const r={description:e.get("description"),category:s,amount:parseFloat(e.get("amount")),hasVat:e.get("hasVat")==="on",date:new Date().toISOString()},n=e.get("id");if(n){const a=this.state.expenses.find(o=>o.id===n);a&&(r.date=a.date),v.collection("expenses").doc(n).update(r).then(()=>{this.showToast("✅ Gasto actualizado"),this.loadData()}).catch(o=>console.error(o))}else v.collection("expenses").add(r).then(()=>{this.showToast("✅ Gasto registrado"),this.loadData()}).catch(a=>console.error(a));this.resetExpenseForm()},deleteExpense(t){confirm("¿Eliminar este gasto?")&&v.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Gasto eliminado"),this.loadData()}).catch(e=>console.error(e))},renderConsignments(t){if(!t)return;const e=`
                                                                 <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn">
                                                                     <div class="flex justify-between items-center mb-8">
                                                                         <h2 class="font-display text-2xl font-bold text-brand-dark">Socios y Consignación</h2>
@@ -2542,7 +2564,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                     </div>
 
                                                                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                                        ${this.state.consignors.map(s=>{const o=s.name,a=this.state.inventory.filter(c=>c.owner===o).reduce((c,b)=>c+b.stock,0),r=[];this.state.sales.forEach(c=>{(c.items||[]).filter(p=>{if((p.owner||"").toLowerCase()===o.toLowerCase())return!0;const u=this.state.inventory.find(x=>x.id===(p.productId||p.recordId));return u&&(u.owner||"").toLowerCase()===o.toLowerCase()}).forEach(p=>{const u=Number(p.priceAtSale||p.unitPrice||0),x=s.agreementSplit||s.split||70,h=u*x/100;r.push({...p,id:c.id,date:c.date,cost:p.costAtSale||p.cost||h,payoutStatus:c.payoutStatus||"pending",payoutDate:c.payoutDate||null})}),(!c.items||c.items.length===0)&&(c.owner||"").toLowerCase()===o.toLowerCase()&&r.push({...c,album:c.album||c.sku||"Record",cost:c.cost||(Number(c.total)||0)*(s.agreementSplit||70)/100})}),r.sort((c,b)=>new Date(b.date)-new Date(c.date)),r.reduce((c,b)=>c+(Number(b.qty||b.quantity)||1),0);const l=r.reduce((c,b)=>c+(Number(b.cost)||0),0),i=r.filter(c=>c.payoutStatus==="paid").reduce((c,b)=>c+(Number(b.cost)||0),0),d=l-i;return`
+                                                                        ${this.state.consignors.map(s=>{const r=s.name,a=this.state.inventory.filter(c=>c.owner===r).reduce((c,b)=>c+b.stock,0),o=[];this.state.sales.forEach(c=>{(c.items||[]).filter(u=>{if((u.owner||"").toLowerCase()===r.toLowerCase())return!0;const g=this.state.inventory.find(p=>p.id===(u.productId||u.recordId));return g&&(g.owner||"").toLowerCase()===r.toLowerCase()}).forEach(u=>{const g=Number(u.priceAtSale||u.unitPrice||0),p=s.agreementSplit||s.split||70,m=g*p/100;o.push({...u,id:c.id,date:c.date,cost:u.costAtSale||u.cost||m,payoutStatus:c.payoutStatus||"pending",payoutDate:c.payoutDate||null})}),(!c.items||c.items.length===0)&&(c.owner||"").toLowerCase()===r.toLowerCase()&&o.push({...c,album:c.album||c.sku||"Record",cost:c.cost||(Number(c.total)||0)*(s.agreementSplit||70)/100})}),o.sort((c,b)=>new Date(b.date)-new Date(c.date)),o.reduce((c,b)=>c+(Number(b.qty||b.quantity)||1),0);const l=o.reduce((c,b)=>c+(Number(b.cost)||0),0),i=o.filter(c=>c.payoutStatus==="paid").reduce((c,b)=>c+(Number(b.cost)||0),0),d=l-i;return`
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                             <div class="flex justify-between items-start mb-6">
                                 <div>
@@ -2573,7 +2595,7 @@ El inventario, gastos y socios NO serán afectados.
                                     <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(i)}</span>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                                    ${r.length>0?r.map(c=>`
+                                    ${o.length>0?o.map(c=>`
                                         <div class="flex items-center justify-between p-3 rounded-xl border ${c.payoutStatus==="paid"?"bg-slate-50 border-slate-100 opacity-60":"bg-white border-orange-100 shadow-sm"} transition-all">
                                             <div class="flex-1 min-w-0 pr-3">
                                                 <div class="font-bold text-xs truncate text-brand-dark">${c.album||c.sku}</div>
@@ -2635,7 +2657,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </form>
                                                                     </div>
 
-                                                                    `)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};v.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>{console.error(o),this.showToast("❌ Error al crear socio: "+o.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&v.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={vatActive:this.state.vatActive};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},renderVAT(t){const e=i=>i?i.toDate?i.toDate().getFullYear():new Date(i).getFullYear():0,s=this.state.sales.filter(i=>e(i.date)===this.state.filterYear),o=this.state.expenses.filter(i=>e(i.date)===this.state.filterYear);let n=0,a=0;this.state.vatActive&&(n=s.reduce((i,d)=>i+this.getVatComponent(d.total),0),a=o.filter(i=>i.hasVat).reduce((i,d)=>i+this.getVatComponent(d.amount),0));const r=n-a,l=`
+                                                                    `)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};v.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(r=>{console.error(r),this.showToast("❌ Error al crear socio: "+r.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&v.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={vatActive:this.state.vatActive};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},renderVAT(t){const e=i=>i?i.toDate?i.toDate().getFullYear():new Date(i).getFullYear():0,s=this.state.sales.filter(i=>e(i.date)===this.state.filterYear),r=this.state.expenses.filter(i=>e(i.date)===this.state.filterYear);let n=0,a=0;this.state.vatActive&&(n=s.reduce((i,d)=>i+this.getVatComponent(d.total),0),a=r.filter(i=>i.hasVat).reduce((i,d)=>i+this.getVatComponent(d.amount),0));const o=n-a,l=`
                                                                     <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 pt-6">
                                                                         <div class="flex justify-between items-center mb-6">
                                                                             <h2 class="font-display text-2xl font-bold text-brand-dark">Reporte VAT (Moms)</h2>
@@ -2651,8 +2673,8 @@ El inventario, gastos y socios NO serán afectados.
                                                                             <div class="absolute top-0 right-0 w-64 h-64 bg-brand-orange opacity-10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                                                                             <div class="relative z-10 text-center">
                                                                                 <p class="text-slate-400 font-medium mb-2">Balance VAT (${this.state.filterYear})</p>
-                                                                                <h2 class="text-6xl font-display font-bold mb-2">${this.formatCurrency(r)}</h2>
-                                                                                <p class="text-sm text-slate-400">${r>0?"A pagar a Skat":"A reclamar"}</p>
+                                                                                <h2 class="text-6xl font-display font-bold mb-2">${this.formatCurrency(o)}</h2>
+                                                                                <p class="text-sm text-slate-400">${o>0?"A pagar a Skat":"A reclamar"}</p>
                                                                             </div>
                                                                         </div>
 
@@ -2676,7 +2698,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                                 <div class="space-y-3">
                                                                                     <div class="flex justify-between text-sm">
                                                                                         <span class="text-slate-500">Gastos con VAT</span>
-                                                                                        <span class="font-medium">${this.formatCurrency(o.filter(i=>i.hasVat).reduce((i,d)=>i+d.amount,0))}</span>
+                                                                                        <span class="font-medium">${this.formatCurrency(r.filter(i=>i.hasVat).reduce((i,d)=>i+d.amount,0))}</span>
                                                                                     </div>
                                                                                     <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
                                                                                         <span class="font-bold text-green-600">Total Deducible</span>
@@ -2695,7 +2717,7 @@ El inventario, gastos y socios NO serán afectados.
                         Ir a Configuración →
                     </button>
                 </div>
-            `,e.classList.remove("hidden");return}e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(t)}&type=release&token=${s}`).then(o=>{if(o.status===401)throw new Error("Token inválido o expirado");if(!o.ok)throw new Error(`Error ${o.status}`);return o.json()}).then(o=>{o.results&&o.results.length>0?e.innerHTML=o.results.slice(0,10).map(n=>`
+            `,e.classList.remove("hidden");return}if(e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),/^\d+$/.test(t.trim())){this.fetchDiscogsById(t.trim());return}fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(t)}&type=release&token=${s}`).then(r=>{if(r.status===401)throw new Error("Token inválido o expirado");if(!r.ok)throw new Error(`Error ${r.status}`);return r.json()}).then(r=>{r.results&&r.results.length>0?e.innerHTML=r.results.slice(0,10).map(n=>`
                         <div onclick='app.handleDiscogsSelection(${JSON.stringify(n).replace(/'/g,"&#39;")})' class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
                             <img src="${n.thumb||"logo.jpg"}" class="w-12 h-12 rounded object-cover bg-slate-100 flex-shrink-0">
                             <div class="flex-1 min-w-0">
@@ -2705,31 +2727,31 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <i class="ph-bold ph-plus-circle text-brand-orange text-lg flex-shrink-0"></i>
                         </div>
-                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(o=>{console.error(o),e.innerHTML=`
+                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(r=>{console.error(r),e.innerHTML=`
                     <div class="text-center py-4 px-3">
-                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${o.message}</p>
+                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${r.message}</p>
                         <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
                             class="text-xs font-bold text-brand-orange hover:underline">
                             Verificar Token en Configuración →
                         </button>
                     </div>
-                `})},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(o=>{const n=document.getElementById(o);n&&(n.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",o=e.slice(1).join(" - ")||t.title,n=document.querySelector("#modal-overlay form");if(!n)return;if(n.artist&&(n.artist.value=s),n.album&&(n.album.value=o),n.year&&t.year&&(n.year.value=t.year),n.label&&t.label&&t.label.length>0&&(n.label.value=t.label[0]),t.thumb||t.cover_image){const l=t.cover_image||t.thumb,i=document.getElementById("input-cover-image"),d=document.getElementById("cover-preview");i&&(i.value=l),d&&(d.querySelector("img").src=l,d.classList.remove("hidden"))}const a=document.getElementById("input-discogs-release-id");a&&t.id&&(a.value=t.id);const r=localStorage.getItem("discogs_token");if(r&&t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`https://api.discogs.com/releases/${t.id}?token=${r}`).then(l=>l.json()).then(l=>{console.log("Full Discogs Release:",l);const i=[...l.styles||[],...l.genres||[]];console.log("ALL Genres/Styles from full release:",i);const d=[...new Set(i)];if(d.length>0){const h=n.querySelector('select[name="genre"]'),f=n.querySelector('select[name="genre2"]'),y=n.querySelector('select[name="genre3"]'),m=n.querySelector('select[name="genre4"]'),g=n.querySelector('select[name="genre5"]'),w=[h,f,y,m,g];d.slice(0,5).forEach(($,k)=>{if(w[k]){let C=!1;for(let E of w[k].options)if(E.value===$){w[k].value=$,C=!0;break}if(!C){const E=document.createElement("option");E.value=$,E.text=$,E.selected=!0,w[k].add(E)}}}),this.showToast(`✅ ${d.length} géneros cargados`,"success")}if(l.images&&l.images.length>0){const h=l.images[0].uri,f=document.getElementById("input-cover-image"),y=document.getElementById("cover-preview");f&&(f.value=h),y&&(y.querySelector("img").src=h)}const c=document.getElementById("tracklist-preview"),b=document.getElementById("tracklist-preview-content");c&&b&&l.tracklist&&l.tracklist.length>0&&(b.innerHTML=l.tracklist.map(h=>`
+                `})},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(r=>{const n=document.getElementById(r);n&&(n.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",r=e.slice(1).join(" - ")||t.title,n=document.querySelector("#modal-overlay form");if(!n)return;if(n.artist&&(n.artist.value=s),n.album&&(n.album.value=r),n.year&&t.year&&(n.year.value=t.year),n.label&&t.label&&t.label.length>0&&(n.label.value=t.label[0]),t.thumb||t.cover_image){const l=t.cover_image||t.thumb,i=document.getElementById("input-cover-image"),d=document.getElementById("cover-preview");i&&(i.value=l),d&&(d.querySelector("img").src=l,d.classList.remove("hidden"))}const a=document.getElementById("input-discogs-release-id");a&&t.id&&(a.value=t.id);const o=localStorage.getItem("discogs_token");if(o&&t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`https://api.discogs.com/releases/${t.id}?token=${o}`).then(l=>l.json()).then(l=>{console.log("Full Discogs Release:",l);const i=[...l.styles||[],...l.genres||[]];console.log("ALL Genres/Styles from full release:",i);const d=[...new Set(i)];if(d.length>0){const m=n.querySelector('select[name="genre"]'),f=n.querySelector('select[name="genre2"]'),y=n.querySelector('select[name="genre3"]'),x=n.querySelector('select[name="genre4"]'),h=n.querySelector('select[name="genre5"]'),w=[m,f,y,x,h];d.slice(0,5).forEach((k,$)=>{if(w[$]){let C=!1;for(let E of w[$].options)if(E.value===k){w[$].value=k,C=!0;break}if(!C){const E=document.createElement("option");E.value=k,E.text=k,E.selected=!0,w[$].add(E)}}}),this.showToast(`✅ ${d.length} géneros cargados`,"success")}if(l.images&&l.images.length>0){const m=l.images[0].uri,f=document.getElementById("input-cover-image"),y=document.getElementById("cover-preview");f&&(f.value=m),y&&(y.querySelector("img").src=m)}const c=document.getElementById("tracklist-preview"),b=document.getElementById("tracklist-preview-content");c&&b&&l.tracklist&&l.tracklist.length>0&&(b.innerHTML=l.tracklist.map(m=>`
                             <div class="flex items-center gap-2 py-1 border-b border-slate-100 last:border-0">
-                                <span class="text-[10px] font-mono text-slate-400 w-6">${h.position||""}</span>
-                                <span class="flex-1">${h.title}</span>
-                                <span class="text-[10px] text-slate-400">${h.duration||""}</span>
+                                <span class="text-[10px] font-mono text-slate-400 w-6">${m.position||""}</span>
+                                <span class="flex-1">${m.title}</span>
+                                <span class="text-[10px] text-slate-400">${m.duration||""}</span>
                             </div>
-                        `).join(""),c.classList.remove("hidden"));const p=document.getElementById("price-suggestions-preview"),u=document.getElementById("price-suggestions-content"),x=document.getElementById("discogs-release-link");if(x&&l.uri){const h=l.uri.startsWith("http")?l.uri:"https://www.discogs.com"+l.uri;x.href=h,x.classList.remove("hidden")}p&&u&&(u.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',p.classList.remove("hidden"),fetch(`${T}/discogs/price-suggestions/${t.id}`).then(f=>f.json()).then(f=>{if(f.success&&f.suggestions){const y=f.suggestions,m=y.currency==="DKK"?" kr.":y.currency==="USD"?" $":" "+y.currency,g=(w,$)=>{const k=y[$];return`
+                        `).join(""),c.classList.remove("hidden"));const u=document.getElementById("price-suggestions-preview"),g=document.getElementById("price-suggestions-content"),p=document.getElementById("discogs-release-link");if(p&&l.uri){const m=l.uri.startsWith("http")?l.uri:"https://www.discogs.com"+l.uri;p.href=m,p.classList.remove("hidden")}u&&g&&(g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',u.classList.remove("hidden"),fetch(`${D}/discogs/price-suggestions/${t.id}`).then(f=>f.json()).then(f=>{if(f.success&&f.suggestions){const y=f.suggestions,x=y.currency==="DKK"?" kr.":y.currency==="USD"?" $":" "+y.currency,h=(w,k)=>{const $=y[k];return`
                                             <div class="bg-white p-2 rounded-lg border border-brand-orange/10">
                                                 <span class="text-[9px] text-slate-400 block leading-none mb-1">${w}</span>
-                                                <span class="font-bold text-brand-dark">${k?k.value.toFixed(0)+m:"N/A"}</span>
+                                                <span class="font-bold text-brand-dark">${$?$.value.toFixed(0)+x:"N/A"}</span>
                                             </div>
-                                        `};u.innerHTML=`
-                                        ${g("Mint (M)","Mint (M)")}
-                                        ${g("Near Mint (NM)","Near Mint (NM or M-)")}
-                                        ${g("Very Good Plus (VG+)","Very Good Plus (VG+)")}
-                                        ${g("Very Good (VG)","Very Good (VG)")}
-                                    `}else u.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(f=>{console.error("Price suggestion error:",f),u.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(l=>{console.error("Error fetching full release:",l),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const l=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",l);const i=[...new Set(l)];if(i.length>0){const d=n.querySelector('select[name="genre"]');if(d){const c=i[0];let b=!1;for(let p of d.options)if(p.value===c){d.value=c,b=!0;break}if(!b){const p=document.createElement("option");p.value=c,p.text=c,p.selected=!0,d.add(p)}}}}if(t.uri||t.resource_url){const l=t.uri||t.resource_url,i=l.startsWith("http")?l:"https://www.discogs.com"+l,d=document.getElementById("input-discogs-url");d&&(d.value=i)}if(t.id){const l=document.getElementById("input-discogs-id");l&&(l.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(a=>a.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
+                                        `};g.innerHTML=`
+                                        ${h("Mint (M)","Mint (M)")}
+                                        ${h("Near Mint (NM)","Near Mint (NM or M-)")}
+                                        ${h("Very Good Plus (VG+)","Very Good Plus (VG+)")}
+                                        ${h("Very Good (VG)","Very Good (VG)")}
+                                    `}else g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(f=>{console.error("Price suggestion error:",f),g.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(l=>{console.error("Error fetching full release:",l),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const l=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",l);const i=[...new Set(l)];if(i.length>0){const d=n.querySelector('select[name="genre"]');if(d){const c=i[0];let b=!1;for(let u of d.options)if(u.value===c){d.value=c,b=!0;break}if(!b){const u=document.createElement("option");u.value=c,u.text=c,u.selected=!0,d.add(u)}}}}if(t.uri||t.resource_url){const l=t.uri||t.resource_url,i=l.startsWith("http")?l:"https://www.discogs.com"+l,d=document.getElementById("input-discogs-url");d&&(d.value=i)}if(t.id){const l=document.getElementById("input-discogs-id");l&&(l.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(a=>a.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
                                                                 <div id="tracklist-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                                                                     <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl relative animate-fadeIn">
                                                                         <h3 class="font-display text-xl font-bold text-brand-dark mb-4">Lista de Temas (Tracklist)</h3>
@@ -2739,7 +2761,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `);const n=a=>{const r=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/releases/${a}?token=${r}`).then(l=>{if(!l.ok)throw new Error("Release not found");return l.json()}).then(l=>{const i=l.tracklist||[],d=i.map(b=>`
+                                                                `);const n=a=>{const o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/releases/${a}?token=${o}`).then(l=>{if(!l.ok)throw new Error("Release not found");return l.json()}).then(l=>{const i=l.tracklist||[],d=i.map(b=>`
                                                                 <div class="flex items-center justify-between py-3 border-b border-slate-50 hover:bg-slate-50 px-2 transition-colors rounded-lg group">
                                                                     <div class="flex items-center gap-3">
                                                                         <span class="text-xs font-mono font-bold text-slate-400 w-8">${b.position}</span>
@@ -2778,7 +2800,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                                                                     </div>
                                                                 </div>
-                                                                `})};if(s)n(s);else{const a=`${e.artist} - ${e.album}`,r=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(a)}&type=release&token=${r}`).then(l=>l.json()).then(l=>{if(l.results&&l.results.length>0)n(l.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
+                                                                `})};if(s)n(s);else{const a=`${e.artist} - ${e.album}`,o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(a)}&type=release&token=${o}`).then(l=>l.json()).then(l=>{if(l.results&&l.results.length>0)n(l.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
                          <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
                             <div class="text-center py-6">
                                 <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-orange">
@@ -2789,7 +2811,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                             </div>
                         </div>
-                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(i=>i.channel==="discogs"),s=i=>parseFloat(i.total)||0,o=i=>parseFloat(i.originalTotal)||parseFloat(i.total)+(parseFloat(i.discogsFee||0)+parseFloat(i.paypalFee||0)),n=i=>o(i)-s(i),a=e.reduce((i,d)=>i+s(d),0),r=e.reduce((i,d)=>i+n(d),0),l=e.reduce((i,d)=>{const c=s(d);let b=0;return d.items&&Array.isArray(d.items)&&(b=d.items.reduce((p,u)=>{const x=parseFloat(u.costAtSale||0),h=parseInt(u.qty||u.quantity)||1;return p+x*h},0)),i+(c-b)},0);t.innerHTML=`
+                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(i=>i.channel==="discogs"),s=i=>parseFloat(i.total)||0,r=i=>parseFloat(i.originalTotal)||parseFloat(i.total)+(parseFloat(i.discogsFee||0)+parseFloat(i.paypalFee||0)),n=i=>r(i)-s(i),a=e.reduce((i,d)=>i+s(d),0),o=e.reduce((i,d)=>i+n(d),0),l=e.reduce((i,d)=>{const c=s(d);let b=0;return d.items&&Array.isArray(d.items)&&(b=d.items.reduce((u,g)=>{const p=parseFloat(g.costAtSale||0),m=parseInt(g.qty||g.quantity)||1;return u+p*m},0)),i+(c-b)},0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -2820,7 +2842,7 @@ El inventario, gastos y socios NO serán afectados.
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-2xl font-bold text-red-600">${this.formatCurrency(r)}</div>
+                            <div class="text-2xl font-bold text-red-600">${this.formatCurrency(o)}</div>
                             <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Fees Acumulados</div>
                         </div>
                         <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
@@ -2873,8 +2895,8 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(i=>{var c;const d=(c=i.timestamp)!=null&&c.toDate?i.timestamp.toDate():i.date?new Date(i.date):new Date(0);return{...i,_sortDate:d.getTime()}}).sort((i,d)=>d._sortDate-i._sortDate).map(i=>{var x;const d=(x=i.timestamp)!=null&&x.toDate?i.timestamp.toDate():new Date(i.date),c=i.items&&i.items[0],b=i.originalTotal||i.total+(i.discogsFee||0)+(i.paypalFee||0);i.discogsFee,i.paypalFee;const p=i.total,u=i.status==="pending_review"||i.needsReview;return`
-                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${u?"bg-orange-50/50":""}">
+                                ${e.map(i=>{var c;const d=(c=i.timestamp)!=null&&c.toDate?i.timestamp.toDate():i.date?new Date(i.date):new Date(0);return{...i,_sortDate:d.getTime()}}).sort((i,d)=>d._sortDate-i._sortDate).map(i=>{var p;const d=(p=i.timestamp)!=null&&p.toDate?i.timestamp.toDate():new Date(i.date),c=i.items&&i.items[0],b=i.originalTotal||i.total+(i.discogsFee||0)+(i.paypalFee||0);i.discogsFee,i.paypalFee;const u=i.total,g=i.status==="pending_review"||i.needsReview;return`
+                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${g?"bg-orange-50/50":""}">
                                             <td class="px-6 py-4 text-sm text-slate-600">${d.toLocaleDateString("es-ES")}</td>
                                             <td class="px-6 py-4">
                                                 <div class="font-bold text-brand-dark text-sm truncate max-w-[200px]">${(c==null?void 0:c.album)||"Producto"}</div>
@@ -2885,22 +2907,22 @@ El inventario, gastos y socios NO serán afectados.
                                                 ${i.discogs_order_id?`<div class="text-[10px] text-purple-600 font-medium">Order: ${i.discogs_order_id}</div>`:""}
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(b-p)}</div>
+                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(b-u)}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">
-                                                    ${b>0?`(${((b-p)/b*100).toFixed(1)}%)`:""}
+                                                    ${b>0?`(${((b-u)/b*100).toFixed(1)}%)`:""}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-sm font-bold text-brand-dark">${this.formatCurrency(p)}</div>
+                                                <div class="text-sm font-bold text-brand-dark">${this.formatCurrency(u)}</div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="flex flex-col gap-2">
-                                                    ${u?`
+                                                    ${g?`
                                                         <span class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider text-center">Pendiente</span>
                                                     `:`
                                                         <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider text-center">Confirmado</span>
                                                     `}
-                                                    <button onclick="app.openUpdateSaleValueModal('${i.id}', ${b}, ${p})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
+                                                    <button onclick="app.openUpdateSaleValueModal('${i.id}', ${b}, ${u})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
                                                         <i class="ph-bold ph-pencil-simple"></i> Editar Neto
                                                     </button>
                                                 </div>
@@ -2982,7 +3004,134 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,o=e-s,n=e>0?o/e*100:0,a=document.getElementById("modal-fee-display"),r=document.getElementById("modal-fee-value");if(o>0){a.classList.remove("hidden"),r.innerText=`- kr. ${o.toFixed(2)}`;const l=document.getElementById("modal-fee-percent");l&&(l.innerText=`${n.toFixed(1)}%`)}else a.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const n=new FormData(t.target).get("netReceived"),a=document.getElementById("update-sale-submit-btn");if(n){a.disabled=!0,a.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const r=T,l=await M.currentUser.getIdToken(),i=await fetch(`${r}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${l}`},body:JSON.stringify({netReceived:n})}),d=i.headers.get("content-type");if(!d||!d.includes("application/json")){const b=await i.text();throw console.error("Non-JSON response received:",b),new Error(`Server returned non-JSON response (${i.status})`)}const c=await i.json();if(c.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(c.error||"Error al actualizar")}catch(r){console.error("Update sale error:",r),this.showToast(`❌ Error: ${r.message}`),a.disabled=!1,a.innerText="Confirmar Ajuste"}}},renderShipping(t){const e=this.state.sales.filter(a=>a.channel==="online"||a.fulfillment_status==="shipped"||a.shipment&&a.shipment.tracking_number),s=e.filter(a=>a.status==="completed"||a.status==="paid"||a.status==="ready_for_pickup"),o=e.filter(a=>a.status==="shipped"),n=`
+        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,r=e-s,n=e>0?r/e*100:0,a=document.getElementById("modal-fee-display"),o=document.getElementById("modal-fee-value");if(r>0){a.classList.remove("hidden"),o.innerText=`- kr. ${r.toFixed(2)}`;const l=document.getElementById("modal-fee-percent");l&&(l.innerText=`${n.toFixed(1)}%`)}else a.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const n=new FormData(t.target).get("netReceived"),a=document.getElementById("update-sale-submit-btn");if(n){a.disabled=!0,a.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const o=D,l=await j.currentUser.getIdToken(),i=await fetch(`${o}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${l}`},body:JSON.stringify({netReceived:n})}),d=i.headers.get("content-type");if(!d||!d.includes("application/json")){const b=await i.text();throw console.error("Non-JSON response received:",b),new Error(`Server returned non-JSON response (${i.status})`)}const c=await i.json();if(c.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(c.error||"Error al actualizar")}catch(o){console.error("Update sale error:",o),this.showToast(`❌ Error: ${o.message}`),a.disabled=!1,a.innerText="Confirmar Ajuste"}}},renderPickups(t){const e=this.state.sales.filter(o=>{var l;return o.channel==="online"&&(((l=o.shipping_method)==null?void 0:l.id)==="local_pickup"||o.shipping_cost===0&&o.status!=="failed")}),s=e.filter(o=>o.status==="completed"||o.status==="paid"||o.status==="paid_pending"),r=e.filter(o=>o.status==="ready_for_pickup"),n=e.filter(o=>o.status==="shipped"||o.status==="delivered"),a=`
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">Gestión de Retiros</h2>
+                        <p class="text-slate-500 text-sm">Administra los pedidos para retirar en tienda.</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="bg-blue-100 text-blue-600 px-4 py-2 rounded-xl border border-blue-200 flex items-center gap-3">
+                            <i class="ph-fill ph-storefront text-xl"></i>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold leading-none">Pendientes</p>
+                                <p class="text-xl font-display font-bold">${s.length}</p>
+                            </div>
+                        </div>
+                        <div class="bg-green-100 text-green-600 px-4 py-2 rounded-xl border border-green-200 flex items-center gap-3">
+                            <i class="ph-fill ph-check-circle text-xl"></i>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold leading-none">Listos</p>
+                                <p class="text-xl font-display font-bold">${r.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Pickups -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
+                    <div class="p-6 border-b border-orange-50 bg-orange-50/30">
+                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-clock-counter-clockwise text-brand-orange"></i> Retiros Pendientes de Preparar
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                <tr>
+                                    <th class="p-4">Orden</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Items</th>
+                                    <th class="p-4">Fecha Pago</th>
+                                    <th class="p-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${s.length===0?`
+                                    <tr>
+                                        <td colspan="5" class="p-12 text-center text-slate-400 italic">No hay retiros pendientes.</td>
+                                    </tr>
+                                `:s.map(o=>{var l,i;return`
+                                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${o.id}')">
+                                        <td class="p-4 text-sm font-bold text-brand-orange">#${o.id.slice(0,8)}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((l=o.customer)==null?void 0:l.name)||o.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-xs text-slate-500">${((i=o.items)==null?void 0:i.length)||0} items</td>
+                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(o.date)}</td>
+                                        <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                            <button onclick="app.setReadyForPickup('${o.id}')" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
+                                                <i class="ph-bold ph-bell"></i> Notificar Listo
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `}).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ready for Pickup -->
+                <div class="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden mb-8">
+                    <div class="p-6 border-b border-green-50 bg-green-50/30">
+                        <h3 class="font-bold text-green-700 flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle"></i> Listos para Retiro (Avisados)
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                <tr>
+                                    <th class="p-4">Orden</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Fecha Aviso</th>
+                                    <th class="p-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${r.length===0?`
+                                    <tr>
+                                        <td colspan="4" class="p-12 text-center text-slate-400 italic">No hay pedidos esperando retiro.</td>
+                                    </tr>
+                                `:r.map(o=>{var l,i;return`
+                                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${o.id}')">
+                                        <td class="p-4 text-sm font-bold text-brand-orange">#${o.id.slice(0,8)}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((l=o.customer)==null?void 0:l.name)||o.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate((i=o.updated_at)!=null&&i.toDate?o.updated_at.toDate():o.updated_at||o.date)}</td>
+                                        <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                            <button onclick="app.markAsDelivered('${o.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
+                                                <i class="ph-bold ph-hand-tap"></i> Marcar Entregado
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `}).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Deliveries -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden opacity-75">
+                    <div class="p-6 bg-slate-50/50 border-b border-slate-100">
+                        <h3 class="font-bold text-slate-500">Entregas Recientes</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <tbody class="divide-y divide-slate-50">
+                                ${n.slice(0,10).map(o=>`
+                                    <tr>
+                                        <td class="p-4 text-sm font-medium text-slate-400">#${o.id.slice(0,8)}</td>
+                                        <td class="p-4 text-sm text-slate-500">${o.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-right">
+                                            <span class="px-2 py-1 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">Entregado</span>
+                                        </td>
+                                    </tr>
+                                `).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;t.innerHTML=a},async setReadyForPickup(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");if(s&&(s.disabled=!0),(await fetch(`${D}/shipping/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})})).ok)this.showToast("✅ Cliente notificado - El pedido está listo para retiro"),await this.loadData(),this.refreshCurrentView();else throw new Error("Error al notificar")}catch(s){this.showToast("❌ error: "+s.message,"error")}},async markAsDelivered(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");s&&(s.disabled=!0),await v.collection("sales").doc(t).update({status:"shipped",fulfillment_status:"delivered",updated_at:admin.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido entregado"),await this.loadData(),this.refreshCurrentView()}catch(s){this.showToast("❌ Error: "+s.message,"error")}},renderShipping(t){const e=this.state.sales.filter(a=>{var o;return a.channel==="online"&&((o=a.shipping_method)==null?void 0:o.id)!=="local_pickup"||a.fulfillment_status==="shipped"||a.shipment&&a.shipment.tracking_number}),s=e.filter(a=>a.status==="completed"||a.status==="paid"||a.status==="ready_for_pickup"),r=e.filter(a=>a.status==="shipped"),n=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -2990,6 +3139,13 @@ El inventario, gastos y socios NO serán afectados.
                         <p class="text-slate-500 text-sm">Administra y notifica el estado de tus despachos online.</p>
                     </div>
                     <div class="flex gap-4">
+                        <div class="bg-indigo-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 flex items-center gap-4">
+                            <i class="ph-fill ph-hand-coins text-2xl opacity-80"></i>
+                            <div>
+                                <p class="text-[10px] text-indigo-100 font-bold uppercase leading-none mb-1">Dinero acumulado para envíos</p>
+                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((a,o)=>a+parseFloat(o.shipping||o.shipping_cost||0),0))}</p>
+                            </div>
+                        </div>
                         <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
                             <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
                             <div>
@@ -3026,15 +3182,15 @@ El inventario, gastos y socios NO serán afectados.
                                                 <p class="text-slate-400 italic">No hay envíos pendientes. ¡Todo al día! 🎉</p>
                                             </td>
                                         </tr>
-                                    `:s.sort((a,r)=>{var l,i;return new Date((l=r.timestamp)!=null&&l.toDate?r.timestamp.toDate():r.timestamp)-new Date((i=a.timestamp)!=null&&i.toDate?a.timestamp.toDate():a.timestamp)}).map(a=>{const r=this.getCustomerInfo(a);return`
+                                    `:s.sort((a,o)=>{var l,i;return new Date((l=o.timestamp)!=null&&l.toDate?o.timestamp.toDate():o.timestamp)-new Date((i=a.timestamp)!=null&&i.toDate?a.timestamp.toDate():a.timestamp)}).map(a=>{const o=this.getCustomerInfo(a);return`
                                         <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${a.id}')">
                                             <td class="p-4 text-sm font-bold text-brand-orange">#${a.id.slice(0,8)}</td>
                                             <td class="p-4">
-                                                <div class="text-sm font-bold text-brand-dark">${r.name}</div>
+                                                <div class="text-sm font-bold text-brand-dark">${o.name}</div>
                                             </td>
-                                            <td class="p-4 text-sm text-slate-500">${r.email}</td>
+                                            <td class="p-4 text-sm text-slate-500">${o.email}</td>
                                             <td class="p-4">
-                                                <div class="text-xs text-slate-600 truncate max-w-[200px]">${r.address}</div>
+                                                <div class="text-xs text-slate-600 truncate max-w-[200px]">${o.address}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">${a.city||""} ${a.country||""}</div>
                                             </td>
                                             <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(a.date)}</td>
@@ -3076,10 +3232,10 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                 ${o.slice(0,10).sort((a,r)=>{var l,i;return new Date((l=r.updated_at)!=null&&l.toDate?r.updated_at.toDate():r.updated_at)-new Date((i=a.updated_at)!=null&&i.toDate?a.updated_at.toDate():a.updated_at)}).map(a=>{var l;const r=this.getCustomerInfo(a);return`
+                                 ${r.slice(0,10).sort((a,o)=>{var l,i;return new Date((l=o.updated_at)!=null&&l.toDate?o.updated_at.toDate():o.updated_at)-new Date((i=a.updated_at)!=null&&i.toDate?a.updated_at.toDate():a.updated_at)}).map(a=>{var l;const o=this.getCustomerInfo(a);return`
                                     <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${a.id}')">
                                         <td class="p-4 text-sm font-medium text-slate-400">#${a.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm text-slate-500">${r.name}</td>
+                                        <td class="p-4 text-sm text-slate-500">${o.name}</td>
                                         <td class="p-4 text-sm font-mono text-slate-400">${((l=a.shipment)==null?void 0:l.tracking_number)||"-"}</td>
                                         <td class="p-4 text-right">
                                             <span class="px-2 py-1 rounded bg-green-100 text-green-600 text-[10px] font-bold uppercase">Enviado</span>
@@ -3091,4 +3247,38 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=n}};window.app=P;document.addEventListener("DOMContentLoaded",()=>{P.init()});
+        `;t.innerHTML=n},fetchDiscogsById(t=null){const e=t||document.getElementById("discogs-search-input").value.trim(),s=document.getElementById("discogs-results");if(!e||!/^\d+$/.test(e)){this.showToast("⚠️ Ingresa un ID numérico válido","error");return}const r=localStorage.getItem("discogs_token");if(!r){this.showToast("⚠️ Token no configurado","error");return}s&&(s.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>',s.classList.remove("hidden")),fetch(`https://api.discogs.com/releases/${e}?token=${r}`).then(n=>{if(!n.ok)throw new Error(`Error ${n.status}`);return n.json()}).then(n=>{var o;const a={id:n.id,title:`${n.artists_sort||((o=n.artists[0])==null?void 0:o.name)} - ${n.title}`,year:n.year,thumb:n.thumb,cover_image:n.images?n.images[0].uri:null,label:n.labels?[n.labels[0].name]:[],format:n.formats?[n.formats[0].name]:[]};this.handleDiscogsSelection(a),s&&s.classList.add("hidden"),this.showToast("✅ Datos importados con éxito")}).catch(n=>{console.error(n),this.showToast("❌ Error al importar ID: "+n.message,"error"),s&&s.classList.add("hidden")})},openBulkImportModal(){const t=document.createElement("div");t.id="bulk-import-modal",t.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",t.innerHTML=`
+            <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                <div class="bg-emerald-500 p-6 text-white flex justify-between items-center">
+                    <div>
+                        <h3 class="font-display text-2xl font-bold">Carga Masiva (CSV)</h3>
+                        <p class="text-emerald-100 text-sm">Pega el contenido de tu archivo CSV aquí.</p>
+                    </div>
+                    <button onclick="document.getElementById('bulk-import-modal').remove()" class="text-white/80 hover:text-white transition-colors">
+                        <i class="ph-bold ph-x text-2xl"></i>
+                    </button>
+                </div>
+                <div class="p-8 space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">Contenido del CSV</label>
+                        <textarea id="bulk-csv-data" rows="10" placeholder="Artículo;Identificador;Estado;Condición Funda;Comentarios;Precio costo;Precio Venta..." 
+                            class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-mono focus:border-emerald-500 outline-none transition-all resize-none"></textarea>
+                    </div>
+                    
+                    <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex gap-3">
+                        <i class="ph-fill ph-info text-blue-500 text-xl"></i>
+                        <p class="text-xs text-blue-700 leading-relaxed">
+                            <strong>Nota:</strong> El sistema publicará automáticamente cada disco en Discogs y en tu WebShop. 
+                            Este proceso puede tardar unos segundos por cada disco debido a las limitaciones de la API de Discogs.
+                        </p>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button onclick="document.getElementById('bulk-import-modal').remove()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                        <button id="start-bulk-import-btn" onclick="app.handleBulkImportBatch()" class="flex-1 bg-emerald-500 text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-rocket-launch"></i> Comenzar Importación
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `,document.body.appendChild(t)},async handleBulkImportBatch(){const t=document.getElementById("bulk-csv-data").value.trim();if(!t){this.showToast("Por favor, pega el contenido del CSV.","error");return}const e=document.getElementById("start-bulk-import-btn");e.innerHTML,e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> Importando...';try{const s=await fetch(`${D}/discogs/bulk-import`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csvData:t})}),r=await s.json();s.ok&&(this.showToast(`✅ ${r.summary}`),document.getElementById("bulk-import-modal").remove(),await this.loadData(),this.refreshCurrentView())}catch(s){console.error("Bulk import error:",s),this.showToast("❌ "+s.message,"error");const r=document.getElementById("start-bulk-import-btn");r&&(r.disabled=!1,r.innerHTML='<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación')}},async refreshProductMetadata(t){const e=document.getElementById("refresh-metadata-btn");if(!e)return;const s=e.innerHTML;e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> ...';try{let r=t;const n=this.state.inventory.find(l=>l.sku===t||l.id===t);n&&n.id&&(r=n.id);const a=await fetch(`${D}/discogs/refresh-metadata/${r}`,{method:"POST",headers:{"Content-Type":"application/json"}}),o=await a.json();if(a.ok){this.showToast("✅ Metadata actualizada correctamente");const l=document.getElementById("modal-overlay");l&&l.remove(),await this.loadData(),this.refreshCurrentView(),n&&this.openProductModal(n.sku)}else throw new Error(o.error||"Error al actualizar metadata")}catch(r){console.error("Refresh metadata error:",r),this.showToast("❌ "+r.message,"error"),e.disabled=!1,e.innerHTML=s}}};window.app=A;document.addEventListener("DOMContentLoaded",()=>{A.init()});

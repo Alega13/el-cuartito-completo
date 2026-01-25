@@ -1,69 +1,109 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Headphones, Check } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useSelections } from '../context/SelectionsContext';
-import defaultImage from '../assets/default-vinyl.png';
+import { X, Filter, ArrowUpDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import ProductCard from '../components/ProductCard';
 import SEO from '../components/SEO';
+import FilterSidebar from '../components/FilterSidebar';
+import Fuse from 'fuse.js';
 
 const CatalogPage = ({ products }) => {
-    const [selectedGenres, setSelectedGenres] = useState([]);
-    const [selectedFormats, setSelectedFormats] = useState([]);
-    const [sortBy, setSortBy] = useState('recent');
-    const [artistSearch, setArtistSearch] = useState('');
     const navigate = useNavigate();
-    const { isInSelections, toggleSelection } = useSelections();
+
+    // Filter State (Matching StorePage)
+    const [selectedFilters, setSelectedFilters] = useState({
+        genre: [],
+        label: [],
+        condition: [],
+        year: [],
+        format: []
+    });
+    const [sortOption, setSortOption] = useState('newest');
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const [artistSearch, setArtistSearch] = useState('');
 
     // Filter products with stock
-    const availableProducts = products.filter(p => p.stock > 0);
+    const availableProducts = useMemo(() => products.filter(p => p.stock > 0), [products]);
 
-    // Get unique genres and formats
-    const genres = [...new Set(availableProducts.flatMap(p => [p.genre, p.genre2, p.genre3, p.genre4, p.genre5]).filter(Boolean))];
-    const formats = ['Vinyl 12"', 'Vinyl 7"', 'Digital']; // Can be dynamic if you have this field
+    // Initialize Fuse.js for fuzzy search
+    const fuse = useMemo(() => {
+        return new Fuse(availableProducts, {
+            keys: ['artist', 'album', 'genre', 'label'],
+            threshold: 0.3,
+            distance: 100,
+        });
+    }, [availableProducts]);
 
-    // Apply filters
-    let filteredProducts = availableProducts;
+    // Extract unique filter options
+    const filters = useMemo(() => {
+        return {
+            genres: [...new Set(availableProducts.flatMap(p => [p.genre, p.genre2, p.genre3, p.genre4, p.genre5]).filter(Boolean))].sort(),
+            labels: [...new Set(availableProducts.map(p => p.label).filter(Boolean))].sort(),
+            years: [...new Set(availableProducts.map(p => p.year).filter(Boolean))].sort((a, b) => b - a),
+        };
+    }, [availableProducts]);
 
-    if (selectedGenres.length > 0) {
-        filteredProducts = filteredProducts.filter(p =>
-            selectedGenres.some(g =>
-                p.genre?.toLowerCase().includes(g.toLowerCase()) ||
-                p.genre2?.toLowerCase().includes(g.toLowerCase()) ||
-                p.genre3?.toLowerCase().includes(g.toLowerCase()) ||
-                p.genre4?.toLowerCase().includes(g.toLowerCase()) ||
-                p.genre5?.toLowerCase().includes(g.toLowerCase())
-            )
-        );
-    }
-
-    if (artistSearch.trim()) {
-        filteredProducts = filteredProducts.filter(p =>
-            p.artist?.toLowerCase().includes(artistSearch.toLowerCase())
-        );
-    }
-
-    // Sort products
-    const sortedProducts = [...filteredProducts].sort((a, b) => {
-        if (sortBy === 'recent') return 0;
-        if (sortBy === 'price-low') return a.price - b.price;
-        if (sortBy === 'price-high') return b.price - a.price;
-        if (sortBy === 'artist') return (a.artist || '').localeCompare(b.artist || '');
-        return 0;
-    });
-
-    const toggleGenre = (genre) => {
-        setSelectedGenres(prev =>
-            prev.includes(genre)
-                ? prev.filter(g => g !== genre)
-                : [...prev, genre]
-        );
+    // Handle Filter Changes
+    const handleFilterChange = (type, value) => {
+        setSelectedFilters(prev => {
+            const current = prev[type];
+            const updated = current.includes(value)
+                ? current.filter(item => item !== value)
+                : [...current, value];
+            return { ...prev, [type]: updated };
+        });
     };
 
-    const clearAllFilters = () => {
-        setSelectedGenres([]);
-        setSelectedFormats([]);
+    const clearFilters = () => {
+        setSelectedFilters({
+            genre: [],
+            label: [],
+            condition: [],
+            year: [],
+            format: []
+        });
         setArtistSearch('');
     };
+
+    // Filter & Sort Logic
+    const sortedProducts = useMemo(() => {
+        let result = availableProducts;
+
+        // 1. Search
+        if (artistSearch.trim()) {
+            const fuseResults = fuse.search(artistSearch);
+            result = fuseResults.map(res => res.item);
+        }
+
+        // 2. Filters
+        result = result.filter(product => {
+            // Sidebar Filters
+            if (selectedFilters.genre.length > 0) {
+                const productGenres = [product.genre, product.genre2, product.genre3, product.genre4, product.genre5].filter(Boolean);
+                if (!selectedFilters.genre.some(g => productGenres.includes(g))) return false;
+            }
+            if (selectedFilters.label.length > 0 && !selectedFilters.label.includes(product.label)) return false;
+            if (selectedFilters.year.length > 0 && !selectedFilters.year.includes(product.year?.toString())) return false;
+            if (selectedFilters.condition.length > 0 && !selectedFilters.condition.includes(product.condition)) return false;
+
+            return true;
+        });
+
+        // 3. Sorting
+        return [...result].sort((a, b) => {
+            switch (sortOption) {
+                case 'price-low':
+                    return (a.price || 0) - (b.price || 0);
+                case 'price-high':
+                    return (b.price || 0) - (a.price || 0);
+                case 'artist':
+                    return (a.artist || '').localeCompare(b.artist || '');
+                case 'newest':
+                default:
+                    return 0;
+            }
+        });
+    }, [availableProducts, selectedFilters, sortOption, artistSearch, fuse]);
 
     const isValidImage = (url) => {
         if (!url) return false;
@@ -74,7 +114,9 @@ const CatalogPage = ({ products }) => {
         return true;
     };
 
-    const activeFiltersCount = selectedGenres.length + selectedFormats.length + (artistSearch ? 1 : 0);
+    const activeFiltersCount = selectedFilters.genre.length + selectedFilters.label.length +
+        selectedFilters.condition.length + selectedFilters.year.length +
+        (artistSearch ? 1 : 0);
 
     return (
         <div className="min-h-screen bg-background pt-32 pb-20">
@@ -85,86 +127,68 @@ const CatalogPage = ({ products }) => {
             />
             <div className="max-w-7xl mx-auto px-6">
 
-                <div className="flex gap-12">
+                {/* Header Area */}
+                <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div>
+                        <h1 className="text-7xl md:text-8xl font-light tracking-tight mb-2">Catalog</h1>
+                        <div className="text-sm text-black/40 font-medium uppercase tracking-widest">
+                            {sortedProducts.length} {sortedProducts.length === 1 ? 'ITEM' : 'ITEMS'} // {availableProducts.length} TOTAL IN STOCK
+                        </div>
+                    </div>
 
-                    {/* Sidebar Filters */}
-                    <div className="w-64 flex-shrink-0 sticky top-32 self-start hidden md:block max-h-[calc(100vh-10rem)] overflow-y-auto pr-4">
-
-                        {/* Genre Filter */}
-                        <div className="mb-10">
-                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-4">
-                                Genre
-                            </h3>
-                            <div className="space-y-2">
-                                {genres.map((genre) => (
-                                    <label key={genre} className="flex items-center gap-2 cursor-pointer group">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedGenres.includes(genre)}
-                                            onChange={() => toggleGenre(genre)}
-                                            className="w-4 h-4 border border-black/20 rounded-sm checked:bg-black checked:border-black focus:ring-0 cursor-pointer"
-                                        />
-                                        <span className="text-sm font-medium group-hover:opacity-60 transition-opacity">
-                                            {genre}
-                                        </span>
-                                    </label>
-                                ))}
+                    <div className="flex items-center gap-4">
+                        {/* Sort Dropdown */}
+                        <div className="relative group">
+                            <div className="flex items-center gap-2 cursor-pointer py-2 px-4 rounded-full border border-black/10 hover:border-black/30 bg-white transition-all">
+                                <ArrowUpDown size={14} className="text-black/50" />
+                                <select
+                                    value={sortOption}
+                                    onChange={(e) => setSortOption(e.target.value)}
+                                    className="text-xs font-bold uppercase tracking-widest bg-transparent border-none outline-none appearance-none cursor-pointer pr-4"
+                                >
+                                    <option value="newest">New Arrivals</option>
+                                    <option value="price-low">Price: Low to High</option>
+                                    <option value="price-high">Price: High to Low</option>
+                                    <option value="artist">Artist A-Z</option>
+                                </select>
                             </div>
                         </div>
 
-                        {/* Artist Search */}
-                        <div className="mb-10">
-                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-4">
-                                Artist
-                            </h3>
+                        <button
+                            onClick={() => setShowMobileFilters(true)}
+                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-primary text-white px-5 py-2.5 rounded-full md:hidden hover:bg-neutral-800 transition-colors"
+                        >
+                            <Filter size={14} />
+                            Filters
+                        </button>
+                    </div>
+                </header>
+
+                <div className="flex gap-12">
+                    {/* Sidebar Filters */}
+                    <FilterSidebar
+                        filters={filters}
+                        selectedFilters={selectedFilters}
+                        onFilterChange={handleFilterChange}
+                        onClearFilters={clearFilters}
+                        showMobile={showMobileFilters}
+                        onCloseMobile={() => setShowMobileFilters(false)}
+                    />
+
+                    {/* Main Content */}
+                    <div className="flex-1">
+                        {/* Artist Search Search Enhancement */}
+                        <div className="mb-10 max-w-md">
+                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-3">
+                                Search Everything
+                            </div>
                             <input
                                 type="text"
                                 value={artistSearch}
                                 onChange={(e) => setArtistSearch(e.target.value)}
-                                placeholder="Find artist..."
-                                className="w-full px-3 py-2 text-sm border border-black/20 rounded-sm focus:border-black outline-none"
+                                placeholder="Search artist, album, label..."
+                                className="w-full px-4 py-3 text-sm bg-black/5 border border-transparent rounded-lg focus:bg-white focus:border-black/10 outline-none transition-all"
                             />
-                        </div>
-
-                        {/* Format Filter */}
-                        <div className="mb-10">
-                            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-4">
-                                Format
-                            </h3>
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                    <input
-                                        type="checkbox"
-                                        className="w-4 h-4 border border-black/20 rounded-sm checked:bg-black checked:border-black focus:ring-0 cursor-pointer"
-                                    />
-                                    <span className="text-sm font-medium group-hover:opacity-60 transition-opacity">
-                                        Vinyl 12"
-                                    </span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                    <input
-                                        type="checkbox"
-                                        className="w-4 h-4 border border-black/20 rounded-sm checked:bg-black checked:border-black focus:ring-0 cursor-pointer"
-                                    />
-                                    <span className="text-sm font-medium group-hover:opacity-60 transition-opacity">
-                                        Digital
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Main Content */}
-                    <div className="flex-1">
-
-                        {/* Header */}
-                        <div className="mb-12">
-                            <h1 className="text-7xl md:text-8xl font-light tracking-tight mb-2">
-                                Catalog
-                            </h1>
-                            <div className="text-sm text-black/40 font-medium">
-                                {sortedProducts.length} {sortedProducts.length === 1 ? 'ITEM' : 'ITEMS'} // {availableProducts.length} RESULTS FOUND
-                            </div>
                         </div>
 
                         {/* Active Filters */}
@@ -174,11 +198,11 @@ const CatalogPage = ({ products }) => {
                                     Active Filters
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {selectedGenres.map(genre => (
+                                    {selectedFilters.genre.map(genre => (
                                         <button
                                             key={genre}
-                                            onClick={() => toggleGenre(genre)}
-                                            className="px-3 py-1.5 bg-black text-white text-xs font-bold uppercase tracking-wider rounded-sm flex items-center gap-2 hover:bg-black/80 transition-colors"
+                                            onClick={() => handleFilterChange('genre', genre)}
+                                            className="px-3 py-1.5 bg-black text-white text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-2 hover:opacity-80 transition-opacity"
                                         >
                                             {genre}
                                             <X className="w-3 h-3" />
@@ -187,15 +211,15 @@ const CatalogPage = ({ products }) => {
                                     {artistSearch && (
                                         <button
                                             onClick={() => setArtistSearch('')}
-                                            className="px-3 py-1.5 bg-black text-white text-xs font-bold uppercase tracking-wider rounded-sm flex items-center gap-2 hover:bg-black/80 transition-colors"
+                                            className="px-3 py-1.5 bg-black text-white text-[10px] font-bold uppercase tracking-wider rounded-full flex items-center gap-2 hover:opacity-80 transition-opacity"
                                         >
-                                            ARTIST: "{artistSearch}"
+                                            SEARCH: "{artistSearch}"
                                             <X className="w-3 h-3" />
                                         </button>
                                     )}
                                     <button
-                                        onClick={clearAllFilters}
-                                        className="px-3 py-1.5 border border-black/20 text-black text-xs font-bold uppercase tracking-wider rounded-sm hover:bg-black/5 transition-colors"
+                                        onClick={clearFilters}
+                                        className="px-3 py-1.5 border border-black/20 text-black text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-black/5 transition-colors"
                                     >
                                         CLEAR ALL
                                     </button>
@@ -203,93 +227,21 @@ const CatalogPage = ({ products }) => {
                             </div>
                         )}
 
-                        {/* Sort */}
-                        <div className="flex justify-end mb-8 pb-4 border-b border-black/10">
-                            <div className="flex items-center gap-3">
-                                <label className="text-xs font-bold uppercase tracking-wider text-black/40">
-                                    Sort:
-                                </label>
-                                <select
-                                    value={sortBy}
-                                    onChange={(e) => setSortBy(e.target.value)}
-                                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer uppercase"
-                                >
-                                    <option value="recent">New Arrivals</option>
-                                    <option value="price-low">Price: Low to High</option>
-                                    <option value="price-high">Price: High to Low</option>
-                                    <option value="artist">Artist A-Z</option>
-                                </select>
-                            </div>
-                        </div>
-
                         {/* Product Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8">
                             {sortedProducts.map((product) => (
-                                <motion.div
-                                    key={product.id}
-                                    onClick={() => navigate(`/product/${product.id}`)}
-                                    className="group cursor-pointer"
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.4 }}
-                                >
-                                    {/* Image */}
-                                    <div className="aspect-square bg-black/5 rounded-sm overflow-hidden mb-3 relative">
-                                        <img
-                                            src={isValidImage(product.cover_image) ? product.cover_image : defaultImage}
-                                            alt={product.album}
-                                            loading="lazy"
-                                            decoding="async"
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            onError={(e) => { e.currentTarget.src = defaultImage; }}
-                                        />
-                                        {product.stock === 0 && (
-                                            <div className="absolute top-2 right-2 bg-black text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-sm">
-                                                Sold Out
-                                            </div>
-                                        )}
-                                        {/* Save to Listening Room button */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleSelection(product, e.currentTarget);
-                                            }}
-                                            className={`absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 z-10 shadow-md
-                                                ${isInSelections(product.id)
-                                                    ? 'bg-black text-white'
-                                                    : 'bg-white/95 text-black/70 hover:bg-black hover:text-white'
-                                                }
-                                                hover:scale-110`}
-                                            title={isInSelections(product.id) ? 'Remove from Listening Room' : 'Save to Listening Room'}
-                                        >
-                                            {isInSelections(product.id) ? <Check size={16} /> : <Headphones size={16} />}
-                                        </button>
-                                    </div>
-
-                                    {/* Info */}
-                                    <div>
-                                        <h3 className="font-medium text-sm mb-1 group-hover:opacity-60 transition-opacity uppercase tracking-wide">
-                                            {product.album}
-                                        </h3>
-                                        <div className="text-xs text-black/60 mb-2 font-medium">
-                                            {product.artist}
-                                        </div>
-                                        <div className="text-sm font-bold">
-                                            {product.price} DKK
-                                        </div>
-                                    </div>
-                                </motion.div>
+                                <ProductCard key={product.id} product={product} />
                             ))}
                         </div>
 
                         {sortedProducts.length === 0 && (
-                            <div className="text-center py-20 text-black/40">
-                                <p className="text-sm font-medium">No products match your filters</p>
+                            <div className="text-center py-32 border-t border-black/5">
+                                <p className="text-sm font-bold uppercase tracking-widest text-black/20">No matching releases found</p>
                                 <button
-                                    onClick={clearAllFilters}
-                                    className="mt-4 text-xs font-bold uppercase tracking-wider text-black hover:opacity-60 transition-opacity"
+                                    onClick={clearFilters}
+                                    className="mt-4 text-xs font-bold uppercase tracking-widest text-black border-b border-black pb-0.5 hover:opacity-60 transition-opacity"
                                 >
-                                    Clear All Filters
+                                    Reset Filters
                                 </button>
                             </div>
                         )}

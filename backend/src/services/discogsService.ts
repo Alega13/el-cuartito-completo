@@ -13,6 +13,7 @@ interface DiscogsListing {
         format?: string;
         formats?: Array<{ name: string }>;
         genres?: string[];
+        styles?: string[];
         images?: Array<{ uri: string; type: string }>;
     };
     price: {
@@ -45,6 +46,7 @@ interface NormalizedProduct {
     is_online: boolean;
     genre?: string;
     condition: string;
+    sleeveCondition?: string;
     year?: number;
     label?: string;
     cover_image?: string;
@@ -151,6 +153,50 @@ export class DiscogsService {
         }
     }
 
+    /**
+     * Fetch a specific release from Discogs
+     */
+    async getRelease(releaseId: number): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseUrl}/releases/${releaseId}`,
+                {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                }
+            );
+
+            return response.data;
+        } catch (error: any) {
+            console.error(`Error fetching Discogs release ${releaseId}:`, error.response?.data || error.message);
+            throw new Error(`Failed to fetch Discogs release: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetch a specific listing from Discogs
+     */
+    async getListing(listingId: string): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseUrl}/marketplace/listings/${listingId}`,
+                {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                }
+            );
+
+            return response.data;
+        } catch (error: any) {
+            console.error(`Error fetching Discogs listing ${listingId}:`, error.response?.data || error.message);
+            throw new Error(`Failed to fetch Discogs listing: ${error.message}`);
+        }
+    }
+
 
     /**
      * Normalize Discogs listing to Firebase product schema
@@ -175,8 +221,9 @@ export class DiscogsService {
             price: price.value || 0,
             stock: quantity || 1,
             is_online: status === 'For Sale', // Only mark as online if actively for sale
-            genre: release.genres?.[0],
+            genre: [...(release.genres || []), ...(release.styles || [])].join(', '),
             condition: normalizedCondition,
+            sleeveCondition: listing.sleeve_condition ? this.mapCondition(listing.sleeve_condition) : undefined,
             year: release.year,
             label: release.label || release.labels?.[0]?.name,
             cover_image: coverImage,
@@ -352,6 +399,36 @@ export class DiscogsService {
         };
 
         return reverseMap[ourCondition] || 'Very Good (VG)';
+    }
+
+    /**
+     * Search for a release by query string
+     */
+    async searchRelease(query: string): Promise<any> {
+        try {
+            const response = await axios.get(
+                `${this.baseUrl}/database/search`,
+                {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    },
+                    params: {
+                        q: query,
+                        type: 'release',
+                        per_page: 1
+                    }
+                }
+            );
+
+            if (response.data.results && response.data.results.length > 0) {
+                return response.data.results[0];
+            }
+            return null;
+        } catch (error: any) {
+            console.error(`Error searching Discogs release for "${query}":`, error.response?.data || error.message);
+            throw new Error(`Failed to search Discogs release: ${error.message}`);
+        }
     }
 
     /**

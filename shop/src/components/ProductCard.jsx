@@ -1,14 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Headphones, Check } from 'lucide-react';
+import { Headphones, Check, ShoppingBag } from 'lucide-react';
 import { useSelections } from '../context/SelectionsContext';
+import { useCart } from '../context/CartContext';
 import defaultImage from '../assets/default-vinyl.png';
 
 
 
 const ProductCard = ({ product }) => {
     const { isInSelections, toggleSelection } = useSelections();
+    const { addToCart } = useCart();
     const isSelected = isInSelections(product.id);
 
     const isValidImage = (url) => {
@@ -20,7 +22,7 @@ const ProductCard = ({ product }) => {
         return true;
     };
 
-    const imageSrc = isValidImage(product.image) ? product.image : defaultImage;
+    const imageSrc = isValidImage(product.image) ? product.image : (isValidImage(product.cover_image) ? product.cover_image : defaultImage);
 
     // Create a product object with proper fields for selections
     const productForSelection = {
@@ -33,6 +35,12 @@ const ProductCard = ({ product }) => {
         e.preventDefault();
         e.stopPropagation();
         toggleSelection(productForSelection, e.currentTarget);
+    };
+
+    const handleAddToCart = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addToCart(product);
     };
 
     return (
@@ -60,19 +68,31 @@ const ProductCard = ({ product }) => {
                         </div>
                     )}
 
-                    {/* Save to Listening Room button */}
-                    <button
-                        onClick={handleSaveClick}
-                        className={`absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 z-10 shadow-md
-                            ${isSelected
+                    {/* Actions Overlay */}
+                    <div className="absolute bottom-3 right-3 flex gap-2 z-10">
+                        {/* Save to Listening Room button */}
+                        <button
+                            onClick={handleSaveClick}
+                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${isSelected
                                 ? 'bg-black text-white'
                                 : 'bg-white/95 text-black/70 hover:bg-black hover:text-white'
-                            }
-                            hover:scale-110`}
-                        title={isSelected ? 'Remove from Listening Room' : 'Save to Listening Room'}
-                    >
-                        {isSelected ? <Check size={16} /> : <Headphones size={16} />}
-                    </button>
+                                } hover:scale-110`}
+                            title={isSelected ? 'Remove from Listening Room' : 'Save to Listening Room'}
+                        >
+                            {isSelected ? <Check size={16} /> : <Headphones size={16} />}
+                        </button>
+
+                        {/* Add to Cart button */}
+                        {product.stock > 0 && (
+                            <button
+                                onClick={handleAddToCart}
+                                className="w-9 h-9 rounded-full bg-white/95 text-black/70 hover:bg-black hover:text-white flex items-center justify-center transition-all duration-300 shadow-md hover:scale-110"
+                                title="Add to Cart"
+                            >
+                                <ShoppingBag size={16} />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div className="space-y-1">
                     <div className="flex justify-between items-start">

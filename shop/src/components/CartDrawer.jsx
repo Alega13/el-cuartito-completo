@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Plus, Minus, Trash2, ArrowRight } from 'lucide-react';
+import { X, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
@@ -79,27 +79,16 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                                     <p className="text-[10px] text-black/60 truncate max-w-[180px]">{item.album}</p>
                                                 </div>
 
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center border border-black/10 rounded-sm">
-                                                        <button
-                                                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                            className="p-1 hover:bg-black/5 transition-colors"
-                                                        >
-                                                            <Minus size={12} />
-                                                        </button>
-                                                        <span className="text-[10px] font-bold w-6 text-center">{item.quantity}</span>
-                                                        <button
-                                                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                            className="p-1 hover:bg-black/5 transition-colors"
-                                                        >
-                                                            <Plus size={12} />
-                                                        </button>
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <div className="text-[10px] text-black/50 font-medium">
+                                                        Single Item
                                                     </div>
                                                     <button
                                                         onClick={() => removeFromCart(item.id)}
-                                                        className="text-black/20 hover:text-red-500 transition-colors"
+                                                        className="text-black/40 hover:text-red-500 transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider"
                                                     >
-                                                        <Trash2 size={14} />
+                                                        <Trash2 size={12} />
+                                                        Remove
                                                     </button>
                                                 </div>
                                             </div>

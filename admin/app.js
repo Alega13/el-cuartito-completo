@@ -238,7 +238,13 @@ const app = {
 
             if (response.ok && result.success) {
                 this.showToast('✅ Pedido marcado como enviado');
-                this.showToast('📧 Cliente notificado por email');
+
+                if (result.emailSent) {
+                    this.showToast('📧 Cliente notificado por email', 'success');
+                } else {
+                    const errorMsg = typeof result.emailError === 'object' ? JSON.stringify(result.emailError) : result.emailError;
+                    this.showToast('⚠️ Pedido marcado pero EL EMAIL FALLÓ: ' + errorMsg, 'warning');
+                }
 
                 // Refresh data and reopen modal
                 await this.loadData();
@@ -390,6 +396,7 @@ const app = {
             case 'settings': this.renderSettings(container); break;
             case 'calendar': this.renderCalendar(container); break;
             case 'shipping': this.renderShipping(container); break;
+            case 'pickups': this.renderPickups(container); break;
         }
     },
 
@@ -1816,31 +1823,7 @@ const app = {
         const allLabels = [...new Set(this.state.inventory.map(i => i.label).filter(Boolean))].sort();
         const allStorage = [...new Set(this.state.inventory.map(i => i.storageLocation).filter(Boolean))].sort();
 
-        const filteredInventory = this.state.inventory.filter(item => {
-            const search = this.state.inventorySearch.toLowerCase();
-            const matchesSearch = item.artist.toLowerCase().includes(search) ||
-                item.album.toLowerCase().includes(search) ||
-                item.sku.toLowerCase().includes(search);
-
-            const currentGenreFilter = this.state.filterGenre || 'all';
-            const currentOwnerFilter = this.state.filterOwner || 'all';
-            const currentLabelFilter = this.state.filterLabel || 'all';
-            const currentStorageFilter = this.state.filterStorage || 'all';
-            const currentDiscogsFilter = this.state.filterDiscogs || 'all';
-
-            const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
-            const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
-            const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
-            const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
-
-            // Discogs filter logic
-            const hasDiscogs = !!item.discogs_listing_id;
-            const matchesDiscogs = currentDiscogsFilter === 'all' ||
-                (currentDiscogsFilter === 'yes' && hasDiscogs) ||
-                (currentDiscogsFilter === 'no' && !hasDiscogs);
-
-            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
-        });
+        const filteredInventory = this.getFilteredInventory();
 
         // Sort Logic
         const sortBy = this.state.sortBy || 'dateDesc';
@@ -1866,6 +1849,10 @@ const app = {
                              <div class="flex gap-2">
                                 <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors">
                                     <i class="ph-bold ph-clock-counter-clockwise text-2xl"></i>
+                                </button>
+                                <button onclick="app.openBulkImportModal()" class="bg-emerald-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all" title="Carga Masiva CSV">
+                                    <i class="ph-bold ph-file-csv text-xl"></i>
+                                    <span class="text-sm font-bold hidden sm:inline">Importar</span>
                                 </button>
                                 <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-purple-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-purple-500/20 hover:bg-purple-600 transition-all" title="Sincronizar con Discogs">
                                     <i class="ph-bold ph-cloud-arrow-down text-xl"></i>
@@ -1923,7 +1910,7 @@ const app = {
                     <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
+                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
                             <select onchange="app.state.sortBy = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-medium outline-none focus:border-brand-orange">
                                 <option value="dateDesc" ${this.state.sortBy === 'dateDesc' ? 'selected' : ''}>Más Recientes</option>
                                 <option value="dateAsc" ${this.state.sortBy === 'dateAsc' ? 'selected' : ''}>Más Antiguos</option>
@@ -2137,9 +2124,15 @@ const app = {
             return dateMatch && paymentMatch && searchMatch;
         });
 
+        const totalShipping = filteredSales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0);
         const totalRevenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+        const totalProductSales = totalRevenue - totalShipping;
+
         const totalProfit = filteredSales.reduce((sum, s) => {
             const total = parseFloat(s.total) || 0;
+            const shipping = parseFloat(s.shipping || s.shipping_cost || 0);
+            const productTotal = total - shipping;
+
             let saleCost = 0;
             if (s.items && Array.isArray(s.items)) {
                 saleCost = s.items.reduce((c, i) => {
@@ -2150,7 +2143,7 @@ const app = {
             } else {
                 saleCost = (parseFloat(s.cost) || 0) * (parseInt(s.quantity) || 1);
             }
-            return sum + (total - saleCost);
+            return sum + (productTotal - saleCost);
         }, 0);
 
         const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -2184,15 +2177,22 @@ const app = {
                 
                 
                  <!--Sales Summary Cards(Moved to Top)-->
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                     <div class="bg-brand-orange text-white p-5 rounded-2xl shadow-lg shadow-brand-orange/20 relative overflow-hidden">
                         <div class="relative z-10">
-                            <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Totales</p>
-                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(totalRevenue)}</h3>
+                            <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Productos</p>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(totalProductSales)}</h3>
                         </div>
                         <i class="ph-fill ph-trend-up absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
                     </div>
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden">
+                    <div class="bg-indigo-500 text-white p-5 rounded-2xl shadow-lg shadow-indigo-500/20 relative overflow-hidden">
+                        <div class="relative z-10">
+                            <p class="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-1">Fondos de Envío</p>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(totalShipping)}</h3>
+                        </div>
+                        <i class="ph-fill ph-truck absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-orange-100 relative overflow-hidden col-span-2 md:col-span-1">
                         <div class="relative z-10">
                             <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Ganancia Neta</p>
                             <h3 class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalProfit)}</h3>
@@ -2426,11 +2426,12 @@ const app = {
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
-                                    <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
+                                     <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
                                         <tr>
                                             <th class="p-4">Fecha</th>
                                             <th class="p-4">Item</th>
                                             <th class="p-4 text-center">Cant.</th>
+                                            <th class="p-4 text-right">Envío</th>
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-center">Pago</th>
                                             <th class="p-4 text-center">Estado</th>
@@ -2443,29 +2444,30 @@ const app = {
             const dateB = b.date && b.date.toDate ? b.date.toDate() : new Date(b.date);
             return dateB - dateA;
         }).map(s => `
-                                            <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                             <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
                                                 <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
-                                                    ${this.formatDate(s.date)}
-                                                    <span class="block text-[10px] text-slate-400">${new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                     ${this.formatDate(s.date)}
+                                                     <span class="block text-[10px] text-slate-400">${new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex flex-col">
                                                         ${s.items && s.items.length > 0 ?
                 (s.items.length === 1 ?
                     `<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${s.items[0].album || s.items[0].record?.album || 'Desconocido'}</span>
-                     <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.items[0].artist || s.items[0].record?.artist || '-'}</span>`
+                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.items[0].artist || s.items[0].record?.artist || '-'}</span>`
                     :
                     `<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${s.items.length} items</span>
-                     <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.items.map(i => i.album || i.record?.album).filter(Boolean).join(', ')}</span>`
+                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.items.map(i => i.album || i.record?.album).filter(Boolean).join(', ')}</span>`
                 )
                 :
                 `<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${s.album || 'Venta Manual'}</span>
-                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.artist || '-'}</span>`
+                                                             <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${s.artist || '-'}</span>`
             }
                                                     </div>
                                                 </td>
                                                 <td class="p-4 text-center text-sm text-slate-600">${s.quantity || (s.items ? s.items.reduce((sum, i) => sum + (parseInt(i.quantity || i.qty) || 1), 0) : 1)}</td>
-                                                <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency(s.total)}</td>
+                                                <td class="p-4 text-right text-xs font-medium text-slate-500">${this.formatCurrency(s.shipping || s.shipping_cost || 0)}</td>
+                                                <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency((parseFloat(s.total) || 0) - (parseFloat(s.shipping || s.shipping_cost || 0)))}</td>
                                                 <td class="p-4 text-center">
                                                     <span class="px-2 py-1 rounded bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wide">${s.paymentMethod}</span>
                                                 </td>
@@ -2611,7 +2613,7 @@ const app = {
 
 
     openAddVinylModal(editSku = null) {
-        let item = { sku: '', artist: '', album: '', genre: 'Minimal', status: 'NM', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
         let isEdit = false;
 
         if (editSku) {
@@ -2668,9 +2670,12 @@ const app = {
                                 ${isEdit ? '<button onclick="app.resyncMusic()" class="text-xs font-bold text-slate-400 hover:text-brand-orange ml-4 flex items-center gap-1"><i class="ph-bold ph-arrows-clockwise"></i> Resync Music</button>' : ''}
                             </div>
                             <div class="flex gap-2">
-                                <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
-                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                                <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista o ID..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
+                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20" title="Buscar">
                                         <i class="ph-bold ph-magnifying-glass"></i>
+                                    </button>
+                                    <button onclick="app.fetchDiscogsById()" class="bg-indigo-500 text-white w-10 rounded-xl font-bold hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20" title="Importar por ID">
+                                        <i class="ph-bold ph-download-simple"></i>
                                     </button>
                             </div>
                             <div id="discogs-results" class="mt-3 space-y-2 hidden max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl shadow-inner p-1"></div>
@@ -2829,15 +2834,15 @@ const app = {
                                                 </div>
                                                 <div class="col-span-3 md:col-span-1">
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado del Vinilo</label>
-                                                    <select name="status" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option value="M" ${item.status === 'M' ? 'selected' : ''}>Mint (M)</option>
-                                                        <option value="NM" ${item.status === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
-                                                        <option value="VG+" ${item.status === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
-                                                        <option value="VG" ${item.status === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
-                                                        <option value="G+" ${item.status === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
-                                                        <option value="G" ${item.status === 'G' ? 'selected' : ''}>Good (G)</option>
-                                                        <option value="F" ${item.status === 'F' ? 'selected' : ''}>Fair (F)</option>
-                                                        <option value="P" ${item.status === 'P' ? 'selected' : ''}>Poor (P)</option>
+                                                    <select name="condition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
+                                                        <option value="M" ${item.condition === 'M' ? 'selected' : ''}>Mint (M)</option>
+                                                        <option value="NM" ${item.condition === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
+                                                        <option value="VG+" ${item.condition === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
+                                                        <option value="VG" ${item.condition === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
+                                                        <option value="G+" ${item.condition === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
+                                                        <option value="G" ${item.condition === 'G' ? 'selected' : ''}>Good (G)</option>
+                                                        <option value="F" ${item.condition === 'F' ? 'selected' : ''}>Fair (F)</option>
+                                                        <option value="P" ${item.condition === 'P' ? 'selected' : ''}>Poor (P)</option>
                                                     </select>
                                                 </div>
                                                 <div class="col-span-3 md:col-span-2">
@@ -3040,25 +3045,31 @@ const app = {
                                 </div>
                             </div>
 
-                            <div class="pt-4 flex gap-3">
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.sku}')" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20">
+                            <div class="pt-4 flex flex-wrap gap-3">
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.sku}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                     Editar
                                 </button>
+                                <button id="refresh-metadata-btn" onclick="app.refreshProductMetadata('${item.id || item.sku}')" 
+                                    class="flex-1 min-w-[120px] bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100 text-sm"
+                                    title="Actualizar datos desde Discogs">
+                                    <i class="ph-bold ph-arrows-clockwise"></i>
+                                    Re-sync
+                                </button>
                                 ${item.discogsUrl
-                    ? `<a href="${item.discogsUrl}" target="_blank" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2">
+                    ? `<a href="${item.discogsUrl}" target="_blank" class="flex-1 min-w-[120px] bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-disc"></i> Discogs
                                    </a>`
-                    : `<a href="https://www.discogs.com/search/?q=${encodeURIComponent(item.artist + ' ' + item.album)}&type=release" target="_blank" class="flex-1 bg-slate-50 text-slate-400 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                    : `<a href="https://www.discogs.com/search/?q=${encodeURIComponent(item.artist + ' ' + item.album)}&type=release" target="_blank" class="flex-1 min-w-[120px] bg-slate-50 text-slate-400 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-magnifying-glass"></i> Buscar
                                    </a>`
                 }
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100">
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
                                     <i class="ph-bold ph-list-numbers"></i> Tracks
                                 </button>
-                                <button onclick="app.addToCart('${item.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20">
+                                <button onclick="app.addToCart('${item.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
                                     <i class="ph-bold ph-shopping-cart"></i>
-                                    Vender (Carrito)
+                                    Vender
                                 </button>
                                 <button onclick="app.deleteVinyl('${item.sku}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
                                     <i class="ph-bold ph-trash text-xl"></i>
@@ -3616,30 +3627,44 @@ const app = {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
-    toggleSelectAll() {
-        // Based on current filtered inventory
-        // Determine visible SKUs
-        // Assuming renderInventory filters the list. 
-        // We can't easily access the internal 'filteredInventory' variable of renderInventory from here unless we duplicate logic.
-        // OR we can perform the logic again.
+    getFilteredInventory() {
+        const term = (this.state.inventorySearch || '').toLowerCase();
+        const currentGenreFilter = this.state.filterGenre || 'all';
+        const currentOwnerFilter = this.state.filterOwner || 'all';
+        const currentLabelFilter = this.state.filterLabel || 'all';
+        const currentStorageFilter = this.state.filterStorage || 'all';
+        const currentDiscogsFilter = this.state.filterDiscogs || 'all';
 
-        const currentYear = this.state.filterYear; // Not used in inventory
-        // ... Re-run filter logic ...
-        const term = this.state.inventorySearch.toLowerCase();
-        const filtered = this.state.inventory.filter(i => {
-            const matchesGenre = this.state.filterGenre === 'all' || i.genre === this.state.filterGenre;
-            const matchesOwner = this.state.filterOwner === 'all' || i.owner === this.state.filterOwner;
-            const matchesLabel = this.state.filterLabel === 'all' || i.label === this.state.filterLabel;
-            const matchesStorage = this.state.filterStorage === 'all' || i.storageLocation === this.state.filterStorage;
-            const matchesSearch = !term || i.album.toLowerCase().includes(term) || i.artist.toLowerCase().includes(term) || i.sku.toLowerCase().includes(term);
-            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesSearch;
+        return this.state.inventory.filter(item => {
+            const matchesSearch = !term ||
+                item.artist.toLowerCase().includes(term) ||
+                item.album.toLowerCase().includes(term) ||
+                item.sku.toLowerCase().includes(term);
+
+            const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
+            const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
+            const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
+            const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
+
+            const hasDiscogs = !!item.discogs_listing_id;
+            const matchesDiscogs = currentDiscogsFilter === 'all' ||
+                (currentDiscogsFilter === 'yes' && hasDiscogs) ||
+                (currentDiscogsFilter === 'no' && !hasDiscogs);
+
+            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
         });
+    },
+    toggleSelectAll() {
+        const filtered = this.getFilteredInventory();
 
-        if (this.state.selectedItems.size === filtered.length) {
-            this.state.selectedItems.clear(); // Deselect All
+        if (filtered.length > 0 && filtered.every(i => this.state.selectedItems.has(i.sku))) {
+            // All visible are already selected, so Deselect All
+            filtered.forEach(i => this.state.selectedItems.delete(i.sku));
         } else {
-            filtered.forEach(i => this.state.selectedItems.add(i.sku)); // Select All Visible
+            // Select All visible
+            filtered.forEach(i => this.state.selectedItems.add(i.sku));
         }
+
         this.refreshCurrentView();
     },
 
@@ -3770,7 +3795,7 @@ const app = {
             label: formData.get('label'),
             collection: collection || null,
             collectionNote: formData.get('collectionNote') || null,
-            condition: formData.get('status'),
+            condition: formData.get('condition'),
             sleeveCondition: formData.get('sleeveCondition') || '',
             comments: formData.get('comments') || '',
             price: parseFloat(formData.get('price')),
@@ -5348,6 +5373,12 @@ const app = {
         resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>';
         resultsContainer.classList.remove('hidden');
 
+        // Check if query is numeric (Direct ID)
+        if (/^\d+$/.test(query.trim())) {
+            this.fetchDiscogsById(query.trim());
+            return;
+        }
+
         fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
             .then(res => {
                 if (res.status === 401) {
@@ -6039,10 +6070,195 @@ const app = {
     },
 
 
+    renderPickups(container) {
+        // Filter Sales for pickups (Online sales with local_pickup method)
+        const pickupSales = this.state.sales.filter(s =>
+            s.channel === 'online' && (s.shipping_method?.id === 'local_pickup' || s.shipping_cost === 0 && s.status !== 'failed')
+        );
+
+        const pendingPickups = pickupSales.filter(s => s.status === 'completed' || s.status === 'paid' || s.status === 'paid_pending');
+        const readyPickups = pickupSales.filter(s => s.status === 'ready_for_pickup');
+        const deliveredPickups = pickupSales.filter(s => s.status === 'shipped' || s.status === 'delivered');
+
+        const html = `
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">Gestión de Retiros</h2>
+                        <p class="text-slate-500 text-sm">Administra los pedidos para retirar en tienda.</p>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="bg-blue-100 text-blue-600 px-4 py-2 rounded-xl border border-blue-200 flex items-center gap-3">
+                            <i class="ph-fill ph-storefront text-xl"></i>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold leading-none">Pendientes</p>
+                                <p class="text-xl font-display font-bold">${pendingPickups.length}</p>
+                            </div>
+                        </div>
+                        <div class="bg-green-100 text-green-600 px-4 py-2 rounded-xl border border-green-200 flex items-center gap-3">
+                            <i class="ph-fill ph-check-circle text-xl"></i>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold leading-none">Listos</p>
+                                <p class="text-xl font-display font-bold">${readyPickups.length}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Pickups -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
+                    <div class="p-6 border-b border-orange-50 bg-orange-50/30">
+                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-clock-counter-clockwise text-brand-orange"></i> Retiros Pendientes de Preparar
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                <tr>
+                                    <th class="p-4">Orden</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Items</th>
+                                    <th class="p-4">Fecha Pago</th>
+                                    <th class="p-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${pendingPickups.length === 0 ? `
+                                    <tr>
+                                        <td colspan="5" class="p-12 text-center text-slate-400 italic">No hay retiros pendientes.</td>
+                                    </tr>
+                                ` : pendingPickups.map(s => `
+                                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                        <td class="p-4 text-sm font-bold text-brand-orange">#${s.id.slice(0, 8)}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${s.customer?.name || s.customerName || 'Cliente'}</td>
+                                        <td class="p-4 text-xs text-slate-500">${s.items?.length || 0} items</td>
+                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.date)}</td>
+                                        <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                            <button onclick="app.setReadyForPickup('${s.id}')" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
+                                                <i class="ph-bold ph-bell"></i> Notificar Listo
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ready for Pickup -->
+                <div class="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden mb-8">
+                    <div class="p-6 border-b border-green-50 bg-green-50/30">
+                        <h3 class="font-bold text-green-700 flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle"></i> Listos para Retiro (Avisados)
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                <tr>
+                                    <th class="p-4">Orden</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Fecha Aviso</th>
+                                    <th class="p-4 text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${readyPickups.length === 0 ? `
+                                    <tr>
+                                        <td colspan="4" class="p-12 text-center text-slate-400 italic">No hay pedidos esperando retiro.</td>
+                                    </tr>
+                                ` : readyPickups.map(s => `
+                                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                        <td class="p-4 text-sm font-bold text-brand-orange">#${s.id.slice(0, 8)}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${s.customer?.name || s.customerName || 'Cliente'}</td>
+                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.updated_at?.toDate ? s.updated_at.toDate() : s.updated_at || s.date)}</td>
+                                        <td class="p-4 text-center" onclick="event.stopPropagation()">
+                                            <button onclick="app.markAsDelivered('${s.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
+                                                <i class="ph-bold ph-hand-tap"></i> Marcar Entregado
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recent Deliveries -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden opacity-75">
+                    <div class="p-6 bg-slate-50/50 border-b border-slate-100">
+                        <h3 class="font-bold text-slate-500">Entregas Recientes</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <tbody class="divide-y divide-slate-50">
+                                ${deliveredPickups.slice(0, 10).map(s => `
+                                    <tr>
+                                        <td class="p-4 text-sm font-medium text-slate-400">#${s.id.slice(0, 8)}</td>
+                                        <td class="p-4 text-sm text-slate-500">${s.customerName || 'Cliente'}</td>
+                                        <td class="p-4 text-right">
+                                            <span class="px-2 py-1 rounded bg-slate-100 text-slate-500 text-[10px] font-bold uppercase">Entregado</span>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    async setReadyForPickup(id) {
+        try {
+            const btn = event?.target?.closest('button');
+            if (btn) btn.disabled = true;
+
+            const response = await fetch(`${BASE_API_URL}/shipping/ready-for-pickup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: id })
+            });
+
+            if (response.ok) {
+                this.showToast('✅ Cliente notificado - El pedido está listo para retiro');
+                await this.loadData();
+                this.refreshCurrentView();
+            } else {
+                throw new Error('Error al notificar');
+            }
+        } catch (error) {
+            this.showToast('❌ error: ' + error.message, 'error');
+        }
+    },
+
+    async markAsDelivered(id) {
+        try {
+            const btn = event?.target?.closest('button');
+            if (btn) btn.disabled = true;
+
+            await db.collection('sales').doc(id).update({
+                status: 'shipped',
+                fulfillment_status: 'delivered',
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            this.showToast('✅ Pedido entregado');
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (error) {
+            this.showToast('❌ Error: ' + error.message, 'error');
+        }
+    },
+
     renderShipping(container) {
         // Filter Sales for shipping (Online sales or those needing fulfillment)
         const shippingSales = this.state.sales.filter(s =>
-            s.channel === 'online' || s.fulfillment_status === 'shipped' || (s.shipment && s.shipment.tracking_number)
+            (s.channel === 'online' && s.shipping_method?.id !== 'local_pickup') ||
+            s.fulfillment_status === 'shipped' ||
+            (s.shipment && s.shipment.tracking_number)
         );
 
         const pendingShipping = shippingSales.filter(s => s.status === 'completed' || s.status === 'paid' || s.status === 'ready_for_pickup');
@@ -6056,6 +6272,13 @@ const app = {
                         <p class="text-slate-500 text-sm">Administra y notifica el estado de tus despachos online.</p>
                     </div>
                     <div class="flex gap-4">
+                        <div class="bg-indigo-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 flex items-center gap-4">
+                            <i class="ph-fill ph-hand-coins text-2xl opacity-80"></i>
+                            <div>
+                                <p class="text-[10px] text-indigo-100 font-bold uppercase leading-none mb-1">Dinero acumulado para envíos</p>
+                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
+                            </div>
+                        </div>
                         <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
                             <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
                             <div>
@@ -6166,6 +6389,181 @@ const app = {
         `;
         container.innerHTML = html;
     },
+
+    fetchDiscogsById(manualId = null) {
+        const id = manualId || document.getElementById('discogs-search-input').value.trim();
+        const resultsContainer = document.getElementById('discogs-results');
+        if (!id || !/^\d+$/.test(id)) {
+            this.showToast('⚠️ Ingresa un ID numérico válido', 'error');
+            return;
+        }
+
+        const token = localStorage.getItem('discogs_token');
+        if (!token) {
+            this.showToast('⚠️ Token no configurado', 'error');
+            return;
+        }
+
+        if (resultsContainer) {
+            resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>';
+            resultsContainer.classList.remove('hidden');
+        }
+
+        fetch(`https://api.discogs.com/releases/${id}?token=${token}`)
+            .then(res => {
+                if (!res.ok) throw new Error(`Error ${res.status}`);
+                return res.json();
+            })
+            .then(data => {
+                // Normalize data structure for handleDiscogsSelection
+                const normalized = {
+                    id: data.id,
+                    title: `${data.artists_sort || data.artists[0]?.name} - ${data.title}`,
+                    year: data.year,
+                    thumb: data.thumb,
+                    cover_image: data.images ? data.images[0].uri : null,
+                    label: data.labels ? [data.labels[0].name] : [],
+                    format: data.formats ? [data.formats[0].name] : []
+                };
+                this.handleDiscogsSelection(normalized);
+                if (resultsContainer) resultsContainer.classList.add('hidden');
+                this.showToast('✅ Datos importados con éxito');
+            })
+            .catch(err => {
+                console.error(err);
+                this.showToast('❌ Error al importar ID: ' + err.message, 'error');
+                if (resultsContainer) resultsContainer.classList.add('hidden');
+            });
+    },
+
+    openBulkImportModal() {
+        const modal = document.createElement('div');
+        modal.id = 'bulk-import-modal';
+        modal.className = 'fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                <div class="bg-emerald-500 p-6 text-white flex justify-between items-center">
+                    <div>
+                        <h3 class="font-display text-2xl font-bold">Carga Masiva (CSV)</h3>
+                        <p class="text-emerald-100 text-sm">Pega el contenido de tu archivo CSV aquí.</p>
+                    </div>
+                    <button onclick="document.getElementById('bulk-import-modal').remove()" class="text-white/80 hover:text-white transition-colors">
+                        <i class="ph-bold ph-x text-2xl"></i>
+                    </button>
+                </div>
+                <div class="p-8 space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">Contenido del CSV</label>
+                        <textarea id="bulk-csv-data" rows="10" placeholder="Artículo;Identificador;Estado;Condición Funda;Comentarios;Precio costo;Precio Venta..." 
+                            class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-mono focus:border-emerald-500 outline-none transition-all resize-none"></textarea>
+                    </div>
+                    
+                    <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl flex gap-3">
+                        <i class="ph-fill ph-info text-blue-500 text-xl"></i>
+                        <p class="text-xs text-blue-700 leading-relaxed">
+                            <strong>Nota:</strong> El sistema publicará automáticamente cada disco en Discogs y en tu WebShop. 
+                            Este proceso puede tardar unos segundos por cada disco debido a las limitaciones de la API de Discogs.
+                        </p>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button onclick="document.getElementById('bulk-import-modal').remove()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                        <button id="start-bulk-import-btn" onclick="app.handleBulkImportBatch()" class="flex-1 bg-emerald-500 text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-rocket-launch"></i> Comenzar Importación
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    },
+
+    async handleBulkImportBatch() {
+        const csvData = document.getElementById('bulk-csv-data').value.trim();
+        if (!csvData) {
+            this.showToast('Por favor, pega el contenido del CSV.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('start-bulk-import-btn');
+        const originalContent = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Importando...';
+
+        try {
+            const response = await fetch(`${BASE_API_URL}/discogs/bulk-import`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ csvData })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                this.showToast(`✅ ${result.summary}`);
+                document.getElementById('bulk-import-modal').remove();
+                await this.loadData();
+                this.refreshCurrentView();
+            }
+        } catch (error) {
+            console.error('Bulk import error:', error);
+            this.showToast('❌ ' + error.message, 'error');
+            const btn = document.getElementById('start-bulk-import-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación';
+            }
+        }
+    },
+
+    async refreshProductMetadata(productId) {
+        const btn = document.getElementById('refresh-metadata-btn');
+        if (!btn) return;
+
+        const originalContent = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> ...';
+
+        try {
+            // Find the item in state to get document ID if needed
+            let finalId = productId;
+            const item = this.state.inventory.find(i => i.sku === productId || i.id === productId);
+            if (item && item.id) {
+                finalId = item.id;
+            }
+
+            const response = await fetch(`${BASE_API_URL}/discogs/refresh-metadata/${finalId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                this.showToast('✅ Metadata actualizada correctamente');
+
+                // Remove modal to force refresh
+                const modal = document.getElementById('modal-overlay');
+                if (modal) modal.remove();
+
+                // Reload data
+                await this.loadData();
+                this.refreshCurrentView();
+
+                // Reopen modal to show new data
+                if (item) {
+                    this.openProductModal(item.sku);
+                }
+            } else {
+                throw new Error(result.error || 'Error al actualizar metadata');
+            }
+        } catch (error) {
+            console.error('Refresh metadata error:', error);
+            this.showToast('❌ ' + error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+        }
+    }
 
 };
 

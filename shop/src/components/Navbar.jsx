@@ -13,6 +13,7 @@ const Navbar = ({ setSearchQuery }) => {
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { totalItems } = useCart();
+    const { totalItems: _unused, selectionCount } = useSelections();
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -99,6 +100,43 @@ const Navbar = ({ setSearchQuery }) => {
                             onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
                         >
                             Home
+                        </Link>
+                        <Link
+                            to="/listening"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.1em',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                transition: 'color 0.2s',
+                                textDecoration: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}
+                            onMouseEnter={(e) => e.target.style.color = '#fff'}
+                            onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
+                        >
+                            Listening Room
+                            {selectionCount > 0 && (
+                                <span style={{
+                                    background: '#000',
+                                    color: '#fff',
+                                    fontSize: '9px',
+                                    fontWeight: 'bold',
+                                    padding: '1px 4px',
+                                    borderRadius: '10px',
+                                    minWidth: '14px',
+                                    textAlign: 'center'
+                                }}>
+                                    {selectionCount}
+                                </span>
+                            )}
                         </Link>
                         <Link
                             to="/catalog"
@@ -229,7 +267,14 @@ const Navbar = ({ setSearchQuery }) => {
                                     layout="position"
                                     className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
                                 >
-                                    <Link to="/listening" ref={navTargetRef} className="hover:opacity-40 transition-opacity">Listening Room</Link>
+                                    <Link to="/listening" ref={navTargetRef} className="hover:opacity-40 transition-opacity flex items-center gap-1.5">
+                                        Listening Room
+                                        {selectionCount > 0 && (
+                                            <span className="bg-black text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] flex items-center justify-center">
+                                                {selectionCount}
+                                            </span>
+                                        )}
+                                    </Link>
                                     <Link to="/catalog" className="hover:opacity-40 transition-opacity">Catalog</Link>
                                     <Link to="/collections" className="hover:opacity-40 transition-opacity">Collections</Link>
                                 </motion.div>
@@ -291,7 +336,14 @@ const Navbar = ({ setSearchQuery }) => {
                         </div>
 
                         <div className="flex flex-col gap-8 text-3xl font-bold uppercase tracking-tighter">
-                            <Link to="/listening" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Listening Room</Link>
+                            <Link to="/listening" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors flex items-center justify-between">
+                                Listening Room
+                                {selectionCount > 0 && (
+                                    <span className="bg-black text-white text-sm px-3 py-1 rounded-full">
+                                        {selectionCount}
+                                    </span>
+                                )}
+                            </Link>
                             <Link to="/catalog" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Catalog</Link>
                             <Link to="/collections" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Collections</Link>
                         </div>

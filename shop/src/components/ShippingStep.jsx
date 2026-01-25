@@ -100,137 +100,184 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold mb-2">Shipping Address</h2>
-                <p className="text-gray-600">Enter your delivery address</p>
+                <h2 className="text-2xl font-bold mb-2">Shipping Method</h2>
+                <p className="text-gray-600">Choose how you want to receive your order</p>
             </div>
 
-            {/* Address Form */}
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium mb-1">Country *</label>
-                    <select
-                        value={address.country}
-                        onChange={(e) => {
-                            setAddress({ ...address, country: e.target.value });
-                            setShowRates(false);
-                            setSelectedShipping(null);
-                        }}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    >
-                        {countries.map(c => (
-                            <option key={c.code} value={c.code}>{c.name}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1">Street Address *</label>
-                    <input
-                        type="text"
-                        value={address.street}
-                        onChange={(e) => setAddress({ ...address, street: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Larsbjørnsstraede 9"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1">Apartment, room, etc. (optional)</label>
-                    <input
-                        type="text"
-                        value={address.apartment}
-                        onChange={(e) => setAddress({ ...address, apartment: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        placeholder="Apartment 4B"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">City *</label>
-                        <input
-                            type="text"
-                            value={address.city}
-                            onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                            placeholder="København"
-                        />
+            {/* Pickup Option */}
+            <div className="grid grid-cols-2 gap-4">
+                <button
+                    onClick={() => {
+                        setShowRates(false);
+                        setAddress({ ...address, country: 'DK', street: 'Larsbjørnsstræde 9', city: 'København', postalCode: '1454' });
+                        setSelectedShipping({
+                            id: 'local_pickup',
+                            method: 'Local Pickup',
+                            price: 0,
+                            estimatedDays: '1',
+                            description: 'Pick up at store: Larsbjørnsstræde 9, 1454 København'
+                        });
+                    }}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedShipping?.id === 'local_pickup' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-200'}`}
+                >
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${selectedShipping?.id === 'local_pickup' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Postal Code *</label>
-                        <input
-                            type="text"
-                            value={address.postalCode}
-                            onChange={(e) => setAddress({ ...address, postalCode: e.target.value })}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                            placeholder="1454"
-                        />
-                    </div>
-                </div>
+                    <span className="font-bold">Local Pickup</span>
+                    <span className="text-xs text-green-600 font-bold uppercase">0 DKK</span>
+                </button>
 
                 <button
-                    onClick={handleCalculateShipping}
-                    disabled={isCalculating || !address.street || !address.city}
-                    className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    onClick={() => {
+                        if (selectedShipping?.id === 'local_pickup') {
+                            setSelectedShipping(null);
+                        }
+                    }}
+                    className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedShipping?.id !== 'local_pickup' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-200'}`}
                 >
-                    {isCalculating ? 'Calculating...' : 'Calculate Shipping'}
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${selectedShipping?.id !== 'local_pickup' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                    </div>
+                    <span className="font-bold">Shipping</span>
+                    <span className="text-xs text-slate-400 uppercase">Prices vary</span>
                 </button>
             </div>
 
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    {error}
-                </div>
-            )}
+            {selectedShipping?.id !== 'local_pickup' && (
+                <div className="space-y-6">
+                    <div>
+                        <h2 className="text-lg font-bold mb-2">Shipping Address</h2>
 
-            {/* Shipping Methods */}
-            {showRates && shippingRates.length > 0 && (
-                <div className="space-y-3">
-                    <h3 className="text-lg font-semibold">Select Shipping Method</h3>
+                        {/* Address Form */}
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Country *</label>
+                                <select
+                                    value={address.country}
+                                    onChange={(e) => {
+                                        setAddress({ ...address, country: e.target.value });
+                                        setShowRates(false);
+                                        setSelectedShipping(null);
+                                    }}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                >
+                                    {countries.map(c => (
+                                        <option key={c.code} value={c.code}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
 
-                    {shippingRates.map((rate) => (
-                        <div
-                            key={rate.id}
-                            onClick={() => setSelectedShipping(rate)}
-                            className={`
-                                border-2 rounded-lg p-4 cursor-pointer transition-all
-                                ${selectedShipping?.id === rate.id
-                                    ? 'border-orange-500 bg-orange-50'
-                                    : 'border-gray-200 hover:border-orange-300'
-                                }
-                            `}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="radio"
-                                            checked={selectedShipping?.id === rate.id}
-                                            onChange={() => setSelectedShipping(rate)}
-                                            className="text-orange-500 focus:ring-orange-500"
-                                        />
-                                        <span className="font-semibold">{rate.method}</span>
-                                    </div>
-                                    {rate.description && (
-                                        <p className="text-sm text-gray-600 ml-6 mt-1">{rate.description}</p>
-                                    )}
-                                    <p className="text-sm text-gray-500 ml-6 mt-1">
-                                        Estimated delivery: {rate.estimatedDays} days
-                                    </p>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Street Address *</label>
+                                <input
+                                    type="text"
+                                    value={address.street}
+                                    onChange={(e) => setAddress({ ...address, street: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                    placeholder="Larsbjørnsstraede 9"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Apartment, room, etc. (optional)</label>
+                                <input
+                                    type="text"
+                                    value={address.apartment}
+                                    onChange={(e) => setAddress({ ...address, apartment: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                    placeholder="Apartment 4B"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">City *</label>
+                                    <input
+                                        type="text"
+                                        value={address.city}
+                                        onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        placeholder="København"
+                                    />
                                 </div>
-                                <div className="text-right">
-                                    {rate.isFree ? (
-                                        <>
-                                            <span className="text-lg font-bold text-green-600">FREE</span>
-                                            <p className="text-xs text-gray-500 line-through">{rate.originalPrice} DKK</p>
-                                        </>
-                                    ) : (
-                                        <span className="text-lg font-bold">{rate.price} DKK</span>
-                                    )}
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Postal Code *</label>
+                                    <input
+                                        type="text"
+                                        value={address.postalCode}
+                                        onChange={(e) => setAddress({ ...address, postalCode: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        placeholder="1454"
+                                    />
                                 </div>
                             </div>
+
+                            <button
+                                onClick={handleCalculateShipping}
+                                disabled={isCalculating || !address.street || !address.city}
+                                className="w-full bg-orange-500 text-white py-3 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isCalculating ? 'Calculating...' : 'Calculate Shipping'}
+                            </button>
                         </div>
-                    ))}
+                    </div>
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Shipping Methods */}
+                    {showRates && shippingRates.length > 0 && (
+                        <div className="space-y-3">
+                            <h3 className="text-lg font-semibold">Select Shipping Method</h3>
+
+                            {shippingRates.map((rate) => (
+                                <div
+                                    key={rate.id}
+                                    onClick={() => setSelectedShipping(rate)}
+                                    className={`
+                                        border-2 rounded-lg p-4 cursor-pointer transition-all
+                                        ${selectedShipping?.id === rate.id
+                                            ? 'border-orange-500 bg-orange-50'
+                                            : 'border-gray-200 hover:border-orange-300'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="radio"
+                                                    checked={selectedShipping?.id === rate.id}
+                                                    onChange={() => setSelectedShipping(rate)}
+                                                    className="text-orange-500 focus:ring-orange-500"
+                                                />
+                                                <span className="font-semibold">{rate.method}</span>
+                                            </div>
+                                            {rate.description && (
+                                                <p className="text-sm text-gray-600 ml-6 mt-1">{rate.description}</p>
+                                            )}
+                                            <p className="text-sm text-gray-500 ml-6 mt-1">
+                                                Estimated delivery: {rate.estimatedDays} days
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            {rate.isFree ? (
+                                                <>
+                                                    <span className="text-lg font-bold text-green-600">FREE</span>
+                                                    <p className="text-xs text-gray-500 line-through">{rate.originalPrice} DKK</p>
+                                                </>
+                                            ) : (
+                                                <span className="text-lg font-bold">{rate.price} DKK</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 

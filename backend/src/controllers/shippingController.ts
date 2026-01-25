@@ -118,6 +118,14 @@ export const calculateShipping = async (req: Request, res: Response) => {
         let rates: ShippingRate[] = [];
 
         if (isDenmark) {
+            rates.push({
+                id: 'local_pickup',
+                method: 'Retiro en Local (Shop)',
+                price: 0,
+                estimatedDays: 'Hoy',
+                description: 'Recoger en tienda (Larsbjørnsstræde 9)'
+            });
+
             // DAO Shop Pickup
             // 1 vinyl: 50kr
             // 2-4 vinyls: 55kr
