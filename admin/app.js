@@ -45,6 +45,8 @@ const api = {
             const saleRef = db.collection('sales').doc();
             transaction.set(saleRef, {
                 ...saleData,
+                status: 'completed', // Manual sales are always completed immediately
+                fulfillment_status: 'fulfilled', // In-store sales are fulfilled immediately
                 total: totalAmount,
                 date: new Date().toISOString().split('T')[0],
                 timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -345,12 +347,15 @@ const app = {
                 }
 
                 return sale;
-            }).sort((a, b) => {
-                // ✅ Sort in-memory by date descending
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
-                return dateB - dateA;
-            });
+            })
+                // ✅ FILTER: Only show completed sales (hide failed or pending/abandoned checkouts)
+                .filter(sale => sale.status !== 'PENDING' && sale.status !== 'failed')
+                .sort((a, b) => {
+                    // ✅ Sort in-memory by date descending
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    return dateB - dateA;
+                });
 
             this.state.expenses = expensesSnap.docs.map(doc => ({
                 id: doc.id,
