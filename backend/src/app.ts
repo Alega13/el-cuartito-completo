@@ -21,7 +21,24 @@ import { errorHandler } from './middlewares/errorHandler';
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://el-cuartito-app.web.app',
+    'https://el-cuartito-admin-records.web.app',
+    'https://elcuartito.dk'
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
 
 // Webhook endpoint - must use express.raw to preserve signature
 // This must come BEFORE any other body-parser middleware
