@@ -260,11 +260,12 @@
                     <i class="ph-duotone ph-calendar-blank text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Calendario</span>
                 </button>
-                <button onclick="app.navigate('vat')" id="nav-d-vat"
+                <button onclick="app.navigate('vatReport')" id="nav-d-vatReport"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>VAT / Impuestos</span>
+                    <span>📊 Reporte VAT</span>
                 </button>
+
                 <button onclick="app.navigate('backup')" id="nav-d-backup"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-cloud-arrow-up text-xl group-hover:scale-110 transition-transform"></i>
@@ -346,11 +347,7 @@
                 <span class="text-xs font-bold">Calendario</span>
             </button>
 
-            <button onclick="app.navigate('vat'); app.toggleMobileMenu()"
-                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
-                <i class="ph-duotone ph-bank text-3xl text-brand-orange"></i>
-                <span class="text-xs font-bold">VAT</span>
-            </button>
+
             <button onclick="app.navigate('shipping'); app.toggleMobileMenu()"
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-truck text-3xl text-brand-orange"></i>

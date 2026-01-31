@@ -47,13 +47,13 @@ const SuccessPage = ({ saleId }) => {
     if (error || (!orderData)) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-                <h1 className="text-2xl font-bold mb-4">Lo sentimos, no pudimos cargar los detalles.</h1>
-                <p className="text-black/60 mb-8">Tu pago fue procesado con éxito, pero no encontramos los datos del pedido en esta sesión.</p>
+                <h1 className="text-2xl font-bold mb-4">Sorry, we couldn't load the details.</h1>
+                <p className="text-black/60 mb-8">Your payment was successfully processed, but we couldn't find the order details in this session.</p>
                 <button
                     onClick={() => navigate('/')}
                     className="bg-black text-white px-8 py-3 rounded-full text-sm font-bold uppercase tracking-widest"
                 >
-                    Volver a la Tienda
+                    Back to Store
                 </button>
             </div>
         );
@@ -149,7 +149,7 @@ const SuccessPage = ({ saleId }) => {
                                 </div>
                                 <div className="flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
                                     <span>Shipping</span>
-                                    <span>{orderData?.shippingCost === 0 ? 'GRATIS' : `DKK ${orderData?.shippingCost}`}</span>
+                                    <span>{orderData?.shippingCost === 0 ? 'FREE' : `DKK ${orderData?.shippingCost}`}</span>
                                 </div>
                                 <div className="flex justify-between items-end pt-4 border-t border-white/10">
                                     <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/40">Total Paid</h2>

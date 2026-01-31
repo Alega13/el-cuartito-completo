@@ -124,7 +124,7 @@ const app = {
         expensesSearch: '',
         events: [],
         selectedDate: new Date(),
-        vatActive: localStorage.getItem('el-cuartito-settings') ? JSON.parse(localStorage.getItem('el-cuartito-settings')).vatActive : false
+        vatActive: false
     },
 
     async init() {
@@ -399,13 +399,14 @@ const app = {
             case 'discogsSales': this.renderDiscogsSales(container); break;
             case 'expenses': this.renderExpenses(container); break;
             case 'consignments': this.renderConsignments(container); break;
-            case 'vat': this.renderVAT(container); break;
+
             case 'backup': this.renderBackup(container); break;
             case 'settings': this.renderSettings(container); break;
             case 'calendar': this.renderCalendar(container); break;
             case 'shipping': this.renderShipping(container); break;
             case 'pickups': this.renderPickups(container); break;
             case 'investments': this.renderInvestments(container); break;
+            case 'vatReport': this.renderVATReport(container); break;
         }
     },
 
@@ -778,6 +779,30 @@ const app = {
                         </button>
                     </form>
                 </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
+                    <h3 class="font-bold text-lg text-brand-dark mb-4">Migraciones de Datos</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
+                            <div>
+                                <p class="font-bold text-amber-900">Marcar Productos como "Usado"</p>
+                                <p class="text-xs text-amber-700">Actualiza todos los productos sin condición a "Second-hand"</p>
+                            </div>
+                            <button onclick="app.migrateProductCondition()" class="bg-amber-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-700 transition-colors text-sm">
+                                <i class="ph-bold ph-database mr-1"></i> Migrar
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-200">
+                            <div>
+                                <p class="font-bold text-blue-900">Migrar Datos de Ventas</p>
+                                <p class="text-xs text-blue-700">Agrega costo y condición a ventas sin estos datos</p>
+                            </div>
+                            <button onclick="app.migrateSalesData()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm">
+                                <i class="ph-bold ph-receipt mr-1"></i> Migrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
         container.innerHTML = html;
@@ -795,6 +820,109 @@ const app = {
         } else {
             localStorage.removeItem('discogs_token');
             this.showToast('Token eliminado');
+        }
+    },
+
+    async migrateProductCondition() {
+        if (!confirm('¿Estás seguro? Esto marcará TODOS los productos como "Usado (Second-hand)".')) return;
+
+        this.showToast('⏳ Migrando productos...', 'info');
+
+        try {
+            const snapshot = await db.collection('products').get();
+            let updatedCount = 0;
+            const batch = db.batch();
+
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                // Only update if product_condition is not set
+                if (!data.product_condition) {
+                    batch.update(doc.ref, { product_condition: 'Second-hand' });
+                    updatedCount++;
+                }
+            });
+
+            await batch.commit();
+            this.showToast(`✅ ${updatedCount} productos marcados como "Usado"`);
+            await this.loadData();
+        } catch (error) {
+            console.error('Migration error:', error);
+            this.showToast('❌ Error durante la migración: ' + error.message, 'error');
+        }
+    },
+
+    async migrateSalesData() {
+        if (!confirm('¿Migrar datos de ventas? Esto agregará información de costo y condición a ventas antiguas.')) return;
+
+        this.showToast('⏳ Migrando ventas...', 'info');
+
+        try {
+            const salesSnapshot = await db.collection('sales').get();
+            let updatedCount = 0;
+            let batchCount = 0;
+            let batch = db.batch();
+
+            for (const saleDoc of salesSnapshot.docs) {
+                const saleData = saleDoc.data();
+                const items = saleData.items || [];
+                let needsUpdate = false;
+                const updatedItems = [];
+
+                for (const item of items) {
+                    const updatedItem = { ...item };
+
+                    // Check if item needs migration
+                    if (!item.costAtSale && item.costAtSale !== 0) {
+                        needsUpdate = true;
+
+                        // Find product in inventory
+                        const productId = item.productId || item.recordId;
+                        const album = item.album;
+
+                        const product = this.state.inventory.find(p =>
+                            (productId && (p.id === productId || p.sku === productId)) ||
+                            (album && p.album === album)
+                        );
+
+                        if (product) {
+                            updatedItem.costAtSale = product.cost || 0;
+                            updatedItem.productCondition = product.product_condition || 'Second-hand';
+                            updatedItem.productId = product.id || productId;
+                            if (!updatedItem.album) updatedItem.album = product.album;
+                        } else {
+                            // Default values if product not found
+                            updatedItem.costAtSale = 0;
+                            updatedItem.productCondition = 'Second-hand';
+                        }
+                    }
+
+                    updatedItems.push(updatedItem);
+                }
+
+                if (needsUpdate) {
+                    batch.update(saleDoc.ref, { items: updatedItems });
+                    updatedCount++;
+                    batchCount++;
+
+                    // Firestore batch limit is 500
+                    if (batchCount >= 450) {
+                        await batch.commit();
+                        batch = db.batch();
+                        batchCount = 0;
+                    }
+                }
+            }
+
+            // Commit remaining updates
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+
+            this.showToast(`✅ ${updatedCount} ventas actualizadas con datos de producto`);
+            await this.loadData();
+        } catch (error) {
+            console.error('Sales migration error:', error);
+            this.showToast('❌ Error: ' + error.message, 'error');
         }
     },
     exportData() {
@@ -1132,27 +1260,7 @@ const app = {
 
     // --- LOGIC ---
 
-    // Calculates the VAT component (20% of gross) if VAT is active
-    getVatComponent(amount) {
-        if (!this.state.vatActive) return 0;
-        const value = parseFloat(amount) || 0;
-        return value * 0.20;
-    },
 
-    getNetPrice(amount) {
-        if (!this.state.vatActive) return amount;
-        return amount * 0.80;
-    },
-
-    // 50,000 DKK Threshold Logic (Rolling 12 months)
-    getRolling12MonthSales() {
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-        return this.state.sales
-            .filter(s => new Date(s.date) >= oneYearAgo)
-            .reduce((sum, s) => sum + this.getNetPrice(s.total), 0);
-    },
 
     // --- VIEWS ---
 
@@ -2444,7 +2552,7 @@ const app = {
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-center">Pago</th>
                                             <th class="p-4 text-center">Estado</th>
-                                            <th class="p-4 w-10"></th>
+                                            <th class="p-4 text-center">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-orange-50">
@@ -2490,9 +2598,14 @@ const app = {
                                                     `)}
                                                 </td>
                                                 <td class="p-4 text-center" onclick="event.stopPropagation()">
-                                                    <button onclick="app.deleteSale('${s.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Venta">
-                                                        <i class="ph-fill ph-trash"></i>
-                                                    </button>
+                                                    <div class="flex items-center justify-center gap-2">
+                                                        <button onclick="app.openInvoiceModal('${s.id}')" class="text-slate-400 hover:text-blue-500 transition-colors" title="Ver Factura">
+                                                            <i class="ph-fill ph-file-text text-lg"></i>
+                                                        </button>
+                                                        <button onclick="app.deleteSale('${s.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Venta">
+                                                            <i class="ph-fill ph-trash"></i>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         `).join('')}
@@ -2622,7 +2735,7 @@ const app = {
 
 
     openAddVinylModal(editSku = null) {
-        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
         let isEdit = false;
 
         if (editSku) {
@@ -2855,6 +2968,13 @@ const app = {
                                                     </select>
                                                 </div>
                                                 <div class="col-span-3 md:col-span-2">
+                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Condición Producto</label>
+                                                    <select name="product_condition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
+                                                        <option value="New" ${item.product_condition === 'New' ? 'selected' : ''}>🆕 Nuevo (New)</option>
+                                                        <option value="Second-hand" ${item.product_condition === 'Second-hand' || !item.product_condition ? 'selected' : ''}>📦 Usado (Second-hand)</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-span-3 md:col-span-2">
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado de la Funda</label>
                                                     <select name="sleeveCondition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
                                                         <option value="" ${!item.sleeveCondition ? 'selected' : ''}>Not Graded</option>
@@ -2874,7 +2994,7 @@ const app = {
 
                                             <div class="p-4 bg-orange-50/50 rounded-xl border border-orange-100 grid grid-cols-2 md:grid-cols-4 gap-4">
                                                 <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Costo</label>
+                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Costo Adquisición</label>
                                                     <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost}" required oninput="app.handleCostChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-slate-600">
                                                 </div>
                                                 <div>
@@ -2882,7 +3002,7 @@ const app = {
                                                     <input name="margin" id="modal-margin" type="number" step="1" value="30" oninput="app.handleMarginChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-brand-orange">
                                                 </div>
                                                 <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Precio Final</label>
+                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Precio Venta (Bruto)</label>
                                                     <input name="price" id="modal-price" type="number" step="0.5" value="${item.price}" required oninput="app.handlePriceChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none font-bold text-brand-dark text-lg text-center shadow-sm">
                                                 </div>
                                                 <div>
@@ -3595,6 +3715,194 @@ const app = {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
+    openInvoiceModal(saleId) {
+        const sale = this.state.sales.find(s => s.id === saleId);
+        if (!sale) {
+            this.showToast('Sale not found', 'error');
+            return;
+        }
+
+        const items = sale.items || [];
+        const saleDate = sale.date?.toDate ? sale.date.toDate() : new Date(sale.date || sale.timestamp);
+
+        // Generate unique invoice number: ECR-YYYYMMDD-XXXX (year+month+day + last 4 of sale ID)
+        const dateStr = saleDate.toISOString().slice(0, 10).replace(/-/g, '');
+        const invoiceNumber = sale.invoiceNumber || `ECR-${dateStr}-${saleId.slice(-4).toUpperCase()}`;
+
+        // Separate items by condition
+        const newItems = items.filter(i => i.productCondition === 'New');
+        const usedItems = items.filter(i => i.productCondition !== 'New');
+
+        // Calculate VAT
+        let totalNewVAT = 0;
+        let subtotal = 0;
+
+        const formatItemRows = (itemsList, isNew) => {
+            return itemsList.map(item => {
+                const price = item.priceAtSale || item.price || 0;
+                const qty = item.qty || item.quantity || 1;
+                const lineTotal = price * qty;
+                subtotal += lineTotal;
+
+                if (isNew) {
+                    const vat = lineTotal * 0.20;
+                    totalNewVAT += vat;
+                    return `
+                        <tr>
+                            <td style="padding: 12px 0; border-bottom: 1px solid #eee;">
+                                <div style="font-weight: bold;">${item.album || 'Product'}</div>
+                                <div style="font-size: 11px; color: #666;">${item.artist || ''}</div>
+                                <div style="font-size: 11px; color: #2563eb; margin-top: 4px;">✓ Moms (25%): DKK ${vat.toFixed(2)}</div>
+                            </td>
+                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${qty}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee;">DKK ${price.toFixed(2)}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${lineTotal.toFixed(2)}</td>
+                        </tr>
+                    `;
+                } else {
+                    return `
+                        <tr>
+                            <td style="padding: 12px 0; border-bottom: 1px solid #eee;">
+                                <div style="font-weight: bold;">${item.album || 'Product'}</div>
+                                <div style="font-size: 11px; color: #666;">${item.artist || ''}</div>
+                                <div style="font-size: 10px; color: #d97706; margin-top: 4px; font-style: italic;">Brugtmoms - Køber har ikke fradrag for momsen</div>
+                            </td>
+                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${qty}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee;">DKK ${price.toFixed(2)}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${lineTotal.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }
+            }).join('');
+        };
+
+        // Build sections for mixed orders
+        let itemsSection = '';
+        if (newItems.length > 0 && usedItems.length > 0) {
+            itemsSection = `
+                <tr><td colspan="4" style="padding: 15px 0 8px 0; font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase;">🆕 New Products (VAT Deductible)</td></tr>
+                ${formatItemRows(newItems, true)}
+                <tr><td colspan="4" style="padding: 20px 0 8px 0; font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase;">📦 Used Products (Margin Scheme / Brugtmoms)</td></tr>
+                ${formatItemRows(usedItems, false)}
+            `;
+        } else {
+            itemsSection = formatItemRows(newItems, true) + formatItemRows(usedItems, false);
+        }
+
+        const shipping = parseFloat(sale.shipping || sale.shipping_cost || 0);
+        const total = subtotal + shipping;
+
+        const customerName = sale.customer ? `${sale.customer.firstName || ''} ${sale.customer.lastName || ''}`.trim() : (sale.customerName || 'Customer');
+        const customerAddress = sale.customer ? `${sale.customer.address || ''}<br>${sale.customer.postalCode || ''} ${sale.customer.city || ''}<br>${sale.customer.country || ''}` : '';
+
+        const invoiceHtml = `
+            <div id="invoice-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="if(event.target.id === 'invoice-modal') this.remove()">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                    <div class="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+                        <h3 class="font-bold text-lg text-brand-dark flex items-center gap-2">
+                            <i class="ph-fill ph-file-text text-brand-orange"></i>
+                            Invoice ${invoiceNumber}
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="app.printInvoice()" class="bg-blue-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-600 transition-colors text-sm flex items-center gap-2">
+                                <i class="ph-bold ph-printer"></i> Print
+                            </button>
+                            <button onclick="document.getElementById('invoice-modal').remove()" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-300 transition-colors text-sm">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-auto p-6" id="invoice-content">
+                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
+                                <p style="font-size: 12px; color: #999; margin-top: 5px;">Dybbølsgade 14, 1721 København V, Denmark</p>
+                                <p style="font-size: 11px; color: #999;">CVR: 45943216</p>
+                            </div>
+
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 25px; font-size: 13px;">
+                                <div>
+                                    <p style="font-weight: bold; margin-bottom: 5px;">Bill To:</p>
+                                    <p style="color: #666; margin: 0;">${customerName}</p>
+                                    ${customerAddress ? `<p style="color: #666; margin: 5px 0; font-size: 12px;">${customerAddress}</p>` : ''}
+                                </div>
+                                <div style="text-align: right;">
+                                    <p style="margin: 0;"><strong>Invoice:</strong> ${invoiceNumber}</p>
+                                    <p style="margin: 5px 0; color: #666;"><strong>Date:</strong> ${saleDate.toLocaleDateString('en-GB')}</p>
+                                </div>
+                            </div>
+
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <thead>
+                                    <tr style="background: #f5f5f5;">
+                                        <th style="text-align: left; padding: 10px; font-size: 11px; color: #666; text-transform: uppercase;">Product</th>
+                                        <th style="text-align: center; padding: 10px; font-size: 11px; color: #666; text-transform: uppercase;">Qty</th>
+                                        <th style="text-align: right; padding: 10px; font-size: 11px; color: #666; text-transform: uppercase;">Price</th>
+                                        <th style="text-align: right; padding: 10px; font-size: 11px; color: #666; text-transform: uppercase;">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsSection}
+                                </tbody>
+                            </table>
+
+                            <div style="border-top: 2px solid #eee; padding-top: 15px; font-size: 14px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>Subtotal:</span>
+                                    <span>DKK ${subtotal.toFixed(2)}</span>
+                                </div>
+                                ${totalNewVAT > 0 ? `
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #2563eb; font-size: 13px;">
+                                    <span>↳ Heraf moms (25%):</span>
+                                    <span>DKK ${totalNewVAT.toFixed(2)}</span>
+                                </div>
+                                ` : ''}
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                                    <span>Shipping:</span>
+                                    <span>DKK ${shipping.toFixed(2)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid #333; font-weight: 900; font-size: 18px;">
+                                    <span>Total:</span>
+                                    <span>DKK ${total.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #999; font-size: 11px;">
+                                <p>Thank you for your purchase!</p>
+                                <p>hola@elcuartito.dk | elcuartito.dk</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', invoiceHtml);
+    },
+
+    printInvoice() {
+        const invoiceContent = document.getElementById('invoice-content').innerHTML;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Invoice - El Cuartito Records</title>
+                <style>
+                    body { margin: 0; padding: 20px; }
+                    @media print {
+                        body { padding: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${invoiceContent}
+                <script>window.print(); setTimeout(() => window.close(), 500);</script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    },
+
     navigateInventoryFolder(type, value) {
         if (type === 'genre') this.state.filterGenre = value;
         if (type === 'owner') this.state.filterOwner = value;
@@ -3903,6 +4211,7 @@ const app = {
             collection: collection || null,
             collectionNote: formData.get('collectionNote') || null,
             condition: formData.get('condition'),
+            product_condition: formData.get('product_condition') || 'Second-hand',
             sleeveCondition: formData.get('sleeveCondition') || '',
             comments: formData.get('comments') || '',
             price: parseFloat(formData.get('price')),
@@ -5359,100 +5668,14 @@ const app = {
 
     saveData() {
         try {
-            const settings = {
-                vatActive: this.state.vatActive
-            };
+            const settings = {};
             localStorage.setItem('el-cuartito-settings', JSON.stringify(settings));
         } catch (e) {
             console.error("Error saving settings:", e);
         }
     },
 
-    renderVAT(container) {
-        // Filter by selected year
-        const getYear = (date) => {
-            if (!date) return 0;
-            if (date.toDate) return date.toDate().getFullYear(); // Firestore Timestamp
-            return new Date(date).getFullYear();
-        };
 
-        const yearSales = this.state.sales.filter(s => getYear(s.date) === this.state.filterYear);
-        const yearExpenses = this.state.expenses.filter(e => getYear(e.date) === this.state.filterYear);
-
-        // Calculate VAT
-        let totalSalesVAT = 0;
-        let totalExpensesVAT = 0;
-
-        if (this.state.vatActive) {
-            totalSalesVAT = yearSales.reduce((sum, s) => sum + this.getVatComponent(s.total), 0);
-            totalExpensesVAT = yearExpenses
-                .filter(e => e.hasVat)
-                .reduce((sum, e) => sum + this.getVatComponent(e.amount), 0);
-        }
-
-        const netVAT = totalSalesVAT - totalExpensesVAT;
-
-        const html = `
-                                                                    <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 pt-6">
-                                                                        <div class="flex justify-between items-center mb-6">
-                                                                            <h2 class="font-display text-2xl font-bold text-brand-dark">Reporte VAT (Moms)</h2>
-                                                                            <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-orange-100">
-                                                                                <span class="text-sm font-medium text-slate-600">VAT Activo</span>
-                                                                                <button onclick="app.toggleVAT()" class="w-12 h-6 rounded-full transition-colors relative ${this.state.vatActive ? 'bg-brand-orange' : 'bg-slate-300'}">
-                                                                                    <div class="w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${this.state.vatActive ? 'left-7' : 'left-1'}"></div>
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div class="bg-brand-dark text-white rounded-3xl p-8 mb-8 relative overflow-hidden">
-                                                                            <div class="absolute top-0 right-0 w-64 h-64 bg-brand-orange opacity-10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                                                                            <div class="relative z-10 text-center">
-                                                                                <p class="text-slate-400 font-medium mb-2">Balance VAT (${this.state.filterYear})</p>
-                                                                                <h2 class="text-6xl font-display font-bold mb-2">${this.formatCurrency(netVAT)}</h2>
-                                                                                <p class="text-sm text-slate-400">${netVAT > 0 ? 'A pagar a Skat' : 'A reclamar'}</p>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
-                                                                                <h3 class="font-bold text-lg mb-4 text-brand-dark">VAT Recaudado (Ventas)</h3>
-                                                                                <div class="space-y-3">
-                                                                                    <div class="flex justify-between text-sm">
-                                                                                        <span class="text-slate-500">Ventas Brutas</span>
-                                                                                        <span class="font-medium">${this.formatCurrency(yearSales.reduce((s, i) => s + i.total, 0))}</span>
-                                                                                    </div>
-                                                                                    <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
-                                                                                        <span class="font-bold text-brand-orange">Total VAT (25%)</span>
-                                                                                        <span class="font-bold text-brand-orange">${this.formatCurrency(totalSalesVAT)}</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-
-                                                                            <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
-                                                                                <h3 class="font-bold text-lg mb-4 text-brand-dark">VAT Deducible (Gastos)</h3>
-                                                                                <div class="space-y-3">
-                                                                                    <div class="flex justify-between text-sm">
-                                                                                        <span class="text-slate-500">Gastos con VAT</span>
-                                                                                        <span class="font-medium">${this.formatCurrency(yearExpenses.filter(e => e.hasVat).reduce((s, i) => s + i.amount, 0))}</span>
-                                                                                    </div>
-                                                                                    <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
-                                                                                        <span class="font-bold text-green-600">Total Deducible</span>
-                                                                                        <span class="font-bold text-green-600">${this.formatCurrency(totalExpensesVAT)}</span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                `;
-        container.innerHTML = html;
-    },
-
-    toggleVAT() {
-        this.state.vatActive = !this.state.vatActive;
-        this.saveData();
-        this.renderVAT(document.getElementById('app-content'));
-    },
 
     // --- Discogs Integration (Restored) ---
     searchDiscogs() {
@@ -6359,6 +6582,360 @@ const app = {
         } catch (error) {
             this.showToast('❌ Error: ' + error.message, 'error');
         }
+    },
+
+    // ====== VAT REPORT MODULE ======
+    renderVATReport(container) {
+        // Get current quarter filter from state or default to current quarter
+        const now = new Date();
+        const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+        const currentYear = now.getFullYear();
+        const selectedQuarter = this.state.vatReportQuarter || currentQuarter;
+        const selectedYear = this.state.vatReportYear || currentYear;
+
+        // Calculate quarter date range
+        const quarterStartMonth = (selectedQuarter - 1) * 3;
+        const startDate = new Date(selectedYear, quarterStartMonth, 1);
+        const endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+
+        // Filter sales by date range
+        const filteredSales = this.state.sales.filter(sale => {
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
+            return saleDate >= startDate && saleDate <= endDate;
+        });
+
+        // Separate sales into Standard (New) and Margin Scheme (Used)
+        let standardVatItems = [];
+        let marginSchemeItems = [];
+        let totalStandardVat = 0;
+        let totalMarginVat = 0;
+        let totalNetSales = 0;
+
+        filteredSales.forEach(sale => {
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
+            const items = sale.items || [];
+
+            items.forEach(item => {
+                const price = item.priceAtSale || item.price || 0;
+                // Lookup cost from sale item, or fallback to current inventory cost
+                let cost = item.costAtSale || item.cost || 0;
+                const productId = item.productId || item.recordId;
+                const albumName = item.album;
+
+                // If cost is 0, try to find it from the inventory
+                if (cost === 0) {
+                    const inventoryProduct = this.state.inventory.find(p =>
+                        (productId && (p.id === productId || p.sku === productId)) ||
+                        (albumName && p.album === albumName)
+                    );
+                    if (inventoryProduct) {
+                        cost = inventoryProduct.cost || 0;
+                    }
+                }
+                const qty = item.qty || item.quantity || 1;
+                const condition = item.productCondition || 'Second-hand';
+                const totalPrice = price * qty;
+                const totalCost = cost * qty;
+
+                if (condition === 'New') {
+                    // Standard VAT: 25% on full price (extract: price * 0.20)
+                    const vat = totalPrice * 0.20;
+                    totalStandardVat += vat;
+                    totalNetSales += (totalPrice - vat);
+                    standardVatItems.push({
+                        date: saleDate,
+                        productId: item.productId || item.album || 'N/A',
+                        album: item.album || 'N/A',
+                        salePrice: totalPrice,
+                        vat: vat
+                    });
+                } else {
+                    // Margin Scheme: VAT on margin only
+                    const margin = totalPrice - totalCost;
+                    const vat = margin > 0 ? margin * 0.20 : 0;
+                    totalMarginVat += vat;
+                    totalNetSales += (totalPrice - vat);
+                    marginSchemeItems.push({
+                        date: saleDate,
+                        productId: item.productId || item.album || 'N/A',
+                        album: item.album || 'N/A',
+                        cost: totalCost,
+                        salePrice: totalPrice,
+                        margin: margin,
+                        vat: vat
+                    });
+                }
+            });
+        });
+
+        const totalVatToPay = totalStandardVat + totalMarginVat;
+
+        const html = `
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div>
+                        <h2 class="font-display text-2xl font-bold text-brand-dark">📊 Reporte VAT (Moms)</h2>
+                        <p class="text-sm text-slate-500">Cálculo de IVA según régimen danés</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select id="vat-quarter-select" onchange="app.updateVATQuarter()" class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:border-brand-orange outline-none">
+                            <option value="1" ${selectedQuarter === 1 ? 'selected' : ''}>Q1 (Ene-Mar)</option>
+                            <option value="2" ${selectedQuarter === 2 ? 'selected' : ''}>Q2 (Abr-Jun)</option>
+                            <option value="3" ${selectedQuarter === 3 ? 'selected' : ''}>Q3 (Jul-Sep)</option>
+                            <option value="4" ${selectedQuarter === 4 ? 'selected' : ''}>Q4 (Oct-Dic)</option>
+                        </select>
+                        <select id="vat-year-select" onchange="app.updateVATQuarter()" class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium focus:border-brand-orange outline-none">
+                            ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div class="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-2xl p-6 shadow-lg">
+                        <p class="text-red-100 text-sm font-medium mb-1">Total IVA a Pagar a SKAT</p>
+                        <p class="text-3xl font-display font-bold">${this.formatCurrency(totalVatToPay)}</p>
+                        <p class="text-red-200 text-xs mt-2">Estándar: ${this.formatCurrency(totalStandardVat)} + Margen: ${this.formatCurrency(totalMarginVat)}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-2xl p-6 shadow-lg">
+                        <p class="text-green-100 text-sm font-medium mb-1">Ventas Netas (Sin IVA)</p>
+                        <p class="text-3xl font-display font-bold">${this.formatCurrency(totalNetSales)}</p>
+                        <p class="text-green-200 text-xs mt-2">Ganancia real después de impuestos</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-6 shadow-lg">
+                        <p class="text-blue-100 text-sm font-medium mb-1">Total Transacciones</p>
+                        <p class="text-3xl font-display font-bold">${standardVatItems.length + marginSchemeItems.length}</p>
+                        <p class="text-blue-200 text-xs mt-2">${standardVatItems.length} nuevos + ${marginSchemeItems.length} usados</p>
+                    </div>
+                </div>
+
+                <!-- Download Audit Report Button -->
+                <div class="mb-6">
+                    <button onclick="app.downloadVATAuditReport()" class="w-full md:w-auto bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-8 py-4 rounded-2xl font-bold hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg flex items-center justify-center gap-3 text-lg">
+                        <i class="ph-bold ph-file-csv text-2xl"></i>
+                        Download Audit Report (Excel/CSV)
+                    </button>
+                    <p class="text-xs text-slate-400 mt-2">Complete transaction log for Q${selectedQuarter} ${selectedYear} with all VAT calculations</p>
+                </div>
+
+                <!-- Table 1: Standard VAT (New Products) -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-white">
+                        <h3 class="font-bold text-lg text-brand-dark flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">🆕</span>
+                            Tabla 1: Ventas Estándar (Productos Nuevos)
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">IVA 25% sobre precio de venta completo</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Fecha</th>
+                                    <th class="px-4 py-3 text-left">Producto</th>
+                                    <th class="px-4 py-3 text-right">Precio Venta</th>
+                                    <th class="px-4 py-3 text-right">IVA (25%)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${standardVatItems.length > 0 ? standardVatItems.map(item => `
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-4 py-3 text-slate-500">${item.date.toLocaleDateString('es-DK')}</td>
+                                        <td class="px-4 py-3 font-medium text-brand-dark">${item.album}</td>
+                                        <td class="px-4 py-3 text-right">${this.formatCurrency(item.salePrice)}</td>
+                                        <td class="px-4 py-3 text-right font-bold text-blue-600">${this.formatCurrency(item.vat)}</td>
+                                    </tr>
+                                `).join('') : `
+                                    <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">No hay ventas de productos nuevos en este período</td></tr>
+                                `}
+                            </tbody>
+                            <tfoot class="bg-blue-50 font-bold text-blue-800">
+                                <tr>
+                                    <td colspan="3" class="px-4 py-3 text-right">Total IVA Estándar:</td>
+                                    <td class="px-4 py-3 text-right text-lg">${this.formatCurrency(totalStandardVat)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Table 2: Margin Scheme VAT (Used Products) -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-white">
+                        <h3 class="font-bold text-lg text-brand-dark flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">📦</span>
+                            Tabla 2: Ventas Régimen Margen (Productos Usados - Brugtmoms)
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1">IVA 25% solo sobre el margen de ganancia</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 text-slate-600 text-xs uppercase">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Fecha</th>
+                                    <th class="px-4 py-3 text-left">Producto</th>
+                                    <th class="px-4 py-3 text-right">Costo Compra</th>
+                                    <th class="px-4 py-3 text-right">Precio Venta</th>
+                                    <th class="px-4 py-3 text-right">Margen Bruto</th>
+                                    <th class="px-4 py-3 text-right">IVA s/Margen</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${marginSchemeItems.length > 0 ? marginSchemeItems.map(item => `
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-4 py-3 text-slate-500">${item.date.toLocaleDateString('es-DK')}</td>
+                                        <td class="px-4 py-3 font-medium text-brand-dark">${item.album}</td>
+                                        <td class="px-4 py-3 text-right text-slate-500">${this.formatCurrency(item.cost)}</td>
+                                        <td class="px-4 py-3 text-right">${this.formatCurrency(item.salePrice)}</td>
+                                        <td class="px-4 py-3 text-right ${item.margin > 0 ? 'text-green-600' : 'text-red-500'}">${this.formatCurrency(item.margin)}</td>
+                                        <td class="px-4 py-3 text-right font-bold text-amber-600">${this.formatCurrency(item.vat)}</td>
+                                    </tr>
+                                `).join('') : `
+                                    <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">No hay ventas de productos usados en este período</td></tr>
+                                `}
+                            </tbody>
+                            <tfoot class="bg-amber-50 font-bold text-amber-800">
+                                <tr>
+                                    <td colspan="5" class="px-4 py-3 text-right">Total IVA sobre Margen:</td>
+                                    <td class="px-4 py-3 text-right text-lg">${this.formatCurrency(totalMarginVat)}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    updateVATQuarter() {
+        const quarter = parseInt(document.getElementById('vat-quarter-select').value);
+        const year = parseInt(document.getElementById('vat-year-select').value);
+        this.state.vatReportQuarter = quarter;
+        this.state.vatReportYear = year;
+        this.renderVATReport(document.getElementById('app-content'));
+    },
+
+    downloadVATAuditReport() {
+        const now = new Date();
+        const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+        const currentYear = now.getFullYear();
+        const selectedQuarter = this.state.vatReportQuarter || currentQuarter;
+        const selectedYear = this.state.vatReportYear || currentYear;
+
+        // Calculate quarter date range
+        const quarterStartMonth = (selectedQuarter - 1) * 3;
+        const startDate = new Date(selectedYear, quarterStartMonth, 1);
+        const endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+
+        // Filter sales by date range
+        const filteredSales = this.state.sales.filter(sale => {
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
+            return saleDate >= startDate && saleDate <= endDate;
+        });
+
+        // Build audit data rows
+        const auditRows = [];
+        let invoiceCounter = 1;
+
+        filteredSales.forEach(sale => {
+            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
+            const dateStr = saleDate.toISOString().slice(0, 10).replace(/-/g, '');
+            const items = sale.items || [];
+
+            items.forEach(item => {
+                const price = item.priceAtSale || item.price || 0;
+                let cost = item.costAtSale || item.cost || 0;
+                const productId = item.productId || item.recordId;
+                const albumName = item.album;
+
+                // Lookup cost from inventory if not stored
+                if (cost === 0) {
+                    const inventoryProduct = this.state.inventory.find(p =>
+                        (productId && (p.id === productId || p.sku === productId)) ||
+                        (albumName && p.album === albumName)
+                    );
+                    if (inventoryProduct) {
+                        cost = inventoryProduct.cost || 0;
+                    }
+                }
+
+                const qty = item.qty || item.quantity || 1;
+                const condition = item.productCondition || 'Second-hand';
+                const isNew = condition === 'New';
+                const totalPrice = price * qty;
+                const totalCost = cost * qty;
+
+                // Calculation logic
+                let calculationBasis, outputVAT;
+                if (isNew) {
+                    calculationBasis = totalPrice;
+                    outputVAT = totalPrice * 0.20; // 25% VAT extracted
+                } else {
+                    const margin = totalPrice - totalCost;
+                    calculationBasis = margin > 0 ? margin : 0;
+                    outputVAT = margin > 0 ? margin * 0.20 : 0; // 0 if negative margin
+                }
+
+                // Generate unique transaction ID
+                const transactionId = `ECR-${dateStr}-${String(invoiceCounter).padStart(4, '0')}`;
+                invoiceCounter++;
+
+                auditRows.push({
+                    transactionId,
+                    date: saleDate.toISOString().slice(0, 10),
+                    productName: `${item.album || 'N/A'} - ${item.artist || 'N/A'}`,
+                    sku: item.sku || productId || 'N/A',
+                    condition: isNew ? 'New' : 'Second-hand',
+                    costPrice: totalCost.toFixed(2),
+                    salesPrice: totalPrice.toFixed(2),
+                    calculationBasis: calculationBasis.toFixed(2),
+                    outputVAT: outputVAT.toFixed(2)
+                });
+            });
+        });
+
+        // Generate CSV content
+        const headers = [
+            'Transaction ID',
+            'Date',
+            'Product Name',
+            'SKU',
+            'Condition',
+            'Cost Price (DKK)',
+            'Sales Price (DKK)',
+            'Calculation Basis (DKK)',
+            'Output VAT / Salgsmoms (DKK)'
+        ];
+
+        const csvContent = [
+            headers.join(','),
+            ...auditRows.map(row => [
+                row.transactionId,
+                row.date,
+                `"${row.productName.replace(/"/g, '""')}"`,
+                row.sku,
+                row.condition,
+                row.costPrice,
+                row.salesPrice,
+                row.calculationBasis,
+                row.outputVAT
+            ].join(','))
+        ].join('\n');
+
+        // Add BOM for Excel UTF-8 compatibility
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `VAT_Audit_Report_Q${selectedQuarter}_${selectedYear}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        this.showToast(`✅ Audit report downloaded: ${auditRows.length} transactions`);
     },
 
     // ====== INVESTMENTS MODULE ======

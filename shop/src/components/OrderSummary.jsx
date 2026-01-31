@@ -6,7 +6,7 @@ const OrderSummary = ({ cart, shippingCost = 0, showShipping = false }) => {
 
     return (
         <div className="bg-gray-50 rounded-xl p-6 sticky top-6">
-            <h3 className="text-lg font-bold mb-4">Resumen Del Pedido</h3>
+            <h3 className="text-lg font-bold mb-4">Order Summary</h3>
 
             {/* Cart Items */}
             <div className="space-y-3 mb-4">
@@ -32,16 +32,16 @@ const OrderSummary = ({ cart, shippingCost = 0, showShipping = false }) => {
             {/* Totals */}
             <div className="space-y-2 border-t border-gray-300 pt-4">
                 <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Artículos:</span>
+                    <span className="text-gray-600">Items:</span>
                     <span className="font-medium">{itemsTotal} DKK</span>
                 </div>
 
                 {showShipping && (
                     <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Envío:</span>
+                        <span className="text-gray-600">Shipping:</span>
                         <span className="font-medium">
                             {shippingCost === 0 ? (
-                                <span className="text-green-600 font-bold">GRATIS</span>
+                                <span className="text-green-600 font-bold">FREE</span>
                             ) : (
                                 `${shippingCost} DKK`
                             )}
@@ -55,7 +55,7 @@ const OrderSummary = ({ cart, shippingCost = 0, showShipping = false }) => {
                 </div>
 
                 {!showShipping && (
-                    <p className="text-xs text-gray-500 italic">+ Envío (calculado en el siguiente paso)</p>
+                    <p className="text-xs text-gray-500 italic">+ Shipping (calculated in next step)</p>
                 )}
             </div>
         </div>

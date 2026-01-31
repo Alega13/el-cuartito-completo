@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
+import { calculateSaleVATLiability } from '../services/vatCalculator';
 
 // Types for clarity
 interface ProductData {
@@ -214,6 +215,7 @@ export const createSale = async (req: Request, res: Response) => {
                 const price = item.priceAtSale || productData.price || 0;
                 item.priceAtSale = price; // Store the price used in the item
                 item.costAtSale = productData.cost || 0; // Store cost for profit calculation
+                item.productCondition = productData.product_condition || 'Second-hand'; // Store for VAT calculation
                 item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
 
                 calculatedTotal += price * item.qty;
@@ -239,11 +241,15 @@ export const createSale = async (req: Request, res: Response) => {
                 });
             }
 
+            // Calculate VAT liability using Denmark rules (Brugtmoms for used goods)
+            const calculatedVatLiability = calculateSaleVATLiability(normalizedItems);
+
             const saleRef = db.collection('sales').doc();
             transaction.set(saleRef, {
                 items: normalizedItems,
                 channel: channel || 'local',
                 total_amount: totalAmount || calculatedTotal,
+                calculated_vat_liability: calculatedVatLiability,
                 paymentMethod: paymentMethod || 'CASH',
                 customerName: customerName || null,
                 customerEmail: customerEmail || null,

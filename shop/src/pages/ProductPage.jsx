@@ -166,7 +166,7 @@ const ProductPage = ({ products = [] }) => {
                 type="product"
             />
 
-            {/* Listen on Vinyl Button - Top Right */}
+            {/* Listen on Vinyl Button - Floating */}
             <AnimatePresence>
                 {!showSidePlayer && (
                     <motion.button
@@ -174,21 +174,20 @@ const ProductPage = ({ products = [] }) => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         onClick={handleVinylPlayerToggle}
-                        className="fixed top-24 right-6 z-50 flex items-center gap-2 bg-black text-white px-4 py-2.5 rounded-full shadow-lg hover:bg-black/80 transition-all hover:scale-105"
+                        className="fixed top-24 right-4 sm:right-6 z-50 flex items-center gap-2 bg-black text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-full shadow-lg hover:bg-black/80 transition-all hover:scale-105"
                     >
-                        <Disc3 size={18} className="animate-spin-slow" />
-                        <span className="text-sm font-bold uppercase tracking-wider">Escuchar en Vinilo</span>
+                        <Disc3 size={16} className="animate-spin-slow" />
+                        <span className="text-[10px] sm:text-xs md:text-sm font-bold uppercase tracking-wider">Listen on Vinyl</span>
                     </motion.button>
                 )}
             </AnimatePresence>
 
-            {/* Main Layout - Animated Grid */}
+            {/* Main Layout - Responsive Grid */}
             <motion.div
-                className="grid gap-12 lg:gap-8"
-                animate={{
-                    gridTemplateColumns: showSidePlayer ? '1fr 1fr 380px' : '1fr 1fr',
-                }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                className={`grid grid-cols-1 ${showSidePlayer ? 'lg:grid-cols-[1fr_1fr_380px]' : 'lg:grid-cols-2'} gap-8 lg:gap-12`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
             >
                 {/* Left Column: Tracklist & Info */}
                 <motion.div
@@ -200,21 +199,14 @@ const ProductPage = ({ products = [] }) => {
                 >
                     <div>
                         <div className="flex items-center gap-4 mb-2">
-                            <motion.h1
-                                className="font-bold tracking-tighter uppercase"
-                                animate={{ fontSize: showSidePlayer ? '2.5rem' : '3rem' }}
-                                transition={{ duration: 0.4 }}
-                            >
+                            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tighter uppercase leading-none">
                                 {product.artist}
-                            </motion.h1>
+                            </h1>
                         </div>
-                        <motion.p
-                            className="font-medium text-black/60"
-                            animate={{ fontSize: showSidePlayer ? '1.25rem' : '1.5rem' }}
-                        >
+                        <p className="text-lg sm:text-xl lg:text-2xl font-medium text-black/60">
                             {product.album}
-                        </motion.p>
-                        <div className="mt-6 flex gap-4 text-xs font-bold uppercase tracking-widest text-black/40">
+                        </p>
+                        <div className="mt-4 lg:mt-6 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-widest text-black/40">
                             <span>{product.label || 'Indie Label'}</span>
                             <span>—</span>
                             <span>{product.year || '2024'}</span>
@@ -269,28 +261,22 @@ const ProductPage = ({ products = [] }) => {
                     </div>
                 </motion.div>
 
-                {/* Center Column: Album Artwork */}
+                {/* Album Artwork Column */}
                 <motion.div
                     key={product.id + "-art"}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    className="h-fit order-1 lg:order-2"
+                    className="order-1 lg:order-2 w-full max-w-[400px] lg:max-w-none mx-auto"
                 >
-                    <motion.div
-                        className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5 mx-auto"
-                        animate={{
-                            maxWidth: showSidePlayer ? '320px' : '100%',
-                        }}
-                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                    >
+                    <div className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5">
                         <img
                             src={imageSrc}
                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                             alt={product.album}
                             className="w-full h-full object-cover"
                         />
-                    </motion.div>
+                    </div>
                 </motion.div>
 
                 {/* Right Column: Vinyl Player (Conditional) */}
@@ -335,13 +321,17 @@ const ProductPage = ({ products = [] }) => {
             )}
 
             {/* Bottom Fixed Container: ADD TO CART */}
-            <div className="fixed bottom-0 left-0 right-0 z-[80]">
-
-                <div className="bg-white border-t border-black/5 px-6 py-4 md:px-10 relative z-20">
-                    <div className="max-w-7xl mx-auto flex items-center justify-between">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-1">Vinyl 12"</span>
-                            <span className="text-lg font-bold">DKK {product.price}</span>
+            <div
+                className="fixed left-0 right-0 z-[80] safe-area-bottom transition-all duration-300"
+                style={{
+                    bottom: currentTrack ? '72px' : '0px'
+                }}
+            >
+                <div className="bg-white/95 backdrop-blur-sm border-t border-black/5 px-6 py-4 md:px-10">
+                    <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                        <div className="flex flex-col min-w-fit">
+                            <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-0.5">Vinyl 12"</span>
+                            <span className="text-base sm:text-lg font-bold">DKK {product.price}</span>
                         </div>
                         {product.stock > 0 ? (
                             <button
@@ -351,19 +341,19 @@ const ProductPage = ({ products = [] }) => {
                                     setTimeout(() => setAddedToCart(false), 2000);
                                 }}
                                 disabled={addedToCart}
-                                className={`flex items-center gap-2 px-8 py-3 rounded-sm font-bold text-sm transition-all ${addedToCart
+                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 sm:px-10 py-3 sm:py-3.5 rounded-full font-bold text-[11px] sm:text-xs tracking-widest transition-all ${addedToCart
                                     ? 'bg-green-600 text-white'
                                     : 'bg-black text-white hover:bg-black/80'
                                     }`}
                             >
                                 {addedToCart ? (
                                     <>
-                                        <Check size={18} />
-                                        ADDED TO CART
+                                        <Check size={16} />
+                                        ADDED
                                     </>
                                 ) : (
                                     <>
-                                        <ShoppingCart size={18} />
+                                        <ShoppingCart size={16} />
                                         ADD TO CART
                                     </>
                                 )}
@@ -371,8 +361,7 @@ const ProductPage = ({ products = [] }) => {
                         ) : (
                             <div className="flex items-center gap-3 text-right">
                                 <div className="max-w-xs">
-                                    <p className="text-sm font-bold text-red-600 leading-tight">Out of Stock</p>
-                                    <p className="text-xs text-black/50 mt-1">Check back soon</p>
+                                    <p className="text-xs sm:text-sm font-bold text-red-600 leading-tight uppercase tracking-tight">Out of Stock</p>
                                 </div>
                             </div>
                         )}

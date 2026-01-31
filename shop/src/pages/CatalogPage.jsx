@@ -130,7 +130,7 @@ const CatalogPage = ({ products }) => {
                 {/* Header Area */}
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div>
-                        <h1 className="text-7xl md:text-8xl font-light tracking-tight mb-2">Catalog</h1>
+                        <h1 className="text-5xl md:text-8xl font-light tracking-tight mb-2">Catalog</h1>
                         <div className="text-sm text-black/40 font-medium uppercase tracking-widest">
                             {sortedProducts.length} {sortedProducts.length === 1 ? 'ITEM' : 'ITEMS'} // {availableProducts.length} TOTAL IN STOCK
                         </div>
@@ -156,7 +156,7 @@ const CatalogPage = ({ products }) => {
 
                         <button
                             onClick={() => setShowMobileFilters(true)}
-                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-primary text-white px-5 py-2.5 rounded-full md:hidden hover:bg-neutral-800 transition-colors"
+                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-black text-white px-5 py-2.5 rounded-full md:hidden hover:bg-neutral-800 transition-colors"
                         >
                             <Filter size={14} />
                             Filters

@@ -30,7 +30,7 @@ const PaymentSuccess = () => {
 
             if (!clientSecret) {
                 setStatus('failed');
-                setMessage('No se encontró información del pago.');
+                setMessage('Payment information not found.');
                 return;
             }
 
@@ -42,19 +42,18 @@ const PaymentSuccess = () => {
 
                 if (paymentIntent.status === 'succeeded') {
                     setStatus('succeeded');
-                    setMessage('¡Pago exitoso! Tu pedido ha sido confirmado.');
+                    setMessage('Payment successful! Your order has been confirmed.');
                     // Clear cart on successful payment
                     clearCart();
+
 
                     // If we have a saleId, fetch the full order details
                     if (saleId) {
                         setIsLoadingOrder(true);
                         try {
-                            // If running locally, webhooks won't reach our backend.
-                            // We trigger the confirmation flow manually here.
-                            if (window.location.hostname === 'localhost') {
-                                await confirmLocalPayment(saleId, paymentIntent.id);
-                            }
+                            // Always call confirmLocalPayment as fallback (idempotent on backend)
+                            // This ensures order appears in admin even if webhook fails
+                            await confirmLocalPayment(saleId, paymentIntent.id);
 
                             const sale = await getSale(saleId);
                             setOrderData(sale);
@@ -66,18 +65,18 @@ const PaymentSuccess = () => {
                     }
                 } else if (paymentIntent.status === 'processing') {
                     setStatus('processing');
-                    setMessage('Tu pago se está procesando. Te notificaremos cuando se complete.');
+                    setMessage('Your payment is being processed. We will notify you when complete.');
                 } else if (paymentIntent.status === 'requires_payment_method') {
                     setStatus('failed');
-                    setMessage('El pago falló. Por favor, intenta con otro método de pago.');
+                    setMessage('Payment failed. Please try another payment method.');
                 } else {
                     setStatus('failed');
-                    setMessage('Algo salió mal con tu pago.');
+                    setMessage('Something went wrong with your payment.');
                 }
             } catch (error) {
                 console.error('Error verifying payment:', error);
                 setStatus('failed');
-                setMessage('Error al verificar el pago. Por favor, contacta con soporte.');
+                setMessage('Error verifying payment. Please contact support.');
             }
         };
 
@@ -110,15 +109,15 @@ const PaymentSuccess = () => {
                                     <CheckCircle className="w-10 h-10 text-green-600" />
                                 </div>
                             </div>
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">¡Pago Exitoso!</h1>
-                            <p className="text-gray-500 mb-0">Hemos recibido tu pedido y pronto lo estaremos preparando.</p>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Payment Successful!</h1>
+                            <p className="text-gray-500 mb-0">We have received your order and will prepare it soon.</p>
                         </div>
 
                         {/* Order Info Card */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white rounded-2xl shadow-sm border border-black/5 p-6">
                                 <h3 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-4 flex items-center gap-2">
-                                    <Package size={14} /> Detalles del Pedido
+                                    <Package size={14} /> Order Details
                                 </h3>
                                 {isLoadingOrder ? (
                                     <div className="animate-pulse space-y-3">
@@ -147,7 +146,7 @@ const PaymentSuccess = () => {
 
                             <div className="bg-white rounded-2xl shadow-sm border border-black/5 p-6">
                                 <h3 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-4 flex items-center gap-2">
-                                    <Mail size={14} /> Contacto
+                                    <Mail size={14} /> Contact
                                 </h3>
                                 {isLoadingOrder ? (
                                     <div className="animate-pulse space-y-3">
@@ -174,7 +173,7 @@ const PaymentSuccess = () => {
                             <div className="bg-white rounded-2xl shadow-sm border border-black/5 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-black/5">
                                     <h3 className="text-[10px] font-black uppercase tracking-widest text-black/40 flex items-center gap-2">
-                                        Resumen de Artículos
+                                        Order Summary
                                     </h3>
                                 </div>
                                 <div className="divide-y divide-black/5">
@@ -193,7 +192,7 @@ const PaymentSuccess = () => {
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-sm font-bold">DKK {item.priceAtSale || item.unitPrice}</div>
-                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Cant: {item.qty || item.quantity}</div>
+                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Qty: {item.qty || item.quantity}</div>
                                             </div>
                                         </div>
                                     ))}
@@ -204,7 +203,7 @@ const PaymentSuccess = () => {
                                         <span className="font-medium">DKK {(orderData.items_total || orderData.items.reduce((acc, curr) => acc + (curr.priceAtSale || curr.unitPrice) * (curr.qty || curr.quantity), 0)).toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-500">Envío:</span>
+                                        <span className="text-gray-500">Shipping:</span>
                                         <span className="font-medium">DKK {(orderData.shipping_cost || 0).toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between items-center pt-2 mt-2 border-t border-black/5">
@@ -221,7 +220,7 @@ const PaymentSuccess = () => {
                                 onClick={() => navigate('/')}
                                 className="flex-1 bg-black text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-black/90 transition-all flex items-center justify-center gap-2 group shadow-xl shadow-black/10"
                             >
-                                Volver a la Tienda
+                                Back to Store
                                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                             </button>
                         </div>
@@ -243,7 +242,7 @@ const PaymentSuccess = () => {
                             </div>
                         </div>
                         <h1 className="text-2xl font-bold text-gray-800 mb-2">
-                            {status === 'failed' ? 'Pago Fallido' : 'Procesando Pago...'}
+                            {status === 'failed' ? 'Payment Failed' : 'Processing Payment...'}
                         </h1>
                         <p className="text-gray-500 mb-8 max-w-xs mx-auto">
                             {message}
@@ -254,14 +253,14 @@ const PaymentSuccess = () => {
                                     onClick={() => navigate('/checkout')}
                                     className="w-full bg-black text-white py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-black/90 transition-all"
                                 >
-                                    Intentar de Nuevo
+                                    Try Again
                                 </button>
                             )}
                             <button
                                 onClick={() => navigate('/')}
                                 className="w-full text-black/60 py-4 font-bold text-xs uppercase tracking-widest hover:text-black transition-all"
                             >
-                                Volver a la Tienda
+                                Back to Store
                             </button>
                         </div>
                     </div>

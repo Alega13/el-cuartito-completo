@@ -138,7 +138,7 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
         country: 'Denmark'
     });
 
-    const steps = ['DETALLES', 'ENVÍO', 'PAGO'];
+    const steps = ['DETAILS', 'SHIPPING', 'PAYMENT'];
 
     // Safety check: handle undefined or empty cart
     if (!cart || cart.length === 0) {

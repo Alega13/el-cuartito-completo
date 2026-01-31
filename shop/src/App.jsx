@@ -21,6 +21,7 @@ import FlyAnimation from './components/FlyAnimation';
 import Toast from './components/Toast';
 import Collections from './components/Collections';
 import Footer from './components/Footer';
+import GlobalPlayer from './components/GlobalPlayer';
 import { usePlayer } from './context/PlayerContext';
 import { useSelections } from './context/SelectionsContext';
 import ErrorState from './components/ErrorState';
@@ -228,6 +229,7 @@ function App() {
       />
 
       <Footer />
+      <GlobalPlayer />
     </div>
   );
 }
