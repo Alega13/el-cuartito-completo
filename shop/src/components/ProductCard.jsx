@@ -92,6 +92,7 @@ const ProductCard = ({ product }) => {
                                 <ShoppingBag size={16} />
                             </button>
                         )}
+
                     </div>
                 </div>
                 <div className="space-y-1">

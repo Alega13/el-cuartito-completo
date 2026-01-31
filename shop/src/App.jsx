@@ -24,6 +24,7 @@ import Footer from './components/Footer';
 import { usePlayer } from './context/PlayerContext';
 import { useSelections } from './context/SelectionsContext';
 import ErrorState from './components/ErrorState';
+import ScrollToTop from './components/ScrollToTop';
 import logo from './assets/logo.png';
 
 function App() {
@@ -128,6 +129,7 @@ function App() {
   return (
     <div className="min-h-screen bg-background text-black selection:bg-accent selection:text-white">
       <Navbar setSearchQuery={setSearchQuery} />
+      <ScrollToTop />
 
       <main>
         <Routes>

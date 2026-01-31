@@ -292,6 +292,7 @@ const Navbar = ({ setSearchQuery }) => {
                                     >
                                         <Search size={18} strokeWidth={2.5} />
                                     </button>
+                                    {/* Cart */}
                                     <button
                                         onClick={() => setIsCartOpen(true)}
                                         className="relative p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
@@ -303,6 +304,7 @@ const Navbar = ({ setSearchQuery }) => {
                                             </span>
                                         )}
                                     </button>
+
                                     <button
                                         onClick={() => setIsMobileMenuOpen(true)}
                                         className="md:hidden p-2 hover:bg-black/5 rounded-full transition-colors"

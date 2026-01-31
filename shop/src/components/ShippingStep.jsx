@@ -109,15 +109,16 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
                 <button
                     onClick={() => {
                         setShowRates(false);
-                        setAddress({ ...address, country: 'DK', street: 'Larsbjørnsstræde 9', city: 'København', postalCode: '1454' });
+                        setAddress({ ...address, country: 'DK', street: 'Dybbølsgade 14', city: 'København V', postalCode: '1721' });
                         setSelectedShipping({
                             id: 'local_pickup',
-                            method: 'Local Pickup',
+                            method: 'Local Pickup (Shop)',
                             price: 0,
-                            estimatedDays: '1',
-                            description: 'Pick up at store: Larsbjørnsstræde 9, 1454 København'
+                            estimatedDays: 'Today',
+                            description: 'Pickup at store (Dybbølsgade 14, 1721 København V)'
                         });
                     }}
+
                     className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${selectedShipping?.id === 'local_pickup' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-200'}`}
                 >
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center ${selectedShipping?.id === 'local_pickup' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -174,7 +175,7 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
                                     value={address.street}
                                     onChange={(e) => setAddress({ ...address, street: e.target.value })}
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                    placeholder="Larsbjørnsstraede 9"
+                                    placeholder="Street Name 123"
                                 />
                             </div>
 
@@ -197,7 +198,7 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
                                         value={address.city}
                                         onChange={(e) => setAddress({ ...address, city: e.target.value })}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                        placeholder="København"
+                                        placeholder="City"
                                     />
                                 </div>
                                 <div>
@@ -207,7 +208,7 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
                                         value={address.postalCode}
                                         onChange={(e) => setAddress({ ...address, postalCode: e.target.value })}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                        placeholder="1454"
+                                        placeholder="1234"
                                     />
                                 </div>
                             </div>
@@ -260,8 +261,9 @@ const ShippingStep = ({ cart, onShippingSelected, onBack }) => {
                                                 <p className="text-sm text-gray-600 ml-6 mt-1">{rate.description}</p>
                                             )}
                                             <p className="text-sm text-gray-500 ml-6 mt-1">
-                                                Estimated delivery: {rate.estimatedDays} days
+                                                Estimated delivery: {rate.estimatedDays}{typeof rate.estimatedDays === 'number' ? ' days' : ''}
                                             </p>
+
                                         </div>
                                         <div className="text-right">
                                             {rate.isFree ? (

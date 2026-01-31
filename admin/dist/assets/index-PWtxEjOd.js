@@ -1,11 +1,11 @@
-(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))r(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const o of a.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&r(o)}).observe(document,{childList:!0,subtree:!0});function s(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function r(n){if(n.ep)return;n.ep=!0;const a=s(n);fetch(n.href,a)}})();const v=firebase.firestore(),j=window.auth,V=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",D=V?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",_={async createSale(t){let e=[];if(await v.runTransaction(async s=>{const r=[];for(const l of t.items){const i=v.collection("products").doc(l.recordId||l.productId),d=await s.get(i);if(!d.exists)throw new Error(`Producto ${l.recordId} no encontrado`);const c=d.data();if(c.stock<l.quantity)throw new Error(`Stock insuficiente para ${c.artist||"Sin Artista"} - ${c.album||"Sin Album"}. Disponible: ${c.stock}`);r.push({ref:i,data:c,quantity:l.quantity,price:c.price,cost:c.cost||0})}const n=r.reduce((l,i)=>l+i.price*i.quantity,0),a=t.customTotal!==void 0?t.customTotal:n,o=v.collection("sales").doc();s.set(o,{...t,total:a,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:r.map(l=>({productId:l.ref.id,artist:l.data.artist,album:l.data.album,sku:l.data.sku,unitPrice:l.price,costAtSale:l.cost,qty:l.quantity}))});for(const l of r){s.update(l.ref,{stock:l.data.stock-l.quantity});const i=v.collection("inventory_logs").doc();s.set(i,{type:"SOLD",sku:l.data.sku||"Unknown",album:l.data.album||"Unknown",artist:l.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=r.map(l=>({discogs_listing_id:l.data.discogs_listing_id,artist:l.data.artist,album:l.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const r=await fetch(`${D}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});r.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await r.text())}catch(r){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,r)}}}},A={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:localStorage.getItem("el-cuartito-settings")?JSON.parse(localStorage.getItem("el-cuartito-settings")).vatActive:!1},async init(){j.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),3e4),this.renderDashboard(document.getElementById("app-content")),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}})},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,r=document.getElementById("login-error"),n=document.getElementById("login-btn");r.classList.add("hidden"),n.disabled=!0,n.innerHTML="<span>Cargando...</span>";try{await j.signInWithEmailAndPassword(e,s)}catch(a){console.error("Login error:",a),r.innerText="Error: "+a.message,r.classList.remove("hidden"),n.disabled=!1,n.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var r,n,a;try{const o=((r=t==null?void 0:t.target)==null?void 0:r.closest("button"))||((a=(n=window.event)==null?void 0:n.target)==null?void 0:a.closest("button"));if(o){o.disabled=!0;const l=o.innerHTML;o.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await v.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(o){console.error("Fulfillment update error:",o),this.showToast("Error al actualizar estado: "+o.message,"error")}},async manualShipOrder(t){var e,s,r,n,a,o;try{const l=prompt("Introduce el número de seguimiento:");if(!l)return;const i=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((r=(s=window.event)==null?void 0:s.target)==null?void 0:r.closest("button"));i&&(i.disabled=!0,i.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const d=await fetch(`${D}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:l})}),c=await d.json();if(d.ok&&c.success){if(this.showToast("✅ Pedido marcado como enviado"),c.emailSent)this.showToast("📧 Cliente notificado por email","success");else{const u=typeof c.emailError=="object"?JSON.stringify(c.emailError):c.emailError;this.showToast("⚠️ Pedido marcado pero EL EMAIL FALLÓ: "+u,"warning")}await this.loadData();const b=document.getElementById("sale-detail-modal");b&&(b.remove(),this.openSaleDetailModal(t))}else throw new Error(c.error||c.message||"Error desconocido")}catch(l){console.error("Error shipping manually:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el envío"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((o=(a=window.event)==null?void 0:a.target)==null?void 0:o.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await j.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,r,n]=await Promise.all([v.collection("products").get(),v.collection("sales").get(),v.collection("expenses").orderBy("date","desc").get(),v.collection("events").orderBy("date","desc").get(),v.collection("consignors").get()]);this.state.inventory=t.docs.map(a=>{const o=a.data();return{id:a.id,...o,condition:o.condition||"VG",owner:o.owner||"El Cuartito",label:o.label||"Desconocido",storageLocation:o.storageLocation||"Tienda",cover_image:o.cover_image||o.coverImage||null}}),this.state.sales=e.docs.map(a=>{var i,d;const o=a.data(),l={id:a.id,...o,date:o.date||((i=o.timestamp)!=null&&i.toDate?o.timestamp.toDate().toISOString().split("T")[0]:(d=o.created_at)!=null&&d.toDate?o.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return o.total_amount!==void 0&&o.total===void 0&&(l.total=o.total_amount),o.payment_method&&!o.paymentMethod&&(l.paymentMethod=o.payment_method),l.items&&Array.isArray(l.items)&&(l.items=l.items.map(c=>({...c,priceAtSale:c.priceAtSale!==void 0?c.priceAtSale:c.unitPrice||0,qty:c.qty!==void 0?c.qty:c.quantity||1,costAtSale:c.costAtSale!==void 0?c.costAtSale:c.cost||0}))),l}).sort((a,o)=>{const l=new Date(a.date);return new Date(o.date)-l}),this.state.expenses=s.docs.map(a=>({id:a.id,...a.data()})),this.state.events=r.docs.map(a=>({id:a.id,...a.data()})),this.state.consignors=n.docs.map(a=>{const o=a.data();return{id:a.id,...o,agreementSplit:o.split||o.agreementSplit||(o.percentage?Math.round(o.percentage*100):70)}}),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"vat":this.renderVAT(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break;case"pickups":this.renderPickups(t);break}},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(n=>{n.classList.remove("bg-orange-50","text-brand-orange"),n.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const r=document.getElementById("app-content");r.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),r=e.getMonth(),n=new Date(s,r,1),o=new Date(s,r+1,0).getDate(),l=n.getDay()===0?6:n.getDay()-1,i=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],d=b=>{const u=`${s}-${String(r+1).padStart(2,"0")}-${String(b).padStart(2,"0")}`,g=this.state.sales.some(f=>f.date===u),p=this.state.expenses.some(f=>f.date===u),m=this.state.events.some(f=>f.date===u);return{hasSales:g,hasExpenses:p,hasEvents:m}},c=`
+(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const i of document.querySelectorAll('link[rel="modulepreload"]'))n(i);new MutationObserver(i=>{for(const r of i)if(r.type==="childList")for(const o of r.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&n(o)}).observe(document,{childList:!0,subtree:!0});function s(i){const r={};return i.integrity&&(r.integrity=i.integrity),i.referrerPolicy&&(r.referrerPolicy=i.referrerPolicy),i.crossOrigin==="use-credentials"?r.credentials="include":i.crossOrigin==="anonymous"?r.credentials="omit":r.credentials="same-origin",r}function n(i){if(i.ep)return;i.ep=!0;const r=s(i);fetch(i.href,r)}})();const v=firebase.firestore(),M=window.auth,V=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",S=V?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",B={async createSale(t){let e=[];if(await v.runTransaction(async s=>{const n=[];for(const a of t.items){const l=v.collection("products").doc(a.recordId||a.productId),d=await s.get(l);if(!d.exists)throw new Error(`Producto ${a.recordId} no encontrado`);const c=d.data();if(c.stock<a.quantity)throw new Error(`Stock insuficiente para ${c.artist||"Sin Artista"} - ${c.album||"Sin Album"}. Disponible: ${c.stock}`);n.push({ref:l,data:c,quantity:a.quantity,price:c.price,cost:c.cost||0})}const i=n.reduce((a,l)=>a+l.price*l.quantity,0),r=t.customTotal!==void 0?t.customTotal:i,o=v.collection("sales").doc();s.set(o,{...t,status:"completed",fulfillment_status:"fulfilled",total:r,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:n.map(a=>({productId:a.ref.id,artist:a.data.artist,album:a.data.album,sku:a.data.sku,unitPrice:a.price,costAtSale:a.cost,qty:a.quantity}))});for(const a of n){s.update(a.ref,{stock:a.data.stock-a.quantity});const l=v.collection("inventory_logs").doc();s.set(l,{type:"SOLD",sku:a.data.sku||"Unknown",album:a.data.album||"Unknown",artist:a.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=n.map(a=>({discogs_listing_id:a.data.discogs_listing_id,artist:a.data.artist,album:a.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const n=await fetch(`${S}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});n.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await n.text())}catch(n){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,n)}}}},A={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:localStorage.getItem("el-cuartito-settings")?JSON.parse(localStorage.getItem("el-cuartito-settings")).vatActive:!1},async init(){M.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),3e4),this.renderDashboard(document.getElementById("app-content")),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}})},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,n=document.getElementById("login-error"),i=document.getElementById("login-btn");n.classList.add("hidden"),i.disabled=!0,i.innerHTML="<span>Cargando...</span>";try{await M.signInWithEmailAndPassword(e,s)}catch(r){console.error("Login error:",r),n.innerText="Error: "+r.message,n.classList.remove("hidden"),i.disabled=!1,i.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var n,i,r;try{const o=((n=t==null?void 0:t.target)==null?void 0:n.closest("button"))||((r=(i=window.event)==null?void 0:i.target)==null?void 0:r.closest("button"));if(o){o.disabled=!0;const a=o.innerHTML;o.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await v.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(o){console.error("Fulfillment update error:",o),this.showToast("Error al actualizar estado: "+o.message,"error")}},async manualShipOrder(t){var e,s,n,i,r,o;try{const a=prompt("Introduce el número de seguimiento:");if(!a)return;const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((n=(s=window.event)==null?void 0:s.target)==null?void 0:n.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const d=await fetch(`${S}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:a})}),c=await d.json();if(d.ok&&c.success){if(this.showToast("✅ Pedido marcado como enviado"),c.emailSent)this.showToast("📧 Cliente notificado por email","success");else{const u=typeof c.emailError=="object"?JSON.stringify(c.emailError):c.emailError;this.showToast("⚠️ Pedido marcado pero EL EMAIL FALLÓ: "+u,"warning")}await this.loadData();const m=document.getElementById("sale-detail-modal");m&&(m.remove(),this.openSaleDetailModal(t))}else throw new Error(c.error||c.message||"Error desconocido")}catch(a){console.error("Error shipping manually:",a),this.showToast("❌ Error: "+(a.message||"No se pudo procesar el envío"),"error");const l=((i=event==null?void 0:event.target)==null?void 0:i.closest("button"))||((o=(r=window.event)==null?void 0:r.target)==null?void 0:o.closest("button"));l&&(l.disabled=!1,l.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await M.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,n,i]=await Promise.all([v.collection("products").get(),v.collection("sales").get(),v.collection("expenses").orderBy("date","desc").get(),v.collection("events").orderBy("date","desc").get(),v.collection("consignors").get()]);this.state.inventory=t.docs.map(r=>{const o=r.data();return{id:r.id,...o,condition:o.condition||"VG",owner:o.owner||"El Cuartito",label:o.label||"Desconocido",storageLocation:o.storageLocation||"Tienda",cover_image:o.cover_image||o.coverImage||null}}),this.state.sales=e.docs.map(r=>{var l,d;const o=r.data(),a={id:r.id,...o,date:o.date||((l=o.timestamp)!=null&&l.toDate?o.timestamp.toDate().toISOString().split("T")[0]:(d=o.created_at)!=null&&d.toDate?o.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return o.total_amount!==void 0&&o.total===void 0&&(a.total=o.total_amount),o.payment_method&&!o.paymentMethod&&(a.paymentMethod=o.payment_method),a.items&&Array.isArray(a.items)&&(a.items=a.items.map(c=>({...c,priceAtSale:c.priceAtSale!==void 0?c.priceAtSale:c.unitPrice||0,qty:c.qty!==void 0?c.qty:c.quantity||1,costAtSale:c.costAtSale!==void 0?c.costAtSale:c.cost||0}))),a}).filter(r=>r.status!=="PENDING"&&r.status!=="failed").sort((r,o)=>{const a=new Date(r.date);return new Date(o.date)-a}),this.state.expenses=s.docs.map(r=>({id:r.id,...r.data()})),this.state.events=n.docs.map(r=>({id:r.id,...r.data()})),this.state.consignors=i.docs.map(r=>{const o=r.data();return{id:r.id,...o,agreementSplit:o.split||o.agreementSplit||(o.percentage?Math.round(o.percentage*100):70)}}),await this.loadInvestments(),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"vat":this.renderVAT(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break;case"pickups":this.renderPickups(t);break;case"investments":this.renderInvestments(t);break}},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(i=>{i.classList.remove("bg-orange-50","text-brand-orange"),i.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const n=document.getElementById("app-content");n.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),n=e.getMonth(),i=new Date(s,n,1),o=new Date(s,n+1,0).getDate(),a=i.getDay()===0?6:i.getDay()-1,l=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],d=m=>{const u=`${s}-${String(n+1).padStart(2,"0")}-${String(m).padStart(2,"0")}`,b=this.state.sales.some(f=>f.date===u),p=this.state.expenses.some(f=>f.date===u),x=this.state.events.some(f=>f.date===u);return{hasSales:b,hasExpenses:p,hasEvents:x}},c=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <div class="flex flex-col lg:flex-row gap-8 h-[calc(100vh-140px)]">
                     <!-- Calendar Grid -->
                     <div class="flex-1 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="font-display text-2xl font-bold text-brand-dark capitalize">
-                                ${i[r]} <span class="text-brand-orange">${s}</span>
+                                ${l[n]} <span class="text-brand-orange">${s}</span>
                             </h2>
                             <div class="flex gap-2">
                                 <button onclick="app.changeCalendarMonth(-1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
@@ -18,19 +18,19 @@
                         </div>
 
                         <div class="grid grid-cols-7 gap-2 mb-2 text-center">
-                            ${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(b=>`
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${b}</div>
+                            ${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(m=>`
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${m}</div>
                             `).join("")}
                         </div>
 
                         <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
-                            ${Array(l).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join("")}
-                            ${Array.from({length:o},(b,u)=>{const g=u+1,p=`${s}-${String(r+1).padStart(2,"0")}-${String(g).padStart(2,"0")}`,m=e.getDate()===g,f=d(g),y=new Date().toDateString()===new Date(s,r,g).toDateString();return`
+                            ${Array(a).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join("")}
+                            ${Array.from({length:o},(m,u)=>{const b=u+1,p=`${s}-${String(n+1).padStart(2,"0")}-${String(b).padStart(2,"0")}`,x=e.getDate()===b,f=d(b),y=new Date().toDateString()===new Date(s,n,b).toDateString();return`
                                     <button onclick="app.selectCalendarDate('${p}')" 
                                         class="relative rounded-xl p-2 flex flex-col items-center justify-start gap-1 transition-all border-2
-                                        ${m?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
+                                        ${x?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
                                         ${y?"bg-blue-50":""}">
-                                        <span class="text-sm font-bold ${m?"text-brand-orange":"text-slate-700"} ${y?"text-blue-600":""}">${g}</span>
+                                        <span class="text-sm font-bold ${x?"text-brand-orange":"text-slate-700"} ${y?"text-blue-600":""}">${b}</span>
                                         <div class="flex gap-1 mt-1">
                                             ${f.hasSales?'<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>':""}
                                             ${f.hasExpenses?'<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>':""}
@@ -47,7 +47,7 @@
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=c},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",r=t.customerEmail||e.email||"-";let n=t.address||e.address||"-";if(e.shipping){const a=e.shipping;n=`${a.line1||""} ${a.line2||""}, ${a.city||""}, ${a.postal_code||""}, ${a.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:r,address:n}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),r=this.state.sales.filter(i=>i.date===e),n=this.state.expenses.filter(i=>i.date===e),a=this.state.events.filter(i=>i.date===e),o=r.reduce((i,d)=>i+d.total,0),l=n.reduce((i,d)=>i+d.amount,0);return`
+        `;t.innerHTML=c},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",n=t.customerEmail||e.email||"-";let i=t.address||e.address||"-";if(e.shipping){const r=e.shipping;i=`${r.line1||""} ${r.line2||""}, ${r.city||""}, ${r.postal_code||""}, ${r.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:n,address:i}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),n=this.state.sales.filter(l=>l.date===e),i=this.state.expenses.filter(l=>l.date===e),r=this.state.events.filter(l=>l.date===e),o=n.reduce((l,d)=>l+d.total,0),a=i.reduce((l,d)=>l+d.amount,0);return`
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h3 class="font-display text-xl font-bold text-brand-dark capitalize">${s}</h3>
@@ -67,20 +67,20 @@
                     </div>
                     <div class="bg-red-50 p-3 rounded-xl border border-red-100">
                         <p class="text-[10px] font-bold text-red-600 uppercase">Gastos</p>
-                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(l)}</p>
+                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(a)}</p>
                     </div>
                 </div>
 
                 <!-- Events -->
                 <div>
                     <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Eventos / Notas</h4>
-                    ${a.length>0?`
+                    ${r.length>0?`
                         <div class="space-y-2">
-                            ${a.map(i=>`
+                            ${r.map(l=>`
                                 <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 group relative">
-                                    <p class="text-sm font-medium text-brand-dark">${i.title}</p>
-                                    ${i.description?`<p class="text-xs text-slate-500 mt-1">${i.description}</p>`:""}
-                                    <button onclick="app.deleteEvent('${i.id}')" class="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600">
+                                    <p class="text-sm font-medium text-brand-dark">${l.title}</p>
+                                    ${l.description?`<p class="text-xs text-slate-500 mt-1">${l.description}</p>`:""}
+                                    <button onclick="app.deleteEvent('${l.id}')" class="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600">
                                         <i class="ph-bold ph-trash"></i>
                                     </button>
                                 </div>
@@ -96,16 +96,16 @@
 
                 <!-- Sales List -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${r.length})</h4>
-                    ${r.length>0?`
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${n.length})</h4>
+                    ${n.length>0?`
                         <div class="space-y-2">
-                            ${r.map(i=>`
+                            ${n.map(l=>`
                                 <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
                                     <div class="truncate flex-1 pr-2">
-                                        <span class="font-bold text-slate-700 block truncate">${i.album||"Venta rápida"}</span>
-                                        <span class="text-slate-400 text-[10px]">${i.sku||"-"}</span>
+                                        <span class="font-bold text-slate-700 block truncate">${l.album||"Venta rápida"}</span>
+                                        <span class="text-slate-400 text-[10px]">${l.sku||"-"}</span>
                                     </div>
-                                    <span class="font-bold text-brand-dark">${this.formatCurrency(i.total)}</span>
+                                    <span class="font-bold text-brand-dark">${this.formatCurrency(l.total)}</span>
                                 </div>
                             `).join("")}
                         </div>
@@ -114,16 +114,16 @@
 
                 <!-- Expenses List -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Gastos (${n.length})</h4>
-                    ${n.length>0?`
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Gastos (${i.length})</h4>
+                    ${i.length>0?`
                         <div class="space-y-2">
-                            ${n.map(i=>`
+                            ${i.map(l=>`
                                 <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
                                     <div class="truncate flex-1 pr-2">
-                                        <span class="font-bold text-slate-700 block truncate">${i.description}</span>
-                                        <span class="text-slate-400 text-[10px]">${i.category}</span>
+                                        <span class="font-bold text-slate-700 block truncate">${l.description}</span>
+                                        <span class="text-slate-400 text-[10px]">${l.category}</span>
                                     </div>
-                                    <span class="font-bold text-brand-dark">${this.formatCurrency(i.amount)}</span>
+                                    <span class="font-bold text-brand-dark">${this.formatCurrency(l.amount)}</span>
                                 </div>
                             `).join("")}
                         </div>
@@ -159,7 +159,7 @@
                     </form>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};v.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(r=>console.error(r))},deleteEvent(t){confirm("¿Eliminar este evento?")&&v.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
+        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};v.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(n=>console.error(n))},deleteEvent(t){confirm("¿Eliminar este evento?")&&v.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
             <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Backup y Restauración</h2>
                 
@@ -224,17 +224,17 @@
                     </form>
                 </div>
             </div>
-        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=r=>{try{const n=JSON.parse(r.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const a=v.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),n.inventory&&n.inventory.forEach(o=>{const l=v.collection("products").doc(o.sku);a.set(l,o)}),a.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(n){alert("Error al leer el archivo de respaldo"),console.error(n)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
+        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=n=>{try{const i=JSON.parse(n.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const r=v.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),i.inventory&&i.inventory.forEach(o=>{const a=v.collection("products").doc(o.sku);r.set(a,o)}),r.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(i){alert("Error al leer el archivo de respaldo"),console.error(i)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
 
 Esto borrará PERMANENTEMENTE todo el inventario, ventas, gastos y socios de la base de datos.
 
-¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>v.collection(s).get().then(r=>{const n=v.batch();return r.docs.forEach(a=>{n.delete(a.ref)}),n.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),v.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
+¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>v.collection(s).get().then(n=>{const i=v.batch();return n.docs.forEach(r=>{i.delete(r.ref)}),i.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),v.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
 
 Esto borrará PERMANENTEMENTE todas las ventas (manuales y online) de la base de datos.
 
 El inventario, gastos y socios NO serán afectados.
 
-¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),v.collection("sales").get().then(e=>{const s=v.batch();return e.docs.forEach(r=>{s.delete(r.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await v.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),v.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(r=>console.error("Error logging movement:",r))},openInventoryLogModal(){v.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
+¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),v.collection("sales").get().then(e=>{const s=v.batch();return e.docs.forEach(n=>{s.delete(n.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await v.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),v.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(n=>console.error("Error logging movement:",n))},openInventoryLogModal(){v.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white rounded-3xl w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fadeIn">
                         <div class="flex justify-between items-center mb-6 shrink-0">
@@ -257,16 +257,16 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50 text-sm">
-                                    ${t.docs.map(r=>({id:r.id,...r.data()})).map(r=>{let n="bg-slate-100 text-slate-600";r.type==="ADD"&&(n="bg-green-100 text-green-700"),r.type==="DELETE"&&(n="bg-red-100 text-red-700"),r.type==="EDIT"&&(n="bg-blue-100 text-blue-700"),r.type==="SOLD"&&(n="bg-purple-100 text-purple-700");const a=r.timestamp?r.timestamp.toDate?r.timestamp.toDate():new Date(r.timestamp):new Date;return`
+                                    ${t.docs.map(n=>({id:n.id,...n.data()})).map(n=>{let i="bg-slate-100 text-slate-600";n.type==="ADD"&&(i="bg-green-100 text-green-700"),n.type==="DELETE"&&(i="bg-red-100 text-red-700"),n.type==="EDIT"&&(i="bg-blue-100 text-blue-700"),n.type==="SOLD"&&(i="bg-purple-100 text-purple-700");const r=n.timestamp?n.timestamp.toDate?n.timestamp.toDate():new Date(n.timestamp):new Date;return`
                                             <tr>
                                                 <td class="p-4 text-slate-500 whitespace-nowrap">
-                                                    ${a.toLocaleDateString()} <span class="text-xs text-slate-400 opacity-75">${a.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
+                                                    ${r.toLocaleDateString()} <span class="text-xs text-slate-400 opacity-75">${r.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
                                                 </td>
                                                 <td class="p-4">
-                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${n}">${r.type}</span>
+                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${i}">${n.type}</span>
                                                 </td>
-                                                <td class="p-4 font-bold text-brand-dark">${r.album||"Unknown"}</td>
-                                                <td class="p-4 font-mono text-xs text-slate-400">${r.sku||"N/A"}</td>
+                                                <td class="p-4 font-bold text-brand-dark">${n.album||"Unknown"}</td>
+                                                <td class="p-4 font-mono text-xs text-slate-400">${n.sku||"N/A"}</td>
                                             </tr>
                                         `}).join("")||'<tr><td colspan="4" class="p-8 text-center text-slate-400">No hay movimientos registrados</td></tr>'}
                                 </tbody>
@@ -277,7 +277,7 @@ El inventario, gastos y socios NO serán afectados.
             `;document.body.insertAdjacentHTML("beforeend",s)})},async syncWithDiscogs(){const t=document.getElementById("discogs-sync-btn");if(!t)return;const e=t.innerHTML;t.disabled=!0,t.innerHTML=`
             <i class="ph-bold ph-circle-notch text-xl animate-spin"></i>
             <span class="text-sm font-bold hidden sm:inline">Sincronizando...</span>
-        `;try{const s=D,n=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),o=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(n.success||o&&o.success){let l=`✅ Sincronizado: ${n.synced||0} productos`;o&&o.salesCreated>0&&(l+=`. ¡Detectadas ${o.salesCreated} nuevas ventas!`),this.showToast(l),await this.loadData(),this.refreshCurrentView()}else throw new Error(n.error||o&&o.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},getVatComponent(t){return this.state.vatActive?(parseFloat(t)||0)*.2:0},getNetPrice(t){return this.state.vatActive?t*.8:t},getRolling12MonthSales(){const t=new Date;return t.setFullYear(t.getFullYear()-1),this.state.sales.filter(e=>new Date(e.date)>=t).reduce((e,s)=>e+this.getNetPrice(s.total),0)},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,r)=>s-r),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,r,n,a,o;try{const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((r=(s=window.event)==null?void 0:s.target)==null?void 0:r.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const i=await fetch(`${D}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),d=await i.json();if(i.ok&&d.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const c=document.getElementById("sale-detail-modal");c&&(c.remove(),this.openSaleDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(l){console.error("Error setting ready for pickup:",l),this.showToast("❌ Error: "+(l.message||"No se pudo procesar el estado"),"error");const i=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((o=(a=window.event)==null?void 0:a.target)==null?void 0:o.closest("button"));i&&(i.disabled=!1,i.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro')}},renderDashboard(t){const e=this.state.filterMonths,s=this.state.filterYear,r=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],n=this.state.sales.filter(x=>{const h=new Date(x.date);return h.getFullYear()===s&&e.includes(h.getMonth())}),a=[...n].sort((x,h)=>new Date(h.date)-new Date(x.date));let o=0,l=0,i=0,d=0;n.forEach(x=>{const h=x.channel==="discogs",w=Number(x.originalTotal)||Number(x.total_amount)||Number(x.total)||0,k=Number(x.total)||Number(x.total_amount)||0,$=h?w-k:0,C=Number(x.shipping_cost)||0;o+=w,i+=C;let E=0;const I=x.items||[];I.length>0?I.forEach(S=>{const M=Number(S.priceAtSale||S.unitPrice||S.price)||0,L=Number(S.qty||S.quantity)||1;let T=Number(S.costAtSale||S.cost)||0;const P=(S.owner||"").toLowerCase();if(P==="el cuartito"||P==="")T=Number(S.costAtSale||S.cost)||0;else if(T===0||isNaN(T)){const B=this.state.consignors?this.state.consignors.find(N=>(N.name||"").toLowerCase()===P):null,F=B&&(B.agreementSplit||B.split)||70;T=M*(Number(F)||70)/100,d+=T*L}else d+=T*L;E+=(M-T)*L}):E=w,l+=E-$});const c=this.state.vatActive?o-o/1.25:0;this.state.inventory.reduce((x,h)=>x+h.price*h.stock,0);const b=this.state.inventory.reduce((x,h)=>x+h.stock,0);let u=0,g=0,p=0;this.state.inventory.forEach(x=>{const h=(x.owner||"").toLowerCase(),w=parseInt(x.stock)||0,k=parseFloat(x.price)||0,$=parseFloat(x.cost)||0;if(h==="el cuartito"||h==="")u+=$*w,g+=(k-$)*w;else{let C=$;if(C===0){const I=this.state.consignors?this.state.consignors.find(M=>(M.name||"").toLowerCase()===h):null,S=I&&(I.agreementSplit||I.split)||70;C=k*(Number(S)||70)/100}const E=k-C;p+=E*w}});const m={};this.state.inventory.forEach(x=>{const h=x.owner||"El Cuartito";m[h]||(m[h]={count:0,value:0}),m[h].count+=parseInt(x.stock)||0,m[h].value+=(parseFloat(x.price)||0)*(parseInt(x.stock)||0)});const y=`
+        `;try{const s=S,i=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),o=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(i.success||o&&o.success){let a=`✅ Sincronizado: ${i.synced||0} productos`;o&&o.salesCreated>0&&(a+=`. ¡Detectadas ${o.salesCreated} nuevas ventas!`),this.showToast(a),await this.loadData(),this.refreshCurrentView()}else throw new Error(i.error||o&&o.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},getVatComponent(t){return this.state.vatActive?(parseFloat(t)||0)*.2:0},getNetPrice(t){return this.state.vatActive?t*.8:t},getRolling12MonthSales(){const t=new Date;return t.setFullYear(t.getFullYear()-1),this.state.sales.filter(e=>new Date(e.date)>=t).reduce((e,s)=>e+this.getNetPrice(s.total),0)},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,n)=>s-n),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,n,i,r,o;try{const a=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((n=(s=window.event)==null?void 0:s.target)==null?void 0:n.closest("button"));a&&(a.disabled=!0,a.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const l=await fetch(`${S}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),d=await l.json();if(l.ok&&d.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const c=document.getElementById("sale-detail-modal");c&&(c.remove(),this.openSaleDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(a){console.error("Error setting ready for pickup:",a),this.showToast("❌ Error: "+(a.message||"No se pudo procesar el estado"),"error");const l=((i=event==null?void 0:event.target)==null?void 0:i.closest("button"))||((o=(r=window.event)==null?void 0:r.target)==null?void 0:o.closest("button"));l&&(l.disabled=!1,l.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro')}},renderDashboard(t){const e=this.state.filterMonths,s=this.state.filterYear,n=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],i=this.state.sales.filter(h=>{const g=new Date(h.date);return g.getFullYear()===s&&e.includes(g.getMonth())}),r=[...i].sort((h,g)=>new Date(g.date)-new Date(h.date));let o=0,a=0,l=0,d=0;i.forEach(h=>{const g=h.channel==="discogs",w=Number(h.originalTotal)||Number(h.total_amount)||Number(h.total)||0,k=Number(h.total)||Number(h.total_amount)||0,$=g?w-k:0,I=Number(h.shipping_cost)||0;o+=w,l+=I;let E=0;const C=h.items||[];C.length>0?C.forEach(D=>{const j=Number(D.priceAtSale||D.unitPrice||D.price)||0,L=Number(D.qty||D.quantity)||1;let T=Number(D.costAtSale||D.cost)||0;const P=(D.owner||"").toLowerCase();if(P==="el cuartito"||P==="")T=Number(D.costAtSale||D.cost)||0;else if(T===0||isNaN(T)){const _=this.state.consignors?this.state.consignors.find(N=>(N.name||"").toLowerCase()===P):null,F=_&&(_.agreementSplit||_.split)||70;T=j*(Number(F)||70)/100,d+=T*L}else d+=T*L;E+=(j-T)*L}):E=w,a+=E-$});const c=this.state.vatActive?o-o/1.25:0;this.state.inventory.reduce((h,g)=>h+g.price*g.stock,0);const m=this.state.inventory.reduce((h,g)=>h+g.stock,0);let u=0,b=0,p=0;this.state.inventory.forEach(h=>{const g=(h.owner||"").toLowerCase(),w=parseInt(h.stock)||0,k=parseFloat(h.price)||0,$=parseFloat(h.cost)||0;if(g==="el cuartito"||g==="")u+=$*w,b+=(k-$)*w;else{let I=$;if(I===0){const C=this.state.consignors?this.state.consignors.find(j=>(j.name||"").toLowerCase()===g):null,D=C&&(C.agreementSplit||C.split)||70;I=k*(Number(D)||70)/100}const E=k-I;p+=E*w}});const x={};this.state.inventory.forEach(h=>{const g=h.owner||"El Cuartito";x[g]||(x[g]={count:0,value:0}),x[g].count+=parseInt(h.stock)||0,x[g].value+=(parseFloat(h.price)||0)*(parseInt(h.stock)||0)});const y=`
     <div class="max-w-7xl mx-auto space-y-6 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!--Header -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -287,7 +287,7 @@ El inventario, gastos y socios NO serán afectados.
                         </button>
                         <div>
                             <h2 class="font-display text-3xl font-bold text-brand-dark">Dashboard</h2>
-                            <p class="text-slate-500">Resumen de <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(x=>this.getMonthName(x)).join(", ")} ${s} `}</span></p>
+                            <p class="text-slate-500">Resumen de <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(h=>this.getMonthName(h)).join(", ")} ${s} `}</span></p>
                         </div>
                     </div>
 
@@ -300,10 +300,10 @@ El inventario, gastos y socios NO serán afectados.
                             </select>
                         </div>
                         <div class="flex flex-wrap gap-1">
-                            ${r.map((x,h)=>`
-                                <button onclick="app.toggleMonthFilter(${h})" 
-                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${e.includes(h)?"bg-brand-orange text-white shadow-brand-orange/30":"bg-white border border-slate-100 text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
-                                    ${x}
+                            ${n.map((h,g)=>`
+                                <button onclick="app.toggleMonthFilter(${g})" 
+                                    class="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all shadow-sm ${e.includes(g)?"bg-brand-orange text-white shadow-brand-orange/30":"bg-white border border-slate-100 text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
+                                    ${h}
                                 </button>
                             `).join("")}
                         </div>
@@ -354,7 +354,7 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <div class="text-right">
                                 <p class="text-xs text-slate-400 uppercase font-bold">Ganancia Neta</p>
-                                <p class="text-xl font-bold text-green-600">${this.formatCurrency(l)}</p>
+                                <p class="text-xl font-bold text-green-600">${this.formatCurrency(a)}</p>
                             </div>
                         
                         <!-- VAT Limit Progress -->
@@ -389,7 +389,7 @@ El inventario, gastos y socios NO serán afectados.
                         <div class="space-y-3">
                             <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg border border-green-100">
                                 <span class="text-sm font-bold text-green-700">Ganancia El Cuartito</span>
-                                <span class="font-bold text-green-700">${this.formatCurrency(l)}</span>
+                                <span class="font-bold text-green-700">${this.formatCurrency(a)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
                                 <span class="text-sm font-bold text-blue-700">Share Socios (Pagar)</span>
@@ -397,7 +397,7 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
                                 <span class="text-sm font-bold text-orange-700">Costos de Envío</span>
-                                <span class="font-bold text-orange-700">${this.formatCurrency(i)}</span>
+                                <span class="font-bold text-orange-700">${this.formatCurrency(l)}</span>
                             </div>
                             <div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
                                 <span class="text-sm font-bold text-slate-600">Impuestos (Estimado)</span>
@@ -420,7 +420,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div class="p-4 bg-green-50 rounded-xl border border-green-100 text-center">
                                     <p class="text-[10px] text-green-600 font-bold uppercase">Ganancia Latente (Propia)</p>
-                                    <p class="text-lg font-bold text-green-700">${this.formatCurrency(g)}</p>
+                                    <p class="text-lg font-bold text-green-700">${this.formatCurrency(b)}</p>
                                 </div>
                                 <div class="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center col-span-2">
                                     <p class="text-[10px] text-purple-600 font-bold uppercase">Ganancia Latente (Socios)</p>
@@ -430,12 +430,12 @@ El inventario, gastos y socios NO serán afectados.
 
                             <div class="space-y-1 mb-4 max-h-40 overflow-y-auto custom-scrollbar pr-2">
                                 <h4 class="text-xs font-bold text-slate-400 uppercase mb-2">Por Dueño</h4>
-                                ${Object.entries(m).sort((x,h)=>h[1].count-x[1].count).map(([x,h])=>`
+                                ${Object.entries(x).sort((h,g)=>g[1].count-h[1].count).map(([h,g])=>`
                                 <div class="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                    <span class="font-bold text-slate-700 truncate max-w-[120px]" title="${x}">${x}</span>
+                                    <span class="font-bold text-slate-700 truncate max-w-[120px]" title="${h}">${h}</span>
                                     <div class="text-right">
-                                        <div class="font-bold text-brand-dark">${h.count} discos</div>
-                                        <div class="text-[10px] text-slate-500">${this.formatCurrency(h.value)}</div>
+                                        <div class="font-bold text-brand-dark">${g.count} discos</div>
+                                        <div class="text-[10px] text-slate-500">${this.formatCurrency(g.value)}</div>
                                     </div>
                                 </div>
                                 `).join("")}
@@ -444,7 +444,7 @@ El inventario, gastos y socios NO serán afectados.
 
                         <div class="p-4 bg-purple-50 rounded-xl border border-purple-100 flex justify-between items-center mt-auto">
                             <span class="text-sm font-bold text-purple-700 uppercase">Total Discos</span>
-                            <span class="text-2xl font-bold text-purple-700">${b}</span>
+                            <span class="text-2xl font-bold text-purple-700">${m}</span>
                         </div>
                     </div>
                 </div>
@@ -487,13 +487,13 @@ El inventario, gastos y socios NO serán afectados.
                     </tr>
                 </thead>
                 <tbody class="text-sm">
-                    ${a.slice(0,5).map(x=>`
+                    ${r.slice(0,5).map(h=>`
                                     <tr class="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                                         <td class="py-3 font-medium text-brand-dark max-w-[200px] truncate">
-                                            ${x.album||(x.items&&x.items[0]?x.items[0].album:"Venta rápida")}
+                                            ${h.album||(h.items&&h.items[0]?h.items[0].album:"Venta rápida")}
                                         </td>
-                                        <td class="py-3 text-slate-500">${this.formatDate(x.date)}</td>
-                                        <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(x.total)}</td>
+                                        <td class="py-3 text-slate-500">${this.formatDate(h.date)}</td>
+                                        <td class="py-3 font-bold text-brand-dark text-right">${this.formatCurrency(h.total)}</td>
                                     </tr>
                                 `).join("")||'<tr><td colspan="3" class="p-8 text-center text-slate-400">No hay ventas recientes</td></tr>'}
                 </tbody>
@@ -501,13 +501,13 @@ El inventario, gastos y socios NO serán afectados.
         </div>
     </div>
             </div>
-    `;t.innerHTML=y,this.renderDashboardCharts(n)},renderInventoryCart(){const t=document.getElementById("inventory-cart-container");if(!t)return;if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden");const e=this.state.cart.map((s,r)=>`
+    `;t.innerHTML=y,this.renderDashboardCharts(i)},renderInventoryCart(){const t=document.getElementById("inventory-cart-container");if(!t)return;if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden");const e=this.state.cart.map((s,n)=>`
     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                 <div class="truncate pr-2">
                     <p class="font-bold text-xs text-brand-dark truncate">${s.album}</p>
                     <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(s.price)}</p>
                 </div>
-                <button onclick="app.removeFromCart(${r})" class="text-red-400 hover:text-red-600">
+                <button onclick="app.removeFromCart(${n})" class="text-red-400 hover:text-red-600">
                     <i class="ph-bold ph-x"></i>
                 </button>
             </div>
@@ -525,13 +525,13 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
                 <div class="pt-3 border-t border-slate-50 flex justify-between items-center mb-3">
                      <span class="text-xs font-bold text-slate-500">Total</span>
-                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s,r)=>s+r.price,0))}</span>
+                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s,n)=>s+n.price,0))}</span>
                 </div>
                 <button onclick="app.openCheckoutModal()" class="w-full py-2 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
                     Finalizar Venta
                 </button>
             </div>
-    `},renderInventoryContent(t,e,s,r,n){t.innerHTML=`
+    `},renderInventoryContent(t,e,s,n,i){t.innerHTML=`
             ${this.state.viewMode==="grid"?`
                 <!-- GRID VIEW -->
                 ${this.state.filterGenre==="all"&&this.state.filterOwner==="all"&&this.state.filterLabel==="all"&&this.state.filterStorage==="all"&&this.state.inventorySearch===""?`
@@ -543,13 +543,13 @@ El inventario, gastos y socios NO serán afectados.
                                 <i class="ph-fill ph-music-notes-simple text-brand-orange"></i> Géneros
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                ${s.map(a=>`
-                                    <div onclick="app.navigateInventoryFolder('genre', '${a}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                ${s.map(r=>`
+                                    <div onclick="app.navigateInventoryFolder('genre', '${r}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
                                         <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3 text-brand-orange group-hover:scale-110 transition-transform">
                                             <i class="ph-bold ph-folder-notch text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.genre===a).length} items</p>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${r}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.genre===r).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -561,13 +561,13 @@ El inventario, gastos y socios NO serán afectados.
                                 <i class="ph-fill ph-users text-blue-500"></i> Dueños
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                ${r.map(a=>`
-                                    <div onclick="app.navigateInventoryFolder('owner', '${a}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                ${n.map(r=>`
+                                    <div onclick="app.navigateInventoryFolder('owner', '${r}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
                                         <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
                                             <i class="ph-bold ph-folder-user text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.owner===a).length} items</p>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${r}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.owner===r).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -579,13 +579,13 @@ El inventario, gastos y socios NO serán afectados.
                                 <i class="ph-fill ph-tag text-purple-500"></i> Label Disquería
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                ${n.map(a=>`
-                                    <div onclick="app.navigateInventoryFolder('storage', '${a.replace(/'/g,"\\'")}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
+                                ${i.map(r=>`
+                                    <div onclick="app.navigateInventoryFolder('storage', '${r.replace(/'/g,"\\'")}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
                                         <div class="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-500 group-hover:scale-110 transition-transform">
                                             <i class="ph-bold ph-tag text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${a}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.storageLocation===a).length} items</p>
+                                        <h4 class="font-bold text-brand-dark text-sm truncate">${r}</h4>
+                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(o=>o.storageLocation===r).length} items</p>
                                     </div>
                                 `).join("")}
                             </div>
@@ -605,34 +605,34 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                         `:""}
 
-                        ${e.map(a=>`
+                        ${e.map(r=>`
                             <!-- Item Card -->
                             <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
-                                onclick="app.openProductModal('${a.sku.replace(/'/g,"\\'")}')">
+                                onclick="app.openProductModal('${r.sku.replace(/'/g,"\\'")}')">
                                 <div class="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-4 relative shadow-inner">
-                                     ${a.cover_image?`<img src="${a.cover_image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`:'<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-disc text-5xl"></i></div>'}
+                                     ${r.cover_image?`<img src="${r.cover_image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`:'<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-disc text-5xl"></i></div>'}
                                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
-                                         <button onclick="event.stopPropagation(); app.addToCart('${a.sku.replace(/'/g,"\\'")}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         <button onclick="event.stopPropagation(); app.addToCart('${r.sku.replace(/'/g,"\\'")}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-shopping-cart text-lg"></i>
                                          </button>
-                                         <button onclick="event.stopPropagation(); app.openProductModal('${a.sku.replace(/'/g,"\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         <button onclick="event.stopPropagation(); app.openProductModal('${r.sku.replace(/'/g,"\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-eye text-lg"></i>
                                          </button>
-                                         <button onclick="event.stopPropagation(); app.openPrintLabelModal('${a.sku.replace(/'/g,"\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         <button onclick="event.stopPropagation(); app.openPrintLabelModal('${r.sku.replace(/'/g,"\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-printer text-lg"></i>
                                          </button>
                                      </div>
                                      <div class="absolute top-2 right-2">
-                                         ${this.getStatusBadge(a.condition)}
+                                         ${this.getStatusBadge(r.condition)}
                                      </div>
                                 </div>
                                 <div class="flex-1 flex flex-col">
-                                    <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${a.album}">${a.album}</h3>
-                                    <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${a.artist}</p>
+                                    <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${r.album}">${r.album}</h3>
+                                    <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${r.artist}</p>
                                     <div class="mt-auto flex justify-between items-center pt-3 border-t border-slate-50">
-                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(a.price)}</span>
-                                        <span class="text-xs font-bold ${a.stock>0?"text-green-600 bg-green-50":"text-red-500 bg-red-50"} px-2 py-1 rounded-md">
-                                            Stock: ${a.stock}
+                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(r.price)}</span>
+                                        <span class="text-xs font-bold ${r.stock>0?"text-green-600 bg-green-50":"text-red-500 bg-red-50"} px-2 py-1 rounded-md">
+                                            Stock: ${r.stock}
                                         </span>
                                     </div>
                                 </div>
@@ -667,7 +667,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <th class="p-4 w-10">
                                     <input type="checkbox" onchange="app.toggleSelectAll()" 
                                         class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
-                                        ${e.length>0&&e.every(a=>this.state.selectedItems.has(a.sku))?"checked":""}>
+                                        ${e.length>0&&e.every(r=>this.state.selectedItems.has(r.sku))?"checked":""}>
                                 </th>
                                 <th class="p-3 rounded-tl-2xl">Disco</th>
                                 <th class="p-3">Sello</th>
@@ -679,45 +679,45 @@ El inventario, gastos y socios NO serán afectados.
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
-                            ${e.map(a=>`
-                                <tr class="hover:bg-orange-50/30 transition-colors group cursor-pointer relative ${this.state.selectedItems.has(a.sku)?"bg-orange-50/50":""}" 
-                                    onclick="app.openProductModal('${a.sku.replace(/'/g,"\\'")}')">
+                            ${e.map(r=>`
+                                <tr class="hover:bg-orange-50/30 transition-colors group cursor-pointer relative ${this.state.selectedItems.has(r.sku)?"bg-orange-50/50":""}" 
+                                    onclick="app.openProductModal('${r.sku.replace(/'/g,"\\'")}')">
                                     <td class="p-3" onclick="event.stopPropagation()">
-                                        <input type="checkbox" onchange="app.toggleSelection('${a.sku.replace(/'/g,"\\'")}')"
+                                        <input type="checkbox" onchange="app.toggleSelection('${r.sku.replace(/'/g,"\\'")}')"
                                             class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
-                                            ${this.state.selectedItems.has(a.sku)?"checked":""}>
+                                            ${this.state.selectedItems.has(r.sku)?"checked":""}>
                                     </td>
                                     <td class="p-3">
                                         <div class="flex items-center gap-3">
                                             <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-sm border border-slate-100">
-                                                ${a.cover_image?`<img src="${a.cover_image}" class="w-full h-full object-cover">`:'<i class="ph-fill ph-disc text-lg"></i>'}
+                                                ${r.cover_image?`<img src="${r.cover_image}" class="w-full h-full object-cover">`:'<i class="ph-fill ph-disc text-lg"></i>'}
                                             </div>
                                             <div class="min-w-0">
-                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[180px]" title="${a.album}">${a.album}</div>
-                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[180px]">${a.artist}</div>
+                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[180px]" title="${r.album}">${r.album}</div>
+                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[180px]">${r.artist}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="p-3 text-xs text-slate-500 font-medium max-w-[80px] truncate">${a.label||"-"}</td>
-                                    <td class="p-3 text-center">${this.getStatusBadge(a.condition)}</td>
-                                    <td class="p-3 text-right font-bold text-brand-dark font-display text-sm">${this.formatCurrency(a.price)}</td>
+                                    <td class="p-3 text-xs text-slate-500 font-medium max-w-[80px] truncate">${r.label||"-"}</td>
+                                    <td class="p-3 text-center">${this.getStatusBadge(r.condition)}</td>
+                                    <td class="p-3 text-right font-bold text-brand-dark font-display text-sm">${this.formatCurrency(r.price)}</td>
                                     <td class="p-3 text-center">
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${a.stock>0?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}">
-                                            ${a.stock}
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${r.stock>0?"bg-emerald-100 text-emerald-700":"bg-red-100 text-red-700"}">
+                                            ${r.stock}
                                         </span>
                                     </td>
                                     <td class="p-3 text-center">
-                                        ${a.discogs_listing_id?'<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-100 text-purple-600" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>':'<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>'}
+                                        ${r.discogs_listing_id?'<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-100 text-purple-600" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>':'<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>'}
                                     </td>
                                     <td class="p-3 text-right" onclick="event.stopPropagation()">
                                         <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${a.sku.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
+                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${r.sku.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.addToCart('${a.sku.replace(/'/g,"\\'")}', event)" class="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir">
+                                            <button onclick="event.stopPropagation(); app.addToCart('${r.sku.replace(/'/g,"\\'")}', event)" class="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${a.sku.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
+                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${r.sku.replace(/'/g,"\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
                                                 <i class="ph-bold ph-trash text-sm"></i>
                                             </button>
                                         </div>
@@ -728,7 +728,7 @@ El inventario, gastos y socios NO serán afectados.
                     </table>
                 </div>
             `}
-`},renderInventory(t){const e=[...new Set(this.state.inventory.map(d=>d.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(d=>d.owner).filter(Boolean))].sort(),r=[...new Set(this.state.inventory.map(d=>d.label).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(d=>d.storageLocation).filter(Boolean))].sort(),a=this.getFilteredInventory(),o=this.state.sortBy||"dateDesc";a.sort((d,c)=>{if(o==="priceDesc")return(c.price||0)-(d.price||0);if(o==="priceAsc")return(d.price||0)-(c.price||0);if(o==="stockDesc")return(c.stock||0)-(d.stock||0);const b=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0,u=c.created_at?c.created_at.seconds?c.created_at.seconds*1e3:new Date(c.created_at).getTime():0;return o==="dateDesc"?u-b:o==="dateAsc"?b-u:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
+`},renderInventory(t){const e=[...new Set(this.state.inventory.map(d=>d.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(d=>d.owner).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(d=>d.label).filter(Boolean))].sort(),i=[...new Set(this.state.inventory.map(d=>d.storageLocation).filter(Boolean))].sort(),r=this.getFilteredInventory(),o=this.state.sortBy||"dateDesc";r.sort((d,c)=>{if(o==="priceDesc")return(c.price||0)-(d.price||0);if(o==="priceAsc")return(d.price||0)-(c.price||0);if(o==="stockDesc")return(c.stock||0)-(d.stock||0);const m=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0,u=c.created_at?c.created_at.seconds?c.created_at.seconds*1e3:new Date(c.created_at).getTime():0;return o==="dateDesc"?u-m:o==="dateAsc"?m-u:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
     <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
                     <!--Header(Search) -->
                     <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
@@ -780,7 +780,7 @@ El inventario, gastos y socios NO serán afectados.
         </div>
     </div>
                 </div>
-    `),this.renderInventoryCart();const l=document.getElementById("inventory-filters-container");l&&(l.innerHTML=`
+    `),this.renderInventoryCart();const a=document.getElementById("inventory-filters-container");a&&(a.innerHTML=`
     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 sticky top-24">
                     <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
                     <div class="space-y-4">
@@ -807,14 +807,14 @@ El inventario, gastos y socios NO serán afectados.
                             <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Label Disquería</label>
                             <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todas</option>
-                                ${n.map(d=>`<option value="${d}" ${this.state.filterStorage===d?"selected":""}>${d}</option>`).join("")}
+                                ${i.map(d=>`<option value="${d}" ${this.state.filterStorage===d?"selected":""}>${d}</option>`).join("")}
                             </select>
                         </div>
                          <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
                             <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
-                                ${r.map(d=>`<option value="${d}" ${this.state.filterLabel===d?"selected":""}>${d}</option>`).join("")}
+                                ${n.map(d=>`<option value="${d}" ${this.state.filterLabel===d?"selected":""}>${d}</option>`).join("")}
                             </select>
                         </div>
                         <div>
@@ -834,7 +834,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-    `);const i=document.getElementById("inventory-content-container");i&&this.renderInventoryContent(i,a,e,s,n)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const r=[],n=[],a=[];s.forEach(l=>{r.push(this.getMonthName(l).substring(0,3));const i=t.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.total,0),d=e.filter(c=>new Date(c.date).getMonth()===l).reduce((c,b)=>c+b.amount,0);n.push(i),a.push(d)});const o={};t.forEach(l=>{o[l.genre]=(o[l.genre]||0)+l.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:r,datasets:[{label:"Ventas",data:n,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:a,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[]){var d,c,b;const e=t.length>0?t:this.state.sales,s=(u,g)=>({type:"doughnut",data:{labels:Object.keys(u),datasets:[{data:Object.values(u),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),r={};e.forEach(u=>{const g=u.genre||"Desconocido";r[g]=(r[g]||0)+u.quantity}),this.genreChartInstance&&this.genreChartInstance.destroy();const n=(d=document.getElementById("genreChart"))==null?void 0:d.getContext("2d");n&&(this.genreChartInstance=new Chart(n,s(r)));const a={};e.forEach(u=>{const g=u.paymentMethod||"Desconocido";a[g]=(a[g]||0)+u.quantity}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const o=(c=document.getElementById("paymentChart"))==null?void 0:c.getContext("2d");o&&(this.paymentChartInstance=new Chart(o,s(a)));const l={};e.forEach(u=>{const g=u.channel||"Local";l[g]=(l[g]||0)+u.quantity}),this.channelChartInstance&&this.channelChartInstance.destroy();const i=(b=document.getElementById("channelChart"))==null?void 0:b.getContext("2d");i&&(this.channelChartInstance=new Chart(i,s(l)))},updateFilter(t,e){t==="month"&&(this.state.filterMonth=parseInt(e)),t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var g;const e=this.state.filterYear,s=this.state.filterMonths,r=((g=document.getElementById("sales-payment-filter"))==null?void 0:g.value)||"all",n=this.state.salesHistorySearch.toLowerCase(),a=this.state.sales.filter(p=>{const m=new Date(p.date),f=m.getFullYear()===e&&s.includes(m.getMonth()),y=r==="all"||p.paymentMethod===r,x=!n||p.items&&p.items.some(h=>{const w=h.record||{};return(w.album||"").toLowerCase().includes(n)||(w.artist||"").toLowerCase().includes(n)||(w.sku||"").toLowerCase().includes(n)});return f&&y&&x}),o=a.reduce((p,m)=>p+parseFloat(m.shipping||m.shipping_cost||0),0),i=a.reduce((p,m)=>p+(parseFloat(m.total)||0),0)-o,d=a.reduce((p,m)=>{const f=parseFloat(m.total)||0,y=parseFloat(m.shipping||m.shipping_cost||0),x=f-y;let h=0;return m.items&&Array.isArray(m.items)?h=m.items.reduce((w,k)=>{var E;const $=parseFloat(k.costAtSale||((E=k.record)==null?void 0:E.cost)||0),C=parseInt(k.quantity||k.qty)||1;return w+$*C},0):h=(parseFloat(m.cost)||0)*(parseInt(m.quantity)||1),p+(x-h)},0),c=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],b=`
+    `);const l=document.getElementById("inventory-content-container");l&&this.renderInventoryContent(l,r,e,s,i)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const n=[],i=[],r=[];s.forEach(a=>{n.push(this.getMonthName(a).substring(0,3));const l=t.filter(c=>new Date(c.date).getMonth()===a).reduce((c,m)=>c+m.total,0),d=e.filter(c=>new Date(c.date).getMonth()===a).reduce((c,m)=>c+m.amount,0);i.push(l),r.push(d)});const o={};t.forEach(a=>{o[a.genre]=(o[a.genre]||0)+a.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:n,datasets:[{label:"Ventas",data:i,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:r,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[]){var d,c,m;const e=t.length>0?t:this.state.sales,s=(u,b)=>({type:"doughnut",data:{labels:Object.keys(u),datasets:[{data:Object.values(u),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),n={};e.forEach(u=>{const b=u.genre||"Desconocido";n[b]=(n[b]||0)+u.quantity}),this.genreChartInstance&&this.genreChartInstance.destroy();const i=(d=document.getElementById("genreChart"))==null?void 0:d.getContext("2d");i&&(this.genreChartInstance=new Chart(i,s(n)));const r={};e.forEach(u=>{const b=u.paymentMethod||"Desconocido";r[b]=(r[b]||0)+u.quantity}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const o=(c=document.getElementById("paymentChart"))==null?void 0:c.getContext("2d");o&&(this.paymentChartInstance=new Chart(o,s(r)));const a={};e.forEach(u=>{const b=u.channel||"Local";a[b]=(a[b]||0)+u.quantity}),this.channelChartInstance&&this.channelChartInstance.destroy();const l=(m=document.getElementById("channelChart"))==null?void 0:m.getContext("2d");l&&(this.channelChartInstance=new Chart(l,s(a)))},updateFilter(t,e){t==="month"&&(this.state.filterMonth=parseInt(e)),t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var b;const e=this.state.filterYear,s=this.state.filterMonths,n=((b=document.getElementById("sales-payment-filter"))==null?void 0:b.value)||"all",i=this.state.salesHistorySearch.toLowerCase(),r=this.state.sales.filter(p=>{const x=new Date(p.date),f=x.getFullYear()===e&&s.includes(x.getMonth()),y=n==="all"||p.paymentMethod===n,h=!i||p.items&&p.items.some(g=>{const w=g.record||{};return(w.album||"").toLowerCase().includes(i)||(w.artist||"").toLowerCase().includes(i)||(w.sku||"").toLowerCase().includes(i)});return f&&y&&h}),o=r.reduce((p,x)=>p+parseFloat(x.shipping||x.shipping_cost||0),0),l=r.reduce((p,x)=>p+(parseFloat(x.total)||0),0)-o,d=r.reduce((p,x)=>{const f=parseFloat(x.total)||0,y=parseFloat(x.shipping||x.shipping_cost||0),h=f-y;let g=0;return x.items&&Array.isArray(x.items)?g=x.items.reduce((w,k)=>{var E;const $=parseFloat(k.costAtSale||((E=k.record)==null?void 0:E.cost)||0),I=parseInt(k.quantity||k.qty)||1;return w+$*I},0):g=(parseFloat(x.cost)||0)*(parseInt(x.quantity)||1),p+(h-g)},0),c=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],m=`
     <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <!--Header & Filters-->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -851,9 +851,9 @@ El inventario, gastos y socios NO serán afectados.
                             </select>
                         </div>
                         <div class="flex flex-wrap gap-1 max-w-md justify-end">
-                            ${c.map((p,m)=>`
-                                <button onclick="app.toggleMonthFilter(${m})" 
-                                    class="px-2 py-1 rounded text-[10px] font-bold transition-all ${s.includes(m)?"bg-brand-orange text-white":"bg-white border border-orange-100 text-slate-400 hover:text-brand-orange"}">
+                            ${c.map((p,x)=>`
+                                <button onclick="app.toggleMonthFilter(${x})" 
+                                    class="px-2 py-1 rounded text-[10px] font-bold transition-all ${s.includes(x)?"bg-brand-orange text-white":"bg-white border border-orange-100 text-slate-400 hover:text-brand-orange"}">
                                     ${p}
                                 </button>
                             `).join("")}
@@ -867,7 +867,7 @@ El inventario, gastos y socios NO serán afectados.
                     <div class="bg-brand-orange text-white p-5 rounded-2xl shadow-lg shadow-brand-orange/20 relative overflow-hidden">
                         <div class="relative z-10">
                             <p class="text-orange-100 text-xs font-bold uppercase tracking-wider mb-1">Ventas Productos</p>
-                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(i)}</h3>
+                            <h3 class="text-3xl font-display font-bold">${this.formatCurrency(l)}</h3>
                         </div>
                         <i class="ph-fill ph-trend-up absolute -right-4 -bottom-4 text-8xl text-white/10"></i>
                     </div>
@@ -904,7 +904,7 @@ El inventario, gastos y socios NO serán afectados.
                             
                             <!-- Cart Items List -->
                             <div class="space-y-3 mb-4 max-h-60 overflow-y-auto custom-scrollbar px-1">
-                                ${this.state.cart.map((p,m)=>`
+                                ${this.state.cart.map((p,x)=>`
                                     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                                         <div class="truncate pr-2">
                                             <p class="font-bold text-xs text-brand-dark truncate">${p.album}</p>
@@ -912,7 +912,7 @@ El inventario, gastos y socios NO serán afectados.
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span class="font-bold text-xs text-brand-orange">${this.formatCurrency(p.price)}</span>
-                                            <button onclick="app.removeFromCart(${m}); app.renderSales(document.getElementById('app-content'))" class="text-slate-400 hover:text-red-500">
+                                            <button onclick="app.removeFromCart(${x}); app.renderSales(document.getElementById('app-content'))" class="text-slate-400 hover:text-red-500">
                                                 <i class="ph-bold ph-x"></i>
                                             </button>
                                         </div>
@@ -923,7 +923,7 @@ El inventario, gastos y socios NO serán afectados.
                             <!-- Cart Total -->
                             <div class="pt-3 border-t border-slate-100 flex justify-between items-center mb-4">
                                 <span class="text-sm font-bold text-slate-500">Total a Pagar</span>
-                                <span class="font-display font-bold text-brand-dark text-xl">${this.formatCurrency(this.state.cart.reduce((p,m)=>p+m.price,0))}</span>
+                                <span class="font-display font-bold text-brand-dark text-xl">${this.formatCurrency(this.state.cart.reduce((p,x)=>p+x.price,0))}</span>
                             </div>
 
                             <!-- Checkout Form (Embedded) -->
@@ -1049,15 +1049,15 @@ El inventario, gastos y socios NO serán afectados.
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
                         <h3 class="font-bold text-lg mb-4 text-brand-dark">Resumen de Socios</h3>
                          <div class="space-y-4">
-                            ${["El Cuartito",...this.state.consignors.map(p=>p.name)].map(p=>{const m=this.state.inventory.filter(w=>w.owner===p).reduce((w,k)=>w+k.stock,0),f=a.reduce((w,k)=>{if(k.owner===p){const $=k.items&&Array.isArray(k.items)?k.items.reduce((C,E)=>C+(parseInt(E.quantity||E.qty)||1),0):parseInt(k.quantity)||1;return w+$}return k.items&&Array.isArray(k.items)?w+k.items.filter($=>$.owner===p).length:w},0),y=m+f,x=y>0?m/y*100:0,h=y>0?f/y*100:0;return`
+                            ${["El Cuartito",...this.state.consignors.map(p=>p.name)].map(p=>{const x=this.state.inventory.filter(w=>w.owner===p).reduce((w,k)=>w+k.stock,0),f=r.reduce((w,k)=>{if(k.owner===p){const $=k.items&&Array.isArray(k.items)?k.items.reduce((I,E)=>I+(parseInt(E.quantity||E.qty)||1),0):parseInt(k.quantity)||1;return w+$}return k.items&&Array.isArray(k.items)?w+k.items.filter($=>$.owner===p).length:w},0),y=x+f,h=y>0?x/y*100:0,g=y>0?f/y*100:0;return`
                                     <div>
                                         <div class="flex justify-between items-end mb-1">
                                             <span class="font-bold text-sm text-brand-dark">${p}</span>
-                                            <span class="text-xs text-slate-500">Stock: ${m} | Vendidos: ${f}</span>
+                                            <span class="text-xs text-slate-500">Stock: ${x} | Vendidos: ${f}</span>
                                         </div>
                                         <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                            <div style="width: ${x}%" class="h-full bg-blue-500"></div>
-                                            <div style="width: ${h}%" class="h-full bg-brand-orange"></div>
+                                            <div style="width: ${h}%" class="h-full bg-blue-500"></div>
+                                            <div style="width: ${g}%" class="h-full bg-brand-orange"></div>
                                         </div>
                                     </div>
                                 `}).join("")}
@@ -1085,10 +1085,10 @@ El inventario, gastos y socios NO serán afectados.
                                     </div>
                                     <!-- Payment Filter -->
                                     <select id="sales-payment-filter" onchange="app.renderSales(document.getElementById('app-content'))" class="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-3 py-1.5 outline-none focus:border-brand-orange">
-                                        <option value="all" ${r==="all"?"selected":""}>Todos</option>
-                                        <option value="MobilePay" ${r==="MobilePay"?"selected":""}>MobilePay</option>
-                                        <option value="Efectivo" ${r==="Efectivo"?"selected":""}>Efectivo</option>
-                                        <option value="Tarjeta" ${r==="Tarjeta"?"selected":""}>Tarjeta</option>
+                                        <option value="all" ${n==="all"?"selected":""}>Todos</option>
+                                        <option value="MobilePay" ${n==="MobilePay"?"selected":""}>MobilePay</option>
+                                        <option value="Efectivo" ${n==="Efectivo"?"selected":""}>Efectivo</option>
+                                        <option value="Tarjeta" ${n==="Tarjeta"?"selected":""}>Tarjeta</option>
                                     </select>
                                 </div>
                             </div>
@@ -1107,7 +1107,7 @@ El inventario, gastos y socios NO serán afectados.
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-orange-50">
-                                        ${a.sort((p,m)=>{const f=p.date&&p.date.toDate?p.date.toDate():new Date(p.date);return(m.date&&m.date.toDate?m.date.toDate():new Date(m.date))-f}).map(p=>{var m,f;return`
+                                        ${r.sort((p,x)=>{const f=p.date&&p.date.toDate?p.date.toDate():new Date(p.date);return(x.date&&x.date.toDate?x.date.toDate():new Date(x.date))-f}).map(p=>{var x,f;return`
                                              <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${p.id}')">
                                                 <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
                                                      ${this.formatDate(p.date)}
@@ -1115,13 +1115,13 @@ El inventario, gastos y socios NO serán afectados.
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex flex-col">
-                                                        ${p.items&&p.items.length>0?p.items.length===1?`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items[0].album||((m=p.items[0].record)==null?void 0:m.album)||"Desconocido"}</span>
+                                                        ${p.items&&p.items.length>0?p.items.length===1?`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items[0].album||((x=p.items[0].record)==null?void 0:x.album)||"Desconocido"}</span>
                                                                  <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items[0].artist||((f=p.items[0].record)==null?void 0:f.artist)||"-"}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.items.length} items</span>
-                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items.map(y=>{var x;return y.album||((x=y.record)==null?void 0:x.album)}).filter(Boolean).join(", ")}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.album||"Venta Manual"}</span>
+                                                                 <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.items.map(y=>{var h;return y.album||((h=y.record)==null?void 0:h.album)}).filter(Boolean).join(", ")}</span>`:`<span class="font-bold text-brand-dark text-sm truncate max-w-[180px]">${p.album||"Venta Manual"}</span>
                                                              <span class="text-[10px] text-slate-400 truncate max-w-[180px]">${p.artist||"-"}</span>`}
                                                     </div>
                                                 </td>
-                                                <td class="p-4 text-center text-sm text-slate-600">${p.quantity||(p.items?p.items.reduce((y,x)=>y+(parseInt(x.quantity||x.qty)||1),0):1)}</td>
+                                                <td class="p-4 text-center text-sm text-slate-600">${p.quantity||(p.items?p.items.reduce((y,h)=>y+(parseInt(h.quantity||h.qty)||1),0):1)}</td>
                                                 <td class="p-4 text-right text-xs font-medium text-slate-500">${this.formatCurrency(p.shipping||p.shipping_cost||0)}</td>
                                                 <td class="p-4 text-right font-bold text-brand-dark">${this.formatCurrency((parseFloat(p.total)||0)-parseFloat(p.shipping||p.shipping_cost||0))}</td>
                                                 <td class="p-4 text-center">
@@ -1143,7 +1143,7 @@ El inventario, gastos y socios NO serán afectados.
                                                 </td>
                                             </tr>
                                         `}).join("")}
-                                        ${a.length===0?`
+                                        ${r.length===0?`
                                             <tr>
                                                 <td colspan="6" class="p-8 text-center text-slate-400 italic">No hay ventas registradas en este periodo.</td>
                                             </tr>
@@ -1155,18 +1155,18 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-    `;t.innerHTML=b;const u=t.querySelector('input[placeholder="Buscar en historial..."]');u&&(u.focus(),u.setSelectionRange(u.value.length,u.value.length))},searchSku(t){const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(r=>r.artist.toLowerCase().includes(t.toLowerCase())||r.album.toLowerCase().includes(t.toLowerCase())||r.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(r=>`
-    <div onclick="app.selectSku('${r.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
+    `;t.innerHTML=m;const u=t.querySelector('input[placeholder="Buscar en historial..."]');u&&(u.focus(),u.setSelectionRange(u.value.length,u.value.length))},searchSku(t){const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(n=>n.artist.toLowerCase().includes(t.toLowerCase())||n.album.toLowerCase().includes(t.toLowerCase())||n.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(n=>`
+    <div onclick="app.selectSku('${n.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
                     <div>
-                        <p class="font-bold text-sm text-brand-dark">${r.album}</p>
-                        <p class="text-xs text-slate-500">${r.artist}</p>
+                        <p class="font-bold text-sm text-brand-dark">${n.album}</p>
+                        <p class="text-xs text-slate-500">${n.artist}</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(r.price)}</p>
-                        <p class="text-xs ${r.stock>0?"text-green-500":"text-red-500"}">Stock: ${r.stock}</p>
+                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(n.price)}</p>
+                        <p class="text-xs ${n.stock>0?"text-green-500":"text-red-500"}">Stock: ${n.stock}</p>
                     </div>
                 </div>
-    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(d=>d.sku===t);if(!e)return;const s=document.getElementById("input-price"),r=document.getElementById("input-qty");document.getElementById("form-total"),s&&(s.value=e.price),r&&(r.value=1),document.getElementById("input-sku").value=e.sku,document.getElementById("input-cost").value=e.cost,document.getElementById("input-genre").value=e.genre,document.getElementById("input-artist").value=e.artist,document.getElementById("input-album").value=e.album,document.getElementById("input-owner").value=e.owner,setTimeout(()=>{const d=document.getElementById("sku-results");d&&d.classList.add("hidden")},200);const n=document.getElementById("sku-search");n&&(n.value=`${e.artist} - ${e.album} `),this.updateTotal();const a=document.getElementById("btn-submit-sale"),o=document.getElementById("btn-submit-sale-modal"),l=e.stock<=0,i=d=>{d&&(l?(d.disabled=!0,d.classList.add("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-warning"></i> Sin Stock'):(d.disabled=!1,d.classList.remove("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-check"></i> Registrar Venta'))};i(a),i(o),l&&this.showToast("⚠️ Producto sin stock")},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",condition:"NM",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const o=this.state.inventory.find(l=>l.sku===t);o&&(e=o,s=!0)}if(!s){const o=this.state.inventory.map(i=>{const d=i.sku.match(/^SKU\s*-\s*(\d+)/);return d?parseInt(d[1]):0}),l=Math.max(0,...o);e.sku=`SKU-${String(l+1).padStart(3,"0")}`}const r=["Minimal","Techno","House","Deep House","Electro"],n=[...new Set([...r,...this.state.customGenres||[]])],a=`
+    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(d=>d.sku===t);if(!e)return;const s=document.getElementById("input-price"),n=document.getElementById("input-qty");document.getElementById("form-total"),s&&(s.value=e.price),n&&(n.value=1),document.getElementById("input-sku").value=e.sku,document.getElementById("input-cost").value=e.cost,document.getElementById("input-genre").value=e.genre,document.getElementById("input-artist").value=e.artist,document.getElementById("input-album").value=e.album,document.getElementById("input-owner").value=e.owner,setTimeout(()=>{const d=document.getElementById("sku-results");d&&d.classList.add("hidden")},200);const i=document.getElementById("sku-search");i&&(i.value=`${e.artist} - ${e.album} `),this.updateTotal();const r=document.getElementById("btn-submit-sale"),o=document.getElementById("btn-submit-sale-modal"),a=e.stock<=0,l=d=>{d&&(a?(d.disabled=!0,d.classList.add("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-warning"></i> Sin Stock'):(d.disabled=!1,d.classList.remove("opacity-50","cursor-not-allowed"),d.innerHTML='<i class="ph-bold ph-check"></i> Registrar Venta'))};l(r),l(o),a&&this.showToast("⚠️ Producto sin stock")},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",condition:"NM",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const o=this.state.inventory.find(a=>a.sku===t);o&&(e=o,s=!0)}if(!s){const o=this.state.inventory.map(l=>{const d=l.sku.match(/^SKU\s*-\s*(\d+)/);return d?parseInt(d[1]):0}),a=Math.max(0,...o);e.sku=`SKU-${String(a+1).padStart(3,"0")}`}const n=["Minimal","Techno","House","Deep House","Electro"],i=[...new Set([...n,...this.state.customGenres||[]])],r=`
     <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 shrink-0">
@@ -1290,7 +1290,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Principal</label>
                                                     <select name="genre" onchange="app.checkCustomInput(this, 'custom-genre-container')" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">Seleccionar...</option>
-                                                        ${n.map(o=>`<option ${e.genre===o?"selected":""}>${o}</option>`).join("")}
+                                                        ${i.map(o=>`<option ${e.genre===o?"selected":""}>${o}</option>`).join("")}
                                                         <option value="other">Otro...</option>
                                                     </select>
                                                     <div id="custom-genre-container" class="hidden mt-2">
@@ -1302,7 +1302,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Secundario</label>
                                                     <select name="genre2" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(o=>`<option ${e.genre2===o?"selected":""}>${o}</option>`).join("")}
+                                                        ${i.map(o=>`<option ${e.genre2===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1310,7 +1310,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Terciario</label>
                                                     <select name="genre3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(o=>`<option ${e.genre3===o?"selected":""}>${o}</option>`).join("")}
+                                                        ${i.map(o=>`<option ${e.genre3===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1318,7 +1318,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 4</label>
                                                     <select name="genre4" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(o=>`<option ${e.genre4===o?"selected":""}>${o}</option>`).join("")}
+                                                        ${i.map(o=>`<option ${e.genre4===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
 
@@ -1326,7 +1326,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 5</label>
                                                     <select name="genre5" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
                                                         <option value="">(Opcional)</option>
-                                                        ${n.map(o=>`<option ${e.genre5===o?"selected":""}>${o}</option>`).join("")}
+                                                        ${i.map(o=>`<option ${e.genre5===o?"selected":""}>${o}</option>`).join("")}
                                                     </select>
                                                 </div>
                                                 
@@ -1490,7 +1490,7 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                         </div>
                 </div>
-                `;document.body.insertAdjacentHTML("beforeend",a)},openProductModal(t){console.log("Attempting to open modal for:",t);try{const e=this.state.inventory.find(n=>n.sku===t);if(!e){console.error("Item not found:",t),alert("Error: No se encontró el disco. Intenta recargar.");return}const s=document.getElementById("modal-overlay");s&&s.remove();const r=`
+                `;document.body.insertAdjacentHTML("beforeend",r)},openProductModal(t){console.log("Attempting to open modal for:",t);try{const e=this.state.inventory.find(i=>i.sku===t);if(!e){console.error("Item not found:",t),alert("Error: No se encontró el disco. Intenta recargar.");return}const s=document.getElementById("modal-overlay");s&&s.remove();const n=`
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative animate-fadeIn" style="animation: fadeIn 0.3s forwards;">
 
@@ -1578,7 +1578,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-                `;document.body.insertAdjacentHTML("beforeend",r)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),r=document.getElementById("modal-margin"),n=document.getElementById("modal-price");if(s){const a=parseFloat(s)/100;if(a>0){const o=t/a;n.value=Math.ceil(o)}}else{const o=1-(parseFloat(r.value)||0)/100;if(o>0){const l=t/o;n.value=Math.ceil(l)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),r=document.getElementById("modal-margin"),n=document.getElementById("modal-cost"),a=document.getElementById("cost-helper");if(s){const o=parseFloat(s)/100,l=t*o;n.value=Math.round(l),r.value=100-parseFloat(s),r.readOnly=!0,r.classList.add("opacity-50"),a&&(a.innerText=`Consignación: ${s}% Socio`)}else{const o=parseFloat(n.value)||0;if(o>0&&t>0){const l=(t-o)/o*100;r.value=Math.round(l)}r.readOnly=!1,r.classList.remove("opacity-50"),a&&(a.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const r=e*(1+t/100);s.value=Math.ceil(r)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var r;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(r=e==null?void 0:e.querySelector("input"))==null||r.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
+                `;document.body.insertAdjacentHTML("beforeend",n)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),n=document.getElementById("modal-margin"),i=document.getElementById("modal-price");if(s){const r=parseFloat(s)/100;if(r>0){const o=t/r;i.value=Math.ceil(o)}}else{const o=1-(parseFloat(n.value)||0)/100;if(o>0){const a=t/o;i.value=Math.ceil(a)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),n=document.getElementById("modal-margin"),i=document.getElementById("modal-cost"),r=document.getElementById("cost-helper");if(s){const o=parseFloat(s)/100,a=t*o;i.value=Math.round(a),n.value=100-parseFloat(s),n.readOnly=!0,n.classList.add("opacity-50"),r&&(r.innerText=`Consignación: ${s}% Socio`)}else{const o=parseFloat(i.value)||0;if(o>0&&t>0){const a=(t-o)/o*100;n.value=Math.round(a)}n.readOnly=!1,n.classList.remove("opacity-50"),r&&(r.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const n=e*(1+t/100);s.value=Math.ceil(n)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var n;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(n=e==null?void 0:e.querySelector("input"))==null||n.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
                 <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
                     <div class="min-w-0 pr-2">
                         <p class="font-bold text-xs text-brand-dark truncate">${s.album}</p>
@@ -1609,7 +1609,7 @@ El inventario, gastos y socios NO serán afectados.
                                     ${this.state.cart.length>0?`
                                 <div class="flex justify-between items-center mb-4 pt-2 border-t border-slate-200">
                                     <span class="text-sm font-bold text-slate-500">Total</span>
-                                    <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s,r)=>s+r.price,0))}</span>
+                                    <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s,n)=>s+n.price,0))}</span>
                                 </div>
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
                                     <i class="ph-bold ph-check-circle"></i> Finalizar Compra Carrito
@@ -1721,113 +1721,185 @@ El inventario, gastos y socios NO serán afectados.
                                                             </form>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation(),this.openAddSaleModal(),setTimeout(()=>{const s=document.getElementById("sku-search");s.value=t,this.searchSku(t),setTimeout(()=>{const r=document.getElementById("sku-results").firstElementChild;r&&r.click()},500)},200)},openSaleDetailModal(t){var r,n;const e=this.state.sales.find(a=>a.id===t);if(!e)return;new Date(e.date);const s=`
-                                                    <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                                                        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
-                                                            <div class="bg-brand-dark p-6 text-white relative">
-                                                                <button onclick="document.getElementById('sale-detail-modal').remove()" class="absolute top-4 right-4 text-white/70 hover:text-white">
-                                                                    <i class="ph-bold ph-x text-2xl"></i>
-                                                                </button>
-                                                                <h2 class="font-display font-bold text-2xl mb-1">Detalle de Venta</h2>
-                                                                <div class="flex items-center gap-2">
-                                                                    <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${e.id.slice(0,8)}</p>
-                                                                    ${e.status==="shipped"?`
-                                                                        <span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Enviado</span>
-                                                                    `:e.status==="ready_for_pickup"?`
-                                                                        <span class="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Listo Retiro</span>
-                                                                    `:e.status==="completed"||e.status==="paid"?`
-                                                                        <span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Pagado</span>
-                                                                    `:""}
-                                                                </div>
-                                                            </div>
+                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation(),this.openAddSaleModal(),setTimeout(()=>{const s=document.getElementById("sku-search");s.value=t,this.searchSku(t),setTimeout(()=>{const n=document.getElementById("sku-results").firstElementChild;n&&n.click()},500)},200)},openSaleDetailModal(t){var c,m,u;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=this.getCustomerInfo(e),n=e.items?e.items.reduce((b,p)=>b+(p.unitPrice||p.priceAtSale||0)*(p.qty||p.quantity||1),0):e.total||0,i=parseFloat(e.shipping_cost||e.shipping||0),r=e.total||n+i,o=b=>({shipped:'<span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase">Enviado</span>',picked_up:'<span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase">Retirado</span>',ready_for_pickup:'<span class="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase">Listo Retiro</span>',completed:'<span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase">Pagado</span>',paid:'<span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase">Pagado</span>'})[b]||"",a=b=>b?(b.toDate?b.toDate():new Date(b)).toLocaleDateString("es-ES",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):null,l=((c=e.shipping_method)==null?void 0:c.id)==="local_pickup",d=`
+            <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
+                    <!-- Header -->
+                    <div class="bg-brand-dark p-6 text-white relative shrink-0">
+                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="absolute top-4 right-4 text-white/70 hover:text-white">
+                            <i class="ph-bold ph-x text-2xl"></i>
+                        </button>
+                        <h2 class="font-display font-bold text-2xl mb-1">Detalle de Orden</h2>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${e.orderNumber||e.id.slice(0,8)}</p>
+                            ${o(e.status)}
+                            ${l?'<span class="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 text-[10px] font-bold uppercase">Local Pickup</span>':""}
+                        </div>
+                    </div>
 
-                                                                <!-- Customer & Shipping Info Section -->
-                                                                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                                                                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                        <i class="ph-bold ph-user-circle text-base text-brand-orange"></i> Datos de Envío / Retiro
-                                                                    </h3>
-                                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                        <div class="md:col-span-2">
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Nombre Completo</label>
-                                                                            <p class="font-bold text-brand-dark flex items-center gap-2">
-                                                                                ${this.getCustomerInfo(e).name}
-                                                                                ${e.channel==="online"?'<span class="px-1.5 py-0.5 rounded bg-brand-orange/10 text-[9px] text-brand-orange">Comprador Web</span>':""}
-                                                                            </p>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Email</label>
-                                                                            <p class="text-sm text-brand-dark font-medium">${this.getCustomerInfo(e).email}</p>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Teléfono</label>
-                                                                            <p class="text-sm text-brand-dark font-medium">${((r=e.customer)==null?void 0:r.phone)||"-"}</p>
-                                                                        </div>
-                                                                        <div class="md:col-span-2 pt-2 border-t border-slate-200/50">
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Dirección de Entrega</label>
-                                                                            <p class="text-sm text-brand-dark font-bold">${this.getCustomerInfo(e).address}</p>
-                                                                            <p class="text-xs text-slate-500 font-medium">${e.postalCode||""} ${e.city||""}, ${e.country||""}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
+                    <!-- Scrollable Content -->
+                    <div class="overflow-y-auto flex-1 p-6 space-y-6">
+                        
+                        <!-- Customer Info -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="ph-bold ph-user-circle text-brand-orange"></i> Cliente
+                            </h3>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Nombre</label>
+                                    <p class="font-bold text-brand-dark">${s.name}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Email</label>
+                                    <p class="text-slate-600">${s.email}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Teléfono</label>
+                                    <p class="text-slate-600">${((m=e.customer)==null?void 0:m.phone)||"-"}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Dirección</label>
+                                    <p class="text-slate-600">${s.address}</p>
+                                </div>
+                            </div>
+                        </div>
 
-                                                                <!-- Shipmondo / Manual Tracking Status -->
-                                                                ${e.shipment?`
-                                                                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-100 flex justify-between items-center animate-fade-in">
-                                                                        <div>
-                                                                            <label class="text-[10px] font-bold text-brand-orange uppercase block mb-0.5">Estado del Envío</label>
-                                                                            <p class="text-sm font-bold text-brand-dark flex items-center gap-2">
-                                                                                <i class="ph-bold ph-package text-brand-orange"></i>
-                                                                                ${e.shipment.tracking_number}
-                                                                            </p>
-                                                                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">${e.shipment.carrier} • ${new Date((n=e.shipment.created_at)!=null&&n.toDate?e.shipment.created_at.toDate():e.shipment.created_at).toLocaleDateString()}</p>
-                                                                        </div>
-                                                                        <a href="${e.shipment.label_url||`https://app.shipmondo.com/tracking/${e.shipment.tracking_number}`}" target="_blank" class="bg-white p-3 rounded-xl border border-orange-200 text-brand-orange hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm" title="Seguir Envío">
-                                                                            <i class="ph-bold ph-magnifying-glass text-xl"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                `:e.status==="ready_for_pickup"?`
-                                                                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-4 animate-fade-in">
-                                                                        <div class="bg-blue-500 text-white p-3 rounded-xl shadow-blue-200 shadow-lg">
-                                                                            <i class="ph-bold ph-storefront text-2xl"></i>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[10px] font-bold text-blue-500 uppercase block mb-0.5">Estado de Retiro</label>
-                                                                            <p class="text-sm font-bold text-brand-dark uppercase">Listo para Retirar en Local</p>
-                                                                            <p class="text-[10px] text-slate-500 font-medium">El cliente fue notificado por email.</p>
-                                                                        </div>
-                                                                    </div>
-                                                                `:""}
+                        <!-- Items -->
+                        <div class="bg-white rounded-xl border border-slate-200">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest p-4 border-b border-slate-100 flex items-center gap-2">
+                                <i class="ph-bold ph-vinyl-record text-brand-orange"></i> Items (${((u=e.items)==null?void 0:u.length)||0})
+                            </h3>
+                            <div class="divide-y divide-slate-100">
+                                ${e.items&&e.items.length>0?e.items.map(b=>`
+                                    <div class="p-4 flex justify-between items-center">
+                                        <div>
+                                            <p class="font-bold text-brand-dark">${b.album||b.title||"Item"}</p>
+                                            <p class="text-xs text-slate-500">${b.artist||""} ${b.sku?"• "+b.sku:""}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-brand-dark">${this.formatCurrency(b.unitPrice||b.priceAtSale||0)}</p>
+                                            <p class="text-[10px] text-slate-400">x${b.qty||b.quantity||1}</p>
+                                        </div>
+                                    </div>
+                                `).join(""):'<p class="p-4 text-slate-400 italic text-sm">Sin items detallados</p>'}
+                            </div>
+                        </div>
 
-                                                                <!-- Actions Section -->
-                                                                <div class="flex flex-col gap-3 py-4 border-t border-slate-100">
-                                                                    <div class="flex gap-3">
-                                                                        ${!e.shipment&&e.customerEmail&&(e.status==="completed"||e.status==="paid")?`
-                                                                            <button onclick="app.setReadyForPickup('${e.id}')" class="flex-1 py-4 bg-orange-100 text-brand-orange font-black rounded-2xl hover:bg-orange-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-sm flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                                                                                <i class="ph-bold ph-storefront text-lg"></i> Listo para Retiro
-                                                                            </button>
-                                                                        `:""}
-                                                                        
-                                                                        ${!e.shipment&&e.customerEmail&&(e.status==="completed"||e.status==="paid"||e.status==="ready_for_pickup")?`
-                                                                            <button onclick="app.manualShipOrder('${e.id}')" class="flex-1 py-4 bg-brand-dark text-white font-black rounded-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1 shadow-md flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                                                                                <i class="ph-bold ph-truck text-lg"></i> ${e.status==="ready_for_pickup"?"Finalmente Enviado":"Enviar por Correo"}
-                                                                            </button>
-                                                                        `:""}
-                                                                    </div>
+                        <!-- Totals -->
+                        <div class="bg-orange-50 rounded-xl p-4 border border-orange-100">
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between text-slate-600">
+                                    <span>Subtotal</span>
+                                    <span>${this.formatCurrency(n)}</span>
+                                </div>
+                                <div class="flex justify-between text-slate-600">
+                                    <span>Envío</span>
+                                    <span>${i>0?this.formatCurrency(i):"Gratis"}</span>
+                                </div>
+                                <div class="flex justify-between font-bold text-brand-dark text-lg pt-2 border-t border-orange-200">
+                                    <span>Total</span>
+                                    <span>${this.formatCurrency(r)}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                                                                    <div class="flex gap-3">
-                                                                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs uppercase tracking-widest">
-                                                                            Cerrar
-                                                                        </button>
-                                                                        <button onclick="app.deleteSale('${e.id}'); document.getElementById('sale-detail-modal').remove()" class="px-4 py-3 text-red-400 hover:text-red-600 transition-colors text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100">
-                                                                            Eliminar
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},navigateInventoryFolder(t,e){t==="genre"&&(this.state.filterGenre=e),t==="owner"&&(this.state.filterOwner=e),t==="label"&&(this.state.filterLabel=e),t==="storage"&&(this.state.filterStorage=e),this.refreshCurrentView()},toggleSelection(t){this.state.selectedItems.has(t)?this.state.selectedItems.delete(t):this.state.selectedItems.add(t),this.refreshCurrentView()},openPrintLabelModal(t){const e=this.state.inventory.find(r=>r.sku===t);if(!e)return;const s=`
-                                                    <div id="print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <!-- Timeline -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="ph-bold ph-clock-counter-clockwise text-brand-orange"></i> Historial
+                            </h3>
+                            <div class="space-y-3">
+                                ${e.timestamp||e.created_at?`
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-credit-card text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Pago recibido</p>
+                                            <p class="text-[10px] text-slate-500">${a(e.timestamp||e.created_at)}</p>
+                                        </div>
+                                    </div>
+                                `:""}
+                                ${e.status==="ready_for_pickup"||e.status==="picked_up"?`
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-bell-ringing text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Notificado listo para retiro</p>
+                                            <p class="text-[10px] text-slate-500">${e.ready_at?a(e.ready_at):"Cliente notificado"}</p>
+                                        </div>
+                                    </div>
+                                `:""}
+                                ${e.status==="picked_up"?`
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-hand-tap text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Retirado por cliente</p>
+                                            <p class="text-[10px] text-slate-500">${e.picked_up_at?a(e.picked_up_at):a(e.updated_at)||"Entregado"}</p>
+                                        </div>
+                                    </div>
+                                `:""}
+                                ${e.status==="shipped"&&e.shipment?`
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-truck text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Enviado</p>
+                                            <p class="text-[10px] text-slate-500">Tracking: ${e.shipment.tracking_number}</p>
+                                        </div>
+                                    </div>
+                                `:""}
+                            </div>
+                        </div>
+
+                        <!-- Shipping/Tracking Info (if shipped) -->
+                        ${e.shipment?`
+                            <div class="bg-green-50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
+                                <div>
+                                    <label class="text-[10px] font-bold text-green-600 uppercase block mb-0.5">Número de Seguimiento</label>
+                                    <p class="font-mono font-bold text-brand-dark">${e.shipment.tracking_number}</p>
+                                    <p class="text-[10px] text-slate-500">${e.shipment.carrier||"Correo"}</p>
+                                </div>
+                                <a href="${e.shipment.label_url||"#"}" target="_blank" class="bg-white p-3 rounded-xl border border-green-200 text-green-600 hover:bg-green-600 hover:text-white transition-all shadow-sm" title="Ver Etiqueta">
+                                    <i class="ph-bold ph-file-pdf text-xl"></i>
+                                </a>
+                            </div>
+                        `:""}
+
+                    </div>
+
+                    <!-- Actions Footer -->
+                    <div class="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+                        <div class="flex gap-3">
+                            ${!e.shipment&&(e.status==="completed"||e.status==="paid")?`
+                                <button onclick="app.setReadyForPickup('${e.id}')" class="flex-1 py-3 bg-orange-100 text-brand-orange font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-storefront"></i> Notificar Listo
+                                </button>
+                            `:""}
+                            ${e.status==="ready_for_pickup"&&l?`
+                                <button onclick="app.markAsDelivered('${e.id}')" class="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
+                                </button>
+                            `:""}
+                            ${!e.shipment&&!l&&(e.status==="completed"||e.status==="paid"||e.status==="ready_for_pickup")?`
+                                <button onclick="app.manualShipOrder('${e.id}')" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-truck"></i> Despachar
+                                </button>
+                            `:""}
+                            <button onclick="document.getElementById('sale-detail-modal').remove()" class="px-6 py-3 bg-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-300 transition-colors text-sm">
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;document.body.insertAdjacentHTML("beforeend",d)},navigateInventoryFolder(t,e){t==="genre"&&(this.state.filterGenre=e),t==="owner"&&(this.state.filterOwner=e),t==="label"&&(this.state.filterLabel=e),t==="storage"&&(this.state.filterStorage=e),this.refreshCurrentView()},toggleSelection(t){this.state.selectedItems.has(t)?this.state.selectedItems.delete(t):this.state.selectedItems.add(t),this.refreshCurrentView()},openPrintLabelModal(t){const e=this.state.inventory.find(n=>n.sku===t);if(!e)return;const s=`
+    < div id = "print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" >
                                                         <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-orange-100 overflow-hidden max-h-[90vh] flex flex-col relative">
 
                                                             <!-- Header -->
@@ -1908,86 +1980,86 @@ El inventario, gastos y socios NO serán afectados.
                                                             </div>
                                                         </div>
 
-                                                        <!-- Injected Print Styles -->
-                                                        <style>
-                                                            @media print {
-                                                                @page {
-                                                                size: 7cm 4cm;
-                                                            margin: 0;
+                                                        <!--Injected Print Styles-- >
+    <style>
+        @media print {
+            @page {
+            size: 7cm 4cm;
+        margin: 0;
                     }
-                                                            body * {
-                                                                visibility: hidden;
+        body * {
+            visibility: hidden;
                     }
-                                                            #printable-label, #printable-label * {
-                                                                visibility: visible;
+        #printable-label, #printable-label * {
+            visibility: visible;
                     }
-                                                            #printable-label {
-                                                                position: fixed;
-                                                            left: 0;
-                                                            top: 0;
-                                                            margin: 0;
-                                                            border: none;
-                                                            width: 7cm !important;
-                                                            height: 4cm !important;
-                                                            box-shadow: none;
-                                                            background: white !important;
-                                                            -webkit-print-color-adjust: exact;
-                                                            print-color-adjust: exact;
+        #printable-label {
+            position: fixed;
+        left: 0;
+        top: 0;
+        margin: 0;
+        border: none;
+        width: 7cm !important;
+        height: 4cm !important;
+        box-shadow: none;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
                     }
-                                                            .modal-container, .modal-backdrop {
-                                                                display: none !important;
+        .modal-container, .modal-backdrop {
+            display: none !important;
                     }
                 }
-                                                        </style>
-                                                    </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},getFilteredInventory(){const t=(this.state.inventorySearch||"").toLowerCase(),e=this.state.filterGenre||"all",s=this.state.filterOwner||"all",r=this.state.filterLabel||"all",n=this.state.filterStorage||"all",a=this.state.filterDiscogs||"all";return this.state.inventory.filter(o=>{const l=!t||o.artist.toLowerCase().includes(t)||o.album.toLowerCase().includes(t)||o.sku.toLowerCase().includes(t),i=e==="all"||o.genre===e,d=s==="all"||o.owner===s,c=r==="all"||o.label===r,b=n==="all"||o.storageLocation===n,u=!!o.discogs_listing_id;return l&&i&&d&&c&&b&&(a==="all"||a==="yes"&&u||a==="no"&&!u)})},toggleSelectAll(){const t=this.getFilteredInventory();t.length>0&&t.every(e=>this.state.selectedItems.has(e.sku))?t.forEach(e=>this.state.selectedItems.delete(e.sku)):t.forEach(e=>this.state.selectedItems.add(e.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=v.batch(),e=[];this.state.selectedItems.forEach(s=>{const r=v.collection("products").doc(s),n=this.state.inventory.find(a=>a.sku===s);n&&e.push(n),t.delete(r)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
-                                                    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                                        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
-                                                            <div class="flex justify-between items-center mb-4">
-                                                                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
-                                                                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
-                                                                    <i class="ph-bold ph-x text-xl"></i>
-                                                                </button>
-                                                            </div>
-                                                            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
-                                                                <input type="hidden" name="id" id="expense-id">
+    </style>
+                                                    </div >
+    `;document.body.insertAdjacentHTML("beforeend",s)},getFilteredInventory(){const t=(this.state.inventorySearch||"").toLowerCase(),e=this.state.filterGenre||"all",s=this.state.filterOwner||"all",n=this.state.filterLabel||"all",i=this.state.filterStorage||"all",r=this.state.filterDiscogs||"all";return this.state.inventory.filter(o=>{const a=!t||o.artist.toLowerCase().includes(t)||o.album.toLowerCase().includes(t)||o.sku.toLowerCase().includes(t),l=e==="all"||o.genre===e,d=s==="all"||o.owner===s,c=n==="all"||o.label===n,m=i==="all"||o.storageLocation===i,u=!!o.discogs_listing_id;return a&&l&&d&&c&&m&&(r==="all"||r==="yes"&&u||r==="no"&&!u)})},toggleSelectAll(){const t=this.getFilteredInventory();t.length>0&&t.every(e=>this.state.selectedItems.has(e.sku))?t.forEach(e=>this.state.selectedItems.delete(e.sku)):t.forEach(e=>this.state.selectedItems.add(e.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=v.batch(),e=[];this.state.selectedItems.forEach(s=>{const n=v.collection("products").doc(s),i=this.state.inventory.find(r=>r.sku===s);i&&e.push(i),t.delete(n)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
+    < div id = "modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
+                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
+                <input type="hidden" name="id" id="expense-id">
 
-                                                                    <div>
-                                                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
-                                                                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                    </div>
 
-                                                                    <div class="grid grid-cols-2 gap-4">
-                                                                        <div>
-                                                                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
-                                                                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
-                                                                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                                ${[...new Set([...t,...this.state.customCategories||[]])].map(r=>`<option>${r}</option>`).join("")}
-                                                                                <option value="other">Otra...</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
+                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                                ${[...new Set([...t,...this.state.customCategories||[]])].map(n=>`<option>${n}</option>`).join("")}
+                                <option value="other">Otra...</option>
+                            </select>
+                        </div>
+                    </div>
 
-                                                                    <div id="custom-expense-category-container" class="hidden">
-                                                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
-                                                                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
-                                                                    </div>
+                    <div id="custom-expense-category-container" class="hidden">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
+                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
+                    </div>
 
-                                                                    <div class="flex items-center gap-2">
-                                                                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
-                                                                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
-                                                                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
+                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
+                    </div>
 
-                                                                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
-                                                                        Guardar Gasto
-                                                                    </button>
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let r=s.get("genre");r==="other"&&(r=s.get("custom_genre"));let n=s.get("collection");n==="other"&&(n=s.get("custom_collection"));const a=s.get("sku"),o=s.get("publish_webshop")==="on",l=s.get("publish_discogs")==="on",i=s.get("publish_local")==="on",d={sku:a,artist:s.get("artist"),album:s.get("album"),genre:r,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:n||null,collectionNote:s.get("collectionNote")||null,condition:s.get("condition"),sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:o,publish_webshop:o,publish_discogs:l,publish_local:i,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let c=null,b=null;if(e){const u=await this.findProductBySku(e);if(!u){this.showToast("❌ Producto no encontrado","error");return}b=u.data,c=u.id,await u.ref.update(d),this.showToast("✅ Disco actualizado")}else c=(await v.collection("products").add(d)).id,this.showToast("✅ Disco agregado al inventario");if(l){const u=s.get("discogs_release_id");if(b&&b.discogs_listing_id)try{const p=await(await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${b.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:d})})).json();if(p.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(p.error||"Error desconocido")}catch(g){console.error("Error updating Discogs listing:",g),this.showToast(`⚠️ Error Discogs: ${g.message}`,"error")}else if(u)try{const p=await(await fetch("https://el-cuartito-completo.onrender.com/discogs/create-listing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(u),product:d})})).json();if(p.success&&p.listingId)await v.collection("products").doc(c).update({discogs_listing_id:String(p.listingId),discogs_release_id:parseInt(u)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(p.error||"Error desconocido")}catch(g){console.error("Error creating Discogs listing:",g);let p=g.message;(p.toLowerCase().includes("mp3")||p.toLowerCase().includes("digital")||p.toLowerCase().includes("format"))&&(p="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${p}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(c){console.error(c),this.showToast("❌ Error: "+(c.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(r=>r.sku===t);if(!e){alert("Error: Item not found");return}const s=`
+                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                        Guardar Gasto
+                    </button>
+            </form>
+        </div>
+                                                    </div >
+    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let n=s.get("genre");n==="other"&&(n=s.get("custom_genre"));let i=s.get("collection");i==="other"&&(i=s.get("custom_collection"));const r=s.get("sku"),o=s.get("publish_webshop")==="on",a=s.get("publish_discogs")==="on",l=s.get("publish_local")==="on",d={sku:r,artist:s.get("artist"),album:s.get("album"),genre:n,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:i||null,collectionNote:s.get("collectionNote")||null,condition:s.get("condition"),sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:o,publish_webshop:o,publish_discogs:a,publish_local:l,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let c=null,m=null;if(e){const u=await this.findProductBySku(e);if(!u){this.showToast("❌ Producto no encontrado","error");return}m=u.data,c=u.id,await u.ref.update(d),this.showToast("✅ Disco actualizado")}else c=(await v.collection("products").add(d)).id,this.showToast("✅ Disco agregado al inventario");if(a){const u=s.get("discogs_release_id");if(m&&m.discogs_listing_id)try{const p=await(await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${m.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:d})})).json();if(p.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(p.error||"Error desconocido")}catch(b){console.error("Error updating Discogs listing:",b),this.showToast(`⚠️ Error Discogs: ${b.message}`,"error")}else if(u)try{const p=await(await fetch("https://el-cuartito-completo.onrender.com/discogs/create-listing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(u),product:d})})).json();if(p.success&&p.listingId)await v.collection("products").doc(c).update({discogs_listing_id:String(p.listingId),discogs_release_id:parseInt(u)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(p.error||"Error desconocido")}catch(b){console.error("Error creating Discogs listing:",b);let p=b.message;(p.toLowerCase().includes("mp3")||p.toLowerCase().includes("digital")||p.toLowerCase().includes("format"))&&(p="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${p}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(c){console.error(c),this.showToast("❌ Error: "+(c.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(n=>n.sku===t);if(!e){alert("Error: Item not found");return}const s=`
                                                     <div id="delete-confirm-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                                                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all">
                                                             <div class="flex items-center gap-4 mb-4">
@@ -2014,7 +2086,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const r=await this.findProductBySku(t);if(!r){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",r.data),console.log("Has discogs_listing_id?",r.data.discogs_listing_id),r.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",r.data.discogs_listing_id);try{const n=await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${r.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",n.status);const a=await n.json();console.log("Discogs delete result:",a),a.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(a.error||"Error en Discogs"),"warning")}catch(n){console.error("Error deleting from Discogs:",n),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await r.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(r){console.error("Error removing document: ",r),this.showToast("❌ Error al eliminar: "+r.message,"error")}},handleSaleSubmit(t){var m,f,y,x,h,w,k;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(m=document.getElementById("input-sku"))==null?void 0:m.value);let r=parseInt(e.get("quantity"));isNaN(r)&&(r=parseInt((f=document.getElementById("input-qty"))==null?void 0:f.value)||1);let n=parseFloat(e.get("price"));isNaN(n)&&(n=parseFloat((y=document.getElementById("input-price"))==null?void 0:y.value)||0),parseFloat(e.get("cost")),e.get("date")||new Date().toISOString();const a=e.get("paymentMethod");e.get("soldAt"),e.get("comment");let o=e.get("artist");o||(o=(x=document.getElementById("input-artist"))==null?void 0:x.value);let l=e.get("album");l||(l=(h=document.getElementById("input-album"))==null?void 0:h.value);let i=e.get("genre");i||(i=(w=document.getElementById("input-genre"))==null?void 0:w.value);let d=e.get("owner");d||(d=(k=document.getElementById("input-owner"))==null?void 0:k.value);const c=e.get("customerName"),b=e.get("customerEmail"),u=e.get("requestInvoice")==="on",g=this.state.inventory.find($=>$.sku===s);if(!g){alert(`Producto con SKU "${s}" no encontrado en inventario`);return}const p={items:[{recordId:g.id,quantity:r}],paymentMethod:a||"CASH",customerName:c||"Venta Manual",customerEmail:b||null,source:"STORE"};_.createSale(p).then(()=>{this.showToast(u?"Venta registrada (Factura Solicitada)":"Venta registrada");const $=document.getElementById("modal-overlay");$&&$.remove();const C=t.target;C&&C.reset();const E=document.getElementById("form-total");E&&(E.innerText="$0.00");const I=document.getElementById("sku-search");I&&(I.value=""),this.loadData()}).catch($=>{console.error("Error adding sale: ",$),alert("Error al registrar venta: "+($.message||""))})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(a=>a.channel==="online"),s=e.filter(a=>a.status==="completed"),r=e.filter(a=>a.status==="PENDING"),n=s.reduce((a,o)=>a+(parseFloat(o.total_amount||o.total)||0),0);t.innerHTML=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const n=await this.findProductBySku(t);if(!n){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",n.data),console.log("Has discogs_listing_id?",n.data.discogs_listing_id),n.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",n.data.discogs_listing_id);try{const i=await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${n.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",i.status);const r=await i.json();console.log("Discogs delete result:",r),r.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(r.error||"Error en Discogs"),"warning")}catch(i){console.error("Error deleting from Discogs:",i),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await n.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(n){console.error("Error removing document: ",n),this.showToast("❌ Error al eliminar: "+n.message,"error")}},handleSaleSubmit(t){var x,f,y,h,g,w,k;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(x=document.getElementById("input-sku"))==null?void 0:x.value);let n=parseInt(e.get("quantity"));isNaN(n)&&(n=parseInt((f=document.getElementById("input-qty"))==null?void 0:f.value)||1);let i=parseFloat(e.get("price"));isNaN(i)&&(i=parseFloat((y=document.getElementById("input-price"))==null?void 0:y.value)||0),parseFloat(e.get("cost")),e.get("date")||new Date().toISOString();const r=e.get("paymentMethod");e.get("soldAt"),e.get("comment");let o=e.get("artist");o||(o=(h=document.getElementById("input-artist"))==null?void 0:h.value);let a=e.get("album");a||(a=(g=document.getElementById("input-album"))==null?void 0:g.value);let l=e.get("genre");l||(l=(w=document.getElementById("input-genre"))==null?void 0:w.value);let d=e.get("owner");d||(d=(k=document.getElementById("input-owner"))==null?void 0:k.value);const c=e.get("customerName"),m=e.get("customerEmail"),u=e.get("requestInvoice")==="on",b=this.state.inventory.find($=>$.sku===s);if(!b){alert(`Producto con SKU "${s}" no encontrado en inventario`);return}const p={items:[{recordId:b.id,quantity:n}],paymentMethod:r||"CASH",customerName:c||"Venta Manual",customerEmail:m||null,source:"STORE"};B.createSale(p).then(()=>{this.showToast(u?"Venta registrada (Factura Solicitada)":"Venta registrada");const $=document.getElementById("modal-overlay");$&&$.remove();const I=t.target;I&&I.reset();const E=document.getElementById("form-total");E&&(E.innerText="$0.00");const C=document.getElementById("sku-search");C&&(C.value=""),this.loadData()}).catch($=>{console.error("Error adding sale: ",$),alert("Error al registrar venta: "+($.message||""))})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(i=>i.sku===t);if(!s)return;if(this.state.cart.filter(i=>i.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(r=>r.channel==="online"),s=e.filter(r=>r.status==="completed"),n=e.filter(r=>r.status==="PENDING"),i=s.reduce((r,o)=>r+(parseFloat(o.total_amount||o.total)||0),0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -2024,7 +2096,7 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
                 <div class="bg-gradient-to-br from-green-500 to-emerald-600 text-white px-6 py-4 rounded-2xl shadow-xl">
                     <div class="text-sm font-medium opacity-90">Ingresos Totales</div>
-                    <div class="text-3xl font-bold">DKK ${n.toFixed(2)}</div>
+                    <div class="text-3xl font-bold">DKK ${i.toFixed(2)}</div>
                     <div class="text-xs opacity-75">${s.length} ventas completadas</div>
                 </div>
             </div>
@@ -2045,7 +2117,7 @@ El inventario, gastos y socios NO serán afectados.
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-2xl font-bold text-brand-dark">${r.length}</div>
+                            <div class="text-2xl font-bold text-brand-dark">${n.length}</div>
                             <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Pendientes</div>
                         </div>
                         <div class="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
@@ -2095,45 +2167,45 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(a=>{var l;const o=(l=a.timestamp)!=null&&l.toDate?a.timestamp.toDate():new Date(a.date||0);return{...a,_sortDate:o.getTime()}}).sort((a,o)=>o._sortDate-a._sortDate).map(a=>{var g,p,m,f,y,x,h;const o=a.customer||{},l=a.orderNumber||"N/A",i=(g=a.timestamp)!=null&&g.toDate?a.timestamp.toDate():new Date(a.date),c=((p=a.completed_at)!=null&&p.toDate?a.completed_at.toDate():null)||i,b={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},u={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
-                                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openOnlineSaleDetailModal('${a.id}')">
+                                ${e.map(r=>{var a;const o=(a=r.timestamp)!=null&&a.toDate?r.timestamp.toDate():new Date(r.date||0);return{...r,_sortDate:o.getTime()}}).sort((r,o)=>o._sortDate-r._sortDate).map(r=>{var b,p,x,f,y,h,g;const o=r.customer||{},a=r.orderNumber||"N/A",l=(b=r.timestamp)!=null&&b.toDate?r.timestamp.toDate():new Date(r.date),c=((p=r.completed_at)!=null&&p.toDate?r.completed_at.toDate():null)||l,m={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},u={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
+                                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openOnlineSaleDetailModal('${r.id}')">
                                             <td class="px-6 py-4">
-                                                <div class="font-mono text-sm font-bold text-brand-orange">${l}</div>
+                                                <div class="font-mono text-sm font-bold text-brand-orange">${a}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${o.name||(o.firstName?`${o.firstName} ${o.lastName||""}`:"")||((m=o.stripe_info)==null?void 0:m.name)||"Cliente"}</div>
+                                                <div class="font-semibold text-brand-dark">${o.name||(o.firstName?`${o.firstName} ${o.lastName||""}`:"")||((x=o.stripe_info)==null?void 0:x.name)||"Cliente"}</div>
                                                 <div class="text-xs text-slate-500">${o.email||((f=o.stripe_info)==null?void 0:f.email)||"No email"}</div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm text-slate-600 truncate max-w-[200px]">
-                                                    ${((y=o.shipping)==null?void 0:y.line1)||o.address||((h=(x=o.stripe_info)==null?void 0:x.shipping)==null?void 0:h.line1)||"Sin dirección"}
+                                                    ${((y=o.shipping)==null?void 0:y.line1)||o.address||((g=(h=o.stripe_info)==null?void 0:h.shipping)==null?void 0:g.line1)||"Sin dirección"}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
-                                                    ${a.shipping_method?`
-                                                        <div class="font-semibold text-brand-dark">${a.shipping_method.method||"Standard"}</div>
-                                                        <div class="text-xs text-slate-500">DKK ${(a.shipping_method.price||0).toFixed(2)}</div>
-                                                        ${a.shipping_method.estimatedDays?`<div class="text-[10px] text-slate-400">${a.shipping_method.estimatedDays} días</div>`:""}
+                                                    ${r.shipping_method?`
+                                                        <div class="font-semibold text-brand-dark">${r.shipping_method.method||"Standard"}</div>
+                                                        <div class="text-xs text-slate-500">DKK ${(r.shipping_method.price||0).toFixed(2)}</div>
+                                                        ${r.shipping_method.estimatedDays?`<div class="text-[10px] text-slate-400">${r.shipping_method.estimatedDays} días</div>`:""}
                                                     `:'<span class="text-xs text-slate-400">No especificado</span>'}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
-                                                    <div class="font-medium capitalize text-xs">${a.payment_method||a.paymentMethod||"card"}</div>
+                                                    <div class="font-medium capitalize text-xs">${r.payment_method||r.paymentMethod||"card"}</div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-bold text-brand-dark">DKK ${(a.total_amount||a.total||0).toFixed(2)}</div>
+                                                <div class="font-bold text-brand-dark">DKK ${(r.total_amount||r.total||0).toFixed(2)}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${b[a.status]||"bg-slate-50 text-slate-700"}">
-                                                    ${u[a.status]||a.status}
+                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${m[r.status]||"bg-slate-50 text-slate-700"}">
+                                                    ${u[r.status]||r.status}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${a.fulfillment_status==="shipped"?"bg-blue-100 text-blue-700":a.fulfillment_status==="preparing"?"bg-orange-100 text-orange-700":a.fulfillment_status==="delivered"?"bg-green-100 text-green-700":"bg-slate-100 text-slate-600"}">
-                                                    ${(a.fulfillment_status||"pendiente").toUpperCase()}
+                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${r.fulfillment_status==="shipped"?"bg-blue-100 text-blue-700":r.fulfillment_status==="preparing"?"bg-orange-100 text-orange-700":r.fulfillment_status==="delivered"?"bg-green-100 text-green-700":"bg-slate-100 text-slate-600"}">
+                                                    ${(r.fulfillment_status||"pendiente").toUpperCase()}
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
@@ -2143,7 +2215,7 @@ El inventario, gastos y socios NO serán afectados.
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4 text-center" onclick="event.stopPropagation()">
-                                                <button onclick="app.deleteSale('${a.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Pedido">
+                                                <button onclick="app.deleteSale('${r.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Pedido">
                                                     <i class="ph-fill ph-trash"></i>
                                                 </button>
                                             </td>
@@ -2155,12 +2227,12 @@ El inventario, gastos y socios NO serán afectados.
                 `}
             </div>
         </div>
-    `},openOnlineSaleDetailModal(t){var i,d,c;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=e.customer||{},r=s.stripe_info||{},n=s.shipping||r.shipping||{},a={line1:n.line1||s.address||"Sin dirección",line2:n.line2||"",city:n.city||s.city||"",postal:n.postal_code||s.postalCode||"",country:n.country||s.country||"Denmark"},o=`
-            <p class="font-medium">${a.line1}</p>
-            ${a.line2?`<p class="font-medium">${a.line2}</p>`:""}
-            <p class="text-slate-500">${a.postal} ${a.city}</p>
-            <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${a.country}</p>
-        `,l=`
+    `},openOnlineSaleDetailModal(t){var l,d,c;const e=this.state.sales.find(m=>m.id===t);if(!e)return;const s=e.customer||{},n=s.stripe_info||{},i=s.shipping||n.shipping||{},r={line1:i.line1||s.address||"Sin dirección",line2:i.line2||"",city:i.city||s.city||"",postal:i.postal_code||s.postalCode||"",country:i.country||s.country||"Denmark"},o=`
+            <p class="font-medium">${r.line1}</p>
+            ${r.line2?`<p class="font-medium">${r.line2}</p>`:""}
+            <p class="text-slate-500">${r.postal} ${r.city}</p>
+            <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${r.country}</p>
+        `,a=`
         <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
             <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
                 
@@ -2224,7 +2296,7 @@ El inventario, gastos y socios NO serán afectados.
                             <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-sm">
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Destinatario</p>
-                                    <p class="font-bold text-brand-dark text-base">${s.name||(s.firstName?`${s.firstName} ${s.lastName||""}`:"")||((i=s.stripe_info)==null?void 0:i.name)||"Cliente"}</p>
+                                    <p class="font-bold text-brand-dark text-base">${s.name||(s.firstName?`${s.firstName} ${s.lastName||""}`:"")||((l=s.stripe_info)==null?void 0:l.name)||"Cliente"}</p>
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
@@ -2234,7 +2306,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div>
                                     <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Contacto</p>
-                                    <p class="font-medium text-brand-dark">${s.email||r.email||"Sin email"}</p>
+                                    <p class="font-medium text-brand-dark">${s.email||n.email||"Sin email"}</p>
                                 </div>
                             </div>
                         </div>
@@ -2311,14 +2383,14 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${(e.items||[]).map(b=>{var u,g,p;return`
+                                    ${(e.items||[]).map(m=>{var u,b,p;return`
                                         <tr>
                                             <td class="px-4 py-3">
-                                                <p class="font-bold text-brand-dark">${b.album||((u=b.record)==null?void 0:u.album)||"Unknown"}</p>
-                                                <p class="text-xs text-slate-500">${b.artist||((g=b.record)==null?void 0:g.artist)||""}</p>
+                                                <p class="font-bold text-brand-dark">${m.album||((u=m.record)==null?void 0:u.album)||"Unknown"}</p>
+                                                <p class="text-xs text-slate-500">${m.artist||((b=m.record)==null?void 0:b.artist)||""}</p>
                                             </td>
-                                            <td class="px-4 py-3 text-center font-medium">${b.quantity||1}</td>
-                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(b.unitPrice||((p=b.record)==null?void 0:p.price)||0).toFixed(2)}</td>
+                                            <td class="px-4 py-3 text-center font-medium">${m.quantity||1}</td>
+                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(m.unitPrice||((p=m.record)==null?void 0:p.price)||0).toFixed(2)}</td>
                                         </tr>
                                     `}).join("")}
                                 </tbody>
@@ -2338,17 +2410,17 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
             </div>
         </div>
-    `;document.body.insertAdjacentHTML("beforeend",l)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),r=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const n=this.state.cart.reduce((a,o)=>a+o.price,0);r.innerText=this.formatCurrency(n),s.innerHTML=this.state.cart.map((a,o)=>`
+    `;document.body.insertAdjacentHTML("beforeend",a)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),n=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const i=this.state.cart.reduce((r,o)=>r+o.price,0);n.innerText=this.formatCurrency(i),s.innerHTML=this.state.cart.map((r,o)=>`
                                                                 <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                                                                     <div class="truncate pr-2">
-                                                                        <p class="font-bold text-xs text-brand-dark truncate">${a.album}</p>
-                                                                        <p class="text-[10px] text-slate-500 truncate">${a.price} kr.</p>
+                                                                        <p class="font-bold text-xs text-brand-dark truncate">${r.album}</p>
+                                                                        <p class="text-[10px] text-slate-500 truncate">${r.price} kr.</p>
                                                                     </div>
                                                                     <button onclick="app.removeFromCart(${o})" class="text-red-400 hover:text-red-600">
                                                                         <i class="ph-bold ph-x"></i>
                                                                     </button>
                                                                 </div>
-                                                                `).join("")},openCheckoutModal(){if(this.state.cart.length===0)return;const t=this.state.cart.reduce((l,i)=>l+i.price,0),e=`
+                                                                `).join("")},openCheckoutModal(){if(this.state.cart.length===0)return;const t=this.state.cart.reduce((a,l)=>a+l.price,0),e=`
                                                                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                                                                     <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl transform scale-100 transition-all border border-orange-100 max-h-[90vh] overflow-y-auto">
                                                                         <div class="flex justify-between items-center mb-6">
@@ -2359,10 +2431,10 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
 
                                                                         <div class="bg-orange-50/50 rounded-xl p-4 mb-6 border border-orange-100 max-h-40 overflow-y-auto custom-scrollbar">
-                                                                            ${this.state.cart.map(l=>`
+                                                                            ${this.state.cart.map(a=>`
                             <div class="flex justify-between py-1 border-b border-orange-100/50 last:border-0 text-sm">
-                                <span class="truncate pr-4 font-medium text-slate-700">${l.album}</span>
-                                <span class="font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(l.price)}</span>
+                                <span class="truncate pr-4 font-medium text-slate-700">${a.album}</span>
+                                <span class="font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(a.price)}</span>
                             </div>
                         `).join("")}
                                                                         </div>
@@ -2450,7 +2522,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </form>
                                                                     </div>
                                                                 </div>
-                                                                `;document.body.insertAdjacentHTML("beforeend",e);const s=t,r=document.getElementById("checkout-final-price"),n=document.getElementById("discogs-fee-section"),a=document.getElementById("discogs-fee-value"),o=()=>{const l=parseFloat(r.value)||0,i=s-l;document.getElementById("checkout-total-value").innerText=this.formatCurrency(l),i>0?(n.classList.remove("hidden"),a.innerText=`- kr. ${i.toFixed(0)}`):n.classList.add("hidden")};r.addEventListener("input",o)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,r=this.state.cart.reduce((a,o)=>a+o.price,0),n={items:this.state.cart.map(a=>({recordId:a.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:r,feeDeducted:r-s};_.createSale(n).then(()=>{const a=n.channel==="Discogs"?" (Discogs listing eliminado)":"",o=n.feeDeducted>0?` | Fee: ${this.formatCurrency(n.feeDeducted)}`:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${a}${o}`),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(a=>{console.error("Error checkout",a),alert("Error al procesar venta: "+a.message)})},handleSalesViewCheckout(){if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}this.openCheckoutModal()},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(r=>r.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const r=v.batch(),n=v.collection("sales").doc(t);if(r.delete(n),e.items&&Array.isArray(e.items))for(const a of e.items){const o=a.productId||a.recordId,l=a.sku||((s=a.record)==null?void 0:s.sku),i=parseInt(a.quantity||a.qty)||1;let d=null;if(o)try{const c=await v.collection("products").doc(o).get();c.exists&&(d={ref:c.ref,data:c.data()})}catch{console.warn("Could not find product by ID:",o)}!d&&l&&(d=await this.findProductBySku(l)),d?r.update(d.ref,{stock:firebase.firestore.FieldValue.increment(i)}):console.warn("Could not restore stock for item:",a)}else if(e.sku){const a=await this.findProductBySku(e.sku);if(a){const o=parseInt(e.quantity)||1;r.update(a.ref,{stock:firebase.firestore.FieldValue.increment(o)})}}await r.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(r){console.error("Error deleting sale:",r),this.showToast("❌ Error al eliminar venta: "+r.message,"error")}},renderExpenses(t){const e=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=[...new Set([...e,...this.state.customCategories||[]])],r=(this.state.expensesSearch||"").toLowerCase(),n=this.state.expenses.filter(l=>!r||(l.description||"").toLowerCase().includes(r)||(l.category||"").toLowerCase().includes(r)),a=`
+                                                                `;document.body.insertAdjacentHTML("beforeend",e);const s=t,n=document.getElementById("checkout-final-price"),i=document.getElementById("discogs-fee-section"),r=document.getElementById("discogs-fee-value"),o=()=>{const a=parseFloat(n.value)||0,l=s-a;document.getElementById("checkout-total-value").innerText=this.formatCurrency(a),l>0?(i.classList.remove("hidden"),r.innerText=`- kr. ${l.toFixed(0)}`):i.classList.add("hidden")};n.addEventListener("input",o)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,n=this.state.cart.reduce((r,o)=>r+o.price,0),i={items:this.state.cart.map(r=>({recordId:r.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:n,feeDeducted:n-s};B.createSale(i).then(()=>{const r=i.channel==="Discogs"?" (Discogs listing eliminado)":"",o=i.feeDeducted>0?` | Fee: ${this.formatCurrency(i.feeDeducted)}`:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${r}${o}`),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(r=>{console.error("Error checkout",r),alert("Error al procesar venta: "+r.message)})},handleSalesViewCheckout(){if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}this.openCheckoutModal()},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(n=>n.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const n=v.batch(),i=v.collection("sales").doc(t);if(n.delete(i),e.items&&Array.isArray(e.items))for(const r of e.items){const o=r.productId||r.recordId,a=r.sku||((s=r.record)==null?void 0:s.sku),l=parseInt(r.quantity||r.qty)||1;let d=null;if(o)try{const c=await v.collection("products").doc(o).get();c.exists&&(d={ref:c.ref,data:c.data()})}catch{console.warn("Could not find product by ID:",o)}!d&&a&&(d=await this.findProductBySku(a)),d?n.update(d.ref,{stock:firebase.firestore.FieldValue.increment(l)}):console.warn("Could not restore stock for item:",r)}else if(e.sku){const r=await this.findProductBySku(e.sku);if(r){const o=parseInt(e.quantity)||1;n.update(r.ref,{stock:firebase.firestore.FieldValue.increment(o)})}}await n.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(n){console.error("Error deleting sale:",n),this.showToast("❌ Error al eliminar venta: "+n.message,"error")}},renderExpenses(t){const e=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=[...new Set([...e,...this.state.customCategories||[]])],n=(this.state.expensesSearch||"").toLowerCase(),i=this.state.expenses.filter(a=>!n||(a.description||"").toLowerCase().includes(n)||(a.category||"").toLowerCase().includes(n)),r=`
                                                                 <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                                                                     <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Gastos Operativos</h2>
 
@@ -2468,7 +2540,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                                         <div>
                                                                                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
                                                                                             <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
-                                                                                                ${s.map(l=>`<option>${l}</option>`).join("")}
+                                                                                                ${s.map(a=>`<option>${a}</option>`).join("")}
                                                                                                 <option value="other">Otra...</option>
                                                                                             </select>
                                                                                             <div id="custom-expense-category-container" class="hidden mt-2">
@@ -2519,30 +2591,30 @@ El inventario, gastos y socios NO serán afectados.
                                                                                         </tr>
                                                                                     </thead>
                                                                                     <tbody class="divide-y divide-orange-50">
-                                                                                        ${n.slice().reverse().map(l=>`
+                                                                                        ${i.slice().reverse().map(a=>`
                                         <tr class="hover:bg-orange-50/30 transition-colors group">
-                                            <td class="p-4 text-xs text-slate-500">${this.formatDate(l.date)}</td>
+                                            <td class="p-4 text-xs text-slate-500">${this.formatDate(a.date)}</td>
                                             <td class="p-4">
-                                                <p class="text-sm font-bold text-brand-dark">${l.description}</p>
-                                                <p class="text-xs text-slate-500">${l.category}</p>
+                                                <p class="text-sm font-bold text-brand-dark">${a.description}</p>
+                                                <p class="text-xs text-slate-500">${a.category}</p>
                                             </td>
-                                            <td class="p-4 text-right font-medium text-brand-dark">${this.formatCurrency(l.amount)}</td>
+                                            <td class="p-4 text-right font-medium text-brand-dark">${this.formatCurrency(a.amount)}</td>
                                             <td class="p-4 text-center">
-                                                ${l.hasVat?'<span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Sí</span>':'<span class="text-xs bg-slate-100 text-slate-400 px-2 py-1 rounded">No</span>'}
+                                                ${a.hasVat?'<span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Sí</span>':'<span class="text-xs bg-slate-100 text-slate-400 px-2 py-1 rounded">No</span>'}
                                             </td>
                                             <td class="p-4 text-center">
                                                 <div class="flex gap-1 justify-center">
-                                                    <button onclick="app.editExpense('${l.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-orange transition-all p-2" title="Editar">
+                                                    <button onclick="app.editExpense('${a.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-orange transition-all p-2" title="Editar">
                                                         <i class="ph-fill ph-pencil-simple"></i>
                                                     </button>
-                                                    <button onclick="app.deleteExpense('${l.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-2" title="Eliminar">
+                                                    <button onclick="app.deleteExpense('${a.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-2" title="Eliminar">
                                                         <i class="ph-fill ph-trash"></i>
                                                     </button>
                                                 </div>
                                             </td>
                                         </tr>
                                     `).join("")}
-                                                                                        ${n.length===0?`
+                                                                                        ${i.length===0?`
                                         <tr>
                                             <td colspan="5" class="p-8 text-center text-slate-400 italic">No se encontraron gastos.</td>
                                         </tr>
@@ -2553,7 +2625,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `;t.innerHTML=a;const o=t.querySelector('input[placeholder="Buscar gasto..."]');o&&(o.focus(),o.setSelectionRange(o.value.length,o.value.length))},editExpense(t){if(!confirm("¿Seguro que deseas editar este gasto?"))return;const e=this.state.expenses.find(r=>r.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-description").value=e.description,document.getElementById("expense-amount").value=e.amount,document.getElementById("hasVat").checked=e.hasVat;const s=document.getElementById("expense-category");[...s.options].some(r=>r.value===e.category)?s.value=e.category:(s.value="other",A.checkCustomInput(s,"custom-expense-category-container"),document.querySelector('[name="custom_category"]').value=e.category),document.getElementById("expense-form-title").innerText="Editar Gasto",document.getElementById("expense-submit-btn").innerText="Actualizar",document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-form-title").innerText="Nuevo Gasto",document.getElementById("expense-submit-btn").innerText="Guardar",document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("custom-expense-category-container").classList.add("hidden")},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target);let s=e.get("category");if(s==="other"&&(s=e.get("custom_category"),this.state.customCategories||(this.state.customCategories=[]),!this.state.customCategories.includes(s))){const a=[...this.state.customCategories,s];v.collection("settings").doc("general").set({customCategories:a},{merge:!0})}const r={description:e.get("description"),category:s,amount:parseFloat(e.get("amount")),hasVat:e.get("hasVat")==="on",date:new Date().toISOString()},n=e.get("id");if(n){const a=this.state.expenses.find(o=>o.id===n);a&&(r.date=a.date),v.collection("expenses").doc(n).update(r).then(()=>{this.showToast("✅ Gasto actualizado"),this.loadData()}).catch(o=>console.error(o))}else v.collection("expenses").add(r).then(()=>{this.showToast("✅ Gasto registrado"),this.loadData()}).catch(a=>console.error(a));this.resetExpenseForm()},deleteExpense(t){confirm("¿Eliminar este gasto?")&&v.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Gasto eliminado"),this.loadData()}).catch(e=>console.error(e))},renderConsignments(t){if(!t)return;const e=`
+                                                                `;t.innerHTML=r;const o=t.querySelector('input[placeholder="Buscar gasto..."]');o&&(o.focus(),o.setSelectionRange(o.value.length,o.value.length))},editExpense(t){if(!confirm("¿Seguro que deseas editar este gasto?"))return;const e=this.state.expenses.find(n=>n.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-description").value=e.description,document.getElementById("expense-amount").value=e.amount,document.getElementById("hasVat").checked=e.hasVat;const s=document.getElementById("expense-category");[...s.options].some(n=>n.value===e.category)?s.value=e.category:(s.value="other",A.checkCustomInput(s,"custom-expense-category-container"),document.querySelector('[name="custom_category"]').value=e.category),document.getElementById("expense-form-title").innerText="Editar Gasto",document.getElementById("expense-submit-btn").innerText="Actualizar",document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-form-title").innerText="Nuevo Gasto",document.getElementById("expense-submit-btn").innerText="Guardar",document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("custom-expense-category-container").classList.add("hidden")},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target);let s=e.get("category");if(s==="other"&&(s=e.get("custom_category"),this.state.customCategories||(this.state.customCategories=[]),!this.state.customCategories.includes(s))){const r=[...this.state.customCategories,s];v.collection("settings").doc("general").set({customCategories:r},{merge:!0})}const n={description:e.get("description"),category:s,amount:parseFloat(e.get("amount")),hasVat:e.get("hasVat")==="on",date:new Date().toISOString()},i=e.get("id");if(i){const r=this.state.expenses.find(o=>o.id===i);r&&(n.date=r.date),v.collection("expenses").doc(i).update(n).then(()=>{this.showToast("✅ Gasto actualizado"),this.loadData()}).catch(o=>console.error(o))}else v.collection("expenses").add(n).then(()=>{this.showToast("✅ Gasto registrado"),this.loadData()}).catch(r=>console.error(r));this.resetExpenseForm()},deleteExpense(t){confirm("¿Eliminar este gasto?")&&v.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Gasto eliminado"),this.loadData()}).catch(e=>console.error(e))},renderConsignments(t){if(!t)return;const e=`
                                                                 <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn">
                                                                     <div class="flex justify-between items-center mb-8">
                                                                         <h2 class="font-display text-2xl font-bold text-brand-dark">Socios y Consignación</h2>
@@ -2564,7 +2636,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                     </div>
 
                                                                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                                        ${this.state.consignors.map(s=>{const r=s.name,a=this.state.inventory.filter(c=>c.owner===r).reduce((c,b)=>c+b.stock,0),o=[];this.state.sales.forEach(c=>{(c.items||[]).filter(u=>{if((u.owner||"").toLowerCase()===r.toLowerCase())return!0;const g=this.state.inventory.find(p=>p.id===(u.productId||u.recordId));return g&&(g.owner||"").toLowerCase()===r.toLowerCase()}).forEach(u=>{const g=Number(u.priceAtSale||u.unitPrice||0),p=s.agreementSplit||s.split||70,m=g*p/100;o.push({...u,id:c.id,date:c.date,cost:u.costAtSale||u.cost||m,payoutStatus:c.payoutStatus||"pending",payoutDate:c.payoutDate||null})}),(!c.items||c.items.length===0)&&(c.owner||"").toLowerCase()===r.toLowerCase()&&o.push({...c,album:c.album||c.sku||"Record",cost:c.cost||(Number(c.total)||0)*(s.agreementSplit||70)/100})}),o.sort((c,b)=>new Date(b.date)-new Date(c.date)),o.reduce((c,b)=>c+(Number(b.qty||b.quantity)||1),0);const l=o.reduce((c,b)=>c+(Number(b.cost)||0),0),i=o.filter(c=>c.payoutStatus==="paid").reduce((c,b)=>c+(Number(b.cost)||0),0),d=l-i;return`
+                                                                        ${this.state.consignors.map(s=>{const n=s.name,r=this.state.inventory.filter(c=>c.owner===n).reduce((c,m)=>c+m.stock,0),o=[];this.state.sales.forEach(c=>{(c.items||[]).filter(u=>{if((u.owner||"").toLowerCase()===n.toLowerCase())return!0;const b=this.state.inventory.find(p=>p.id===(u.productId||u.recordId));return b&&(b.owner||"").toLowerCase()===n.toLowerCase()}).forEach(u=>{const b=Number(u.priceAtSale||u.unitPrice||0),p=s.agreementSplit||s.split||70,x=b*p/100;o.push({...u,id:c.id,date:c.date,cost:u.costAtSale||u.cost||x,payoutStatus:c.payoutStatus||"pending",payoutDate:c.payoutDate||null})}),(!c.items||c.items.length===0)&&(c.owner||"").toLowerCase()===n.toLowerCase()&&o.push({...c,album:c.album||c.sku||"Record",cost:c.cost||(Number(c.total)||0)*(s.agreementSplit||70)/100})}),o.sort((c,m)=>new Date(m.date)-new Date(c.date)),o.reduce((c,m)=>c+(Number(m.qty||m.quantity)||1),0);const a=o.reduce((c,m)=>c+(Number(m.cost)||0),0),l=o.filter(c=>c.payoutStatus==="paid").reduce((c,m)=>c+(Number(m.cost)||0),0),d=a-l;return`
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                             <div class="flex justify-between items-start mb-6">
                                 <div>
@@ -2581,7 +2653,7 @@ El inventario, gastos y socios NO serán afectados.
                             <div class="grid grid-cols-2 gap-4 mb-6">
                                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Stock Actual</p>
-                                    <p class="font-display font-bold text-xl text-brand-dark">${a}</p>
+                                    <p class="font-display font-bold text-xl text-brand-dark">${r}</p>
                                 </div>
                                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pendiente Pago</p>
@@ -2592,7 +2664,7 @@ El inventario, gastos y socios NO serán afectados.
                             <div class="border-t border-slate-100 pt-4">
                                 <div class="flex justify-between items-center mb-4">
                                     <h4 class="font-bold text-sm text-brand-dark">Historial de Ventas</h4>
-                                    <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(i)}</span>
+                                    <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(l)}</span>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
                                     ${o.length>0?o.map(c=>`
@@ -2657,7 +2729,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </form>
                                                                     </div>
 
-                                                                    `)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};v.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(r=>{console.error(r),this.showToast("❌ Error al crear socio: "+r.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&v.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={vatActive:this.state.vatActive};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},renderVAT(t){const e=i=>i?i.toDate?i.toDate().getFullYear():new Date(i).getFullYear():0,s=this.state.sales.filter(i=>e(i.date)===this.state.filterYear),r=this.state.expenses.filter(i=>e(i.date)===this.state.filterYear);let n=0,a=0;this.state.vatActive&&(n=s.reduce((i,d)=>i+this.getVatComponent(d.total),0),a=r.filter(i=>i.hasVat).reduce((i,d)=>i+this.getVatComponent(d.amount),0));const o=n-a,l=`
+                                                                    `)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};v.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(n=>{console.error(n),this.showToast("❌ Error al crear socio: "+n.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&v.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={vatActive:this.state.vatActive};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},renderVAT(t){const e=l=>l?l.toDate?l.toDate().getFullYear():new Date(l).getFullYear():0,s=this.state.sales.filter(l=>e(l.date)===this.state.filterYear),n=this.state.expenses.filter(l=>e(l.date)===this.state.filterYear);let i=0,r=0;this.state.vatActive&&(i=s.reduce((l,d)=>l+this.getVatComponent(d.total),0),r=n.filter(l=>l.hasVat).reduce((l,d)=>l+this.getVatComponent(d.amount),0));const o=i-r,a=`
                                                                     <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 pt-6">
                                                                         <div class="flex justify-between items-center mb-6">
                                                                             <h2 class="font-display text-2xl font-bold text-brand-dark">Reporte VAT (Moms)</h2>
@@ -2684,11 +2756,11 @@ El inventario, gastos y socios NO serán afectados.
                                                                                 <div class="space-y-3">
                                                                                     <div class="flex justify-between text-sm">
                                                                                         <span class="text-slate-500">Ventas Brutas</span>
-                                                                                        <span class="font-medium">${this.formatCurrency(s.reduce((i,d)=>i+d.total,0))}</span>
+                                                                                        <span class="font-medium">${this.formatCurrency(s.reduce((l,d)=>l+d.total,0))}</span>
                                                                                     </div>
                                                                                     <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
                                                                                         <span class="font-bold text-brand-orange">Total VAT (25%)</span>
-                                                                                        <span class="font-bold text-brand-orange">${this.formatCurrency(n)}</span>
+                                                                                        <span class="font-bold text-brand-orange">${this.formatCurrency(i)}</span>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
@@ -2698,18 +2770,18 @@ El inventario, gastos y socios NO serán afectados.
                                                                                 <div class="space-y-3">
                                                                                     <div class="flex justify-between text-sm">
                                                                                         <span class="text-slate-500">Gastos con VAT</span>
-                                                                                        <span class="font-medium">${this.formatCurrency(r.filter(i=>i.hasVat).reduce((i,d)=>i+d.amount,0))}</span>
+                                                                                        <span class="font-medium">${this.formatCurrency(n.filter(l=>l.hasVat).reduce((l,d)=>l+d.amount,0))}</span>
                                                                                     </div>
                                                                                     <div class="flex justify-between text-sm pt-3 border-t border-slate-100">
                                                                                         <span class="font-bold text-green-600">Total Deducible</span>
-                                                                                        <span class="font-bold text-green-600">${this.formatCurrency(a)}</span>
+                                                                                        <span class="font-bold text-green-600">${this.formatCurrency(r)}</span>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `;t.innerHTML=l},toggleVAT(){this.state.vatActive=!this.state.vatActive,this.saveData(),this.renderVAT(document.getElementById("app-content"))},searchDiscogs(){const t=document.getElementById("discogs-search-input").value,e=document.getElementById("discogs-results");if(!t)return;const s=localStorage.getItem("discogs_token");if(!s){e.innerHTML=`
+                                                                `;t.innerHTML=a},toggleVAT(){this.state.vatActive=!this.state.vatActive,this.saveData(),this.renderVAT(document.getElementById("app-content"))},searchDiscogs(){const t=document.getElementById("discogs-search-input").value,e=document.getElementById("discogs-results");if(!t)return;const s=localStorage.getItem("discogs_token");if(!s){e.innerHTML=`
                 <div class="text-center py-4 px-3">
                     <p class="text-xs text-red-500 font-bold mb-2">⚠️ Token de Discogs no configurado</p>
                     <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
@@ -2717,41 +2789,41 @@ El inventario, gastos y socios NO serán afectados.
                         Ir a Configuración →
                     </button>
                 </div>
-            `,e.classList.remove("hidden");return}if(e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),/^\d+$/.test(t.trim())){this.fetchDiscogsById(t.trim());return}fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(t)}&type=release&token=${s}`).then(r=>{if(r.status===401)throw new Error("Token inválido o expirado");if(!r.ok)throw new Error(`Error ${r.status}`);return r.json()}).then(r=>{r.results&&r.results.length>0?e.innerHTML=r.results.slice(0,10).map(n=>`
-                        <div onclick='app.handleDiscogsSelection(${JSON.stringify(n).replace(/'/g,"&#39;")})' class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
-                            <img src="${n.thumb||"logo.jpg"}" class="w-12 h-12 rounded object-cover bg-slate-100 flex-shrink-0">
+            `,e.classList.remove("hidden");return}if(e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),/^\d+$/.test(t.trim())){this.fetchDiscogsById(t.trim());return}fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(t)}&type=release&token=${s}`).then(n=>{if(n.status===401)throw new Error("Token inválido o expirado");if(!n.ok)throw new Error(`Error ${n.status}`);return n.json()}).then(n=>{n.results&&n.results.length>0?e.innerHTML=n.results.slice(0,10).map(i=>`
+                        <div onclick='app.handleDiscogsSelection(${JSON.stringify(i).replace(/'/g,"&#39;")})' class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
+                            <img src="${i.thumb||"logo.jpg"}" class="w-12 h-12 rounded object-cover bg-slate-100 flex-shrink-0">
                             <div class="flex-1 min-w-0">
-                                <p class="font-bold text-xs text-brand-dark leading-tight mb-1">${n.title}</p>
-                                <p class="text-[10px] text-slate-500">${n.year||"?"} · ${n.format?n.format.join(", "):"Vinyl"} · ${n.country||""}</p>
-                                <p class="text-[10px] text-slate-400">${n.label?n.label[0]:""}</p>
+                                <p class="font-bold text-xs text-brand-dark leading-tight mb-1">${i.title}</p>
+                                <p class="text-[10px] text-slate-500">${i.year||"?"} · ${i.format?i.format.join(", "):"Vinyl"} · ${i.country||""}</p>
+                                <p class="text-[10px] text-slate-400">${i.label?i.label[0]:""}</p>
                             </div>
                             <i class="ph-bold ph-plus-circle text-brand-orange text-lg flex-shrink-0"></i>
                         </div>
-                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(r=>{console.error(r),e.innerHTML=`
+                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(n=>{console.error(n),e.innerHTML=`
                     <div class="text-center py-4 px-3">
-                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${r.message}</p>
+                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${n.message}</p>
                         <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
                             class="text-xs font-bold text-brand-orange hover:underline">
                             Verificar Token en Configuración →
                         </button>
                     </div>
-                `})},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(r=>{const n=document.getElementById(r);n&&(n.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",r=e.slice(1).join(" - ")||t.title,n=document.querySelector("#modal-overlay form");if(!n)return;if(n.artist&&(n.artist.value=s),n.album&&(n.album.value=r),n.year&&t.year&&(n.year.value=t.year),n.label&&t.label&&t.label.length>0&&(n.label.value=t.label[0]),t.thumb||t.cover_image){const l=t.cover_image||t.thumb,i=document.getElementById("input-cover-image"),d=document.getElementById("cover-preview");i&&(i.value=l),d&&(d.querySelector("img").src=l,d.classList.remove("hidden"))}const a=document.getElementById("input-discogs-release-id");a&&t.id&&(a.value=t.id);const o=localStorage.getItem("discogs_token");if(o&&t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`https://api.discogs.com/releases/${t.id}?token=${o}`).then(l=>l.json()).then(l=>{console.log("Full Discogs Release:",l);const i=[...l.styles||[],...l.genres||[]];console.log("ALL Genres/Styles from full release:",i);const d=[...new Set(i)];if(d.length>0){const m=n.querySelector('select[name="genre"]'),f=n.querySelector('select[name="genre2"]'),y=n.querySelector('select[name="genre3"]'),x=n.querySelector('select[name="genre4"]'),h=n.querySelector('select[name="genre5"]'),w=[m,f,y,x,h];d.slice(0,5).forEach((k,$)=>{if(w[$]){let C=!1;for(let E of w[$].options)if(E.value===k){w[$].value=k,C=!0;break}if(!C){const E=document.createElement("option");E.value=k,E.text=k,E.selected=!0,w[$].add(E)}}}),this.showToast(`✅ ${d.length} géneros cargados`,"success")}if(l.images&&l.images.length>0){const m=l.images[0].uri,f=document.getElementById("input-cover-image"),y=document.getElementById("cover-preview");f&&(f.value=m),y&&(y.querySelector("img").src=m)}const c=document.getElementById("tracklist-preview"),b=document.getElementById("tracklist-preview-content");c&&b&&l.tracklist&&l.tracklist.length>0&&(b.innerHTML=l.tracklist.map(m=>`
+                `})},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(n=>{const i=document.getElementById(n);i&&(i.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",n=e.slice(1).join(" - ")||t.title,i=document.querySelector("#modal-overlay form");if(!i)return;if(i.artist&&(i.artist.value=s),i.album&&(i.album.value=n),i.year&&t.year&&(i.year.value=t.year),i.label&&t.label&&t.label.length>0&&(i.label.value=t.label[0]),t.thumb||t.cover_image){const a=t.cover_image||t.thumb,l=document.getElementById("input-cover-image"),d=document.getElementById("cover-preview");l&&(l.value=a),d&&(d.querySelector("img").src=a,d.classList.remove("hidden"))}const r=document.getElementById("input-discogs-release-id");r&&t.id&&(r.value=t.id);const o=localStorage.getItem("discogs_token");if(o&&t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`https://api.discogs.com/releases/${t.id}?token=${o}`).then(a=>a.json()).then(a=>{console.log("Full Discogs Release:",a);const l=[...a.styles||[],...a.genres||[]];console.log("ALL Genres/Styles from full release:",l);const d=[...new Set(l)];if(d.length>0){const x=i.querySelector('select[name="genre"]'),f=i.querySelector('select[name="genre2"]'),y=i.querySelector('select[name="genre3"]'),h=i.querySelector('select[name="genre4"]'),g=i.querySelector('select[name="genre5"]'),w=[x,f,y,h,g];d.slice(0,5).forEach((k,$)=>{if(w[$]){let I=!1;for(let E of w[$].options)if(E.value===k){w[$].value=k,I=!0;break}if(!I){const E=document.createElement("option");E.value=k,E.text=k,E.selected=!0,w[$].add(E)}}}),this.showToast(`✅ ${d.length} géneros cargados`,"success")}if(a.images&&a.images.length>0){const x=a.images[0].uri,f=document.getElementById("input-cover-image"),y=document.getElementById("cover-preview");f&&(f.value=x),y&&(y.querySelector("img").src=x)}const c=document.getElementById("tracklist-preview"),m=document.getElementById("tracklist-preview-content");c&&m&&a.tracklist&&a.tracklist.length>0&&(m.innerHTML=a.tracklist.map(x=>`
                             <div class="flex items-center gap-2 py-1 border-b border-slate-100 last:border-0">
-                                <span class="text-[10px] font-mono text-slate-400 w-6">${m.position||""}</span>
-                                <span class="flex-1">${m.title}</span>
-                                <span class="text-[10px] text-slate-400">${m.duration||""}</span>
+                                <span class="text-[10px] font-mono text-slate-400 w-6">${x.position||""}</span>
+                                <span class="flex-1">${x.title}</span>
+                                <span class="text-[10px] text-slate-400">${x.duration||""}</span>
                             </div>
-                        `).join(""),c.classList.remove("hidden"));const u=document.getElementById("price-suggestions-preview"),g=document.getElementById("price-suggestions-content"),p=document.getElementById("discogs-release-link");if(p&&l.uri){const m=l.uri.startsWith("http")?l.uri:"https://www.discogs.com"+l.uri;p.href=m,p.classList.remove("hidden")}u&&g&&(g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',u.classList.remove("hidden"),fetch(`${D}/discogs/price-suggestions/${t.id}`).then(f=>f.json()).then(f=>{if(f.success&&f.suggestions){const y=f.suggestions,x=y.currency==="DKK"?" kr.":y.currency==="USD"?" $":" "+y.currency,h=(w,k)=>{const $=y[k];return`
+                        `).join(""),c.classList.remove("hidden"));const u=document.getElementById("price-suggestions-preview"),b=document.getElementById("price-suggestions-content"),p=document.getElementById("discogs-release-link");if(p&&a.uri){const x=a.uri.startsWith("http")?a.uri:"https://www.discogs.com"+a.uri;p.href=x,p.classList.remove("hidden")}u&&b&&(b.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',u.classList.remove("hidden"),fetch(`${S}/discogs/price-suggestions/${t.id}`).then(f=>f.json()).then(f=>{if(f.success&&f.suggestions){const y=f.suggestions,h=y.currency==="DKK"?" kr.":y.currency==="USD"?" $":" "+y.currency,g=(w,k)=>{const $=y[k];return`
                                             <div class="bg-white p-2 rounded-lg border border-brand-orange/10">
                                                 <span class="text-[9px] text-slate-400 block leading-none mb-1">${w}</span>
-                                                <span class="font-bold text-brand-dark">${$?$.value.toFixed(0)+x:"N/A"}</span>
+                                                <span class="font-bold text-brand-dark">${$?$.value.toFixed(0)+h:"N/A"}</span>
                                             </div>
-                                        `};g.innerHTML=`
-                                        ${h("Mint (M)","Mint (M)")}
-                                        ${h("Near Mint (NM)","Near Mint (NM or M-)")}
-                                        ${h("Very Good Plus (VG+)","Very Good Plus (VG+)")}
-                                        ${h("Very Good (VG)","Very Good (VG)")}
-                                    `}else g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(f=>{console.error("Price suggestion error:",f),g.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(l=>{console.error("Error fetching full release:",l),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const l=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",l);const i=[...new Set(l)];if(i.length>0){const d=n.querySelector('select[name="genre"]');if(d){const c=i[0];let b=!1;for(let u of d.options)if(u.value===c){d.value=c,b=!0;break}if(!b){const u=document.createElement("option");u.value=c,u.text=c,u.selected=!0,d.add(u)}}}}if(t.uri||t.resource_url){const l=t.uri||t.resource_url,i=l.startsWith("http")?l:"https://www.discogs.com"+l,d=document.getElementById("input-discogs-url");d&&(d.value=i)}if(t.id){const l=document.getElementById("input-discogs-id");l&&(l.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(a=>a.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
+                                        `};b.innerHTML=`
+                                        ${g("Mint (M)","Mint (M)")}
+                                        ${g("Near Mint (NM)","Near Mint (NM or M-)")}
+                                        ${g("Very Good Plus (VG+)","Very Good Plus (VG+)")}
+                                        ${g("Very Good (VG)","Very Good (VG)")}
+                                    `}else b.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(f=>{console.error("Price suggestion error:",f),b.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(a=>{console.error("Error fetching full release:",a),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const a=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",a);const l=[...new Set(a)];if(l.length>0){const d=i.querySelector('select[name="genre"]');if(d){const c=l[0];let m=!1;for(let u of d.options)if(u.value===c){d.value=c,m=!0;break}if(!m){const u=document.createElement("option");u.value=c,u.text=c,u.selected=!0,d.add(u)}}}}if(t.uri||t.resource_url){const a=t.uri||t.resource_url,l=a.startsWith("http")?a:"https://www.discogs.com"+a,d=document.getElementById("input-discogs-url");d&&(d.value=l)}if(t.id){const a=document.getElementById("input-discogs-id");a&&(a.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(r=>r.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
                                                                 <div id="tracklist-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                                                                     <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl relative animate-fadeIn">
                                                                         <h3 class="font-display text-xl font-bold text-brand-dark mb-4">Lista de Temas (Tracklist)</h3>
@@ -2761,13 +2833,13 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `);const n=a=>{const o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/releases/${a}?token=${o}`).then(l=>{if(!l.ok)throw new Error("Release not found");return l.json()}).then(l=>{const i=l.tracklist||[],d=i.map(b=>`
+                                                                `);const i=r=>{const o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/releases/${r}?token=${o}`).then(a=>{if(!a.ok)throw new Error("Release not found");return a.json()}).then(a=>{const l=a.tracklist||[],d=l.map(m=>`
                                                                 <div class="flex items-center justify-between py-3 border-b border-slate-50 hover:bg-slate-50 px-2 transition-colors rounded-lg group">
                                                                     <div class="flex items-center gap-3">
-                                                                        <span class="text-xs font-mono font-bold text-slate-400 w-8">${b.position}</span>
-                                                                        <span class="text-sm font-bold text-brand-dark group-hover:text-brand-orange transition-colors">${b.title}</span>
+                                                                        <span class="text-xs font-mono font-bold text-slate-400 w-8">${m.position}</span>
+                                                                        <span class="text-sm font-bold text-brand-dark group-hover:text-brand-orange transition-colors">${m.title}</span>
                                                                     </div>
-                                                                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">${b.duration||"--:--"}</span>
+                                                                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">${m.duration||"--:--"}</span>
                                                                 </div>
                                                                 `).join(""),c=`
                                                                 <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative animate-fadeIn max-h-[85vh] flex flex-col overflow-hidden">
@@ -2781,15 +2853,15 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </button>
                                                                     </div>
                                                                     <div class="p-4 overflow-y-auto custom-scrollbar flex-1">
-                                                                        ${i.length>0?d:'<p class="text-center text-slate-500 py-8">No se encontraron temas para esta edición.</p>'}
+                                                                        ${l.length>0?d:'<p class="text-center text-slate-500 py-8">No se encontraron temas para esta edición.</p>'}
                                                                     </div>
                                                                     <div class="p-3 bg-slate-50 text-center shrink-0 border-t border-slate-100">
-                                                                        <a href="https://www.discogs.com/release/${a}" target="_blank" class="text-xs font-bold text-brand-orange hover:underline flex items-center justify-center gap-1">
+                                                                        <a href="https://www.discogs.com/release/${r}" target="_blank" class="text-xs font-bold text-brand-orange hover:underline flex items-center justify-center gap-1">
                                                                             Ver release completo en Discogs <i class="ph-bold ph-arrow-square-out"></i>
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                `;document.getElementById("tracklist-overlay").innerHTML=c}).catch(l=>{console.error(l),document.getElementById("tracklist-overlay").innerHTML=`
+                                                                `;document.getElementById("tracklist-overlay").innerHTML=c}).catch(a=>{console.error(a),document.getElementById("tracklist-overlay").innerHTML=`
                                                                 <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
                                                                     <div class="text-center py-6">
                                                                         <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
@@ -2800,7 +2872,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                                                                     </div>
                                                                 </div>
-                                                                `})};if(s)n(s);else{const a=`${e.artist} - ${e.album}`,o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(a)}&type=release&token=${o}`).then(l=>l.json()).then(l=>{if(l.results&&l.results.length>0)n(l.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
+                                                                `})};if(s)i(s);else{const r=`${e.artist} - ${e.album}`,o=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(r)}&type=release&token=${o}`).then(a=>a.json()).then(a=>{if(a.results&&a.results.length>0)i(a.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
                          <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
                             <div class="text-center py-6">
                                 <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-orange">
@@ -2811,7 +2883,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                             </div>
                         </div>
-                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(i=>i.channel==="discogs"),s=i=>parseFloat(i.total)||0,r=i=>parseFloat(i.originalTotal)||parseFloat(i.total)+(parseFloat(i.discogsFee||0)+parseFloat(i.paypalFee||0)),n=i=>r(i)-s(i),a=e.reduce((i,d)=>i+s(d),0),o=e.reduce((i,d)=>i+n(d),0),l=e.reduce((i,d)=>{const c=s(d);let b=0;return d.items&&Array.isArray(d.items)&&(b=d.items.reduce((u,g)=>{const p=parseFloat(g.costAtSale||0),m=parseInt(g.qty||g.quantity)||1;return u+p*m},0)),i+(c-b)},0);t.innerHTML=`
+                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(l=>l.channel==="discogs"),s=l=>parseFloat(l.total)||0,n=l=>parseFloat(l.originalTotal)||parseFloat(l.total)+(parseFloat(l.discogsFee||0)+parseFloat(l.paypalFee||0)),i=l=>n(l)-s(l),r=e.reduce((l,d)=>l+s(d),0),o=e.reduce((l,d)=>l+i(d),0),a=e.reduce((l,d)=>{const c=s(d);let m=0;return d.items&&Array.isArray(d.items)&&(m=d.items.reduce((u,b)=>{const p=parseFloat(b.costAtSale||0),x=parseInt(b.qty||b.quantity)||1;return u+p*x},0)),l+(c-m)},0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -2821,7 +2893,7 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
                 <div class="bg-gradient-to-br from-purple-500 to-indigo-600 text-white px-6 py-4 rounded-2xl shadow-xl">
                     <div class="text-sm font-medium opacity-90">Ingresos Netos (Caja)</div>
-                    <div class="text-3xl font-bold">${this.formatCurrency(a)}</div>
+                    <div class="text-3xl font-bold">${this.formatCurrency(r)}</div>
                     <div class="text-xs opacity-75">${e.length} ventas registradas</div>
                 </div>
             </div>
@@ -2853,7 +2925,7 @@ El inventario, gastos y socios NO serán afectados.
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-2xl font-bold text-green-600">${this.formatCurrency(l)}</div>
+                            <div class="text-2xl font-bold text-green-600">${this.formatCurrency(a)}</div>
                             <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Ganancia Real</div>
                         </div>
                         <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
@@ -2895,21 +2967,21 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(i=>{var c;const d=(c=i.timestamp)!=null&&c.toDate?i.timestamp.toDate():i.date?new Date(i.date):new Date(0);return{...i,_sortDate:d.getTime()}}).sort((i,d)=>d._sortDate-i._sortDate).map(i=>{var p;const d=(p=i.timestamp)!=null&&p.toDate?i.timestamp.toDate():new Date(i.date),c=i.items&&i.items[0],b=i.originalTotal||i.total+(i.discogsFee||0)+(i.paypalFee||0);i.discogsFee,i.paypalFee;const u=i.total,g=i.status==="pending_review"||i.needsReview;return`
-                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${g?"bg-orange-50/50":""}">
+                                ${e.map(l=>{var c;const d=(c=l.timestamp)!=null&&c.toDate?l.timestamp.toDate():l.date?new Date(l.date):new Date(0);return{...l,_sortDate:d.getTime()}}).sort((l,d)=>d._sortDate-l._sortDate).map(l=>{var p;const d=(p=l.timestamp)!=null&&p.toDate?l.timestamp.toDate():new Date(l.date),c=l.items&&l.items[0],m=l.originalTotal||l.total+(l.discogsFee||0)+(l.paypalFee||0);l.discogsFee,l.paypalFee;const u=l.total,b=l.status==="pending_review"||l.needsReview;return`
+                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors ${b?"bg-orange-50/50":""}">
                                             <td class="px-6 py-4 text-sm text-slate-600">${d.toLocaleDateString("es-ES")}</td>
                                             <td class="px-6 py-4">
                                                 <div class="font-bold text-brand-dark text-sm truncate max-w-[200px]">${(c==null?void 0:c.album)||"Producto"}</div>
                                                 <div class="text-xs text-slate-500">${(c==null?void 0:c.artist)||"-"}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-xs text-slate-500">Precio Lista: <span class="font-bold text-slate-700">${this.formatCurrency(b)}</span></div>
-                                                ${i.discogs_order_id?`<div class="text-[10px] text-purple-600 font-medium">Order: ${i.discogs_order_id}</div>`:""}
+                                                <div class="text-xs text-slate-500">Precio Lista: <span class="font-bold text-slate-700">${this.formatCurrency(m)}</span></div>
+                                                ${l.discogs_order_id?`<div class="text-[10px] text-purple-600 font-medium">Order: ${l.discogs_order_id}</div>`:""}
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(b-u)}</div>
+                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(m-u)}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">
-                                                    ${b>0?`(${((b-u)/b*100).toFixed(1)}%)`:""}
+                                                    ${m>0?`(${((m-u)/m*100).toFixed(1)}%)`:""}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -2917,12 +2989,12 @@ El inventario, gastos y socios NO serán afectados.
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="flex flex-col gap-2">
-                                                    ${g?`
+                                                    ${b?`
                                                         <span class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider text-center">Pendiente</span>
                                                     `:`
                                                         <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider text-center">Confirmado</span>
                                                     `}
-                                                    <button onclick="app.openUpdateSaleValueModal('${i.id}', ${b}, ${u})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
+                                                    <button onclick="app.openUpdateSaleValueModal('${l.id}', ${m}, ${u})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
                                                         <i class="ph-bold ph-pencil-simple"></i> Editar Neto
                                                     </button>
                                                 </div>
@@ -3004,7 +3076,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,r=e-s,n=e>0?r/e*100:0,a=document.getElementById("modal-fee-display"),o=document.getElementById("modal-fee-value");if(r>0){a.classList.remove("hidden"),o.innerText=`- kr. ${r.toFixed(2)}`;const l=document.getElementById("modal-fee-percent");l&&(l.innerText=`${n.toFixed(1)}%`)}else a.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const n=new FormData(t.target).get("netReceived"),a=document.getElementById("update-sale-submit-btn");if(n){a.disabled=!0,a.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const o=D,l=await j.currentUser.getIdToken(),i=await fetch(`${o}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${l}`},body:JSON.stringify({netReceived:n})}),d=i.headers.get("content-type");if(!d||!d.includes("application/json")){const b=await i.text();throw console.error("Non-JSON response received:",b),new Error(`Server returned non-JSON response (${i.status})`)}const c=await i.json();if(c.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(c.error||"Error al actualizar")}catch(o){console.error("Update sale error:",o),this.showToast(`❌ Error: ${o.message}`),a.disabled=!1,a.innerText="Confirmar Ajuste"}}},renderPickups(t){const e=this.state.sales.filter(o=>{var l;return o.channel==="online"&&(((l=o.shipping_method)==null?void 0:l.id)==="local_pickup"||o.shipping_cost===0&&o.status!=="failed")}),s=e.filter(o=>o.status==="completed"||o.status==="paid"||o.status==="paid_pending"),r=e.filter(o=>o.status==="ready_for_pickup"),n=e.filter(o=>o.status==="shipped"||o.status==="delivered"),a=`
+        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,n=e-s,i=e>0?n/e*100:0,r=document.getElementById("modal-fee-display"),o=document.getElementById("modal-fee-value");if(n>0){r.classList.remove("hidden"),o.innerText=`- kr. ${n.toFixed(2)}`;const a=document.getElementById("modal-fee-percent");a&&(a.innerText=`${i.toFixed(1)}%`)}else r.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const i=new FormData(t.target).get("netReceived"),r=document.getElementById("update-sale-submit-btn");if(i){r.disabled=!0,r.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const o=S,a=await M.currentUser.getIdToken(),l=await fetch(`${o}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${a}`},body:JSON.stringify({netReceived:i})}),d=l.headers.get("content-type");if(!d||!d.includes("application/json")){const m=await l.text();throw console.error("Non-JSON response received:",m),new Error(`Server returned non-JSON response (${l.status})`)}const c=await l.json();if(c.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(c.error||"Error al actualizar")}catch(o){console.error("Update sale error:",o),this.showToast(`❌ Error: ${o.message}`),r.disabled=!1,r.innerText="Confirmar Ajuste"}}},renderPickups(t){const e=this.state.sales.filter(o=>{var a;return o.channel==="online"&&(((a=o.shipping_method)==null?void 0:a.id)==="local_pickup"||o.shipping_cost===0&&o.status!=="failed")}),s=e.filter(o=>o.status==="completed"||o.status==="paid"||o.status==="paid_pending"),n=e.filter(o=>o.status==="ready_for_pickup"),i=e.filter(o=>o.status==="shipped"||o.status==="delivered"||o.status==="picked_up"),r=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -3023,7 +3095,7 @@ El inventario, gastos y socios NO serán afectados.
                             <i class="ph-fill ph-check-circle text-xl"></i>
                             <div>
                                 <p class="text-[10px] uppercase font-bold leading-none">Listos</p>
-                                <p class="text-xl font-display font-bold">${r.length}</p>
+                                <p class="text-xl font-display font-bold">${n.length}</p>
                             </div>
                         </div>
                     </div>
@@ -3052,11 +3124,11 @@ El inventario, gastos y socios NO serán afectados.
                                     <tr>
                                         <td colspan="5" class="p-12 text-center text-slate-400 italic">No hay retiros pendientes.</td>
                                     </tr>
-                                `:s.map(o=>{var l,i;return`
+                                `:s.map(o=>{var a,l;return`
                                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${o.id}')">
                                         <td class="p-4 text-sm font-bold text-brand-orange">#${o.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm font-bold text-brand-dark">${((l=o.customer)==null?void 0:l.name)||o.customerName||"Cliente"}</td>
-                                        <td class="p-4 text-xs text-slate-500">${((i=o.items)==null?void 0:i.length)||0} items</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((a=o.customer)==null?void 0:a.name)||o.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-xs text-slate-500">${((l=o.items)==null?void 0:l.length)||0} items</td>
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(o.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.setReadyForPickup('${o.id}')" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
@@ -3088,18 +3160,18 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                ${r.length===0?`
+                                ${n.length===0?`
                                     <tr>
                                         <td colspan="4" class="p-12 text-center text-slate-400 italic">No hay pedidos esperando retiro.</td>
                                     </tr>
-                                `:r.map(o=>{var l,i;return`
+                                `:n.map(o=>{var a,l;return`
                                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${o.id}')">
                                         <td class="p-4 text-sm font-bold text-brand-orange">#${o.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm font-bold text-brand-dark">${((l=o.customer)==null?void 0:l.name)||o.customerName||"Cliente"}</td>
-                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate((i=o.updated_at)!=null&&i.toDate?o.updated_at.toDate():o.updated_at||o.date)}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((a=o.customer)==null?void 0:a.name)||o.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate((l=o.updated_at)!=null&&l.toDate?o.updated_at.toDate():o.updated_at||o.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.markAsDelivered('${o.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
-                                                <i class="ph-bold ph-hand-tap"></i> Marcar Entregado
+                                                <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
                                             </button>
                                         </td>
                                     </tr>
@@ -3117,7 +3189,7 @@ El inventario, gastos y socios NO serán afectados.
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
                             <tbody class="divide-y divide-slate-50">
-                                ${n.slice(0,10).map(o=>`
+                                ${i.slice(0,10).map(o=>`
                                     <tr>
                                         <td class="p-4 text-sm font-medium text-slate-400">#${o.id.slice(0,8)}</td>
                                         <td class="p-4 text-sm text-slate-500">${o.customerName||"Cliente"}</td>
@@ -3131,7 +3203,131 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=a},async setReadyForPickup(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");if(s&&(s.disabled=!0),(await fetch(`${D}/shipping/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})})).ok)this.showToast("✅ Cliente notificado - El pedido está listo para retiro"),await this.loadData(),this.refreshCurrentView();else throw new Error("Error al notificar")}catch(s){this.showToast("❌ error: "+s.message,"error")}},async markAsDelivered(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");s&&(s.disabled=!0),await v.collection("sales").doc(t).update({status:"shipped",fulfillment_status:"delivered",updated_at:admin.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido entregado"),await this.loadData(),this.refreshCurrentView()}catch(s){this.showToast("❌ Error: "+s.message,"error")}},renderShipping(t){const e=this.state.sales.filter(a=>{var o;return a.channel==="online"&&((o=a.shipping_method)==null?void 0:o.id)!=="local_pickup"||a.fulfillment_status==="shipped"||a.shipment&&a.shipment.tracking_number}),s=e.filter(a=>a.status==="completed"||a.status==="paid"||a.status==="ready_for_pickup"),r=e.filter(a=>a.status==="shipped"),n=`
+        `;t.innerHTML=r},async setReadyForPickup(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");if(s&&(s.disabled=!0),(await fetch(`${S}/shipping/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})})).ok)this.showToast("✅ Cliente notificado - El pedido está listo para retiro"),await this.loadData(),this.refreshCurrentView();else throw new Error("Error al notificar")}catch(s){this.showToast("❌ error: "+s.message,"error")}},async markAsDelivered(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");s&&(s.disabled=!0),await v.collection("sales").doc(t).update({status:"picked_up",fulfillment_status:"delivered",picked_up_at:firebase.firestore.FieldValue.serverTimestamp(),updated_at:firebase.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido retirado correctamente"),await this.loadData(),this.refreshCurrentView()}catch(s){this.showToast("❌ Error: "+s.message,"error")}},renderInvestments(t){const e=["Alejo","Facundo","Rafael"],s=this.state.investments||[],n=e.reduce((o,a)=>(o[a]=s.filter(l=>l.partner===a).reduce((l,d)=>l+(parseFloat(d.amount)||0),0),o),{}),i=Object.values(n).reduce((o,a)=>o+a,0),r=`
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">💰 Inversiones</h2>
+                        <p class="text-slate-500 text-sm">Registro de inversiones de los socios</p>
+                    </div>
+                    <button onclick="app.openAddInvestmentModal()" class="bg-brand-dark text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg">
+                        <i class="ph-bold ph-plus"></i> Nueva Inversión
+                    </button>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    ${e.map(o=>`
+                        <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold text-lg">
+                                    ${o.charAt(0)}
+                                </div>
+                                <h3 class="font-bold text-brand-dark">${o}</h3>
+                            </div>
+                            <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(n[o])}</p>
+                            <p class="text-xs text-slate-400">${s.filter(a=>a.partner===o).length} inversiones</p>
+                        </div>
+                    `).join("")}
+                    <div class="bg-brand-dark rounded-2xl shadow-lg p-5 text-white">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                                <i class="ph-bold ph-coins"></i>
+                            </div>
+                            <h3 class="font-bold">Total Invertido</h3>
+                        </div>
+                        <p class="text-2xl font-display font-bold">${this.formatCurrency(i)}</p>
+                        <p class="text-xs text-white/60">${s.length} inversiones totales</p>
+                    </div>
+                </div>
+
+                <!-- Investments per Partner -->
+                ${e.map(o=>{const a=s.filter(l=>l.partner===o).sort((l,d)=>new Date(d.date)-new Date(l.date));return`
+                    <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-6">
+                        <div class="p-5 border-b border-orange-50 bg-orange-50/30 flex justify-between items-center">
+                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-lg bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold">${o.charAt(0)}</span>
+                                ${o}
+                            </h3>
+                            <span class="text-lg font-display font-bold text-brand-orange">${this.formatCurrency(n[o])}</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Fecha</th>
+                                        <th class="p-4">Descripción</th>
+                                        <th class="p-4 text-right">Monto</th>
+                                        <th class="p-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${a.length===0?`
+                                        <tr>
+                                            <td colspan="4" class="p-8 text-center text-slate-400 italic">
+                                                Sin inversiones registradas
+                                            </td>
+                                        </tr>
+                                    `:a.map(l=>`
+                                        <tr class="hover:bg-slate-50 transition-colors">
+                                            <td class="p-4 text-sm text-slate-500">${this.formatDate(l.date)}</td>
+                                            <td class="p-4 text-sm font-medium text-brand-dark">${l.description}</td>
+                                            <td class="p-4 text-sm font-bold text-brand-orange text-right">${this.formatCurrency(l.amount)}</td>
+                                            <td class="p-4 text-center">
+                                                <button onclick="app.deleteInvestment('${l.id}')" class="text-slate-400 hover:text-red-500 transition-colors">
+                                                    <i class="ph-bold ph-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join("")}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    `}).join("")}
+            </div>
+        `;t.innerHTML=r},openAddInvestmentModal(){const t=["Alejo","Facundo","Rafael"],e=new Date().toISOString().split("T")[0],s=`
+            <div id="add-investment-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div class="bg-brand-dark p-6 text-white">
+                        <h2 class="font-display font-bold text-xl">Nueva Inversión</h2>
+                        <p class="text-white/60 text-sm">Registrar aporte de socio</p>
+                    </div>
+                    <form onsubmit="app.saveInvestment(event)" class="p-6 space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Socio</label>
+                            <select name="partner" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                                ${t.map(n=>`<option value="${n}">${n}</option>`).join("")}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Monto (DKK)</label>
+                            <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" 
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Descripción</label>
+                            <input type="text" name="description" required placeholder="Compra de vinilos, gastos locación, etc." 
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Fecha</label>
+                            <input type="date" name="date" required value="${e}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()" 
+                                class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-plus"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;document.body.insertAdjacentHTML("beforeend",s)},async saveInvestment(t){t.preventDefault();const e=t.target,s={partner:e.partner.value,amount:parseFloat(e.amount.value),description:e.description.value,date:e.date.value,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{await v.collection("investments").add(s),document.getElementById("add-investment-modal").remove(),this.showToast("✅ Inversión registrada"),await this.loadInvestments(),this.refreshCurrentView()}catch(n){this.showToast("❌ Error: "+n.message,"error")}},async deleteInvestment(t){if(confirm("¿Eliminar esta inversión?"))try{await v.collection("investments").doc(t).delete(),this.showToast("🗑️ Inversión eliminada"),await this.loadInvestments(),this.refreshCurrentView()}catch(e){this.showToast("❌ Error: "+e.message,"error")}},async loadInvestments(){const t=await v.collection("investments").get();this.state.investments=t.docs.map(e=>({id:e.id,...e.data()}))},renderShipping(t){const e=this.state.sales.filter(a=>{var l;return a.channel==="online"&&((l=a.shipping_method)==null?void 0:l.id)!=="local_pickup"||a.fulfillment_status==="shipped"||a.shipment&&a.shipment.tracking_number}),s=this.state.sales.filter(a=>{var l;return a.channel==="online"&&((l=a.shipping_method)==null?void 0:l.id)==="local_pickup"&&["completed","paid","ready_for_pickup"].includes(a.status)}),n=this.state.sales.filter(a=>{var l;return a.channel==="online"&&((l=a.shipping_method)==null?void 0:l.id)==="local_pickup"&&a.status==="picked_up"}),i=e.filter(a=>a.status==="completed"||a.status==="paid"||a.status==="ready_for_pickup"),r=e.filter(a=>a.status==="shipped"),o=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -3143,21 +3339,111 @@ El inventario, gastos y socios NO serán afectados.
                             <i class="ph-fill ph-hand-coins text-2xl opacity-80"></i>
                             <div>
                                 <p class="text-[10px] text-indigo-100 font-bold uppercase leading-none mb-1">Dinero acumulado para envíos</p>
-                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((a,o)=>a+parseFloat(o.shipping||o.shipping_cost||0),0))}</p>
+                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((a,l)=>a+parseFloat(l.shipping||l.shipping_cost||0),0))}</p>
                             </div>
                         </div>
                         <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
                             <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
                             <div>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase leading-none">Pendientes</p>
-                                <p class="text-xl font-display font-bold text-brand-dark">${s.length}</p>
+                                <p class="text-xl font-display font-bold text-brand-dark">${i.length+s.filter(a=>a.status!=="ready_for_pickup").length}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Pickup Orders Section -->
+                ${s.length>0?`
+                <div class="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden mb-8">
+                    <div class="p-6 bg-blue-50/30">
+                        <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
+                            <i class="ph-fill ph-storefront text-blue-500"></i> Pedidos para Retiro (Local Pickup)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-blue-50/50 text-xs uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Orden</th>
+                                        <th class="p-4">Cliente</th>
+                                        <th class="p-4">Items</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-blue-50">
+                                    ${s.sort((a,l)=>new Date(l.date)-new Date(a.date)).map(a=>{const l=this.getCustomerInfo(a),d=a.status==="ready_for_pickup";return`
+                                        <tr class="hover:bg-blue-50/30 transition-colors">
+                                            <td class="p-4 text-sm font-bold text-brand-dark">#${a.orderNumber||a.id.slice(0,8)}</td>
+                                            <td class="p-4">
+                                                <div class="text-sm font-bold text-brand-dark">${l.name}</div>
+                                                <div class="text-xs text-slate-500">${l.email}</div>
+                                            </td>
+                                            <td class="p-4 text-xs text-slate-600">
+                                                <div class="flex flex-col gap-2">
+                                                    ${a.items?a.items.map(c=>`
+                                                        <div class="leading-tight">
+                                                            <span class="font-bold text-slate-700 block">${c.album}</span>
+                                                            <span class="text-[10px] text-slate-500">${c.artist}</span>
+                                                        </div>
+                                                    `).join(""):"-"}
+                                                </div>
+                                                <div class="mt-2 font-bold text-brand-dark border-t border-blue-200 pt-1">
+                                                    ${this.formatCurrency(a.total)}
+                                                </div>
+                                            </td>
+                                            <td class="p-4">
+                                                ${d?'<span class="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-bold border border-green-200">Listo para retirar</span>':'<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold border border-yellow-200">Pendiente de preparación</span>'}
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                ${d?`
+                                                    <button onclick="event.stopPropagation(); app.markAsDelivered('${a.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-lg shadow-green-600/20 flex items-center gap-2 mx-auto">
+                                                        <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
+                                                    </button>
+                                                `:`
+                                                    <button onclick="app.setReadyForPickup('${a.id}')" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2 mx-auto">
+                                                        <i class="ph-bold ph-bell-ringing"></i> Notificar Cliente
+                                                    </button>
+                                                `}
+                                            </td>
+                                        </tr>
+                                        `}).join("")}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                `:""}
+
+                <!-- Retiros Recientes Section -->
+                ${n.length>0?`
+                <div class="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden mb-8 opacity-80">
+                    <div class="p-6 bg-green-50/30 border-b border-green-100">
+                        <h3 class="font-bold text-green-700 flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle"></i> Retiros Recientes
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <tbody class="divide-y divide-green-50">
+                                ${n.slice(0,10).sort((a,l)=>{var d,c;return new Date((d=l.updated_at)!=null&&d.toDate?l.updated_at.toDate():l.updated_at)-new Date((c=a.updated_at)!=null&&c.toDate?a.updated_at.toDate():a.updated_at)}).map(a=>{var d;const l=this.getCustomerInfo(a);return`
+                                    <tr class="hover:bg-green-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${a.id}')">
+                                        <td class="p-4 text-sm font-medium text-slate-400">#${a.orderNumber||a.id.slice(0,8)}</td>
+                                        <td class="p-4 text-sm text-slate-500">${l.name}</td>
+                                        <td class="p-4 text-xs text-slate-400">${this.formatDate((d=a.updated_at)!=null&&d.toDate?a.updated_at.toDate():a.updated_at||a.date)}</td>
+                                        <td class="p-4 text-right">
+                                            <span class="px-2 py-1 rounded bg-green-100 text-green-600 text-[10px] font-bold uppercase">Retirado</span>
+                                        </td>
+                                    </tr>
+                                    `}).join("")}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                `:""}
+
                 <!-- Tabs/Filters -->
                 <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
+
                     <div class="p-6">
                         <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
                             <i class="ph-fill ph-truck text-brand-orange"></i> Pedidos por Despachar
@@ -3175,22 +3461,22 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-orange-50">
-                                    ${s.length===0?`
+                                    ${i.length===0?`
                                         <tr>
                                             <td colspan="5" class="p-12 text-center">
                                                 <i class="ph-duotone ph-package text-5xl text-slate-200 mb-3 block"></i>
                                                 <p class="text-slate-400 italic">No hay envíos pendientes. ¡Todo al día! 🎉</p>
                                             </td>
                                         </tr>
-                                    `:s.sort((a,o)=>{var l,i;return new Date((l=o.timestamp)!=null&&l.toDate?o.timestamp.toDate():o.timestamp)-new Date((i=a.timestamp)!=null&&i.toDate?a.timestamp.toDate():a.timestamp)}).map(a=>{const o=this.getCustomerInfo(a);return`
+                                    `:i.sort((a,l)=>{var d,c;return new Date((d=l.timestamp)!=null&&d.toDate?l.timestamp.toDate():l.timestamp)-new Date((c=a.timestamp)!=null&&c.toDate?a.timestamp.toDate():a.timestamp)}).map(a=>{const l=this.getCustomerInfo(a);return`
                                         <tr class="hover:bg-orange-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${a.id}')">
                                             <td class="p-4 text-sm font-bold text-brand-orange">#${a.id.slice(0,8)}</td>
                                             <td class="p-4">
-                                                <div class="text-sm font-bold text-brand-dark">${o.name}</div>
+                                                <div class="text-sm font-bold text-brand-dark">${l.name}</div>
                                             </td>
-                                            <td class="p-4 text-sm text-slate-500">${o.email}</td>
+                                            <td class="p-4 text-sm text-slate-500">${l.email}</td>
                                             <td class="p-4">
-                                                <div class="text-xs text-slate-600 truncate max-w-[200px]">${o.address}</div>
+                                                <div class="text-xs text-slate-600 truncate max-w-[200px]">${l.address}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">${a.city||""} ${a.country||""}</div>
                                             </td>
                                             <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(a.date)}</td>
@@ -3232,11 +3518,11 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                 ${r.slice(0,10).sort((a,o)=>{var l,i;return new Date((l=o.updated_at)!=null&&l.toDate?o.updated_at.toDate():o.updated_at)-new Date((i=a.updated_at)!=null&&i.toDate?a.updated_at.toDate():a.updated_at)}).map(a=>{var l;const o=this.getCustomerInfo(a);return`
+                                 ${r.slice(0,10).sort((a,l)=>{var d,c;return new Date((d=l.updated_at)!=null&&d.toDate?l.updated_at.toDate():l.updated_at)-new Date((c=a.updated_at)!=null&&c.toDate?a.updated_at.toDate():a.updated_at)}).map(a=>{var d;const l=this.getCustomerInfo(a);return`
                                     <tr class="hover:bg-slate-50/50 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${a.id}')">
                                         <td class="p-4 text-sm font-medium text-slate-400">#${a.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm text-slate-500">${o.name}</td>
-                                        <td class="p-4 text-sm font-mono text-slate-400">${((l=a.shipment)==null?void 0:l.tracking_number)||"-"}</td>
+                                        <td class="p-4 text-sm text-slate-500">${l.name}</td>
+                                        <td class="p-4 text-sm font-mono text-slate-400">${((d=a.shipment)==null?void 0:d.tracking_number)||"-"}</td>
                                         <td class="p-4 text-right">
                                             <span class="px-2 py-1 rounded bg-green-100 text-green-600 text-[10px] font-bold uppercase">Enviado</span>
                                         </td>
@@ -3247,7 +3533,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=n},fetchDiscogsById(t=null){const e=t||document.getElementById("discogs-search-input").value.trim(),s=document.getElementById("discogs-results");if(!e||!/^\d+$/.test(e)){this.showToast("⚠️ Ingresa un ID numérico válido","error");return}const r=localStorage.getItem("discogs_token");if(!r){this.showToast("⚠️ Token no configurado","error");return}s&&(s.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>',s.classList.remove("hidden")),fetch(`https://api.discogs.com/releases/${e}?token=${r}`).then(n=>{if(!n.ok)throw new Error(`Error ${n.status}`);return n.json()}).then(n=>{var o;const a={id:n.id,title:`${n.artists_sort||((o=n.artists[0])==null?void 0:o.name)} - ${n.title}`,year:n.year,thumb:n.thumb,cover_image:n.images?n.images[0].uri:null,label:n.labels?[n.labels[0].name]:[],format:n.formats?[n.formats[0].name]:[]};this.handleDiscogsSelection(a),s&&s.classList.add("hidden"),this.showToast("✅ Datos importados con éxito")}).catch(n=>{console.error(n),this.showToast("❌ Error al importar ID: "+n.message,"error"),s&&s.classList.add("hidden")})},openBulkImportModal(){const t=document.createElement("div");t.id="bulk-import-modal",t.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",t.innerHTML=`
+        `;t.innerHTML=o},fetchDiscogsById(t=null){const e=t||document.getElementById("discogs-search-input").value.trim(),s=document.getElementById("discogs-results");if(!e||!/^\d+$/.test(e)){this.showToast("⚠️ Ingresa un ID numérico válido","error");return}const n=localStorage.getItem("discogs_token");if(!n){this.showToast("⚠️ Token no configurado","error");return}s&&(s.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>',s.classList.remove("hidden")),fetch(`https://api.discogs.com/releases/${e}?token=${n}`).then(i=>{if(!i.ok)throw new Error(`Error ${i.status}`);return i.json()}).then(i=>{var o;const r={id:i.id,title:`${i.artists_sort||((o=i.artists[0])==null?void 0:o.name)} - ${i.title}`,year:i.year,thumb:i.thumb,cover_image:i.images?i.images[0].uri:null,label:i.labels?[i.labels[0].name]:[],format:i.formats?[i.formats[0].name]:[]};this.handleDiscogsSelection(r),s&&s.classList.add("hidden"),this.showToast("✅ Datos importados con éxito")}).catch(i=>{console.error(i),this.showToast("❌ Error al importar ID: "+i.message,"error"),s&&s.classList.add("hidden")})},openBulkImportModal(){const t=document.createElement("div");t.id="bulk-import-modal",t.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",t.innerHTML=`
             <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
                 <div class="bg-emerald-500 p-6 text-white flex justify-between items-center">
                     <div>
@@ -3281,4 +3567,4 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `,document.body.appendChild(t)},async handleBulkImportBatch(){const t=document.getElementById("bulk-csv-data").value.trim();if(!t){this.showToast("Por favor, pega el contenido del CSV.","error");return}const e=document.getElementById("start-bulk-import-btn");e.innerHTML,e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> Importando...';try{const s=await fetch(`${D}/discogs/bulk-import`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csvData:t})}),r=await s.json();s.ok&&(this.showToast(`✅ ${r.summary}`),document.getElementById("bulk-import-modal").remove(),await this.loadData(),this.refreshCurrentView())}catch(s){console.error("Bulk import error:",s),this.showToast("❌ "+s.message,"error");const r=document.getElementById("start-bulk-import-btn");r&&(r.disabled=!1,r.innerHTML='<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación')}},async refreshProductMetadata(t){const e=document.getElementById("refresh-metadata-btn");if(!e)return;const s=e.innerHTML;e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> ...';try{let r=t;const n=this.state.inventory.find(l=>l.sku===t||l.id===t);n&&n.id&&(r=n.id);const a=await fetch(`${D}/discogs/refresh-metadata/${r}`,{method:"POST",headers:{"Content-Type":"application/json"}}),o=await a.json();if(a.ok){this.showToast("✅ Metadata actualizada correctamente");const l=document.getElementById("modal-overlay");l&&l.remove(),await this.loadData(),this.refreshCurrentView(),n&&this.openProductModal(n.sku)}else throw new Error(o.error||"Error al actualizar metadata")}catch(r){console.error("Refresh metadata error:",r),this.showToast("❌ "+r.message,"error"),e.disabled=!1,e.innerHTML=s}}};window.app=A;document.addEventListener("DOMContentLoaded",()=>{A.init()});
+        `,document.body.appendChild(t)},async handleBulkImportBatch(){const t=document.getElementById("bulk-csv-data").value.trim();if(!t){this.showToast("Por favor, pega el contenido del CSV.","error");return}const e=document.getElementById("start-bulk-import-btn");e.innerHTML,e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> Importando...';try{const s=await fetch(`${S}/discogs/bulk-import`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csvData:t})}),n=await s.json();s.ok&&(this.showToast(`✅ ${n.summary}`),document.getElementById("bulk-import-modal").remove(),await this.loadData(),this.refreshCurrentView())}catch(s){console.error("Bulk import error:",s),this.showToast("❌ "+s.message,"error");const n=document.getElementById("start-bulk-import-btn");n&&(n.disabled=!1,n.innerHTML='<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación')}},async refreshProductMetadata(t){const e=document.getElementById("refresh-metadata-btn");if(!e)return;const s=e.innerHTML;e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> ...';try{let n=t;const i=this.state.inventory.find(a=>a.sku===t||a.id===t);i&&i.id&&(n=i.id);const r=await fetch(`${S}/discogs/refresh-metadata/${n}`,{method:"POST",headers:{"Content-Type":"application/json"}}),o=await r.json();if(r.ok){this.showToast("✅ Metadata actualizada correctamente");const a=document.getElementById("modal-overlay");a&&a.remove(),await this.loadData(),this.refreshCurrentView(),i&&this.openProductModal(i.sku)}else throw new Error(o.error||"Error al actualizar metadata")}catch(n){console.error("Refresh metadata error:",n),this.showToast("❌ "+n.message,"error"),e.disabled=!1,e.innerHTML=s}}};window.app=A;document.addEventListener("DOMContentLoaded",()=>{A.init()});

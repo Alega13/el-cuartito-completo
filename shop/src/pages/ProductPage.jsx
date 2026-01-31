@@ -336,7 +336,7 @@ const ProductPage = ({ products = [] }) => {
 
             {/* Bottom Fixed Container: ADD TO CART */}
             <div className="fixed bottom-0 left-0 right-0 z-[80]">
-                {/* Add to Cart Bar */}
+
                 <div className="bg-white border-t border-black/5 px-6 py-4 md:px-10 relative z-20">
                     <div className="max-w-7xl mx-auto flex items-center justify-between">
                         <div className="flex flex-col">
@@ -352,8 +352,8 @@ const ProductPage = ({ products = [] }) => {
                                 }}
                                 disabled={addedToCart}
                                 className={`flex items-center gap-2 px-8 py-3 rounded-sm font-bold text-sm transition-all ${addedToCart
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-black text-white hover:bg-black/80'
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-black text-white hover:bg-black/80'
                                     }`}
                             >
                                 {addedToCart ? (
@@ -379,6 +379,7 @@ const ProductPage = ({ products = [] }) => {
                     </div>
                 </div>
             </div>
+
         </div>
     );
 };

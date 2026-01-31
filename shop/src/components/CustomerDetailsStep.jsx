@@ -60,7 +60,7 @@ const CustomerDetailsStep = ({ initialData, onContinue }) => {
                             focus:ring-2 focus:ring-orange-500 focus:border-transparent
                             ${errors.firstName ? 'border-red-500' : 'border-gray-300'}
                         `}
-                        placeholder="Alejo"
+                        placeholder="John"
                     />
                     {errors.firstName && (
                         <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
@@ -80,7 +80,7 @@ const CustomerDetailsStep = ({ initialData, onContinue }) => {
                             focus:ring-2 focus:ring-orange-500 focus:border-transparent
                             ${errors.lastName ? 'border-red-500' : 'border-gray-300'}
                         `}
-                        placeholder="Galli"
+                        placeholder="Doe"
                     />
                     {errors.lastName && (
                         <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
@@ -101,7 +101,7 @@ const CustomerDetailsStep = ({ initialData, onContinue }) => {
                         focus:ring-2 focus:ring-orange-500 focus:border-transparent
                         ${errors.email ? 'border-red-500' : 'border-gray-300'}
                     `}
-                    placeholder="alejo@example.com"
+                    placeholder="john@example.com"
                 />
                 {errors.email && (
                     <p className="text-red-500 text-xs mt-1">{errors.email}</p>

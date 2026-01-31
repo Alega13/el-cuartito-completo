@@ -17,6 +17,10 @@ export const startCheckout = async (req: Request, res: Response) => {
         const { items, customerData, shippingMethod } = req.body; // Added shippingMethod
         const db = getDb();
 
+        console.log('🚀 [START-CHECKOUT] Initiating checkout...');
+        console.log('📦 [START-CHECKOUT] Shipping Method:', JSON.stringify(shippingMethod, null, 2));
+        console.log('👤 [START-CHECKOUT] Customer:', JSON.stringify(customerData, null, 2));
+
         let itemsTotal = 0;
         const validatedItems = [];
 
@@ -49,6 +53,10 @@ export const startCheckout = async (req: Request, res: Response) => {
         // Calculate shipping cost
         const shippingCost = shippingMethod?.price || 0;
         const total = itemsTotal + shippingCost;
+
+        if (total < 2.50) {
+            return res.status(400).json({ error: `Total amount (${total} DKK) is too low. Minimum for online payment is 2.50 DKK.` });
+        }
 
         // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
         const now = new Date();
@@ -86,10 +94,12 @@ export const startCheckout = async (req: Request, res: Response) => {
         const paymentIntent = await stripe.paymentIntents.create({
             amount: Math.round(total * 100),
             currency: 'dkk',
+            receipt_email: customerData?.email, // Enable automatic receipt email
             metadata: {
                 saleId: saleRef.id,
                 shipping_method: shippingMethod?.method || 'TBD',
-                shipping_cost: shippingCost.toString()
+                shipping_cost: shippingCost.toString(),
+                customer_name: customerData?.name || customerData?.firstName || 'Guest'
             },
             automatic_payment_methods: {
                 enabled: true,

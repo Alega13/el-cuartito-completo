@@ -377,6 +377,9 @@ const app = {
                 };
             });
 
+            // Load investments
+            await this.loadInvestments();
+
             this.refreshCurrentView();
         } catch (error) {
             console.error("Failed to load data:", error);
@@ -402,6 +405,7 @@ const app = {
             case 'calendar': this.renderCalendar(container); break;
             case 'shipping': this.renderShipping(container); break;
             case 'pickups': this.renderPickups(container); break;
+            case 'investments': this.renderInvestments(container); break;
         }
     },
 
@@ -3382,114 +3386,212 @@ const app = {
         const sale = this.state.sales.find(s => s.id === saleId);
         if (!sale) return;
 
-        const date = new Date(sale.date);
+        const customerInfo = this.getCustomerInfo(sale);
+
+        // Calculate totals
+        const subtotal = sale.items ? sale.items.reduce((sum, item) => sum + ((item.unitPrice || item.priceAtSale || 0) * (item.qty || item.quantity || 1)), 0) : (sale.total || 0);
+        const shippingCost = parseFloat(sale.shipping_cost || sale.shipping || 0);
+        const total = sale.total || (subtotal + shippingCost);
+
+        // Status badge helper
+        const getStatusBadge = (status) => {
+            const badges = {
+                'shipped': '<span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase">Enviado</span>',
+                'picked_up': '<span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase">Retirado</span>',
+                'ready_for_pickup': '<span class="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase">Listo Retiro</span>',
+                'completed': '<span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase">Pagado</span>',
+                'paid': '<span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase">Pagado</span>'
+            };
+            return badges[status] || '';
+        };
+
+        // Timeline helper
+        const formatTimelineDate = (date) => {
+            if (!date) return null;
+            const d = date.toDate ? date.toDate() : new Date(date);
+            return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        const isLocalPickup = sale.shipping_method?.id === 'local_pickup';
 
         const modalHtml = `
-                                                    <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-                                                        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
-                                                            <div class="bg-brand-dark p-6 text-white relative">
-                                                                <button onclick="document.getElementById('sale-detail-modal').remove()" class="absolute top-4 right-4 text-white/70 hover:text-white">
-                                                                    <i class="ph-bold ph-x text-2xl"></i>
-                                                                </button>
-                                                                <h2 class="font-display font-bold text-2xl mb-1">Detalle de Venta</h2>
-                                                                <div class="flex items-center gap-2">
-                                                                    <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${sale.id.slice(0, 8)}</p>
-                                                                    ${sale.status === 'shipped' ? `
-                                                                        <span class="px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Enviado</span>
-                                                                    ` : (sale.status === 'ready_for_pickup' ? `
-                                                                        <span class="px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Listo Retiro</span>
-                                                                    ` : (sale.status === 'completed' || sale.status === 'paid' ? `
-                                                                        <span class="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">Pagado</span>
-                                                                    ` : ''))}
-                                                                </div>
-                                                            </div>
+            <div id="sale-detail-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
+                    <!-- Header -->
+                    <div class="bg-brand-dark p-6 text-white relative shrink-0">
+                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="absolute top-4 right-4 text-white/70 hover:text-white">
+                            <i class="ph-bold ph-x text-2xl"></i>
+                        </button>
+                        <h2 class="font-display font-bold text-2xl mb-1">Detalle de Orden</h2>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <p class="text-brand-orange font-bold text-sm uppercase tracking-wider">#${sale.orderNumber || sale.id.slice(0, 8)}</p>
+                            ${getStatusBadge(sale.status)}
+                            ${isLocalPickup ? '<span class="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 text-[10px] font-bold uppercase">Local Pickup</span>' : ''}
+                        </div>
+                    </div>
 
-                                                                <!-- Customer & Shipping Info Section -->
-                                                                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                                                                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                        <i class="ph-bold ph-user-circle text-base text-brand-orange"></i> Datos de Envío / Retiro
-                                                                    </h3>
-                                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                        <div class="md:col-span-2">
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Nombre Completo</label>
-                                                                            <p class="font-bold text-brand-dark flex items-center gap-2">
-                                                                                ${this.getCustomerInfo(sale).name}
-                                                                                ${sale.channel === 'online' ? '<span class="px-1.5 py-0.5 rounded bg-brand-orange/10 text-[9px] text-brand-orange">Comprador Web</span>' : ''}
-                                                                            </p>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Email</label>
-                                                                            <p class="text-sm text-brand-dark font-medium">${this.getCustomerInfo(sale).email}</p>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Teléfono</label>
-                                                                            <p class="text-sm text-brand-dark font-medium">${sale.customer?.phone || '-'}</p>
-                                                                        </div>
-                                                                        <div class="md:col-span-2 pt-2 border-t border-slate-200/50">
-                                                                            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Dirección de Entrega</label>
-                                                                            <p class="text-sm text-brand-dark font-bold">${this.getCustomerInfo(sale).address}</p>
-                                                                            <p class="text-xs text-slate-500 font-medium">${sale.postalCode || ''} ${sale.city || ''}, ${sale.country || ''}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
+                    <!-- Scrollable Content -->
+                    <div class="overflow-y-auto flex-1 p-6 space-y-6">
+                        
+                        <!-- Customer Info -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="ph-bold ph-user-circle text-brand-orange"></i> Cliente
+                            </h3>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Nombre</label>
+                                    <p class="font-bold text-brand-dark">${customerInfo.name}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Email</label>
+                                    <p class="text-slate-600">${customerInfo.email}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Teléfono</label>
+                                    <p class="text-slate-600">${sale.customer?.phone || '-'}</p>
+                                </div>
+                                <div>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Dirección</label>
+                                    <p class="text-slate-600">${customerInfo.address}</p>
+                                </div>
+                            </div>
+                        </div>
 
-                                                                <!-- Shipmondo / Manual Tracking Status -->
-                                                                ${sale.shipment ? `
-                                                                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-100 flex justify-between items-center animate-fade-in">
-                                                                        <div>
-                                                                            <label class="text-[10px] font-bold text-brand-orange uppercase block mb-0.5">Estado del Envío</label>
-                                                                            <p class="text-sm font-bold text-brand-dark flex items-center gap-2">
-                                                                                <i class="ph-bold ph-package text-brand-orange"></i>
-                                                                                ${sale.shipment.tracking_number}
-                                                                            </p>
-                                                                            <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">${sale.shipment.carrier} • ${new Date(sale.shipment.created_at?.toDate ? sale.shipment.created_at.toDate() : sale.shipment.created_at).toLocaleDateString()}</p>
-                                                                        </div>
-                                                                        <a href="${sale.shipment.label_url || `https://app.shipmondo.com/tracking/${sale.shipment.tracking_number}`}" target="_blank" class="bg-white p-3 rounded-xl border border-orange-200 text-brand-orange hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm" title="Seguir Envío">
-                                                                            <i class="ph-bold ph-magnifying-glass text-xl"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                ` : (sale.status === 'ready_for_pickup' ? `
-                                                                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center gap-4 animate-fade-in">
-                                                                        <div class="bg-blue-500 text-white p-3 rounded-xl shadow-blue-200 shadow-lg">
-                                                                            <i class="ph-bold ph-storefront text-2xl"></i>
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="text-[10px] font-bold text-blue-500 uppercase block mb-0.5">Estado de Retiro</label>
-                                                                            <p class="text-sm font-bold text-brand-dark uppercase">Listo para Retirar en Local</p>
-                                                                            <p class="text-[10px] text-slate-500 font-medium">El cliente fue notificado por email.</p>
-                                                                        </div>
-                                                                    </div>
-                                                                ` : '')}
+                        <!-- Items -->
+                        <div class="bg-white rounded-xl border border-slate-200">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest p-4 border-b border-slate-100 flex items-center gap-2">
+                                <i class="ph-bold ph-vinyl-record text-brand-orange"></i> Items (${sale.items?.length || 0})
+                            </h3>
+                            <div class="divide-y divide-slate-100">
+                                ${sale.items && sale.items.length > 0 ? sale.items.map(item => `
+                                    <div class="p-4 flex justify-between items-center">
+                                        <div>
+                                            <p class="font-bold text-brand-dark">${item.album || item.title || 'Item'}</p>
+                                            <p class="text-xs text-slate-500">${item.artist || ''} ${item.sku ? '• ' + item.sku : ''}</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-brand-dark">${this.formatCurrency(item.unitPrice || item.priceAtSale || 0)}</p>
+                                            <p class="text-[10px] text-slate-400">x${item.qty || item.quantity || 1}</p>
+                                        </div>
+                                    </div>
+                                `).join('') : '<p class="p-4 text-slate-400 italic text-sm">Sin items detallados</p>'}
+                            </div>
+                        </div>
 
-                                                                <!-- Actions Section -->
-                                                                <div class="flex flex-col gap-3 py-4 border-t border-slate-100">
-                                                                    <div class="flex gap-3">
-                                                                        ${!sale.shipment && sale.customerEmail && (sale.status === 'completed' || sale.status === 'paid') ? `
-                                                                            <button onclick="app.setReadyForPickup('${sale.id}')" class="flex-1 py-4 bg-orange-100 text-brand-orange font-black rounded-2xl hover:bg-orange-500 hover:text-white transition-all transform hover:-translate-y-1 shadow-sm flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                                                                                <i class="ph-bold ph-storefront text-lg"></i> Listo para Retiro
-                                                                            </button>
-                                                                        ` : ''}
-                                                                        
-                                                                        ${!sale.shipment && sale.customerEmail && (sale.status === 'completed' || sale.status === 'paid' || sale.status === 'ready_for_pickup') ? `
-                                                                            <button onclick="app.manualShipOrder('${sale.id}')" class="flex-1 py-4 bg-brand-dark text-white font-black rounded-2xl hover:bg-slate-800 transition-all transform hover:-translate-y-1 shadow-md flex items-center justify-center gap-2 text-sm uppercase tracking-wide">
-                                                                                <i class="ph-bold ph-truck text-lg"></i> ${sale.status === 'ready_for_pickup' ? 'Finalmente Enviado' : 'Enviar por Correo'}
-                                                                            </button>
-                                                                        ` : ''}
-                                                                    </div>
+                        <!-- Totals -->
+                        <div class="bg-orange-50 rounded-xl p-4 border border-orange-100">
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between text-slate-600">
+                                    <span>Subtotal</span>
+                                    <span>${this.formatCurrency(subtotal)}</span>
+                                </div>
+                                <div class="flex justify-between text-slate-600">
+                                    <span>Envío</span>
+                                    <span>${shippingCost > 0 ? this.formatCurrency(shippingCost) : 'Gratis'}</span>
+                                </div>
+                                <div class="flex justify-between font-bold text-brand-dark text-lg pt-2 border-t border-orange-200">
+                                    <span>Total</span>
+                                    <span>${this.formatCurrency(total)}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                                                                    <div class="flex gap-3">
-                                                                        <button onclick="document.getElementById('sale-detail-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs uppercase tracking-widest">
-                                                                            Cerrar
-                                                                        </button>
-                                                                        <button onclick="app.deleteSale('${sale.id}'); document.getElementById('sale-detail-modal').remove()" class="px-4 py-3 text-red-400 hover:text-red-600 transition-colors text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100">
-                                                                            Eliminar
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    `;
+                        <!-- Timeline -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <i class="ph-bold ph-clock-counter-clockwise text-brand-orange"></i> Historial
+                            </h3>
+                            <div class="space-y-3">
+                                ${sale.timestamp || sale.created_at ? `
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-credit-card text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Pago recibido</p>
+                                            <p class="text-[10px] text-slate-500">${formatTimelineDate(sale.timestamp || sale.created_at)}</p>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${sale.status === 'ready_for_pickup' || sale.status === 'picked_up' ? `
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-bell-ringing text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Notificado listo para retiro</p>
+                                            <p class="text-[10px] text-slate-500">${sale.ready_at ? formatTimelineDate(sale.ready_at) : 'Cliente notificado'}</p>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${sale.status === 'picked_up' ? `
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-hand-tap text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Retirado por cliente</p>
+                                            <p class="text-[10px] text-slate-500">${sale.picked_up_at ? formatTimelineDate(sale.picked_up_at) : formatTimelineDate(sale.updated_at) || 'Entregado'}</p>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${sale.status === 'shipped' && sale.shipment ? `
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                                            <i class="ph-bold ph-truck text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-brand-dark">Enviado</p>
+                                            <p class="text-[10px] text-slate-500">Tracking: ${sale.shipment.tracking_number}</p>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Shipping/Tracking Info (if shipped) -->
+                        ${sale.shipment ? `
+                            <div class="bg-green-50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
+                                <div>
+                                    <label class="text-[10px] font-bold text-green-600 uppercase block mb-0.5">Número de Seguimiento</label>
+                                    <p class="font-mono font-bold text-brand-dark">${sale.shipment.tracking_number}</p>
+                                    <p class="text-[10px] text-slate-500">${sale.shipment.carrier || 'Correo'}</p>
+                                </div>
+                                <a href="${sale.shipment.label_url || '#'}" target="_blank" class="bg-white p-3 rounded-xl border border-green-200 text-green-600 hover:bg-green-600 hover:text-white transition-all shadow-sm" title="Ver Etiqueta">
+                                    <i class="ph-bold ph-file-pdf text-xl"></i>
+                                </a>
+                            </div>
+                        ` : ''}
+
+                    </div>
+
+                    <!-- Actions Footer -->
+                    <div class="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+                        <div class="flex gap-3">
+                            ${!sale.shipment && (sale.status === 'completed' || sale.status === 'paid') ? `
+                                <button onclick="app.setReadyForPickup('${sale.id}')" class="flex-1 py-3 bg-orange-100 text-brand-orange font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-storefront"></i> Notificar Listo
+                                </button>
+                            ` : ''}
+                            ${sale.status === 'ready_for_pickup' && isLocalPickup ? `
+                                <button onclick="app.markAsDelivered('${sale.id}')" class="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
+                                </button>
+                            ` : ''}
+                            ${!sale.shipment && !isLocalPickup && (sale.status === 'completed' || sale.status === 'paid' || sale.status === 'ready_for_pickup') ? `
+                                <button onclick="app.manualShipOrder('${sale.id}')" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2 text-sm">
+                                    <i class="ph-bold ph-truck"></i> Despachar
+                                </button>
+                            ` : ''}
+                            <button onclick="document.getElementById('sale-detail-modal').remove()" class="px-6 py-3 bg-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-300 transition-colors text-sm">
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -3515,7 +3617,7 @@ const app = {
         if (!item) return;
 
         const modalHtml = `
-                                                    <div id="print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    < div id = "print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" >
                                                         <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-orange-100 overflow-hidden max-h-[90vh] flex flex-col relative">
 
                                                             <!-- Header -->
@@ -3596,39 +3698,39 @@ const app = {
                                                             </div>
                                                         </div>
 
-                                                        <!-- Injected Print Styles -->
-                                                        <style>
-                                                            @media print {
-                                                                @page {
-                                                                size: 7cm 4cm;
-                                                            margin: 0;
+                                                        <!--Injected Print Styles-- >
+    <style>
+        @media print {
+            @page {
+            size: 7cm 4cm;
+        margin: 0;
                     }
-                                                            body * {
-                                                                visibility: hidden;
+        body * {
+            visibility: hidden;
                     }
-                                                            #printable-label, #printable-label * {
-                                                                visibility: visible;
+        #printable-label, #printable-label * {
+            visibility: visible;
                     }
-                                                            #printable-label {
-                                                                position: fixed;
-                                                            left: 0;
-                                                            top: 0;
-                                                            margin: 0;
-                                                            border: none;
-                                                            width: 7cm !important;
-                                                            height: 4cm !important;
-                                                            box-shadow: none;
-                                                            background: white !important;
-                                                            -webkit-print-color-adjust: exact;
-                                                            print-color-adjust: exact;
+        #printable-label {
+            position: fixed;
+        left: 0;
+        top: 0;
+        margin: 0;
+        border: none;
+        width: 7cm !important;
+        height: 4cm !important;
+        box-shadow: none;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
                     }
-                                                            .modal-container, .modal-backdrop {
-                                                                display: none !important;
+        .modal-container, .modal-backdrop {
+            display: none !important;
                     }
                 }
-                                                        </style>
-                                                    </div>
-                                                    `;
+    </style>
+                                                    </div >
+    `;
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
@@ -3717,53 +3819,53 @@ const app = {
         const allCategories = [...new Set([...defaultCategories, ...(this.state.customCategories || [])])];
 
         const modalHtml = `
-                                                    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                                        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
-                                                            <div class="flex justify-between items-center mb-4">
-                                                                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
-                                                                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
-                                                                    <i class="ph-bold ph-x text-xl"></i>
-                                                                </button>
-                                                            </div>
-                                                            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
-                                                                <input type="hidden" name="id" id="expense-id">
+    < div id = "modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
+                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
+                <input type="hidden" name="id" id="expense-id">
 
-                                                                    <div>
-                                                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
-                                                                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
+                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                    </div>
 
-                                                                    <div class="grid grid-cols-2 gap-4">
-                                                                        <div>
-                                                                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
-                                                                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                        </div>
-                                                                        <div>
-                                                                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
-                                                                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                                                                ${allCategories.map(c => `<option>${c}</option>`).join('')}
-                                                                                <option value="other">Otra...</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
+                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
+                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+                                ${allCategories.map(c => `<option>${c}</option>`).join('')}
+                                <option value="other">Otra...</option>
+                            </select>
+                        </div>
+                    </div>
 
-                                                                    <div id="custom-expense-category-container" class="hidden">
-                                                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
-                                                                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
-                                                                    </div>
+                    <div id="custom-expense-category-container" class="hidden">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
+                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
+                    </div>
 
-                                                                    <div class="flex items-center gap-2">
-                                                                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
-                                                                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
-                                                                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
+                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
+                    </div>
 
-                                                                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
-                                                                        Guardar Gasto
-                                                                    </button>
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                    `;
+                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
+                        Guardar Gasto
+                    </button>
+            </form>
+        </div>
+                                                    </div >
+    `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -6083,7 +6185,7 @@ const app = {
 
         const pendingPickups = pickupSales.filter(s => s.status === 'completed' || s.status === 'paid' || s.status === 'paid_pending');
         const readyPickups = pickupSales.filter(s => s.status === 'ready_for_pickup');
-        const deliveredPickups = pickupSales.filter(s => s.status === 'shipped' || s.status === 'delivered');
+        const deliveredPickups = pickupSales.filter(s => s.status === 'shipped' || s.status === 'delivered' || s.status === 'picked_up');
 
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
@@ -6180,7 +6282,7 @@ const app = {
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.updated_at?.toDate ? s.updated_at.toDate() : s.updated_at || s.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.markAsDelivered('${s.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
-                                                <i class="ph-bold ph-hand-tap"></i> Marcar Entregado
+                                                <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
                                             </button>
                                         </td>
                                     </tr>
@@ -6245,12 +6347,13 @@ const app = {
             if (btn) btn.disabled = true;
 
             await db.collection('sales').doc(id).update({
-                status: 'shipped',
+                status: 'picked_up',
                 fulfillment_status: 'delivered',
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                picked_up_at: firebase.firestore.FieldValue.serverTimestamp(),
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            this.showToast('✅ Pedido entregado');
+            this.showToast('✅ Pedido retirado correctamente');
             await this.loadData();
             this.refreshCurrentView();
         } catch (error) {
@@ -6258,12 +6361,221 @@ const app = {
         }
     },
 
+    // ====== INVESTMENTS MODULE ======
+    renderInvestments(container) {
+        const partners = ['Alejo', 'Facundo', 'Rafael'];
+        const investments = this.state.investments || [];
+
+        // Calculate totals per partner
+        const totals = partners.reduce((acc, partner) => {
+            acc[partner] = investments
+                .filter(i => i.partner === partner)
+                .reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+            return acc;
+        }, {});
+
+        const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+
+        const html = `
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">💰 Inversiones</h2>
+                        <p class="text-slate-500 text-sm">Registro de inversiones de los socios</p>
+                    </div>
+                    <button onclick="app.openAddInvestmentModal()" class="bg-brand-dark text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg">
+                        <i class="ph-bold ph-plus"></i> Nueva Inversión
+                    </button>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    ${partners.map(partner => `
+                        <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 hover:shadow-md transition-shadow">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold text-lg">
+                                    ${partner.charAt(0)}
+                                </div>
+                                <h3 class="font-bold text-brand-dark">${partner}</h3>
+                            </div>
+                            <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totals[partner])}</p>
+                            <p class="text-xs text-slate-400">${investments.filter(i => i.partner === partner).length} inversiones</p>
+                        </div>
+                    `).join('')}
+                    <div class="bg-brand-dark rounded-2xl shadow-lg p-5 text-white">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                                <i class="ph-bold ph-coins"></i>
+                            </div>
+                            <h3 class="font-bold">Total Invertido</h3>
+                        </div>
+                        <p class="text-2xl font-display font-bold">${this.formatCurrency(grandTotal)}</p>
+                        <p class="text-xs text-white/60">${investments.length} inversiones totales</p>
+                    </div>
+                </div>
+
+                <!-- Investments per Partner -->
+                ${partners.map(partner => {
+            const partnerInvestments = investments.filter(i => i.partner === partner)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            return `
+                    <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-6">
+                        <div class="p-5 border-b border-orange-50 bg-orange-50/30 flex justify-between items-center">
+                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-lg bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold">${partner.charAt(0)}</span>
+                                ${partner}
+                            </h3>
+                            <span class="text-lg font-display font-bold text-brand-orange">${this.formatCurrency(totals[partner])}</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Fecha</th>
+                                        <th class="p-4">Descripción</th>
+                                        <th class="p-4 text-right">Monto</th>
+                                        <th class="p-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${partnerInvestments.length === 0 ? `
+                                        <tr>
+                                            <td colspan="4" class="p-8 text-center text-slate-400 italic">
+                                                Sin inversiones registradas
+                                            </td>
+                                        </tr>
+                                    ` : partnerInvestments.map(inv => `
+                                        <tr class="hover:bg-slate-50 transition-colors">
+                                            <td class="p-4 text-sm text-slate-500">${this.formatDate(inv.date)}</td>
+                                            <td class="p-4 text-sm font-medium text-brand-dark">${inv.description}</td>
+                                            <td class="p-4 text-sm font-bold text-brand-orange text-right">${this.formatCurrency(inv.amount)}</td>
+                                            <td class="p-4 text-center">
+                                                <button onclick="app.deleteInvestment('${inv.id}')" class="text-slate-400 hover:text-red-500 transition-colors">
+                                                    <i class="ph-bold ph-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    `;
+        }).join('')}
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    openAddInvestmentModal() {
+        const partners = ['Alejo', 'Facundo', 'Rafael'];
+        const today = new Date().toISOString().split('T')[0];
+
+        const modalHtml = `
+            <div id="add-investment-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                    <div class="bg-brand-dark p-6 text-white">
+                        <h2 class="font-display font-bold text-xl">Nueva Inversión</h2>
+                        <p class="text-white/60 text-sm">Registrar aporte de socio</p>
+                    </div>
+                    <form onsubmit="app.saveInvestment(event)" class="p-6 space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Socio</label>
+                            <select name="partner" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                                ${partners.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Monto (DKK)</label>
+                            <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" 
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Descripción</label>
+                            <input type="text" name="description" required placeholder="Compra de vinilos, gastos locación, etc." 
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Fecha</label>
+                            <input type="date" name="date" required value="${today}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        </div>
+                        <div class="flex gap-3 pt-4">
+                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()" 
+                                class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-plus"></i> Guardar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    async saveInvestment(event) {
+        event.preventDefault();
+        const form = event.target;
+        const data = {
+            partner: form.partner.value,
+            amount: parseFloat(form.amount.value),
+            description: form.description.value,
+            date: form.date.value,
+            created_at: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            await db.collection('investments').add(data);
+            document.getElementById('add-investment-modal').remove();
+            this.showToast('✅ Inversión registrada');
+            await this.loadInvestments();
+            this.refreshCurrentView();
+        } catch (error) {
+            this.showToast('❌ Error: ' + error.message, 'error');
+        }
+    },
+
+    async deleteInvestment(id) {
+        if (!confirm('¿Eliminar esta inversión?')) return;
+        try {
+            await db.collection('investments').doc(id).delete();
+            this.showToast('🗑️ Inversión eliminada');
+            await this.loadInvestments();
+            this.refreshCurrentView();
+        } catch (error) {
+            this.showToast('❌ Error: ' + error.message, 'error');
+        }
+    },
+
+    async loadInvestments() {
+        const snapshot = await db.collection('investments').get();
+        this.state.investments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    },
+    // ====== END INVESTMENTS MODULE ======
+
     renderShipping(container) {
         // Filter Sales for shipping (Online sales or those needing fulfillment)
         const shippingSales = this.state.sales.filter(s =>
             (s.channel === 'online' && s.shipping_method?.id !== 'local_pickup') ||
             s.fulfillment_status === 'shipped' ||
             (s.shipment && s.shipment.tracking_number)
+        );
+
+        // Filter Local Pickup Orders (exclude picked_up - those go to recent)
+        const pickupOrders = this.state.sales.filter(s =>
+            s.channel === 'online' &&
+            s.shipping_method?.id === 'local_pickup' &&
+            ['completed', 'paid', 'ready_for_pickup'].includes(s.status)
+        );
+
+        // Filter Recent Pickups (already picked up)
+        const recentPickups = this.state.sales.filter(s =>
+            s.channel === 'online' &&
+            s.shipping_method?.id === 'local_pickup' &&
+            s.status === 'picked_up'
         );
 
         const pendingShipping = shippingSales.filter(s => s.status === 'completed' || s.status === 'paid' || s.status === 'ready_for_pickup');
@@ -6288,14 +6600,114 @@ const app = {
                             <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
                             <div>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase leading-none">Pendientes</p>
-                                <p class="text-xl font-display font-bold text-brand-dark">${pendingShipping.length}</p>
+                                <p class="text-xl font-display font-bold text-brand-dark">${pendingShipping.length + pickupOrders.filter(p => p.status !== 'ready_for_pickup').length}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Pickup Orders Section -->
+                ${pickupOrders.length > 0 ? `
+                <div class="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden mb-8">
+                    <div class="p-6 bg-blue-50/30">
+                        <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
+                            <i class="ph-fill ph-storefront text-blue-500"></i> Pedidos para Retiro (Local Pickup)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-blue-50/50 text-xs uppercase text-slate-500 font-bold">
+                                    <tr>
+                                        <th class="p-4">Orden</th>
+                                        <th class="p-4">Cliente</th>
+                                        <th class="p-4">Items</th>
+                                        <th class="p-4">Estado</th>
+                                        <th class="p-4 text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-blue-50">
+                                    ${pickupOrders.sort((a, b) => new Date(b.date) - new Date(a.date)).map(s => {
+            const customerInfo = this.getCustomerInfo(s);
+            const isReady = s.status === 'ready_for_pickup';
+            return `
+                                        <tr class="hover:bg-blue-50/30 transition-colors">
+                                            <td class="p-4 text-sm font-bold text-brand-dark">#${s.orderNumber || s.id.slice(0, 8)}</td>
+                                            <td class="p-4">
+                                                <div class="text-sm font-bold text-brand-dark">${customerInfo.name}</div>
+                                                <div class="text-xs text-slate-500">${customerInfo.email}</div>
+                                            </td>
+                                            <td class="p-4 text-xs text-slate-600">
+                                                <div class="flex flex-col gap-2">
+                                                    ${s.items ? s.items.map(i => `
+                                                        <div class="leading-tight">
+                                                            <span class="font-bold text-slate-700 block">${i.album}</span>
+                                                            <span class="text-[10px] text-slate-500">${i.artist}</span>
+                                                        </div>
+                                                    `).join('') : '-'}
+                                                </div>
+                                                <div class="mt-2 font-bold text-brand-dark border-t border-blue-200 pt-1">
+                                                    ${this.formatCurrency(s.total)}
+                                                </div>
+                                            </td>
+                                            <td class="p-4">
+                                                ${isReady
+                    ? '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs font-bold border border-green-200">Listo para retirar</span>'
+                    : '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold border border-yellow-200">Pendiente de preparación</span>'
+                }
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                ${!isReady ? `
+                                                    <button onclick="app.setReadyForPickup('${s.id}')" class="bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2 mx-auto">
+                                                        <i class="ph-bold ph-bell-ringing"></i> Notificar Cliente
+                                                    </button>
+                                                ` : `
+                                                    <button onclick="event.stopPropagation(); app.markAsDelivered('${s.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors shadow-lg shadow-green-600/20 flex items-center gap-2 mx-auto">
+                                                        <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
+                                                    </button>
+                                                `}
+                                            </td>
+                                        </tr>
+                                        `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Retiros Recientes Section -->
+                ${recentPickups.length > 0 ? `
+                <div class="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden mb-8 opacity-80">
+                    <div class="p-6 bg-green-50/30 border-b border-green-100">
+                        <h3 class="font-bold text-green-700 flex items-center gap-2">
+                            <i class="ph-fill ph-check-circle"></i> Retiros Recientes
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <tbody class="divide-y divide-green-50">
+                                ${recentPickups.slice(0, 10).sort((a, b) => new Date(b.updated_at?.toDate ? b.updated_at.toDate() : b.updated_at) - new Date(a.updated_at?.toDate ? a.updated_at.toDate() : a.updated_at)).map(s => {
+            const customerInfo = this.getCustomerInfo(s);
+            return `
+                                    <tr class="hover:bg-green-50/30 transition-colors cursor-pointer" onclick="app.openSaleDetailModal('${s.id}')">
+                                        <td class="p-4 text-sm font-medium text-slate-400">#${s.orderNumber || s.id.slice(0, 8)}</td>
+                                        <td class="p-4 text-sm text-slate-500">${customerInfo.name}</td>
+                                        <td class="p-4 text-xs text-slate-400">${this.formatDate(s.updated_at?.toDate ? s.updated_at.toDate() : s.updated_at || s.date)}</td>
+                                        <td class="p-4 text-right">
+                                            <span class="px-2 py-1 rounded bg-green-100 text-green-600 text-[10px] font-bold uppercase">Retirado</span>
+                                        </td>
+                                    </tr>
+                                    `;
+        }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                ` : ''}
+
                 <!-- Tabs/Filters -->
                 <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
+
                     <div class="p-6">
                         <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2">
                             <i class="ph-fill ph-truck text-brand-orange"></i> Pedidos por Despachar

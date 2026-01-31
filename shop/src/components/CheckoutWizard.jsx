@@ -75,9 +75,19 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
                     {shippingData?.address?.street}, {shippingData?.address?.city} {shippingData?.address?.postalCode}
                 </p>
                 <p className="text-sm text-gray-600 mt-1">
-                    {shippingData?.shippingMethod?.method} - {shippingData?.shippingMethod?.estimatedDays} days
+                    {shippingData?.shippingMethod?.method} - {shippingData?.shippingMethod?.estimatedDays}{typeof shippingData?.shippingMethod?.estimatedDays === 'number' ? ' days' : ''}
                 </p>
             </div>
+
+            {/* Local Pickup Notice */}
+            {shippingData?.shippingMethod?.id === 'local_pickup' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-amber-800">
+                        📧 You will receive an email when your order is ready for pickup.
+                    </p>
+                </div>
+            )}
+
 
             <div className="min-h-[200px]">
                 <PaymentElement />
@@ -178,7 +188,8 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
             setCurrentStep(3);
         } catch (error) {
             console.error('Checkout error:', error);
-            alert('Failed to initialize payment. Please try again.');
+            const message = error.response?.data?.error || error.response?.data?.message || 'Failed to initialize payment. Please try again.';
+            alert(message);
         } finally {
             setIsLoading(false);
         }
@@ -196,7 +207,8 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 pt-32 pb-8">
+
             <StepIndicator currentStep={currentStep} steps={steps} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
