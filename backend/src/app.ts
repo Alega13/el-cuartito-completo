@@ -24,6 +24,8 @@ const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
     'https://el-cuartito-app.web.app',
     'https://el-cuartito-admin-records.web.app',
     'https://elcuartito.dk'
@@ -42,7 +44,7 @@ app.use(cors({
 
 // Webhook endpoint - must use express.raw to preserve signature
 // This must come BEFORE any other body-parser middleware
-app.post('/webhook/stripe',
+app.post('/api/webhook/stripe',
     express.raw({ type: 'application/json' }),
     stripeWebhookHandler
 );
