@@ -423,3 +423,182 @@ export const updateSaleValue = async (req: Request, res: Response) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+import {
+    sendDiscogsOrderPreparingEmail,
+    sendDiscogsShippingNotificationEmail,
+    sendPickupReadyEmail
+} from '../services/mailService';
+
+export const notifyPreparing = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+
+        // Update status in Firestore
+        await saleRef.update({
+            fulfillment_status: 'preparing',
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'preparing',
+                timestamp: new Date().toISOString(), // Use string for easier frontend parsing or Timestamp if consistent
+                note: 'Order is being prepared. Notification sent.'
+            })
+        });
+
+        // Send email
+        const mailResult = await sendDiscogsOrderPreparingEmail(saleData);
+
+        res.json({ success: true, mailResult });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const updateTrackingNumber = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { trackingNumber } = req.body;
+        const db = getDb();
+
+        if (!trackingNumber) {
+            return res.status(400).json({ error: 'Tracking number is required' });
+        }
+
+        await db.collection('sales').doc(id).update({
+            tracking_number: trackingNumber,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ success: true, trackingNumber });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const notifyShipped = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { trackingNumber, trackingLink } = req.body;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const saleData = saleDoc.data() as any;
+        const finalTrackingNumber = trackingNumber || saleData.tracking_number;
+
+        if (!finalTrackingNumber) {
+            return res.status(400).json({ error: 'Tracking number is required to notify shipment' });
+        }
+
+        // Prepare update data
+        const updateData: any = {
+            fulfillment_status: 'in_transit', // Step 2: In Transit (Tracking sent)
+            tracking_number: finalTrackingNumber,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'in_transit',
+                timestamp: new Date().toISOString(),
+                note: `Order is in transit. Tracking: ${finalTrackingNumber}`
+            })
+        };
+
+        if (trackingLink) {
+            updateData.tracking_link = trackingLink;
+            // Update local object for email content
+            saleData.tracking_link = trackingLink;
+        }
+
+        // Update status in Firestore
+        await saleRef.update(updateData);
+
+        // Send email
+        const mailResult = await sendDiscogsShippingNotificationEmail(saleData, finalTrackingNumber);
+
+        res.json({ success: true, mailResult });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const markAsDispatched = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+
+        await db.collection('sales').doc(id).update({
+            fulfillment_status: 'shipped', // Step 3: Dispatched (Closed)
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'shipped',
+                timestamp: new Date().toISOString(),
+                note: 'Order dispatched (Archived).'
+            })
+        });
+
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const notifyReadyForPickup = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) return res.status(404).json({ error: 'Sale not found' });
+
+        const saleData = saleDoc.data() as any;
+
+        await saleRef.update({
+            fulfillment_status: 'ready_for_pickup',
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'ready_for_pickup',
+                timestamp: new Date().toISOString(),
+                note: 'Ready for pickup. Notification sent.'
+            })
+        });
+
+        const mailResult = await sendPickupReadyEmail(saleData);
+        res.json({ success: true, mailResult });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const markAsPickedUp = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+
+        await db.collection('sales').doc(id).update({
+            fulfillment_status: 'picked_up', // Closed
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'picked_up',
+                timestamp: new Date().toISOString(),
+                note: 'Order picked up by customer (Archived).'
+            })
+        });
+
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};

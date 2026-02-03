@@ -26,8 +26,8 @@ exports.config = {
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
     RESEND_API_KEY: process.env.RESEND_API_KEY || 're_placeholder',
-    SHIPMONDO_API_USER: getEnvVar('SHIPMONDO_API_USER'),
-    SHIPMONDO_API_KEY: getEnvVar('SHIPMONDO_API_KEY'),
+    SHIPMONDO_API_USER: process.env.SHIPMONDO_API_USER || '',
+    SHIPMONDO_API_KEY: process.env.SHIPMONDO_API_KEY || '',
     SHIPMONDO_SANDBOX: process.env.SHIPMONDO_SANDBOX === 'true',
 };
 exports.default = exports.config;

@@ -73,6 +73,7 @@ export const startCheckout = async (req: Request, res: Response) => {
             date: dateForAdmin,
             items_total: itemsTotal,
             shipping_cost: shippingCost || 0,
+            shipping_income: shippingCost || 0,
             total_amount: total,
             channel: 'online',
             status: 'PENDING',
@@ -105,32 +106,6 @@ export const startCheckout = async (req: Request, res: Response) => {
                 enabled: true,
             },
         });
-
-        // IMMEDIATE STOCK REDUCTION for local development 
-        // Webhook won't work on localhost but will work in production
-        console.log('🔄 Reducing stock immediately (local development mode)...');
-        try {
-            for (const item of validatedItems) {
-                await db.collection('products').doc(item.productId).update({
-                    stock: admin.firestore.FieldValue.increment(-item.quantity),
-                    updated_at: admin.firestore.FieldValue.serverTimestamp()
-                });
-
-                // Also log inventory movement
-                await db.collection('inventory_movements').add({
-                    product_id: item.productId,
-                    change: -item.quantity,
-                    reason: 'sale',
-                    channel: 'online',
-                    saleId: saleRef.id,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-            console.log('✅ Stock reduced successfully');
-        } catch (stockError) {
-            console.error('❌ Stock reduction error:', stockError);
-            // Don't fail the checkout if stock update fails
-        }
 
         res.json({
             saleId: saleRef.id,

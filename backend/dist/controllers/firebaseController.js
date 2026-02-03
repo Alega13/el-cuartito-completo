@@ -42,9 +42,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
+exports.markAsPickedUp = exports.notifyReadyForPickup = exports.markAsDispatched = exports.notifyShipped = exports.updateTrackingNumber = exports.notifyPreparing = exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
+const vatCalculator_1 = require("../services/vatCalculator");
 const normalizeProduct = (data, id) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     return Object.assign(Object.assign({}, data), { id, 
@@ -210,6 +211,7 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 const price = item.priceAtSale || productData.price || 0;
                 item.priceAtSale = price; // Store the price used in the item
                 item.costAtSale = productData.cost || 0; // Store cost for profit calculation
+                item.productCondition = productData.product_condition || 'Second-hand'; // Store for VAT calculation
                 item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
                 calculatedTotal += price * item.qty;
             }
@@ -231,11 +233,14 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
+            // Calculate VAT liability using Denmark rules (Brugtmoms for used goods)
+            const calculatedVatLiability = (0, vatCalculator_1.calculateSaleVATLiability)(normalizedItems);
             const saleRef = db.collection('sales').doc();
             transaction.set(saleRef, {
                 items: normalizedItems,
                 channel: channel || 'local',
                 total_amount: totalAmount || calculatedTotal,
+                calculated_vat_liability: calculatedVatLiability,
                 paymentMethod: paymentMethod || 'CASH',
                 customerName: customerName || null,
                 customerEmail: customerEmail || null,
@@ -390,3 +395,160 @@ const updateSaleValue = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.updateSaleValue = updateSaleValue;
+const mailService_2 = require("../services/mailService");
+const notifyPreparing = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const saleData = saleDoc.data();
+        // Update status in Firestore
+        yield saleRef.update({
+            fulfillment_status: 'preparing',
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'preparing',
+                timestamp: new Date().toISOString(), // Use string for easier frontend parsing or Timestamp if consistent
+                note: 'Order is being prepared. Notification sent.'
+            })
+        });
+        // Send email
+        const mailResult = yield (0, mailService_2.sendDiscogsOrderPreparingEmail)(saleData);
+        res.json({ success: true, mailResult });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.notifyPreparing = notifyPreparing;
+const updateTrackingNumber = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { trackingNumber } = req.body;
+        const db = (0, firebaseAdmin_1.getDb)();
+        if (!trackingNumber) {
+            return res.status(400).json({ error: 'Tracking number is required' });
+        }
+        yield db.collection('sales').doc(id).update({
+            tracking_number: trackingNumber,
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        });
+        res.json({ success: true, trackingNumber });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.updateTrackingNumber = updateTrackingNumber;
+const notifyShipped = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { trackingNumber, trackingLink } = req.body;
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const saleData = saleDoc.data();
+        const finalTrackingNumber = trackingNumber || saleData.tracking_number;
+        if (!finalTrackingNumber) {
+            return res.status(400).json({ error: 'Tracking number is required to notify shipment' });
+        }
+        // Prepare update data
+        const updateData = {
+            fulfillment_status: 'in_transit', // Step 2: In Transit (Tracking sent)
+            tracking_number: finalTrackingNumber,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'in_transit',
+                timestamp: new Date().toISOString(),
+                note: `Order is in transit. Tracking: ${finalTrackingNumber}`
+            })
+        };
+        if (trackingLink) {
+            updateData.tracking_link = trackingLink;
+            // Update local object for email content
+            saleData.tracking_link = trackingLink;
+        }
+        // Update status in Firestore
+        yield saleRef.update(updateData);
+        // Send email
+        const mailResult = yield (0, mailService_2.sendDiscogsShippingNotificationEmail)(saleData, finalTrackingNumber);
+        res.json({ success: true, mailResult });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.notifyShipped = notifyShipped;
+const markAsDispatched = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        yield db.collection('sales').doc(id).update({
+            fulfillment_status: 'shipped', // Step 3: Dispatched (Closed)
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'shipped',
+                timestamp: new Date().toISOString(),
+                note: 'Order dispatched (Archived).'
+            })
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.markAsDispatched = markAsDispatched;
+const notifyReadyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists)
+            return res.status(404).json({ error: 'Sale not found' });
+        const saleData = saleDoc.data();
+        yield saleRef.update({
+            fulfillment_status: 'ready_for_pickup',
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'ready_for_pickup',
+                timestamp: new Date().toISOString(),
+                note: 'Ready for pickup. Notification sent.'
+            })
+        });
+        const mailResult = yield (0, mailService_2.sendPickupReadyEmail)(saleData);
+        res.json({ success: true, mailResult });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.notifyReadyForPickup = notifyReadyForPickup;
+const markAsPickedUp = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        yield db.collection('sales').doc(id).update({
+            fulfillment_status: 'picked_up', // Closed
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'picked_up',
+                timestamp: new Date().toISOString(),
+                note: 'Order picked up by customer (Archived).'
+            })
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.markAsPickedUp = markAsPickedUp;

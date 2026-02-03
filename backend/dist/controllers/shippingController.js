@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.readyForPickup = exports.manualShipOrder = exports.shipOrder = exports.getShipmentLabel = exports.createShipment = exports.getShippingZones = exports.calculateShipping = void 0;
+exports.testEmail = exports.readyForPickup = exports.manualShipOrder = exports.shipOrder = exports.getShipmentLabel = exports.createShipment = exports.getShippingZones = exports.calculateShipping = void 0;
 const shipmondoService_1 = require("../services/shipmondoService");
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
@@ -118,38 +118,115 @@ const FREE_SHIPPING_THRESHOLD = 500;
  */
 const calculateShipping = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { country, postalCode, city, orderTotal } = req.body;
+        const { country, postalCode, city, orderTotal, itemCount = 1 } = req.body;
         if (!country) {
             return res.status(400).json({
                 error: 'Country is required'
             });
         }
-        // Normalize country input (handle both codes and full names)
+        // Normalize country input
         const normalizedCountry = country.trim().toUpperCase();
-        // Find matching shipping zone
-        let matchingZone;
-        for (const zone of SHIPPING_ZONES) {
-            const countryMatch = zone.countries.find(c => c.toUpperCase() === normalizedCountry ||
-                c.toUpperCase() === country.trim());
-            if (countryMatch) {
-                matchingZone = zone;
-                break;
-            }
-        }
-        // If no zone found, return error (we don't ship there)
-        if (!matchingZone) {
-            return res.status(400).json({
-                error: 'Shipping to this country is not available',
-                message: 'Lo sentimos, no realizamos envíos a este país.'
+        const isDenmark = normalizedCountry === 'DK' || normalizedCountry === 'DENMARK';
+        // EU Countries list for logic
+        const euCountries = [
+            'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'EE', 'FR', 'DE', 'GR',
+            'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT',
+            'RO', 'SK', 'SI', 'ES', 'SE', 'FI', 'NO',
+            'AUSTRIA', 'BELGIUM', 'BULGARIA', 'CROATIA', 'CYPRUS', 'CZECH REPUBLIC',
+            'ESTONIA', 'FRANCE', 'GERMANY', 'GREECE', 'HUNGARY', 'IRELAND', 'ITALY',
+            'LATVIA', 'LITHUANIA', 'LUXEMBOURG', 'MALTA', 'NETHERLANDS', 'POLAND',
+            'PORTUGAL', 'ROMANIA', 'SLOVAKIA', 'SLOVENIA', 'SPAIN', 'SWEDEN', 'FINLAND', 'NORWAY'
+        ];
+        const isEU = euCountries.includes(normalizedCountry);
+        let rates = [];
+        if (isDenmark) {
+            // DAO Shop Pickup
+            // 1 vinyl: 50kr
+            // 2-4 vinyls: 55kr
+            let daoPickupPrice = itemCount <= 1 ? 50 : 55;
+            rates.push({
+                id: 'dao_pickup',
+                method: 'DAO Parcel Shop (Pickup)',
+                price: daoPickupPrice,
+                estimatedDays: '2-3',
+                description: 'Pick up at a nearby DAO shop'
+            });
+            // DAO Home Delivery
+            // 1 vinyl: 60kr
+            // 2-4 vinyls: 70kr
+            let daoHomePrice = itemCount <= 1 ? 60 : 70;
+            rates.push({
+                id: 'dao_home',
+                method: 'DAO Home Delivery',
+                price: daoHomePrice,
+                estimatedDays: '2-3',
+                description: 'Delivered to your door with DAO'
+            });
+            // GLS Pickup
+            // 1 vinyl: 50kr
+            // 2-7 vinyls: 70kr
+            let glsPickupPrice = itemCount <= 1 ? 50 : 70;
+            rates.push({
+                id: 'gls_pickup',
+                method: 'GLS Parcel Shop (Pickup)',
+                price: glsPickupPrice,
+                estimatedDays: '1-2',
+                description: 'Pick up at a nearby GLS shop'
+            });
+            // GLS Home Delivery
+            // 1 vinyl: 80kr
+            // 2-7 vinyls: 100kr
+            let glsHomePrice = itemCount <= 1 ? 80 : 100;
+            rates.push({
+                id: 'gls_home',
+                method: 'GLS Home Delivery',
+                price: glsHomePrice,
+                estimatedDays: '1-2',
+                description: 'Delivered to your door with GLS'
             });
         }
-        // Check for free shipping eligibility
+        else if (isEU) {
+            // EU GLS Pickup
+            // 1 vinyl: 105kr
+            // 2-7 vinyls: 130kr
+            let euPickupPrice = itemCount <= 1 ? 105 : 130;
+            rates.push({
+                id: 'eu_gls_pickup',
+                method: 'GLS International (Pickup)',
+                price: euPickupPrice,
+                estimatedDays: '4-6',
+                description: 'Pick up at a GLS point (Europe)'
+            });
+            // EU GLS Home Delivery
+            // 1 vinyl: 120kr
+            // 2-7 vinyls: 150kr
+            let euHomePrice = itemCount <= 1 ? 120 : 150;
+            rates.push({
+                id: 'eu_gls_home',
+                method: 'GLS International (Home)',
+                price: euHomePrice,
+                estimatedDays: '3-5',
+                description: 'Delivered to your door (Europe)'
+            });
+        }
+        else {
+            // Fallback for other countries (Nordics or others not explicitly in EU list)
+            // Use old EU standard for now as fallback
+            rates.push({
+                id: 'intl_standard',
+                method: 'International Standard',
+                price: 150,
+                estimatedDays: '7-10',
+                description: 'Envío internacional estándar'
+            });
+        }
+        // Apply Free Shipping if applicable
         const isFreeShipping = orderTotal && orderTotal >= FREE_SHIPPING_THRESHOLD;
-        // Prepare rates
-        let rates = matchingZone.rates.map(rate => (Object.assign(Object.assign({}, rate), { price: isFreeShipping ? 0 : rate.price, originalPrice: rate.price, isFree: isFreeShipping })));
+        const finalRates = rates.map(rate => (Object.assign(Object.assign({}, rate), { price: isFreeShipping ? 0 : rate.price, originalPrice: rate.price, isFree: isFreeShipping })));
         res.json({
             country: normalizedCountry,
-            rates,
+            itemCount,
+            rates: finalRates,
             freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
             qualifiesForFreeShipping: isFreeShipping,
             orderTotal: orderTotal || 0
@@ -290,13 +367,15 @@ const shipOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
         // Step E: Send Email via Resend
-        yield (0, mailService_1.sendShipOrderEmail)(saleData, shippingInfo);
+        const mailResult = yield (0, mailService_1.sendShipOrderEmail)(saleData, shippingInfo);
         // Response: Success + PDF URL
         res.json({
             success: true,
             message: 'Order shipped successfully',
             trackingNumber: trackingNumber,
-            labelUrl: labelUrl
+            labelUrl: labelUrl,
+            emailSent: mailResult.success,
+            emailError: mailResult.error
         });
     }
     catch (error) {
@@ -327,6 +406,9 @@ const manualShipOrder = (req, res) => __awaiter(void 0, void 0, void 0, function
         }
         const saleData = saleDoc.data();
         console.log(`🚀 [MANUAL-SHIP] Shipping order ${orderId} with tracking ${trackingNumber}`);
+        console.log(`📦 [MANUAL-SHIP] Sale Data Keys: ${Object.keys(saleData).join(', ')}`);
+        console.log(`📦 [MANUAL-SHIP] Customer Field: ${JSON.stringify(saleData.customer || 'null')}`);
+        console.log(`📦 [MANUAL-SHIP] customerEmail Field: ${saleData.customerEmail || 'null'}`);
         const shippingInfo = {
             tracking_number: trackingNumber,
             status: 'shipped',
@@ -340,11 +422,13 @@ const manualShipOrder = (req, res) => __awaiter(void 0, void 0, void 0, function
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
         // Send Email via Resend
-        yield (0, mailService_1.sendShipOrderEmail)(saleData, shippingInfo);
+        const mailResult = yield (0, mailService_1.sendShipOrderEmail)(saleData, shippingInfo);
         res.json({
             success: true,
             message: 'Order shipped manually successfully',
-            trackingNumber: trackingNumber
+            trackingNumber: trackingNumber,
+            emailSent: mailResult.success,
+            emailError: mailResult.error
         });
     }
     catch (error) {
@@ -397,3 +481,97 @@ const readyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.readyForPickup = readyForPickup;
+// Diagnostic endpoint to test email sending
+const testEmail = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    try {
+        const { email, orderId, orderNumber, listRecent } = req.body;
+        // Mode 0: List recent orders (Debugging aid)
+        if (listRecent) {
+            const db = (0, firebaseAdmin_1.getDb)();
+            // Raw dump of any 5 docs
+            const snap = yield db.collection('sales').limit(5).get();
+            const recentOrders = snap.docs.map(doc => ({
+                id: doc.id,
+                orderNumber: doc.data().orderNumber,
+                // Debug: Include all keys to inspect structure
+                keys: Object.keys(doc.data()),
+                timestamp: doc.data().timestamp,
+                createdAt: doc.data().createdAt
+            }));
+            return res.json({
+                success: true,
+                projectId: ((_a = admin.app().options.credential) === null || _a === void 0 ? void 0 : _a.projectId) || 'unknown',
+                collectionSize: snap.size,
+                recentOrders
+            });
+        }
+        let saleData = null;
+        let debugId = orderId;
+        // Mode 1: Debug specific order
+        // This mode fetches the real order data and tries to send the email exactly as the production system would.
+        if (orderId || orderNumber) {
+            const db = (0, firebaseAdmin_1.getDb)();
+            if (orderId) {
+                console.log(`🧪 [TEST-EMAIL] Debugging real order by ID: ${orderId}`);
+                const saleDoc = yield db.collection('sales').doc(orderId).get();
+                if (saleDoc.exists) {
+                    saleData = saleDoc.data();
+                    if (!saleData.id)
+                        saleData.id = orderId;
+                }
+            }
+            else if (orderNumber) {
+                console.log(`🧪 [TEST-EMAIL] Debugging real order by Number: ${orderNumber}`);
+                const snap = yield db.collection('sales').where('orderNumber', '==', orderNumber).limit(1).get();
+                if (!snap.empty) {
+                    const doc = snap.docs[0];
+                    saleData = doc.data();
+                    saleData.id = doc.id; // Critical: Ensure ID is preserved
+                    debugId = doc.id;
+                }
+            }
+            if (!saleData) {
+                return res.status(404).json({ error: 'Order not found', searched: { orderId, orderNumber } });
+            }
+            const shippingInfo = saleData.shipment || {
+                tracking_number: 'TEST-DEBUG-123',
+                carrier: 'DebugCarrier'
+            };
+            const result = yield (0, mailService_1.sendShipOrderEmail)(saleData, shippingInfo);
+            return res.json({
+                mode: 'real_order_debug',
+                debugId,
+                foundOrderNumber: saleData.orderNumber,
+                rawDataKeys: Object.keys(saleData),
+                customerField: saleData.customer,
+                emailDetectionResult: result
+            });
+        }
+        // Mode 2: Simple email test
+        if (!email)
+            return res.status(400).json({ error: 'Email is required' });
+        const dummyOrder = {
+            orderNumber: 'TEST-12345',
+            customerName: 'Test User',
+            customerEmail: email,
+            items: [{ album: 'Test Album', artist: 'Test Artist', quantity: 1, unitPrice: 100 }]
+        };
+        const dummyShipment = {
+            tracking_number: 'TEST-TRACK-999',
+            carrier: 'TestCarrier'
+        };
+        console.log(`🧪 [TEST-EMAIL] Triggering sendShipOrderEmail to ${email}...`);
+        const result = yield (0, mailService_1.sendShipOrderEmail)(dummyOrder, dummyShipment);
+        res.json({
+            success: true,
+            message: `Email test triggered for ${email}. Check Railway logs for "✅ Tracking notification sent successfully" or errors.`,
+            result
+        });
+    }
+    catch (error) {
+        console.error('❌ [TEST-EMAIL] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.testEmail = testEmail;

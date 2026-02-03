@@ -42,7 +42,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPriceSuggestions = exports.deleteListing = exports.updateListing = exports.createListing = exports.syncOrders = exports.getSyncStatus = exports.syncInventory = void 0;
+exports.getListingById = exports.refreshMetadata = exports.bulkImport = exports.getReleaseById = exports.getPriceSuggestions = exports.deleteListing = exports.updateListing = exports.createListing = exports.syncOrders = exports.getSyncStatus = exports.syncInventory = void 0;
 const discogsService_1 = require("../services/discogsService");
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
@@ -260,6 +260,7 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                     paypalFee: 0,
                     totalFees: 0,
                     shipping: shipping,
+                    shipping_income: shipping, // Map to new field for VAT reporting
                     date: orderDate.toISOString().split('T')[0],
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
                     customerName: ((_c = order.buyer) === null || _c === void 0 ? void 0 : _c.username) || 'Discogs Buyer',
@@ -439,3 +440,324 @@ const getPriceSuggestions = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.getPriceSuggestions = getPriceSuggestions;
+/**
+ * Get a specific release from Discogs
+ */
+const getReleaseById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                error: 'id is required'
+            });
+        }
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const release = yield discogsService.getRelease(parseInt(id));
+        res.json({
+            success: true,
+            release
+        });
+    }
+    catch (error) {
+        console.error('Fetch release failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+exports.getReleaseById = getReleaseById;
+/**
+ * Bulk import products from CSV
+ */
+const bulkImport = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        const { csvData, defaultStorage, defaultOwner } = req.body;
+        if (!username || !token) {
+            return res.status(500).json({ error: 'Discogs credentials not configured' });
+        }
+        if (!csvData) {
+            return res.status(400).json({ error: 'csvData is required' });
+        }
+        console.log('🚀 Starting bulk import...');
+        const lines = csvData.trim().split('\n');
+        // Filter out header if present (checking for "Identificador")
+        const dataLines = lines.filter((line) => !line.includes('Identificador'));
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const db = (0, firebaseAdmin_1.getDb)();
+        const results = {
+            total: dataLines.length,
+            success: 0,
+            failed: 0,
+            errors: []
+        };
+        for (const line of dataLines) {
+            try {
+                // Format: Artículo;Identificador;Estado;Condición Funda;Comentarios;Precio costo;Precio Venta
+                const [itemName, releaseIdStr, mediaCondition, sleeveCondition, comments, costStr, priceStr] = line.split(';');
+                if (!itemName && !releaseIdStr)
+                    continue;
+                const releaseIdRaw = parseInt(releaseIdStr === null || releaseIdStr === void 0 ? void 0 : releaseIdStr.trim());
+                let releaseId = isNaN(releaseIdRaw) ? null : releaseIdRaw;
+                // Parse prices (remove "kr.", replace "," with ".")
+                const parsePrice = (s) => s ? parseFloat(s.replace('kr.', '').replace(',', '.').trim()) || 0 : 0;
+                const cost = parsePrice(costStr);
+                const price = parsePrice(priceStr);
+                console.log(`📦 Processing ${itemName} (ID: ${releaseIdStr || 'Missing'})`);
+                // 1. Get metadata from Discogs (Handle missing ID or Listing ID)
+                let release;
+                try {
+                    // Scenario A: No ID provided -> Search by name
+                    if (!releaseId) {
+                        console.log(`🔍 No ID provided for "${itemName}". Searching on Discogs...`);
+                        const searchResult = yield discogsService.searchRelease(itemName);
+                        if (!searchResult) {
+                            throw new Error('No se encontró el disco en Discogs mediante búsqueda.');
+                        }
+                        releaseId = searchResult.id;
+                        console.log(`✅ Found Release ID ${releaseId} via search`);
+                    }
+                    if (releaseId !== null && releaseId > 200000000) {
+                        try {
+                            console.log(`🔍 ID ${releaseId} looks like a Listing ID. Fetching listing details first...`);
+                            const listing = yield discogsService.getListing(String(releaseId));
+                            releaseId = listing.release.id;
+                            console.log(`✅ Found Release ID ${releaseId} from listing`);
+                        }
+                        catch (err) {
+                            console.log(`⚠️ Failed to fetch listing ${releaseId}. Falling back to search by name...`);
+                            releaseId = null; // Trigger search below
+                        }
+                    }
+                    if (releaseId === null) {
+                        console.log(`🔍 Searching on Discogs for "${itemName}"...`);
+                        const searchResult = yield discogsService.searchRelease(itemName);
+                        if (!searchResult) {
+                            throw new Error('No se encontró el disco en Discogs mediante búsqueda.');
+                        }
+                        releaseId = searchResult.id;
+                        console.log(`✅ Found Release ID ${releaseId} via search`);
+                    }
+                    if (releaseId === null) {
+                        throw new Error('No se pudo determinar el Release ID.');
+                    }
+                    // Fetch full release details
+                    release = yield discogsService.getRelease(releaseId);
+                }
+                catch (err) {
+                    // Scenario C: If it's a number but getRelease failed, maybe it's a Listing ID after all? (Fallback)
+                    if (releaseId !== null && releaseId <= 200000000 && !release) {
+                        try {
+                            console.log(`🔍 Release fetch failed for ${releaseId}. Trying as Listing ID...`);
+                            const listing = yield discogsService.getListing(String(releaseId));
+                            releaseId = listing.release.id;
+                            release = yield discogsService.getRelease(releaseId);
+                        }
+                        catch (innerErr) {
+                            console.log(`⚠️ Listing fallback failed. Trying search by name as last resort...`);
+                            const searchResult = yield discogsService.searchRelease(itemName);
+                            if (searchResult) {
+                                releaseId = searchResult.id;
+                                release = yield discogsService.getRelease(releaseId);
+                            }
+                            else {
+                                throw err; // Throw original error
+                            }
+                        }
+                    }
+                    else {
+                        throw err;
+                    }
+                }
+                // 2. Map conditions
+                // Our system uses simpler codes (M, NM, VG+, etc). Discogs service handles mapping.
+                // We'll trust the input or fallback to VG if unknown.
+                const mapInputCondition = (c) => {
+                    if (c.includes('Near Mint'))
+                        return 'NM';
+                    if (c.includes('Mint'))
+                        return 'M';
+                    if (c.includes('Very Good Plus'))
+                        return 'VG+';
+                    if (c.includes('Very Good'))
+                        return 'VG';
+                    if (c.includes('Good Plus'))
+                        return 'G+';
+                    if (c.includes('Good'))
+                        return 'G';
+                    if (c.includes('Fair'))
+                        return 'F';
+                    if (c.includes('Poor'))
+                        return 'P';
+                    return 'VG';
+                };
+                const product = {
+                    artist: release.artists_sort || ((_a = release.artists[0]) === null || _a === void 0 ? void 0 : _a.name) || 'Unknown',
+                    album: release.title || 'Unknown',
+                    condition: mapInputCondition(mediaCondition),
+                    sleeveCondition: mapInputCondition(sleeveCondition),
+                    price: price,
+                    cost: cost,
+                    stock: 1,
+                    comments: comments === null || comments === void 0 ? void 0 : comments.trim(),
+                    discogs_release_id: release.id,
+                    is_online: true
+                };
+                // 3. Create listing on Discogs
+                const listingId = yield discogsService.createListing(releaseId, product);
+                // 4. Save to Firestore
+                const sku = `DISCOGS-${listingId}`;
+                const existing = yield db.collection('products').where('sku', '==', sku).get();
+                if (!existing.empty) {
+                    console.log(`⏩ Skipping ${sku} - already exists`);
+                    results.success++; // Count as success since it's already there
+                    continue;
+                }
+                const primaryImage = (_b = release.images) === null || _b === void 0 ? void 0 : _b.find((img) => img.type === 'primary');
+                const coverImage = (primaryImage === null || primaryImage === void 0 ? void 0 : primaryImage.uri) || ((_d = (_c = release.images) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.uri) || '';
+                yield db.collection('products').add({
+                    sku: `DISCOGS-${listingId}`,
+                    artist: product.artist,
+                    album: product.album,
+                    price: product.price,
+                    cost: product.cost,
+                    stock: product.stock,
+                    condition: product.condition,
+                    sleeveCondition: product.sleeveCondition,
+                    comments: product.comments,
+                    genre: [...(release.genres || []), ...(release.styles || [])].join(', ') || 'Unknown',
+                    year: release.year || 0,
+                    label: ((_f = (_e = release.labels) === null || _e === void 0 ? void 0 : _e[0]) === null || _f === void 0 ? void 0 : _f.name) || 'Unknown',
+                    cover_image: coverImage,
+                    format: ((_h = (_g = release.formats) === null || _g === void 0 ? void 0 : _g[0]) === null || _h === void 0 ? void 0 : _h.name) || 'Vinyl',
+                    discogs_listing_id: String(listingId),
+                    discogs_release_id: release.id,
+                    is_online: true,
+                    storageLocation: defaultStorage || 'Tienda',
+                    owner: defaultOwner || 'El Cuartito',
+                    created_at: admin.firestore.FieldValue.serverTimestamp(),
+                    updated_at: admin.firestore.FieldValue.serverTimestamp()
+                });
+                results.success++;
+                // Delay between items to respect Discogs rate limits (2s)
+                yield new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            catch (err) {
+                console.error(`❌ Error importing line: ${line}`, err.message);
+                if (err.message.includes('429')) {
+                    console.log('🛑 Rate limit hit (429). Pausing for 60 seconds...');
+                    results.errors.push('PAUSA_LIMITE_TASA'); // Flag to indicate we paused
+                    yield new Promise(resolve => setTimeout(resolve, 60000));
+                    // Optional: retry this specific line once? No, let's just continue
+                }
+                results.failed++;
+                results.errors.push(`Error en: ${line.slice(0, 30)}... -> ${err.message}`);
+            }
+        }
+        res.json({
+            success: true,
+            summary: `Importación completada: ${results.success} éxitos, ${results.failed} errores.`,
+            details: results
+        });
+    }
+    catch (error) {
+        console.error('Bulk import failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.bulkImport = bulkImport;
+/**
+ * Refresh metadata for a specific product from Discogs
+ */
+const refreshMetadata = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    try {
+        const { id } = req.params;
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        if (!username || !token) {
+            return res.status(500).json({ error: 'Discogs credentials not configured' });
+        }
+        const db = (0, firebaseAdmin_1.getDb)();
+        const productDoc = yield db.collection('products').doc(id).get();
+        if (!productDoc.exists) {
+            return res.status(404).json({ error: 'Product not found' });
+        }
+        const product = productDoc.data();
+        const releaseId = product === null || product === void 0 ? void 0 : product.discogs_release_id;
+        if (!releaseId) {
+            return res.status(400).json({ error: 'This product is not linked to a Discogs Release ID' });
+        }
+        console.log(`🔄 Refreshing metadata for product ${id} (Discogs Release: ${releaseId})`);
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const release = yield discogsService.getRelease(releaseId);
+        // Map fresh data
+        const primaryImage = (_a = release.images) === null || _a === void 0 ? void 0 : _a.find((img) => img.type === 'primary');
+        const coverImage = (primaryImage === null || primaryImage === void 0 ? void 0 : primaryImage.uri) || ((_c = (_b = release.images) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.uri) || (product === null || product === void 0 ? void 0 : product.cover_image);
+        const updatedData = {
+            artist: release.artists_sort || ((_d = release.artists[0]) === null || _d === void 0 ? void 0 : _d.name) || (product === null || product === void 0 ? void 0 : product.artist),
+            album: release.title || (product === null || product === void 0 ? void 0 : product.album),
+            genre: [...(release.genres || []), ...(release.styles || [])].join(', ') || 'Unknown',
+            year: release.year || (product === null || product === void 0 ? void 0 : product.year) || 0,
+            label: ((_f = (_e = release.labels) === null || _e === void 0 ? void 0 : _e[0]) === null || _f === void 0 ? void 0 : _f.name) || (product === null || product === void 0 ? void 0 : product.label) || 'Unknown',
+            cover_image: coverImage,
+            format: ((_h = (_g = release.formats) === null || _g === void 0 ? void 0 : _g[0]) === null || _h === void 0 ? void 0 : _h.name) || (product === null || product === void 0 ? void 0 : product.format) || 'Vinyl',
+            updated_at: admin.firestore.FieldValue.serverTimestamp()
+        };
+        yield db.collection('products').doc(id).update(updatedData);
+        res.json({
+            success: true,
+            message: 'Metadata actualizada correctamente desde Discogs',
+            data: updatedData
+        });
+    }
+    catch (error) {
+        console.error('Refresh metadata failed:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.refreshMetadata = refreshMetadata;
+/**
+ * Get a specific listing from Discogs
+ */
+const getListingById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                error: 'id is required'
+            });
+        }
+        const discogsService = new discogsService_1.DiscogsService(username, token);
+        const listing = yield discogsService.getListing(id);
+        res.json({
+            success: true,
+            listing
+        });
+    }
+    catch (error) {
+        console.error('Fetch listing failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+exports.getListingById = getListingById;

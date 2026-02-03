@@ -101,10 +101,52 @@ class DiscogsService {
         });
     }
     /**
+     * Fetch a specific release from Discogs
+     */
+    getRelease(releaseId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            try {
+                const response = yield axios_1.default.get(`${this.baseUrl}/releases/${releaseId}`, {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                });
+                return response.data;
+            }
+            catch (error) {
+                console.error(`Error fetching Discogs release ${releaseId}:`, ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                throw new Error(`Failed to fetch Discogs release: ${error.message}`);
+            }
+        });
+    }
+    /**
+     * Fetch a specific listing from Discogs
+     */
+    getListing(listingId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            try {
+                const response = yield axios_1.default.get(`${this.baseUrl}/marketplace/listings/${listingId}`, {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    }
+                });
+                return response.data;
+            }
+            catch (error) {
+                console.error(`Error fetching Discogs listing ${listingId}:`, ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                throw new Error(`Failed to fetch Discogs listing: ${error.message}`);
+            }
+        });
+    }
+    /**
      * Normalize Discogs listing to Firebase product schema
      */
     normalizeProduct(listing) {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
+        var _a, _b, _c, _d, _e, _f, _g;
         const { release, price, condition, quantity, status } = listing;
         // Find the best image (prefer primary, fallback to first available)
         const primaryImage = (_a = release.images) === null || _a === void 0 ? void 0 : _a.find(img => img.type === 'primary');
@@ -120,12 +162,13 @@ class DiscogsService {
             price: price.value || 0,
             stock: quantity || 1,
             is_online: status === 'For Sale', // Only mark as online if actively for sale
-            genre: (_d = release.genres) === null || _d === void 0 ? void 0 : _d[0],
+            genre: [...(release.genres || []), ...(release.styles || [])].join(', '),
             condition: normalizedCondition,
+            sleeveCondition: listing.sleeve_condition ? this.mapCondition(listing.sleeve_condition) : undefined,
             year: release.year,
-            label: release.label || ((_f = (_e = release.labels) === null || _e === void 0 ? void 0 : _e[0]) === null || _f === void 0 ? void 0 : _f.name),
+            label: release.label || ((_e = (_d = release.labels) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.name),
             cover_image: coverImage,
-            format: release.format || ((_h = (_g = release.formats) === null || _g === void 0 ? void 0 : _g[0]) === null || _h === void 0 ? void 0 : _h.name) || 'Vinyl',
+            format: release.format || ((_g = (_f = release.formats) === null || _f === void 0 ? void 0 : _f[0]) === null || _g === void 0 ? void 0 : _g.name) || 'Vinyl',
             discogs_listing_id: String(listing.id),
             discogs_release_id: release.id
         };
@@ -283,6 +326,35 @@ class DiscogsService {
             'P': 'Poor (P)'
         };
         return reverseMap[ourCondition] || 'Very Good (VG)';
+    }
+    /**
+     * Search for a release by query string
+     */
+    searchRelease(query) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            try {
+                const response = yield axios_1.default.get(`${this.baseUrl}/database/search`, {
+                    headers: {
+                        'Authorization': `Discogs token=${this.token}`,
+                        'User-Agent': 'ElCuartitoRecords/1.0'
+                    },
+                    params: {
+                        q: query,
+                        type: 'release',
+                        per_page: 1
+                    }
+                });
+                if (response.data.results && response.data.results.length > 0) {
+                    return response.data.results[0];
+                }
+                return null;
+            }
+            catch (error) {
+                console.error(`Error searching Discogs release for "${query}":`, ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
+                throw new Error(`Failed to search Discogs release: ${error.message}`);
+            }
+        });
     }
     /**
      * Sleep utility for rate limiting

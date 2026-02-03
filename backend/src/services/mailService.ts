@@ -5,6 +5,23 @@ const resend = new Resend(config.RESEND_API_KEY);
 
 const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo.jpg';
 
+const generateOrderItemsHtml = (items: any[]) => {
+    return items.map((item: any) => `
+        <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
+                <img src="${item.image || item.cover_image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+            </td>
+            <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
+                <div style="font-weight: bold; color: #333;">${item.album}</div>
+                <div style="font-size: 12px; color: #666; text-transform: uppercase;">${item.artist}</div>
+            </td>
+            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eeeeee; color: #666;">
+                ${item.quantity || item.qty}
+            </td>
+        </tr>
+    `).join('');
+};
+
 export const sendOrderConfirmationEmail = async (orderData: any) => {
     try {
         if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder' || config.RESEND_API_KEY === 're_your_api_key_here') {
@@ -90,9 +107,9 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
         if (newItems.length > 0 && usedItems.length > 0) {
             // Mixed order - show sections
             itemsHtml = `
-                <tr><td colspan="4" style="padding: 15px 0 8px 0; font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase; letter-spacing: 1px;">🆕 Productos Nuevos (IVA Deducible)</td></tr>
+                <tr><td colspan="4" style="padding: 15px 0 8px 0; font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase; letter-spacing: 1px;">🆕 New Products (VAT Included)</td></tr>
                 ${newItemsHtml}
-                <tr><td colspan="4" style="padding: 20px 0 8px 0; font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase; letter-spacing: 1px;">📦 Productos Usados (Régimen Brugtmoms)</td></tr>
+                <tr><td colspan="4" style="padding: 20px 0 8px 0; font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase; letter-spacing: 1px;">📦 Used Products (Brugtmoms Scheme)</td></tr>
                 ${usedItemsHtml}
             `;
         } else {
@@ -229,10 +246,16 @@ export const sendShippingNotificationEmail = async (orderData: any, shipmentInfo
                             <strong>Tracking Number:</strong> <br>
                             <span style="color: #f97316; font-weight: bold; font-size: 24px; display: block; margin: 10px 0;">${shipmentInfo.tracking_number}</span>
                         </p>
-                        <a href="https://app.shipmondo.com/tracking/${shipmentInfo.tracking_number}" 
+                        ${shipmentInfo.tracking_link ? `
+                        <a href="${shipmentInfo.tracking_link}" 
                            style="background: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; display: inline-block; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
                            Track My Order 🚚
                         </a>
+                        ` : `
+                        <p style="color: #666; font-size: 14px; line-height: 1.5; margin-top: 20px;">
+                            Please track your shipment on the shipping provider's website using the tracking number above.
+                        </p>
+                        `}
                     </div>
 
                     <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
@@ -345,8 +368,10 @@ export const sendPickupReadyEmail = async (orderData: any) => {
             return { success: false, error: 'Resend API Key missing' };
         }
 
-        const customerEmail = orderData.customer?.email || orderData.customerEmail;
+        const customerEmail = orderData.customer?.email || orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customer?.firstName || orderData.customerName || 'Customer';
+        const items = orderData.items || [];
+        const itemsHtml = generateOrderItemsHtml(items);
 
         const { data, error } = await resend.emails.send({
             from: 'El Cuartito Records <hola@elcuartito.dk>',
@@ -360,6 +385,22 @@ export const sendPickupReadyEmail = async (orderData: any) => {
                         <p style="color: #666; font-size: 16px;">Good news! Your order <strong>${orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : 'Pending')}</strong> is now prepared and ready for you to pick it up.</p>
                     </div>
                     
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin: 30px 0; border: 1px solid #eee;">
+                        <h3 style="margin-top: 0; color: #f97316; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Order Summary</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th style="padding-bottom: 10px; width: 60px;"></th>
+                                    <th style="text-align: left; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Item</th>
+                                    <th style="text-align: center; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
                     <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin: 30px 0; border: 1px solid #eee;">
                         <h3 style="margin-top: 0; color: #f97316; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">📍 Pickup Location</h3>
                         <p style="margin-bottom: 5px; font-weight: bold;">El Cuartito Records</p>
@@ -395,6 +436,147 @@ export const sendPickupReadyEmail = async (orderData: any) => {
         return { success: true, id: data?.id };
     } catch (error: any) {
         console.error('❌ [MAIL-SERVICE] Exception in sendPickupReadyEmail:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+
+
+export const sendDiscogsOrderPreparingEmail = async (orderData: any) => {
+    try {
+        if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder') {
+            return { success: false, error: 'Resend API Key missing' };
+        }
+
+        const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
+        const customerName = orderData.customerName || 'Customer';
+        const items = orderData.items || [];
+        const itemsHtml = generateOrderItemsHtml(items);
+
+        const { data, error } = await resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [customerEmail],
+            subject: `We are preparing your Discogs order - El Cuartito Records`,
+            html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
+                    <div style="text-align: center; margin-bottom: 40px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 100px; height: 100px; border-radius: 50px; margin-bottom: 15px;">
+                        <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
+                    </div>
+
+                    <div style="margin-bottom: 30px;">
+                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Hi ${customerName}!</h2>
+                        <p style="color: #666; line-height: 1.5;">We wanted to let you know that we are already preparing your order from <strong>Discogs</strong>.</p>
+                        <p style="color: #666; line-height: 1.5;">We will send you another email with the tracking number as soon as the package is dispatched.</p>
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Order Summary</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th style="padding-bottom: 10px; width: 60px;"></th>
+                                    <th style="text-align: left; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Item</th>
+                                    <th style="text-align: center; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
+                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
+                        <p>Dybbølsgade 14, 1721 København V, Denmark</p>
+                    </div>
+                </div>
+            `
+        });
+
+        if (error) return { success: false, error };
+        return { success: true, id: data?.id };
+    } catch (error: any) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendDiscogsOrderPreparingEmail:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+export const sendDiscogsShippingNotificationEmail = async (orderData: any, trackingNumber: string) => {
+    try {
+        if (!config.RESEND_API_KEY || config.RESEND_API_KEY === 're_placeholder') {
+            return { success: false, error: 'Resend API Key missing' };
+        }
+
+        const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
+        const customerName = orderData.customerName || 'Customer';
+        const items = orderData.items || [];
+        const itemsHtml = generateOrderItemsHtml(items);
+
+        const { data, error } = await resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [customerEmail],
+            subject: `Your Discogs order is on its way! 🚚 - El Cuartito Records`,
+            html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; background-color: #ffffff;">
+                    <div style="text-align: center; margin-bottom: 40px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 100px; height: 100px; border-radius: 50px; margin-bottom: 15px;">
+                        <h1 style="font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0;">EL CUARTITO RECORDS</h1>
+                    </div>
+
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">Great news, ${customerName}!</h2>
+                        <p style="color: #666; line-height: 1.5;">Your order has been dispatched and is now on its way.</p>
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Tracking Information</h3>
+                        <p style="margin-bottom: 10px; font-size: 18px;">
+                            <strong>Tracking Number:</strong> <br>
+                            <span style="color: #f97316; font-weight: bold; font-size: 24px; display: block; margin: 10px 0;">${trackingNumber}</span>
+                        </p>
+                        ${orderData.tracking_link ? `
+                        <p style="margin-top: 20px;">
+                            <a href="${orderData.tracking_link}" 
+                               style="background: #f97316; color: white; padding: 16px 32px; text-decoration: none; border-radius: 12px; font-weight: 900; display: inline-block; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">
+                               Track My Order 🚚
+                            </a>
+                        </p>
+                        ` : `
+                        <p style="color: #666; font-size: 14px; line-height: 1.5; margin-top: 20px;">
+                            Please track your shipment on the shipping provider's website using the tracking number above.
+                        </p>
+                        `}
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                        <h3 style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #999; margin-bottom: 15px; letter-spacing: 1px;">Order Summary</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr>
+                                    <th style="padding-bottom: 10px; width: 60px;"></th>
+                                    <th style="text-align: left; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Item</th>
+                                    <th style="text-align: center; padding-bottom: 10px; font-size: 11px; color: #999; text-transform: uppercase;">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="text-align: center; padding-top: 40px; border-top: 1px solid #eeeeee; color: #999; font-size: 12px;">
+                        <p>&copy; ${new Date().getFullYear()} El Cuartito Records. All rights reserved.</p>
+                        <p>Dybbølsgade 14, 1721 København V, Denmark</p>
+                    </div>
+                </div>
+            `
+        });
+
+        if (error) return { success: false, error };
+        return { success: true, id: data?.id };
+    } catch (error: any) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendDiscogsShippingNotificationEmail:', error);
         return { success: false, error: error.message };
     }
 };

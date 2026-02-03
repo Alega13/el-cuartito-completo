@@ -127,7 +127,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'DAO Parcel Shop (Pickup)',
                 price: daoPickupPrice,
                 estimatedDays: '2-3',
-                description: 'Recoger en punto DAO cercano'
+                description: 'Pick up at a nearby DAO shop'
             });
 
             // DAO Home Delivery
@@ -139,7 +139,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'DAO Home Delivery',
                 price: daoHomePrice,
                 estimatedDays: '2-3',
-                description: 'Entrega a domicilio con DAO'
+                description: 'Delivered to your door with DAO'
             });
 
             // GLS Pickup
@@ -151,7 +151,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'GLS Parcel Shop (Pickup)',
                 price: glsPickupPrice,
                 estimatedDays: '1-2',
-                description: 'Recoger en punto GLS cercano'
+                description: 'Pick up at a nearby GLS shop'
             });
 
             // GLS Home Delivery
@@ -163,7 +163,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'GLS Home Delivery',
                 price: glsHomePrice,
                 estimatedDays: '1-2',
-                description: 'Entrega a domicilio con GLS'
+                description: 'Delivered to your door with GLS'
             });
 
         } else if (isEU) {
@@ -176,7 +176,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'GLS International (Pickup)',
                 price: euPickupPrice,
                 estimatedDays: '4-6',
-                description: 'Recoger en punto GLS (Europa)'
+                description: 'Pick up at a GLS point (Europe)'
             });
 
             // EU GLS Home Delivery
@@ -188,9 +188,10 @@ export const calculateShipping = async (req: Request, res: Response) => {
                 method: 'GLS International (Home)',
                 price: euHomePrice,
                 estimatedDays: '3-5',
-                description: 'Entrega a domicilio (Europa)'
+                description: 'Delivered to your door (Europe)'
             });
-        } else {
+        }
+        else {
             // Fallback for other countries (Nordics or others not explicitly in EU list)
             // Use old EU standard for now as fallback
             rates.push({

@@ -61,6 +61,9 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         }
         const { items, customerData, shippingMethod } = req.body; // Added shippingMethod
         const db = (0, firebaseAdmin_1.getDb)();
+        console.log('🚀 [START-CHECKOUT] Initiating checkout...');
+        console.log('📦 [START-CHECKOUT] Shipping Method:', JSON.stringify(shippingMethod, null, 2));
+        console.log('👤 [START-CHECKOUT] Customer:', JSON.stringify(customerData, null, 2));
         let itemsTotal = 0;
         const validatedItems = [];
         // Check availability in Firestore
@@ -88,6 +91,9 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         // Calculate shipping cost
         const shippingCost = (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.price) || 0;
         const total = itemsTotal + shippingCost;
+        if (total < 2.50) {
+            return res.status(400).json({ error: `Total amount (${total} DKK) is too low. Minimum for online payment is 2.50 DKK.` });
+        }
         // Generate order number immediately (format: WEB-YYYYMMDD-XXXXX)
         const now = new Date();
         const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
@@ -101,6 +107,7 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             date: dateForAdmin,
             items_total: itemsTotal,
             shipping_cost: shippingCost || 0,
+            shipping_income: shippingCost || 0,
             total_amount: total,
             channel: 'online',
             status: 'PENDING',
@@ -121,40 +128,17 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const paymentIntent = yield stripe.paymentIntents.create({
             amount: Math.round(total * 100),
             currency: 'dkk',
+            receipt_email: customerData === null || customerData === void 0 ? void 0 : customerData.email, // Enable automatic receipt email
             metadata: {
                 saleId: saleRef.id,
                 shipping_method: (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.method) || 'TBD',
-                shipping_cost: shippingCost.toString()
+                shipping_cost: shippingCost.toString(),
+                customer_name: (customerData === null || customerData === void 0 ? void 0 : customerData.name) || (customerData === null || customerData === void 0 ? void 0 : customerData.firstName) || 'Guest'
             },
             automatic_payment_methods: {
                 enabled: true,
             },
         });
-        // IMMEDIATE STOCK REDUCTION for local development 
-        // Webhook won't work on localhost but will work in production
-        console.log('🔄 Reducing stock immediately (local development mode)...');
-        try {
-            for (const item of validatedItems) {
-                yield db.collection('products').doc(item.productId).update({
-                    stock: admin.firestore.FieldValue.increment(-item.quantity),
-                    updated_at: admin.firestore.FieldValue.serverTimestamp()
-                });
-                // Also log inventory movement
-                yield db.collection('inventory_movements').add({
-                    product_id: item.productId,
-                    change: -item.quantity,
-                    reason: 'sale',
-                    channel: 'online',
-                    saleId: saleRef.id,
-                    timestamp: admin.firestore.FieldValue.serverTimestamp()
-                });
-            }
-            console.log('✅ Stock reduced successfully');
-        }
-        catch (stockError) {
-            console.error('❌ Stock reduction error:', stockError);
-            // Don't fail the checkout if stock update fails
-        }
         res.json({
             saleId: saleRef.id,
             itemsTotal,

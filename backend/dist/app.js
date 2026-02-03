@@ -19,10 +19,29 @@ const health_1 = __importDefault(require("./routes/health"));
 const webhookRoutes_1 = require("./routes/webhookRoutes");
 const errorHandler_1 = require("./middlewares/errorHandler");
 const app = (0, express_1.default)();
-app.use((0, cors_1.default)());
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'https://el-cuartito-app.web.app',
+    'https://el-cuartito-admin-records.web.app',
+    'https://elcuartito.dk'
+];
+app.use((0, cors_1.default)({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
 // Webhook endpoint - must use express.raw to preserve signature
 // This must come BEFORE any other body-parser middleware
-app.post('/webhook/stripe', express_1.default.raw({ type: 'application/json' }), webhookRoutes_1.stripeWebhookHandler);
+app.post('/api/webhook/stripe', express_1.default.raw({ type: 'application/json' }), webhookRoutes_1.stripeWebhookHandler);
 app.use(express_1.default.json());
 app.use('/records', recordRoutes_1.default);
 app.use('/sales', saleRoutes_1.default);

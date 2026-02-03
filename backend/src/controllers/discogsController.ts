@@ -255,6 +255,7 @@ export const syncOrders = async (req: Request, res: Response) => {
                     paypalFee: 0,
                     totalFees: 0,
                     shipping: shipping,
+                    shipping_income: shipping, // Map to new field for VAT reporting
                     date: orderDate.toISOString().split('T')[0],
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
                     customerName: order.buyer?.username || 'Discogs Buyer',

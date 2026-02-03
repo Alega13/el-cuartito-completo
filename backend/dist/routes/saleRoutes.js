@@ -43,4 +43,10 @@ router.post('/public/:id/confirm-local', firebaseController.confirmLocalPayment)
 router.post('/', auth_1.isAdmin, firebaseController.createSale);
 router.patch('/:id/fulfillment', auth_1.isAdmin, firebaseController.updateFulfillmentStatus);
 router.patch('/:id/value', auth_1.isAdmin, firebaseController.updateSaleValue);
+router.post('/:id/notify-preparing', auth_1.isAdmin, firebaseController.notifyPreparing);
+router.post('/:id/update-tracking', auth_1.isAdmin, firebaseController.updateTrackingNumber);
+router.post('/:id/notify-shipped', auth_1.isAdmin, firebaseController.notifyShipped);
+router.post('/:id/mark-dispatched', auth_1.isAdmin, firebaseController.markAsDispatched);
+router.post('/:id/notify-pickup-ready', auth_1.isAdmin, firebaseController.notifyReadyForPickup);
+router.post('/:id/mark-picked-up', auth_1.isAdmin, firebaseController.markAsPickedUp);
 exports.default = router;
