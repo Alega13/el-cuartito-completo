@@ -60,6 +60,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage-compat.js"></script>
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyBj0bgdOtb5snSrn3tteblFdVUtA0BpFss",
@@ -242,8 +243,8 @@
                 </button>
                 <button onclick="app.navigate('expenses')" id="nav-d-expenses"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>Gastos</span>
+                    <i class="ph-duotone ph-file-text text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Registro Compras</span>
                 </button>
                 <button onclick="app.navigate('investments')" id="nav-d-investments"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
@@ -275,6 +276,11 @@
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-gear text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Configuración</span>
+                </button>
+                <button onclick="app.navigate('datosLegales')" id="nav-d-datosLegales"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-info text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Datos Legales</span>
                 </button>
             </nav>
 
@@ -319,8 +325,8 @@
         </button>
         <button onclick="app.navigate('expenses')" id="nav-m-expenses"
             class="nav-item-m flex flex-col items-center gap-1 text-slate-400 hover:text-brand-orange transition-colors">
-            <i class="ph-fill ph-receipt text-2xl"></i>
-            <span class="text-[10px] font-bold">Gastos</span>
+            <i class="ph-fill ph-file-text text-2xl"></i>
+            <span class="text-[10px] font-bold">Compras</span>
         </button>
         <!-- More Menu (Consignments, VAT, Backup) -->
         <button onclick="app.toggleMobileMenu()"
@@ -367,6 +373,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-gear text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Config</span>
+            </button>
+            <button onclick="app.navigate('datosLegales'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-info text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Legal</span>
             </button>
         </div>
     </div>

@@ -1,8 +1,16 @@
 import { Router } from 'express';
-import { syncInventory, getSyncStatus, syncOrders, createListing, updateListing, deleteListing, getPriceSuggestions, getReleaseById, getListingById, bulkImport, refreshMetadata } from '../controllers/discogsController';
+import { syncInventory, getSyncStatus, syncOrders, createListing, updateListing, deleteListing, getPriceSuggestions, getReleaseById, getListingById, bulkImport, refreshMetadata, searchRelease, getTracklist } from '../controllers/discogsController';
 
 const router = Router();
 
+// PUBLIC ENDPOINTS (no auth needed - for shop frontend)
+// GET /discogs/search?q=artist+album - Search for a release (proxy to avoid CORS)
+router.get('/search', searchRelease);
+
+// GET /discogs/tracklist/:id - Get tracklist for a release (proxy to avoid CORS)
+router.get('/tracklist/:id', getTracklist);
+
+// PROTECTED ENDPOINTS (for admin panel)
 // POST /discogs/sync - Trigger manual inventory sync
 router.post('/sync', syncInventory);
 

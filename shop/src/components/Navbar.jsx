@@ -21,6 +21,7 @@ const Navbar = ({ setSearchQuery }) => {
 
     // Check if we're in listening room mode
     const isListeningMode = location.pathname === '/listening';
+    const isCollections = location.pathname === '/collections' || location.pathname.startsWith('/collection/');
     const isHome = location.pathname === '/';
 
     useEffect(() => {
@@ -212,7 +213,7 @@ const Navbar = ({ setSearchQuery }) => {
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     layout
-                    className="bg-white/80 backdrop-blur-md px-5 md:px-8 py-3 rounded-full shadow-2xl border border-white/50 flex items-center gap-3 md:gap-6 overflow-hidden max-w-[95vw]"
+                    className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-5 md:px-8 py-3 rounded-full shadow-2xl border flex items-center gap-3 md:gap-6 overflow-hidden max-w-[95vw]`}
                 >
                     <AnimatePresence mode="wait">
                         {isSearchOpen ? (
@@ -228,7 +229,7 @@ const Navbar = ({ setSearchQuery }) => {
                                     ref={inputRef}
                                     type="text"
                                     placeholder="Search artist, album..."
-                                    className="bg-transparent border-none outline-none text-sm font-medium w-full placeholder:text-black/30"
+                                    className={`bg-transparent border-none outline-none text-sm font-medium w-full ${isCollections ? 'placeholder:text-[#ff5e00]/30 text-[#ff5e00]' : 'placeholder:text-black/30 text-black'}`}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                                 <button onClick={handleCloseSearch} className="p-1 hover:bg-black/5 rounded-full transition-colors">
@@ -275,8 +276,8 @@ const Navbar = ({ setSearchQuery }) => {
                                             </span>
                                         )}
                                     </Link>
-                                    <Link to="/catalog" className="hover:opacity-40 transition-opacity">Catalog</Link>
-                                    <Link to="/collections" className="hover:opacity-40 transition-opacity">Collections</Link>
+                                    <Link to="/catalog" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Catalog</Link>
+                                    <Link to="/collections" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Collections</Link>
                                 </motion.div>
 
                                 <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">

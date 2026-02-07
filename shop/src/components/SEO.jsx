@@ -14,7 +14,7 @@ const SEO = ({
 }) => {
     const siteName = 'El Cuartito Records';
     const defaultTitle = 'El Cuartito Records | Curated Vinyl Shop in Copenhagen';
-    const defaultDescription = 'Discover hand-picked vinyl records from Copenhagen. Techno, ambient, electronic & more. Ship worldwide.';
+    const defaultDescription = 'Discover hand-picked vinyl records from Copenhagen. Techno, ambient, electronic & more. Each record is carefully selected and graded.';
     const defaultImage = 'https://elcuartito.dk/og-image.jpg';
     const baseUrl = 'https://elcuartito.dk';
 

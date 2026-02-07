@@ -47,32 +47,70 @@ const ShippingPage = () => {
 
                 <div className="prose prose-sm max-w-none space-y-8">
                     <section>
-                        <h2 className="text-lg font-bold uppercase tracking-tight mb-4">Shipping Rates</h2>
-                        <div className="bg-white border border-black/10 rounded-sm overflow-hidden">
+                        <h2 className="text-lg font-bold uppercase tracking-tight mb-4 text-black">Denmark (Domestic)</h2>
+                        <div className="bg-white border border-black/10 rounded-sm overflow-hidden mb-8">
                             <table className="w-full text-sm">
                                 <thead className="bg-black/5">
                                     <tr>
-                                        <th className="text-left p-4 font-bold uppercase tracking-tight">Destination</th>
-                                        <th className="text-left p-4 font-bold uppercase tracking-tight">1-2 Records</th>
-                                        <th className="text-left p-4 font-bold uppercase tracking-tight">3+ Records</th>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight">Method</th>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight text-center">1 LP</th>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight text-right">Multiple</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-black/5">
                                     <tr>
-                                        <td className="p-4 text-black/70">Denmark</td>
-                                        <td className="p-4 text-black/70">DKK 39</td>
-                                        <td className="p-4 text-black/70">DKK 49</td>
+                                        <td className="p-4 text-black/70 font-semibold">DAO Shop Pickup</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">50 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">55 DKK (2-4)</td>
                                     </tr>
                                     <tr>
-                                        <td className="p-4 text-black/70">EU Countries</td>
-                                        <td className="p-4 text-black/70">DKK 89</td>
-                                        <td className="p-4 text-black/70">DKK 119</td>
+                                        <td className="p-4 text-black/70 font-semibold">DAO Home Delivery</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">60 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">70 DKK (2-4)</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-4 text-black/70 font-semibold">GLS Shop Pickup</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">50 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">70 DKK (2-7)</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-4 text-black/70 font-semibold">GLS Home Delivery</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">80 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">100 DKK (2-7)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h2 className="text-lg font-bold uppercase tracking-tight mb-4 text-black">European Union (International)</h2>
+                        <div className="bg-white border border-black/10 rounded-sm overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead className="bg-black/5">
+                                    <tr>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight">Method</th>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight text-center">1 LP</th>
+                                        <th className="text-left p-4 font-bold uppercase tracking-tight text-right">Multiple (2-7)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-black/5">
+                                    <tr>
+                                        <td className="p-4 text-black/70 font-semibold">GLS International Pickup</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">105 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">130 DKK *</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-4 text-black/70 font-semibold">GLS International Home</td>
+                                        <td className="p-4 text-black/70 text-center font-mono">120 DKK</td>
+                                        <td className="p-4 text-black/70 text-right font-mono">150 DKK</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                         <p className="text-sm text-black/50 mt-3">
-                            * Exact shipping cost will be calculated at checkout based on your location and order size.
+                            * GLS International Pickup to Germany is DKK 130 for 2-7 records. Other EU destinations may vary slightly.
+                        </p>
+                        <p className="text-sm text-black/50 mt-1">
+                            ** Exact shipping cost will be calculated at checkout based on your location and total items.
                         </p>
                         <div className="bg-yellow-50 border border-yellow-200 rounded-sm p-4 mt-4">
                             <p className="text-sm text-yellow-800">

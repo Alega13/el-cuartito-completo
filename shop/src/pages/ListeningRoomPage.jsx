@@ -6,6 +6,7 @@ import { usePlayer } from '../context/PlayerContext';
 import defaultImage from '../assets/default-vinyl.png';
 import SEO from '../components/SEO';
 import SelectionsSidebar from '../components/SelectionsSidebar';
+import listeningRoomLogo from '../assets/listening-room-logo.png';
 import './ListeningRoom.css';
 
 // Sound effect URLs (royalty-free vinyl sounds)
@@ -258,95 +259,56 @@ const ListeningRoomPage = ({ products = [] }) => {
             />
             {/* Page Title - Top Center */}
             <div className="listening-title-block">
-                <h1 className="listening-title-main">The Listening Room</h1>
-                <p className="listening-title-subtitle">INTERACTIVE HIGH-FIDELITY EXPERIENCE</p>
+                <img src={listeningRoomLogo} alt="The Listening Room" className="listening-room-logo" />
             </div>
 
-            {/* Left Panel - Turntable */}
+            {/* Left Panel - Visualizer */}
             <div className="left-panel">
-                {/* Main Turntable */}
-                <div className="turntable-container">
-                    <div className="turntable-plinth">
-                        {/* Start/Stop Button */}
-                        <div className={`technics-start-stop ${isPlaying ? 'playing' : ''}`}>
-                            <div className="start-stop-led" />
-                            <span className="start-stop-label">start / stop</span>
-                        </div>
+                <div className="album-visualizer-container">
+                    {/* Dynamic Ambient Glow */}
+                    <AnimatePresence mode='wait'>
+                        {currentProduct && (
+                            <motion.div
+                                key={`glow-${currentProduct.id}`}
+                                className="ambient-glow"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.5 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 1 }}
+                                style={{
+                                    backgroundImage: `url(${albumCover || defaultImage})`
+                                }}
+                            />
+                        )}
+                    </AnimatePresence>
 
-                        {/* Speed selector buttons */}
-                        <div className="speed-buttons">
-                            <div className="speed-btn active">33</div>
-                            <div className="speed-btn">45</div>
-                        </div>
-
-                        {/* Platter */}
-                        <div className="turntable-top-plate">
-                            <div className="turntable-mat">
-                                <motion.div
-                                    className={`turntable-vinyl ${isVinylSpinning ? 'spinning' : ''}`}
-                                    animate={{
-                                        rotate: isVinylSpinning ? 360 : 0
-                                    }}
-                                    transition={{
-                                        repeat: isVinylSpinning ? Infinity : 0,
-                                        duration: 1.8,
-                                        ease: "linear"
-                                    }}
-                                >
-                                    <div className="vinyl-grooves" />
-                                    <div className="vinyl-label">
-                                        <span className="vinyl-label-text">
-                                            {artistText.substring(0, 15) || 'EL CUARTITO'}
-                                        </span>
-                                        <div className="vinyl-spindle" />
-                                    </div>
-                                </motion.div>
-                            </div>
-                        </div>
-
-                        {/* Tonearm */}
+                    {/* The Rotating Disc (Picture Disc) */}
+                    <div className="visualizer-platter">
                         <motion.div
-                            className={`tonearm-assembly ${isTonearmPlaying ? 'playing' : 'resting'}`}
+                            className={`picture-disc ${isPlaying ? 'spinning' : ''}`}
                             animate={{
-                                rotate: isTonearmPlaying ? -28 : 0
+                                rotate: isPlaying ? 360 : 0
                             }}
                             transition={{
-                                duration: 1,
-                                ease: [0.4, 0, 0.2, 1]
+                                repeat: isPlaying ? Infinity : 0,
+                                duration: 1.8, // 33.3 RPM
+                                ease: "linear"
                             }}
                         >
-                            <div className="tonearm-counterweight" />
-                            <div className="tonearm-base" />
-                            <div className="tonearm-tube" />
-                            <div className="tonearm-headshell">
-                                <motion.div
-                                    className={`tonearm-stylus ${isStylusDropped ? 'dropped' : 'lifted'}`}
-                                    animate={{
-                                        y: isStylusDropped ? 0 : -4
-                                    }}
-                                    transition={{
-                                        duration: 0.5,
-                                        ease: "easeOut"
-                                    }}
-                                />
-                            </div>
+                            <div
+                                className="disc-art"
+                                style={{
+                                    backgroundImage: `url(${albumCover || defaultImage})`
+                                }}
+                            />
+                            {/* Realistic Overlays */}
+                            <div className="disc-vinyl-shimmer" />
+                            <div className="disc-grooves" />
+                            <div className="disc-spindle-hole" />
                         </motion.div>
 
-                        {/* Tonearm Rest */}
-                        <div className="tonearm-rest" />
-
-                        {/* Target Light */}
-                        <div className={`target-light ${isPlaying ? 'on' : ''}`} />
-
-                        {/* Pitch Slider */}
-                        <div className="pitch-slider-container">
-                            <div className="pitch-label">pitch</div>
-                            <div className="pitch-slider-track">
-                                <div className="pitch-slider-knob" />
-                                <div className="pitch-center-mark" />
-                            </div>
-                            <div className="pitch-led-indicator" />
-                        </div>
+                        {/* Shadow and Depth Under the Disc */}
+                        <div className="disc-shadow" />
                     </div>
                 </div>
 

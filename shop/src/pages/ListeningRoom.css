@@ -1,22 +1,22 @@
 /* The Listening Room - Immersive Experience */
 
 :root {
-    /* Core Palette - Minimalist Unification */
-    --room-background: #f8f8f8;
-    --text-main: #000000;
-    --text-muted: rgba(0, 0, 0, 0.6);
-    --text-dim: rgba(0, 0, 0, 0.3);
+    /* Core Palette - Atmospheric Redesign */
+    --room-background: #080808;
+    --text-main: #f0f0f0;
+    /* Off-White */
+    --text-muted: rgba(240, 240, 240, 0.6);
+    --text-dim: rgba(240, 240, 240, 0.3);
 
     /* Site Colors */
     --color-accent: #ea580c;
     --gold-vintage: #ea580c;
-    /* Transitioning gold to site accent for consistency */
 
-    /* Metal Tones - Standardized */
-    --metal-light: #e0e0e0;
-    --metal-mid: #d1d1d1;
-    --metal-dark: #a0a0a0;
-    --metal-shadow: rgba(0, 0, 0, 0.05);
+    /* Metal Tones - Adjusted for dark mode */
+    --metal-light: #444444;
+    --metal-mid: #2a2a2a;
+    --metal-dark: #151515;
+    --metal-shadow: rgba(0, 0, 0, 0.4);
 
     /* Border colors */
     --border-light: rgba(0, 0, 0, 0.08);
@@ -100,16 +100,17 @@
     }
 }
 
-/* Minimalist Noise Texture only */
+/* Analog Film Grain Texture */
 .listening-room::after {
     content: '';
     position: absolute;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    opacity: 0.015;
-    /* Subtle noise for texture */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    /* Slightly more visible for a deep background */
     pointer-events: none;
     z-index: 10;
+    mix-blend-mode: overlay;
 }
 
 /* Remove velvet gradients and spotlights */
@@ -274,31 +275,37 @@
     }
 }
 
+.listening-room-logo {
+    height: 56px;
+    /* Slightly larger on mobile */
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 15px rgba(234, 88, 12, 0.15));
+    /* Subtle orange glow */
+    margin-bottom: 8px;
+}
+
+@media (min-width: 768px) {
+    .listening-room-logo {
+        height: 95px;
+        /* Slightly larger on desktop */
+    }
+}
+
 .listening-title-main {
-    font-size: 28px;
-    font-weight: 300;
-    color: var(--text-main);
-    margin: 0;
-    letter-spacing: -0.02em;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
+    display: none;
+    /* Text title replaced by graphic logo */
 }
 
 @media (min-width: 768px) {
     .listening-title-main {
-        font-size: 48px;
+        font-size: 56px;
     }
 }
 
 .listening-title-subtitle {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6em;
-    color: var(--gold-vintage);
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    opacity: 0.9;
+    display: none;
+    /* Removed as requested */
 }
 
 .controls-row {
@@ -381,8 +388,9 @@
 
 .genre-filter-btn.dropdown {
     padding: 10px 24px;
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    /* Translucent dark mode style */
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     color: var(--text-main);
     font-size: 11px;
@@ -397,7 +405,8 @@
 }
 
 .genre-filter-btn.dropdown:hover {
-    border-color: rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .genre-filter-btn svg {
@@ -412,13 +421,14 @@
     position: absolute;
     top: calc(100% + 8px);
     left: 50%;
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: #151515;
+    /* Darker than background for elevation */
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 4px;
     padding: 8px;
     width: 180px;
     z-index: 100;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
 .genre-option {
@@ -452,8 +462,9 @@
 .discover-grooves-btn {
     margin-top: 20px;
     padding: 14px 40px;
-    background: #000;
-    color: #fff;
+    background: #f0f0f0;
+    /* Off-white in dark mode */
+    color: #000;
     border: none;
     border-radius: 2px;
     font-size: 11px;
@@ -468,8 +479,9 @@
 }
 
 .discover-grooves-btn:hover:not(:disabled) {
-    background: #333;
+    background: #ffffff;
     transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
 }
 
 /* ============================================
@@ -487,128 +499,141 @@
 }
 
 /* ============================================
-   TURNTABLE HERO
+   HIGH-END ALBUM VISUALIZER (PICTURE DISC)
    ============================================ */
 
-.turntable-container {
+.album-visualizer-container {
     position: relative;
     width: 100%;
-    max-width: 450px;
-    aspect-ratio: 1.45;
+    max-width: 500px;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
 }
 
 @media (min-width: 1024px) {
-    .turntable-container {
-        width: min(520px, 45vw);
+    .album-visualizer-container {
+        width: 45vw;
+        max-width: 550px;
     }
 }
 
-/* Main cabinet/plinth - Technics Silver */
-.turntable-plinth {
+/* Dynamic Ambient Glow - Adaptive to Artwork */
+.ambient-glow {
     position: absolute;
-    inset: 0;
-    background: #e5e5e5;
-    /* Cleaner solid metal */
-    border-radius: 4px;
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+    inset: -15%;
+    background-size: cover;
+    background-position: center;
+    filter: blur(80px) saturate(2);
+    opacity: 0.5;
+    z-index: 0;
+    pointer-events: none;
+    border-radius: 50%;
+    transform: scale(0.9);
 }
 
-/* Brushed metal texture */
-.turntable-plinth::before {
-    content: '';
+.visualizer-platter {
+    position: relative;
+    width: 85%;
+    aspect-ratio: 1;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Shadow under the disc to give height */
+.disc-shadow {
+    position: absolute;
+    inset: 5%;
+    background: rgba(0, 0, 0, 0.8);
+    filter: blur(30px);
+    border-radius: 50%;
+    z-index: 4;
+}
+
+/* The Picture Disc */
+.picture-disc {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #111;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 20px 60px rgba(0, 0, 0, 0.9),
+        0 10px 20px rgba(0, 0, 0, 0.5);
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Album Art Background (The Picture Disc Art) */
+.disc-art {
     position: absolute;
     inset: 0;
-    background:
-        repeating-linear-gradient(90deg,
-            transparent 0px,
-            rgba(255, 255, 255, 0.03) 1px,
-            transparent 2px,
-            transparent 4px);
-    border-radius: 6px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 50%;
+}
+
+/* Vinyl Specular Reflection (Shimmer) */
+.disc-vinyl-shimmer {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 270deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.05) 5%,
+            rgba(255, 255, 255, 0.15) 10%,
+            rgba(255, 255, 255, 0.05) 15%,
+            transparent 20%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.05) 55%,
+            rgba(255, 255, 255, 0.15) 60%,
+            rgba(255, 255, 255, 0.05) 65%,
+            transparent 70%,
+            transparent 100%);
+    z-index: 7;
     pointer-events: none;
 }
 
-/* Top plate / platter - Technics style with dotted edge */
-.turntable-top-plate {
+/* Radial Grooves Effect */
+.disc-grooves {
     position: absolute;
-    top: 10%;
-    left: 6%;
-    width: 62%;
+    inset: 0;
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle at 50% 50%,
+            rgba(0, 0, 0, 0.1) 0px,
+            rgba(0, 0, 0, 0.1) 1px,
+            transparent 2px,
+            transparent 3px);
+    opacity: 0.3;
+    z-index: 8;
+    pointer-events: none;
+}
+
+/* Central Spindle Hole (Physical aspect) */
+.disc-spindle-hole {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1.5%;
     aspect-ratio: 1;
-    background: radial-gradient(circle at 50% 50%,
-            #5a5a5a 0%,
-            #6a6a6a 45%,
-            #808080 48%,
-            #6a6a6a 51%,
-            #4a4a4a 100%);
+    background: #000;
     border-radius: 50%;
+    z-index: 9;
     box-shadow:
-        inset 0 2px 6px rgba(255, 255, 255, 0.15),
-        inset 0 -4px 10px rgba(0, 0, 0, 0.4),
-        0 6px 20px rgba(0, 0, 0, 0.5);
+        inset 0 1px 2px rgba(255, 255, 255, 0.2),
+        0 0 5px rgba(0, 0, 0, 1);
 }
 
-/* Dotted edge ring - characteristic of Technics */
-.turntable-top-plate::before {
-    content: '';
-    position: absolute;
-    inset: 2%;
-    border-radius: 50%;
-    background:
-        radial-gradient(circle at 50% 50%, transparent 90%, #555 91%, #555 93%, transparent 94%);
-    background-image:
-        repeating-conic-gradient(from 0deg,
-            #999 0deg 2deg,
-            transparent 2deg 6deg);
-    mask: radial-gradient(circle at center,
-            transparent 87%,
-            black 88%,
-            black 94%,
-            transparent 95%);
-    -webkit-mask: radial-gradient(circle at center,
-            transparent 87%,
-            black 88%,
-            black 94%,
-            transparent 95%);
-}
-
-/* Rubber mat - minimalist grey */
-.turntable-mat {
-    position: absolute;
-    inset: 6.5%;
-    background: #333;
-    border-radius: 50%;
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2);
-}
-
-/* Record/vinyl on platter - appears when track loaded */
-.turntable-vinyl {
-    position: absolute;
-    inset: 4%;
-    background: radial-gradient(circle at 50% 50%,
-            #0a0a0a 0%,
-            #151515 8%,
-            #0a0a0a 8.5%,
-            #0f0f0f 16%,
-            #0a0a0a 16.5%,
-            #0f0f0f 24%,
-            #0a0a0a 24.5%,
-            #0f0f0f 32%,
-            #0a0a0a 32.5%,
-            #0f0f0f 40%,
-            #0a0a0a 40.5%,
-            #0a0a0a 100%);
-    border-radius: 50%;
-    box-shadow:
-        0 0 40px rgba(0, 0, 0, 0.6),
-        inset 0 0 50px rgba(0, 0, 0, 0.9);
-    transition: transform 0.3s ease-out;
-}
-
-.turntable-vinyl.spinning {
+.picture-disc.spinning {
     animation: vinyl-spin 1.8s linear infinite;
 }
 
@@ -622,628 +647,31 @@
     }
 }
 
-/* Vinyl grooves - subtle light reflections */
-.vinyl-grooves {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: repeating-radial-gradient(circle at center,
-            transparent 0px,
-            rgba(255, 255, 255, 0.015) 1px,
-            transparent 2px,
-            transparent 3px);
-}
-
-/* Center label - simpler, smaller */
-.vinyl-label {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 25%;
-    aspect-ratio: 1;
-    background: radial-gradient(circle at 50% 50%,
-            #1a1a1a 0%,
-            #0f0f0f 100%);
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    box-shadow:
-        0 2px 10px rgba(0, 0, 0, 0.5),
-        inset 0 0 15px rgba(0, 0, 0, 0.8);
-}
-
-.vinyl-label-text {
-    font-size: 6px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: rgba(255, 255, 255, 0.4);
-    text-align: center;
-    line-height: 1.3;
-}
-
-/* Central spindle - chrome */
-.vinyl-spindle {
-    width: 10px;
-    height: 10px;
-    background: radial-gradient(circle at 30% 30%,
-            #e0e0e0 0%,
-            #a0a0a0 50%,
-            #707070 100%);
-    border-radius: 50%;
-    margin-top: 3px;
-    box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.5),
-        inset 0 1px 2px rgba(255, 255, 255, 0.4);
-}
-
-/* ============================================
-   TONEARM - Technics S-shaped style
-   ============================================ */
-
-.tonearm-assembly {
-    position: absolute;
-    top: 8%;
-    right: 8%;
-    width: 50%;
-    height: 65%;
-    transform-origin: 88% 12%;
-    transition: transform var(--ritual-arm-swing) cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.tonearm-assembly.resting {
-    transform: rotate(0deg);
-}
-
-.tonearm-assembly.playing {
-    transform: rotate(-30deg);
-}
-
-/* Tonearm rest/cradle */
-.tonearm-rest {
-    position: absolute;
-    top: 55%;
-    right: 0;
-    width: 12px;
-    height: 30px;
-    background: linear-gradient(90deg, #555, #777, #555);
-    border-radius: 3px;
-    box-shadow:
-        inset 0 1px 2px rgba(255, 255, 255, 0.2),
-        0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Arm pivot base - larger, more prominent */
-.tonearm-base {
-    position: absolute;
-    top: 0;
-    right: -5px;
-    width: 50px;
-    height: 50px;
-    background: radial-gradient(circle at 35% 35%,
-            #e8e8e8 0%,
-            #b0b0b0 30%,
-            #808080 60%,
-            #505050 100%);
-    border-radius: 50%;
-    box-shadow:
-        0 6px 16px rgba(0, 0, 0, 0.5),
-        inset 0 3px 0 rgba(255, 255, 255, 0.3),
-        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Inner ring of base */
-.tonearm-base::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 25px;
-    height: 25px;
-    background: radial-gradient(circle at 40% 40%,
-            #909090 0%,
-            #606060 50%,
-            #404040 100%);
-    border-radius: 50%;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
-}
-
-/* Arm tube - curved S-shape effect */
-.tonearm-tube {
-    position: absolute;
-    top: 20px;
-    right: 40px;
-    width: 150px;
-    height: 8px;
-    background: linear-gradient(180deg,
-            #d0d0d0 0%,
-            #a0a0a0 30%,
-            #808080 70%,
-            #606060 100%);
-    border-radius: 4px;
-    transform-origin: right center;
-    box-shadow:
-        0 3px 8px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-/* Curved section before headshell */
-.tonearm-tube::before {
-    content: '';
-    position: absolute;
-    left: -15px;
-    top: -3px;
-    width: 25px;
-    height: 14px;
-    background: linear-gradient(180deg,
-            #d0d0d0 0%,
-            #a0a0a0 50%,
-            #606060 100%);
-    border-radius: 50% 0 0 50%;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
-}
-
-/* Headshell - angled connector */
-.tonearm-headshell {
-    position: absolute;
-    top: 8px;
-    right: 182px;
-    width: 35px;
-    height: 24px;
-    background: linear-gradient(180deg,
-            #888 0%,
-            #666 50%,
-            #444 100%);
-    border-radius: 4px 12px 12px 4px;
-    transform: rotate(-15deg);
-    box-shadow:
-        0 3px 8px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
+/* Legacy Turntable Styles Removed */
 
 /* Finger lift on headshell */
-.tonearm-headshell::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    right: 6px;
-    width: 10px;
-    height: 6px;
-    background: linear-gradient(180deg, #aaa, #666);
-    border-radius: 3px 3px 0 0;
-}
-
-/* Stylus/cartridge - more visible */
-.tonearm-stylus {
-    position: absolute;
-    bottom: -10px;
-    left: 6px;
-    width: 4px;
-    height: 14px;
-    background: linear-gradient(180deg,
-            #505050 0%,
-            #303030 50%,
-            #000 100%);
-    border-radius: 0 0 2px 2px;
-    transition: transform var(--ritual-needle-drop) ease-out;
-}
-
-/* Red LED indicator on cartridge */
-.tonearm-stylus::before {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 2px;
-    height: 2px;
-    background: #ff3333;
-    border-radius: 50%;
-    box-shadow: 0 0 4px #ff3333;
-    opacity: 0.8;
-}
-
-.tonearm-stylus.lifted {
-    transform: translateY(-5px);
-}
-
-.tonearm-stylus.dropped {
-    transform: translateY(0);
-}
-
-/* Counterweight - ridged for adjustment */
-.tonearm-counterweight {
-    position: absolute;
-    top: 12px;
-    right: -20px;
-    width: 35px;
-    height: 35px;
-    background: radial-gradient(circle at 35% 35%,
-            #808080 0%,
-            #505050 50%,
-            #303030 100%);
-    border-radius: 50%;
-    box-shadow:
-        0 3px 8px rgba(0, 0, 0, 0.5),
-        inset 0 2px 0 rgba(255, 255, 255, 0.15),
-        inset 0 -2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Ridges on counterweight */
-.tonearm-counterweight::after {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    border-radius: 50%;
-    background: repeating-conic-gradient(from 0deg,
-            #555 0deg 10deg,
-            #444 10deg 20deg);
-    opacity: 0.5;
-}
-
-/* Tonearm rest */
-.tonearm-rest {
-    position: absolute;
-    top: 60%;
-    right: 4%;
-    width: 14px;
-    height: 35px;
-    background: linear-gradient(90deg, #666, #888, #666);
-    border-radius: 4px;
-    box-shadow:
-        inset 0 2px 3px rgba(255, 255, 255, 0.2),
-        0 3px 6px rgba(0, 0, 0, 0.4);
-}
+/* Legacy tonearm removed */
 
 /* ============================================
    TECHNICS CONTROL PANEL
    ============================================ */
 
-/* Start/Stop Button */
-.technics-start-stop {
-    position: absolute;
-    bottom: 8%;
-    left: 5%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-}
-
-.start-stop-led {
-    width: 8px;
-    height: 8px;
-    background: #330000;
-    border-radius: 50%;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s ease;
-}
-
-.technics-start-stop.playing .start-stop-led {
-    background: #ff0000;
-    box-shadow:
-        0 0 8px #ff0000,
-        0 0 16px rgba(255, 0, 0, 0.5),
-        inset 0 1px 2px rgba(255, 255, 255, 0.3);
-}
-
-.start-stop-label {
-    font-size: 6px;
-    font-weight: 600;
-    text-transform: lowercase;
-    letter-spacing: 0.05em;
-    color: #333;
-}
-
-/* Speed Buttons */
-.speed-buttons {
-    position: absolute;
-    bottom: 8%;
-    left: 18%;
-    display: flex;
-    gap: 8px;
-}
-
-.speed-btn {
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(180deg, #4a4a4a 0%, #2a2a2a 100%);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-    font-weight: 700;
-    color: #888;
-    box-shadow:
-        inset 0 2px 4px rgba(0, 0, 0, 0.4),
-        0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.speed-btn.active {
-    color: #00ff88;
-    text-shadow: 0 0 6px #00ff88;
-}
-
-/* Target Light */
-.target-light {
-    position: absolute;
-    top: 5%;
-    right: 28%;
-    width: 6px;
-    height: 6px;
-    background: #333;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-}
-
-.target-light.on {
-    background: #ffffaa;
-    box-shadow:
-        0 0 10px #ffffaa,
-        0 0 20px rgba(255, 255, 170, 0.5);
-}
-
-/* Pitch Slider */
-.pitch-slider-container {
-    position: absolute;
-    bottom: 5%;
-    right: 5%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-}
-
-.pitch-label {
-    font-size: 6px;
-    font-weight: 600;
-    text-transform: lowercase;
-    letter-spacing: 0.1em;
-    color: #444;
-}
-
-.pitch-slider-track {
-    position: relative;
-    width: 16px;
-    height: 100px;
-    background: linear-gradient(90deg, #2a2a2a, #3a3a3a, #2a2a2a);
-    border-radius: 3px;
-    box-shadow:
-        inset 0 2px 6px rgba(0, 0, 0, 0.5),
-        0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.pitch-slider-knob {
-    position: absolute;
-    top: 45%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 24px;
-    height: 12px;
-    background: linear-gradient(180deg, #808080 0%, #505050 50%, #404040 100%);
-    border-radius: 3px;
-    box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.pitch-center-mark {
-    position: absolute;
-    top: 50%;
-    left: 100%;
-    transform: translateY(-50%);
-    width: 8px;
-    height: 2px;
-    background: #00d4ff;
-    margin-left: 4px;
-    box-shadow: 0 0 4px #00d4ff;
-}
-
-.pitch-led-indicator {
-    width: 6px;
-    height: 6px;
-    background: #003322;
-    border-radius: 50%;
-    box-shadow:
-        inset 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-/* Technics Logo */
-.technics-logo {
-    position: absolute;
-    bottom: 8%;
-    right: 25%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-}
-
-.technics-brand {
-    font-family: 'Arial Black', Arial, sans-serif;
-    font-size: 12px;
-    font-weight: 900;
-    color: #333;
-    letter-spacing: 0.05em;
-}
-
-.technics-quartz {
-    font-family: Arial, sans-serif;
-    font-size: 7px;
-    font-weight: 400;
-    color: #555;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-}
-
-/* ============================================
-   TUBE AMPLIFIER
-   ============================================ */
-
-.tube-amplifier {
-    position: absolute;
-    bottom: 8%;
-    left: 5%;
-    width: 180px;
-    height: 80px;
-    z-index: 8;
-}
-
-.amp-chassis {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(180deg,
-            #2a2a2a 0%,
-            #1a1a1a 50%,
-            #0a0a0a 100%);
-    border-radius: 8px;
-    box-shadow:
-        0 10px 30px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 12px 20px;
-}
-
-.tube {
-    width: 24px;
-    height: 44px;
-    background: linear-gradient(180deg,
-            rgba(255, 180, 100, 0.1) 0%,
-            rgba(255, 107, 53, 0.2) 30%,
-            rgba(255, 80, 30, 0.4) 70%,
-            rgba(255, 60, 20, 0.3) 100%);
-    border-radius: 50% 50% 40% 40% / 30% 30% 50% 50%;
-    box-shadow:
-        0 0 15px var(--tube-glow-soft),
-        0 0 30px rgba(255, 107, 53, 0.2),
-        inset 0 -10px 15px rgba(255, 107, 53, 0.3);
-    animation: tube-glow 2s ease-in-out infinite;
-    animation-delay: calc(var(--tube-index, 0) * 0.3s);
-}
-
-.tube:nth-child(1) {
-    --tube-index: 0;
-}
-
-.tube:nth-child(2) {
-    --tube-index: 1;
-}
-
-.tube:nth-child(3) {
-    --tube-index: 2;
-}
-
-.tube:nth-child(4) {
-    --tube-index: 3;
-}
-
-@keyframes tube-glow {
-
-    0%,
-    100% {
-        box-shadow:
-            0 0 15px var(--tube-glow-soft),
-            0 0 30px rgba(255, 107, 53, 0.2),
-            inset 0 -10px 15px rgba(255, 107, 53, 0.3);
-    }
-
-    50% {
-        box-shadow:
-            0 0 20px var(--tube-glow-soft),
-            0 0 40px rgba(255, 107, 53, 0.25),
-            inset 0 -10px 20px rgba(255, 107, 53, 0.4);
-    }
-}
+/* Legacy controls removed */
 
 /* ============================================
    NOW PLAYING STAND (DIEGETIC UI)
    ============================================ */
 
-.now-playing-stand {
-    position: absolute;
-    right: 8%;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 200px;
-    z-index: 15;
-    opacity: 0;
-    transition: opacity 0.8s ease-out, transform 0.8s ease-out;
-}
-
-.now-playing-stand.visible {
-    opacity: 1;
-}
-
-.album-display {
-    position: relative;
-    width: 160px;
-    aspect-ratio: 1;
-    margin: 0 auto;
-    perspective: 800px;
-}
-
-.album-cover {
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(145deg, #333, #1a1a1a);
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow:
-        0 20px 40px rgba(0, 0, 0, 0.5),
-        0 10px 20px rgba(0, 0, 0, 0.3),
-        -5px 0 15px rgba(0, 0, 0, 0.2);
-    transform: rotateY(-8deg);
-    transition: transform 0.5s ease-out;
-}
-
-.album-cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.album-cover-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
-}
-
-.album-cover-placeholder::after {
-    content: '♪';
-    font-size: 48px;
-    color: rgba(255, 255, 255, 0.1);
-}
-
-/* Display stand base */
-.stand-base {
-    width: 180px;
-    height: 24px;
-    margin: 8px auto 0;
-    background: linear-gradient(180deg,
-            var(--walnut-mid) 0%,
-            var(--walnut-dark) 50%,
-            var(--walnut-shadow) 100%);
-    border-radius: 4px 4px 8px 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
+/* Legacy stand removed */
 
 .random-pick-notes {
     flex: 1.2;
-    background: rgba(0, 0, 0, 0.02);
-    /* Very subtle grey instead of black */
+    background: rgba(255, 255, 255, 0.03);
+    /* Subtle light lift */
     padding: 30px;
     border-radius: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    /* Subtle border for definition */
     text-align: left;
     font-family: 'Inter', sans-serif;
 }
@@ -1625,7 +1053,7 @@
     height: 1px;
     background: var(--border-light);
     /* Green line equivalent */
-    margin: 30px 0;
+    margin: 15px 0;
 }
 
 .random-pick-actions {
@@ -1870,7 +1298,7 @@
     border-radius: 50%;
     background: transparent;
     border: none;
-    color: rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1879,30 +1307,31 @@
 }
 
 .pick-control-btn:hover {
-    color: #000;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .pick-control-btn.play-btn {
     width: 44px;
     height: 44px;
-    background: #000;
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: #fff;
+    color: #000;
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
 }
 
 .pick-control-btn.play-btn:hover {
-    background: #222;
-    transform: scale(1.05);
+    background: #e0e0e0;
+    transform: scale(1.08);
 }
 
 .random-pick-progress .progress-bar {
     height: 2px;
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 1px;
 }
 
 .random-pick-progress .progress-fill {
-    background: #000;
+    background: #fff;
 }
 
 .random-pick-progress .progress-times {
@@ -1993,12 +1422,13 @@
     letter-spacing: 0.2em;
     color: #fff;
     text-decoration: none;
-    margin-top: 24px;
-    padding: 14px 28px;
+    margin-top: 0;
+    padding: 12px 24px;
     transition: all 0.3s cubic-bezier(0.2, 1, 0.3, 1);
-    background: #000;
-    border: none;
-    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    /* More visible in dark mode */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
     cursor: pointer;
     box-shadow: none;
     position: relative;
@@ -2225,16 +1655,19 @@
     justify-content: center;
     gap: 8px;
     padding: 14px 10px;
-    background: #000;
-    color: white;
-    border-radius: 4px 0 0 4px;
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.15);
-    transition: all 0.3s ease;
+    background: rgba(20, 20, 20, 0.8);
+    backdrop-filter: blur(10px);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.2, 1, 0.3, 1);
 }
 
 .selections-trigger-tab:hover {
-    background: #222;
-    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.2);
+    background: rgba(234, 88, 12, 0.9);
+    box-shadow: -5px 0 25px rgba(234, 88, 12, 0.3);
     padding-right: 14px;
 }
 
@@ -2250,18 +1683,18 @@
     right: 0;
     width: 320px;
     height: 100vh;
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(20px);
-    border-left: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(30px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 999;
     display: flex;
     flex-direction: column;
-    box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
+    box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5);
 }
 
 .selections-sidebar-header {
     padding: 80px 24px 24px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .selections-sidebar-title {
@@ -2300,7 +1733,8 @@
     align-items: center;
     gap: 12px;
     padding: 10px;
-    background: rgba(0, 0, 0, 0.02);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.2, 1, 0.3, 1);
@@ -2308,29 +1742,32 @@
 }
 
 .selections-item:hover {
-    background: rgba(234, 88, 12, 0.08);
-    box-shadow: 0 4px 20px rgba(234, 88, 12, 0.15);
+    background: rgba(234, 88, 12, 0.1);
+    border-color: rgba(234, 88, 12, 0.3);
+    transform: translateY(-2px);
 }
 
 .selections-item.active {
-    background: linear-gradient(135deg, rgba(234, 88, 12, 0.1) 0%, rgba(220, 38, 38, 0.08) 100%);
-    border: 1px solid rgba(234, 88, 12, 0.2);
+    background: rgba(234, 88, 12, 0.15);
+    border-color: rgba(234, 88, 12, 0.4);
+    box-shadow: 0 0 20px rgba(234, 88, 12, 0.15);
 }
 
 .selections-item-cover {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 4px;
     overflow: hidden;
     flex-shrink: 0;
     position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .selections-item-cover img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
+    transition: transform 0.5s ease;
 }
 
 .selections-item:hover .selections-item-cover img {
@@ -2340,7 +1777,7 @@
 .selections-item-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(234, 88, 12, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2383,13 +1820,13 @@
 
 .selections-item-remove {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 20px;
-    height: 20px;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.1);
-    border: none;
+    background: #111;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-muted);
     display: flex;
     align-items: center;
@@ -2397,6 +1834,7 @@
     cursor: pointer;
     opacity: 0;
     transition: all 0.2s ease;
+    z-index: 10;
 }
 
 .selections-item:hover .selections-item-remove {
@@ -2406,6 +1844,8 @@
 .selections-item-remove:hover {
     background: #ef4444;
     color: white;
+    border-color: #ef4444;
+    transform: scale(1.1);
 }
 
 /* Mobile responsive */

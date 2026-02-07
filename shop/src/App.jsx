@@ -126,6 +126,7 @@ function App() {
   // Check if pathname starts with /product/
   const isOnProductPage = location.pathname.startsWith('/product/');
   const isListeningPage = location.pathname === '/listening';
+  const isCollections = location.pathname === '/collections';
 
   return (
     <div className="min-h-screen bg-background text-black selection:bg-accent selection:text-white">
@@ -228,8 +229,8 @@ function App() {
         onComplete={() => setShowToast(false)}
       />
 
-      <Footer />
-      <GlobalPlayer />
+      {!isCollections && !isListeningPage && <Footer />}
+      {!isListeningPage && <GlobalPlayer />}
     </div>
   );
 }

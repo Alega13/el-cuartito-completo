@@ -54,32 +54,51 @@ const ProductPage = ({ products = [] }) => {
     // Watch ID changes
 
     useEffect(() => {
-        // Reset tracks when ID changes to avoid showing old tracks momentarily
+        // Find the product fresh each time - this ensures we get the latest data
+        const currentProductData = productId ? products.find(p => p.id === productId || p.id === parseInt(productId)) : null;
+
+        // Get API URL from environment or use default
+        const API_URL = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+
+        // If products haven't loaded yet, wait
+        if (products.length === 0) {
+            setLoadingTracks(true);
+            return;
+        }
+
+        // If product not found after products loaded, stop loading
+        if (!currentProductData) {
+            setLoadingTracks(false);
+            return;
+        }
+
+        // Reset tracks when product changes
         setTracks([]);
         setLoadingTracks(true);
 
         const fetchTracks = async () => {
-            if (!product) return;
-            setLoadingTracks(true);
-
-            const token = "BVpmDeAWjZxLXksEHfHPjAztaNfYoUEsFrRxCLwK";
-
             try {
-                let releaseId = product.discogsId;
+                // First, try to use the discogsId if we have it
+                let releaseId = currentProductData.discogsId || currentProductData.discogs_release_id;
 
+                // If no discogsId, search via our backend proxy (avoids CORS issues)
                 if (!releaseId) {
-                    const searchRes = await fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(product.artist + ' ' + product.album)}&type=release&token=${token}`);
+                    const searchQuery = encodeURIComponent(`${currentProductData.artist} ${currentProductData.album}`);
+                    const searchRes = await fetch(`${API_URL}/discogs/search?q=${searchQuery}`);
                     const searchData = await searchRes.json();
-                    if (searchData.results?.length > 0) {
-                        releaseId = searchData.results[0].id;
+                    if (searchData.success && searchData.releaseId) {
+                        releaseId = searchData.releaseId;
                     }
                 }
 
+                // Fetch tracklist via our backend proxy (avoids CORS issues)
                 if (releaseId) {
-                    const releaseRes = await fetch(`https://api.discogs.com/releases/${releaseId}?token=${token}`);
-                    const releaseData = await releaseRes.json();
-                    setTracks(releaseData.tracklist || []);
-                    setDiscogsVideos(releaseData.videos || []);
+                    const tracklistRes = await fetch(`${API_URL}/discogs/tracklist/${releaseId}`);
+                    const tracklistData = await tracklistRes.json();
+                    if (tracklistData.success) {
+                        setTracks(tracklistData.tracklist || []);
+                        setDiscogsVideos(tracklistData.videos || []);
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching tracks:", error);
@@ -89,7 +108,7 @@ const ProductPage = ({ products = [] }) => {
         };
 
         fetchTracks();
-    }, [product?.id, product?.discogsId]); // Watch product ID specifically
+    }, [productId, products.length]); // Re-run when productId or products array changes
 
     // Recommendations Logic
     const getRecommendations = () => {

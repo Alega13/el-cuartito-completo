@@ -808,3 +808,89 @@ export const getListingById = async (req: Request, res: Response) => {
         });
     }
 };
+
+/**
+ * Search for a release by query string (PUBLIC - for shop frontend to avoid CORS)
+ */
+export const searchRelease = async (req: Request, res: Response) => {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+
+        const { q } = req.query;
+
+        if (!q || typeof q !== 'string') {
+            return res.status(400).json({
+                error: 'Query parameter "q" is required'
+            });
+        }
+
+        const discogsService = new DiscogsService(username, token);
+        const result = await discogsService.searchRelease(q);
+
+        if (result) {
+            res.json({
+                success: true,
+                releaseId: result.id,
+                title: result.title,
+                year: result.year
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'No release found'
+            });
+        }
+    } catch (error: any) {
+        console.error('Search release failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get tracklist and videos for a release (PUBLIC - for shop frontend to avoid CORS)
+ */
+export const getTracklist = async (req: Request, res: Response) => {
+    try {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+
+        if (!username || !token) {
+            return res.status(500).json({
+                error: 'Discogs credentials not configured'
+            });
+        }
+
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({
+                error: 'Release ID is required'
+            });
+        }
+
+        const discogsService = new DiscogsService(username, token);
+        const release = await discogsService.getRelease(parseInt(id));
+
+        res.json({
+            success: true,
+            tracklist: release.tracklist || [],
+            videos: release.videos || []
+        });
+    } catch (error: any) {
+        console.error('Fetch tracklist failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
