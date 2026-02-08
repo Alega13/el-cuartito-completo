@@ -6,6 +6,10 @@ const auth = window.auth;
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const BASE_API_URL = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app';
 
+// OCR.space API configuration for receipt scanning
+// Get free API key at: https://ocr.space/ocrapi
+const OCR_API_KEY = 'K85403890688957'; // Free tier: 500 requests/day
+
 const api = {
     async createSale(saleData) {
         // Store items data for Discogs deletion after transaction
@@ -969,6 +973,22 @@ const app = {
                     </form>
                 </div>
 
+                <!-- Excel Export Section -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-200 mb-6">
+                    <div class="flex items-start gap-4 mb-6">
+                        <div class="w-12 h-12 rounded-full bg-green-50 text-green-500 flex items-center justify-center text-2xl">
+                            <i class="ph-fill ph-file-xls"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-brand-dark">Exportar Inventario a Excel</h3>
+                            <p class="text-sm text-slate-500 mt-1">Genera un archivo Excel con todos los discos, categorías, precios, estado en Discogs, estado en la web y más datos relevantes.</p>
+                        </div>
+                    </div>
+                    <button onclick="app.exportInventoryToExcel()" class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-file-xls"></i> Descargar Excel Completo
+                    </button>
+                </div>
+
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
                     <h3 class="font-bold text-lg text-brand-dark mb-4">Migraciones de Datos</h3>
                     <div class="space-y-4">
@@ -1132,6 +1152,87 @@ const app = {
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
+    },
+
+    exportInventoryToExcel() {
+        this.showToast('⏳ Generando Excel...', 'info');
+
+        try {
+            // Prepare data for Excel
+            const excelData = this.state.inventory.map(item => {
+                // Collect all genres
+                const genres = [item.genre, item.genre2, item.genre3, item.genre4, item.genre5]
+                    .filter(Boolean)
+                    .join(', ');
+
+                return {
+                    'SKU': item.sku || '',
+                    'Artista': item.artist || '',
+                    'Álbum': item.album || '',
+                    'Sello': item.label || '',
+                    'Año': item.year || '',
+                    'Géneros': genres,
+                    'Condición Vinilo': item.status || '',
+                    'Condición Cover': item.sleeveCondition || '',
+                    'Condición Producto': item.product_condition || 'Second-hand',
+                    'Precio (DKK)': item.price || 0,
+                    'Costo (DKK)': item.cost || 0,
+                    'Stock': item.stock || 0,
+                    'En Web': item.is_online ? 'Sí' : 'No',
+                    'En Discogs': item.discogs_listing_id ? 'Sí' : 'No',
+                    'Discogs Listing ID': item.discogs_listing_id || '',
+                    'Discogs Release ID': item.discogs_release_id || item.discogsId || '',
+                    'Consignatario': item.consignor || '',
+                    'Ubicación': item.location || '',
+                    'Notas': item.notes || '',
+                    'Fecha Creación': item.createdAt ? new Date(item.createdAt).toLocaleDateString('es-ES') : '',
+                    'URL Imagen': item.imageUrl || ''
+                };
+            });
+
+            // Create workbook and worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(excelData);
+
+            // Set column widths for better readability
+            ws['!cols'] = [
+                { wch: 12 },  // SKU
+                { wch: 25 },  // Artista
+                { wch: 30 },  // Álbum
+                { wch: 20 },  // Sello
+                { wch: 6 },   // Año
+                { wch: 30 },  // Géneros
+                { wch: 12 },  // Condición Vinilo
+                { wch: 12 },  // Condición Cover
+                { wch: 15 },  // Condición Producto
+                { wch: 10 },  // Precio
+                { wch: 10 },  // Costo
+                { wch: 6 },   // Stock
+                { wch: 8 },   // En Web
+                { wch: 10 },  // En Discogs
+                { wch: 15 },  // Discogs Listing ID
+                { wch: 15 },  // Discogs Release ID
+                { wch: 15 },  // Consignatario
+                { wch: 12 },  // Ubicación
+                { wch: 30 },  // Notas
+                { wch: 12 },  // Fecha Creación
+                { wch: 40 }   // URL Imagen
+            ];
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+
+            // Generate filename with date
+            const filename = `ElCuartito_Inventario_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+            // Download the file
+            XLSX.writeFile(wb, filename);
+
+            this.showToast(`✅ Excel exportado: ${this.state.inventory.length} discos`);
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            this.showToast('❌ Error al exportar: ' + error.message, 'error');
+        }
     },
 
     importData(input) {
@@ -6216,7 +6317,7 @@ const app = {
                                             <th class="p-4">Categoría</th>
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-right">IVA</th>
-                                            <th class="p-4 text-center">📎</th>
+                                            <th class="p-4 text-center">Estado</th>
                                             <th class="p-4 w-20"></th>
                                         </tr>
                                     </thead>
@@ -6249,12 +6350,33 @@ const app = {
                                                 </td>
                                                 <td class="p-4 text-center">
                                                     ${e.receiptUrl ? `
-                                                        <a href="${e.receiptUrl}" target="_blank" 
-                                                            class="text-brand-orange hover:text-orange-600 transition-colors" 
-                                                            title="Ver factura">
-                                                            <i class="ph-fill ph-file-text text-lg"></i>
-                                                        </a>
-                                                    ` : '<span class="text-slate-300">-</span>'}
+                                                        <div class="relative inline-block group/preview">
+                                                            <a href="${e.receiptUrl}" target="_blank" 
+                                                                class="inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors" 
+                                                                title="Comprobante respaldado ✓">
+                                                                <i class="ph-fill ph-paperclip text-lg"></i>
+                                                                <i class="ph-fill ph-check-circle text-xs"></i>
+                                                            </a>
+                                                            <!-- Hover Preview Tooltip -->
+                                                            <div class="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/preview:opacity-100 group-hover/preview:visible transition-all duration-200 pointer-events-none">
+                                                                <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-2 w-48">
+                                                                    <img src="${e.receiptUrl}" alt="Preview" class="w-full h-32 object-cover rounded-lg mb-1" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                                    <div class="hidden items-center justify-center h-32 bg-slate-100 rounded-lg">
+                                                                        <i class="ph-duotone ph-file-pdf text-4xl text-red-500"></i>
+                                                                    </div>
+                                                                    <p class="text-[10px] text-slate-500 text-center font-medium">
+                                                                        <i class="ph-bold ph-eye"></i> Click para abrir
+                                                                    </p>
+                                                                </div>
+                                                                <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white -mt-px"></div>
+                                                            </div>
+                                                        </div>
+                                                    ` : `
+                                                        <span class="inline-flex items-center gap-1 text-red-500" title="⚠️ Sin comprobante - Peligro fiscal">
+                                                            <i class="ph-fill ph-paperclip text-lg"></i>
+                                                            <i class="ph-fill ph-warning text-xs"></i>
+                                                        </span>
+                                                    `}
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -6285,14 +6407,29 @@ const app = {
 
                             <!-- Summary -->
                             ${filteredExpenses.length > 0 ? `
-                                <div class="p-4 bg-slate-50 border-t border-orange-100 flex justify-between items-center">
-                                    <span class="text-xs text-slate-500">${filteredExpenses.length} registro(s)</span>
-                                    <div class="text-right">
-                                        <p class="text-xs text-slate-500">Total IVA Recuperable</p>
-                                        <p class="text-lg font-bold text-green-600">
-                                            ${this.formatCurrency(filteredExpenses.reduce((sum, e) => sum + (e.monto_iva || 0), 0))}
-                                        </p>
+                                <div class="p-4 bg-slate-50 border-t border-orange-100">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <div class="flex items-center gap-4">
+                                            <span class="text-xs text-slate-500">${filteredExpenses.length} registro(s)</span>
+                                            <span class="text-xs text-slate-400">|</span>
+                                            <span class="text-xs ${filteredExpenses.filter(e => e.receiptUrl).length === filteredExpenses.length ? 'text-green-600' : 'text-red-500'}">
+                                                <i class="ph-fill ph-paperclip"></i>
+                                                ${filteredExpenses.filter(e => e.receiptUrl).length}/${filteredExpenses.length} respaldados
+                                            </span>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xs text-slate-500">Total IVA Recuperable</p>
+                                            <p class="text-lg font-bold text-green-600">
+                                                ${this.formatCurrency(filteredExpenses.reduce((sum, e) => sum + (e.monto_iva || 0), 0))}
+                                            </p>
+                                        </div>
                                     </div>
+                                    <!-- Export Button -->
+                                    <button onclick="app.downloadReceiptsZip()" 
+                                        class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
+                                        <i class="ph-bold ph-file-zip"></i>
+                                        Descargar Comprobantes del Mes (ZIP)
+                                    </button>
                                 </div>
                             ` : ''}
                         </div>
@@ -6433,13 +6570,146 @@ const app = {
     },
 
     deleteExpense(id) {
-        if (!confirm('¿Eliminar esta compra?')) return;
+        const expense = this.state.expenses.find(e => e.id === id);
+
+        // Check if expense has a receipt attached - require double confirmation
+        if (expense?.receiptUrl) {
+            // First confirmation
+            if (!confirm('⚠️ ATENCIÓN: Este gasto tiene un recibo adjunto.\n\n¿Estás seguro de que quieres eliminarlo?')) {
+                return;
+            }
+
+            // Second confirmation with legal warning
+            if (!confirm('🔒 CONFIRMACIÓN LEGAL REQUERIDA\n\n' +
+                'La ley exige guardar documentos contables durante 5 AÑOS.\n\n' +
+                'Fecha del gasto: ' + (expense.fecha_factura || expense.date || 'Desconocida') + '\n' +
+                'Proveedor: ' + (expense.proveedor || 'Sin nombre') + '\n' +
+                'Monto: ' + this.formatCurrency(expense.monto_total || expense.amount || 0) + '\n\n' +
+                '¿CONFIRMAS que deseas eliminar permanentemente este registro y su recibo?')) {
+                this.showToast('ℹ️ Eliminación cancelada');
+                return;
+            }
+        } else {
+            // Single confirmation for expenses without receipt
+            if (!confirm('¿Eliminar esta compra?')) return;
+        }
+
         db.collection('expenses').doc(id).delete()
             .then(() => {
                 this.showToast('✅ Compra eliminada');
                 this.loadData();
             })
             .catch(err => console.error(err));
+    },
+
+    // Download all receipts from current month as ZIP
+    async downloadReceiptsZip() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+
+        // Filter expenses for current month that have receipts
+        const monthExpenses = this.state.expenses.filter(e => {
+            const expenseDate = new Date(e.fecha_factura || e.date);
+            return expenseDate.getFullYear() === currentYear &&
+                expenseDate.getMonth() === currentMonth &&
+                e.receiptUrl;
+        });
+
+        if (monthExpenses.length === 0) {
+            this.showToast('ℹ️ No hay comprobantes con recibo este mes');
+            return;
+        }
+
+        // Show progress
+        this.showToast(`📦 Preparando ZIP con ${monthExpenses.length} comprobantes...`);
+
+        try {
+            const zip = new JSZip();
+            const monthNames = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+            ];
+            const folderName = `Comprobantes_${currentYear}_${String(currentMonth + 1).padStart(2, '0')}_${monthNames[currentMonth]}`;
+            const folder = zip.folder(folderName);
+
+            // Create index/summary file
+            let indexContent = `RESUMEN DE COMPROBANTES - ${monthNames[currentMonth]} ${currentYear}\n`;
+            indexContent += `${'='.repeat(50)}\n\n`;
+            indexContent += `Generado: ${now.toLocaleString('es-ES')}\n`;
+            indexContent += `Total comprobantes: ${monthExpenses.length}\n`;
+            indexContent += `Total gastos: ${this.formatCurrency(monthExpenses.reduce((sum, e) => sum + (e.monto_total || e.amount || 0), 0))}\n`;
+            indexContent += `Total IVA: ${this.formatCurrency(monthExpenses.reduce((sum, e) => sum + (e.monto_iva || 0), 0))}\n\n`;
+            indexContent += `${'='.repeat(50)}\n\n`;
+            indexContent += `DETALLE:\n\n`;
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (let i = 0; i < monthExpenses.length; i++) {
+                const expense = monthExpenses[i];
+                const expenseDate = new Date(expense.fecha_factura || expense.date);
+                const dateStr = expenseDate.toISOString().split('T')[0];
+
+                // Sanitize provider name
+                const proveedor = (expense.proveedor || 'SinNombre')
+                    .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '')
+                    .replace(/\s+/g, '-')
+                    .substring(0, 20)
+                    .trim();
+
+                const monto = Math.round(expense.monto_total || expense.amount || 0);
+
+                // Try to determine file extension from URL
+                let ext = 'jpg';
+                if (expense.receiptUrl.includes('.pdf')) ext = 'pdf';
+                else if (expense.receiptUrl.includes('.png')) ext = 'png';
+
+                const filename = `${String(i + 1).padStart(3, '0')}_${dateStr}_${proveedor}_${monto}DKK.${ext}`;
+
+                try {
+                    // Fetch the file
+                    const response = await fetch(expense.receiptUrl);
+                    if (!response.ok) throw new Error('Fetch failed');
+                    const blob = await response.blob();
+                    folder.file(filename, blob);
+                    successCount++;
+
+                    // Add to index
+                    indexContent += `${String(i + 1).padStart(3, '0')}. ${dateStr} | ${proveedor}\n`;
+                    indexContent += `    Total: ${this.formatCurrency(expense.monto_total || expense.amount || 0)} | IVA: ${this.formatCurrency(expense.monto_iva || 0)}\n`;
+                    indexContent += `    Archivo: ${filename}\n\n`;
+
+                } catch (err) {
+                    console.warn(`Could not fetch receipt for ${expense.proveedor}:`, err);
+                    errorCount++;
+                    indexContent += `${String(i + 1).padStart(3, '0')}. ${dateStr} | ${proveedor} - ⚠️ ERROR: No se pudo descargar\n\n`;
+                }
+            }
+
+            // Add index file
+            folder.file('_INDICE.txt', indexContent);
+
+            // Generate and download ZIP
+            const content = await zip.generateAsync({
+                type: 'blob',
+                compression: 'DEFLATE',
+                compressionOptions: { level: 6 }
+            });
+
+            const zipFilename = `${folderName}.zip`;
+            saveAs(content, zipFilename);
+
+            if (errorCount > 0) {
+                this.showToast(`⚠️ ZIP generado: ${successCount} OK, ${errorCount} con error`);
+            } else {
+                this.showToast(`✅ ZIP descargado: ${successCount} comprobantes`);
+            }
+
+        } catch (error) {
+            console.error('ZIP generation error:', error);
+            this.showToast('❌ Error al generar ZIP');
+        }
     },
 
     // File upload handlers for expense receipts
@@ -6457,27 +6727,39 @@ const app = {
         placeholder.innerHTML = '<i class="ph-duotone ph-spinner text-4xl text-brand-orange animate-spin mb-2"></i><p class="text-sm text-slate-500">Subiendo...</p>';
 
         try {
-            // Create storage reference
-            const storageRef = firebase.storage().ref();
-            const fileRef = storageRef.child(`receipts / ${Date.now()}_${file.name} `);
+            // Store original file temporarily for OCR
+            this._pendingReceiptFile = file;
+            this._pendingReceiptOriginalName = file.name;
 
-            // Upload file
+            // Get file extension
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            // Generate structured filename and path
+            const { structuredPath, structuredFilename } = this.generateReceiptPath(ext);
+
+            // Create storage reference with structured path
+            const storageRef = firebase.storage().ref();
+            const fileRef = storageRef.child(structuredPath);
+
+            // Upload file directly to Firebase Storage
             await fileRef.put(file);
             const url = await fileRef.getDownloadURL();
 
-            // Update hidden input
+            // Update hidden inputs
             receiptUrl.value = url;
+
+            // Store structured path for later update
+            document.getElementById('receipt-url').dataset.structuredPath = structuredPath;
+            document.getElementById('receipt-url').dataset.structuredFilename = structuredFilename;
 
             // Show preview
             if (file.type.startsWith('image/')) {
-                previewImg.src = url;
+                previewImg.src = URL.createObjectURL(file);
                 previewImg.classList.remove('hidden');
             } else if (file.type === 'application/pdf') {
-                // For PDFs, show a PDF icon and hide image
                 previewImg.src = '';
                 previewImg.classList.add('hidden');
 
-                // If a PDF icon was already added, remove it first
                 const existingIcon = previewImg.parentNode.querySelector('.ph-file-pdf');
                 if (existingIcon) existingIcon.remove();
 
@@ -6486,32 +6768,336 @@ const app = {
                 previewImg.parentNode.insertBefore(pdfIcon, previewImg);
             }
 
-            filename.textContent = file.name;
+            filename.textContent = structuredFilename;
             placeholder.classList.add('hidden');
             preview.classList.remove('hidden');
 
             // Restore placeholder content for future use
             placeholder.innerHTML = `
-    < i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2" ></i >
+                <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
                 <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">
                     Subir Factura/Recibo
                 </p>
                 <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
-`;
+            `;
 
-            this.showToast('✅ Archivo subido');
+            this.showToast('✅ Archivo subido - procesando OCR...');
+
+            // Process OCR after upload (Background process - NO AWAIT)
+            this.processReceiptOCR(url);
+
         } catch (error) {
-            console.error('Upload error:', error);
-            // Restore placeholder on error
+            console.error('Upload error details:', error);
+            // Show explicit error to help debugging
+            alert('Error al subir: ' + error.message);
+
             placeholder.innerHTML = `
-    < i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2" ></i >
+                <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
                 <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">
                     Subir Factura/Recibo
                 </p>
                 <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
-`;
-            this.showToast('❌ Error al subir archivo');
+            `;
+            this.showToast('❌ Error: ' + error.message);
         }
+    },
+
+    // Generate structured path for receipt files
+    // Format: receipts/YYYY-MM-DD_Proveedor_Monto_ID.ext
+    generateReceiptPath(ext) {
+        try {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+
+            // Get form values if available (for better naming)
+            const proveedor = document.getElementById('expense-proveedor')?.value || 'Proveedor';
+            const monto = document.getElementById('expense-monto')?.value || '0';
+
+            // Sanitize provider name (remove special chars, limit length)
+            const sanitizedProveedor = proveedor
+                .replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g, '')
+                .replace(/\s+/g, '-')
+                .substring(0, 20)
+                .trim() || 'Proveedor';
+
+            // Format amount
+            const formattedMonto = Math.round(parseFloat(monto) || 0) + 'dkk';
+
+            // Generate unique ID (5 chars)
+            const uniqueId = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+            // Build filename: YYYY-MM-DD_Proveedor_Monto_ID.ext
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const structuredFilename = `${dateStr}_${sanitizedProveedor}_${formattedMonto}_${uniqueId}.${ext}`;
+
+            // We use 'receipts/' as root to ensure we have permission, but keep structured name
+            const structuredPath = `receipts/${structuredFilename}`;
+
+            console.log('📁 Structured Receipt Path:', structuredPath);
+
+            return { structuredPath, structuredFilename };
+        } catch (err) {
+            console.error('Error in generateReceiptPath:', err);
+            // Fallback to simple unique name if anything fails
+            const fallbackName = `receipt_${Date.now()}.${ext}`;
+            return { structuredPath: `receipts/${fallbackName}`, structuredFilename: fallbackName };
+        }
+    },
+
+    // OCR Processing for receipts
+    async processReceiptOCR(fileUrl) {
+        try {
+            // Show OCR processing indicator
+            const formTitle = document.getElementById('expense-form-title');
+            const originalTitle = formTitle.innerHTML;
+            formTitle.innerHTML = '<i class="ph-duotone ph-scan text-brand-orange animate-pulse"></i> Escaneando recibo...';
+
+            // Prepare form data for OCR.space API
+            const formData = new FormData();
+            formData.append('url', fileUrl);
+            formData.append('language', 'dan'); // Danish
+            formData.append('isOverlayRequired', 'false');
+            formData.append('OCREngine', '2'); // Engine 2 is better for receipts
+            formData.append('scale', 'true');
+            formData.append('isTable', 'false'); // Changed to false as it sometimes causes issues with simple receipts
+
+            // Call OCR.space API
+            const response = await fetch('https://api.ocr.space/parse/image', {
+                method: 'POST',
+                headers: {
+                    'apikey': OCR_API_KEY
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.IsErroredOnProcessing) {
+                throw new Error(result.ErrorMessage || 'OCR processing failed');
+            }
+
+            // Extract text from result
+            const extractedText = result.ParsedResults?.[0]?.ParsedText || '';
+            console.log('OCR Raw Text:', extractedText);
+
+            // Parse extracted data
+            const extractedData = this.parseReceiptText(extractedText);
+
+            // Auto-fill form with extracted data
+            this.autoFillExpenseForm(extractedData);
+
+            // Restore title with success indicator
+            formTitle.innerHTML = '<i class="ph-duotone ph-check-circle text-green-500"></i> Datos extraídos - verifica';
+
+            // Show appropriate toast based on extraction success
+            const fieldsFound = Object.values(extractedData).filter(v => v).length;
+            if (fieldsFound >= 3) {
+                this.showToast('✨ Datos extraídos correctamente');
+            } else if (fieldsFound > 0) {
+                this.showToast('⚠️ Algunos datos extraídos - completa manualmente');
+            } else {
+                this.showToast('ℹ️ No se detectaron datos - ingresa manualmente');
+                formTitle.innerHTML = originalTitle;
+            }
+
+        } catch (error) {
+            console.error('OCR Error:', error);
+            this.showToast('⚠️ OCR no disponible - ingresa datos manualmente');
+            // Restore original title
+            const formTitle = document.getElementById('expense-form-title');
+            formTitle.innerHTML = '<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra';
+        }
+    },
+
+    // Convert file to base64 for OCR API
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    },
+
+    // Parse text extracted from receipt to find key data
+    parseReceiptText(text) {
+        const data = {
+            fecha: null,
+            proveedor: null,
+            monto_total: null,
+            monto_iva: null
+        };
+
+        // Normalize text
+        const normalizedText = text.replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+
+        // Extract Date - multiple formats
+        const datePatterns = [
+            /(\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4})/,           // DD/MM/YYYY or DD-MM-YYYY
+            /(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})/,             // YYYY-MM-DD
+            /(\d{1,2}\.\s?\w+\.?\s?\d{2,4})/i                   // DD. Month YYYY
+        ];
+
+        for (const pattern of datePatterns) {
+            const match = normalizedText.match(pattern);
+            if (match) {
+                data.fecha = this.normalizeDate(match[1]);
+                break;
+            }
+        }
+
+        // Extract Total Amount - Danish and international formats
+        const totalPatterns = [
+            /(?:i\s*alt|total|sum|totalt|att\s*betala)[:\s]*(\d+[.,]\d{2})/i,
+            /(?:total|sum)[:\s]*(?:kr\.?|dkk)?\s*(\d+[.,]\d{2})/i,
+            /(\d+[.,]\d{2})\s*(?:dkk|kr)/i
+        ];
+
+        for (const pattern of totalPatterns) {
+            const match = normalizedText.match(pattern);
+            if (match) {
+                data.monto_total = parseFloat(match[1].replace(',', '.'));
+                break;
+            }
+        }
+
+        // Extract VAT/Moms - Danish tax (25%)
+        const vatPatterns = [
+            /(?:moms|25%|heraf\s*moms)[:\s]*(\d+[.,]\d{2})/i,
+            /(?:vat|iva|tax)[:\s]*(\d+[.,]\d{2})/i,
+            /moms\s*(?:kr\.?|dkk)?\s*(\d+[.,]\d{2})/i
+        ];
+
+        for (const pattern of vatPatterns) {
+            const match = normalizedText.match(pattern);
+            if (match) {
+                data.monto_iva = parseFloat(match[1].replace(',', '.'));
+                break;
+            }
+        }
+
+        // If total found but no VAT, calculate 25% Danish VAT
+        if (data.monto_total && !data.monto_iva) {
+            // Calculate VAT as 25% of net (total = net + 25% of net)
+            // So VAT = total * 0.2 (since total = net * 1.25)
+            data.monto_iva = Math.round((data.monto_total * 0.2) * 100) / 100;
+        }
+
+        // Extract Provider name - usually first meaningful line
+        // Skip common receipt headers
+        const skipWords = ['kvittering', 'receipt', 'bon', 'faktura', 'invoice', 'kopi', 'copy'];
+        for (const line of lines.slice(0, 5)) {
+            const cleanLine = line.trim();
+            if (cleanLine.length > 2 &&
+                cleanLine.length < 50 &&
+                !skipWords.some(w => cleanLine.toLowerCase().includes(w)) &&
+                !/^\d+$/.test(cleanLine) &&
+                !/^[\d\s\-\/\.]+$/.test(cleanLine)) {
+                data.proveedor = cleanLine;
+                break;
+            }
+        }
+
+        // Alternative: Look for CVR number line and get company name before/after
+        const cvrMatch = normalizedText.match(/(?:cvr|org\.?\s*nr)[:\s]*(\d{8})/i);
+        if (cvrMatch && lines.length > 0) {
+            const cvrLineIndex = lines.findIndex(l => l.includes(cvrMatch[0]));
+            if (cvrLineIndex > 0 && !data.proveedor) {
+                data.proveedor = lines[cvrLineIndex - 1];
+            }
+        }
+
+        console.log('Parsed Receipt Data:', data);
+        return data;
+    },
+
+    // Normalize various date formats to YYYY-MM-DD
+    normalizeDate(dateStr) {
+        try {
+            // Clean the string
+            const cleaned = dateStr.replace(/\s/g, '').replace(/[\.\/]/g, '-');
+            const parts = cleaned.split('-');
+
+            if (parts.length >= 3) {
+                let day, month, year;
+
+                // Check if first part looks like a year (4 digits)
+                if (parts[0].length === 4) {
+                    // YYYY-MM-DD format
+                    [year, month, day] = parts;
+                } else {
+                    // DD-MM-YYYY format
+                    [day, month, year] = parts;
+                    // Handle 2-digit years
+                    if (year.length === 2) {
+                        year = '20' + year;
+                    }
+                }
+
+                // Pad with zeros if needed
+                day = day.padStart(2, '0');
+                month = month.padStart(2, '0');
+
+                return `${year}-${month}-${day}`;
+            }
+        } catch (e) {
+            console.warn('Date normalization failed:', dateStr);
+        }
+        return null;
+    },
+
+    // Auto-fill expense form with extracted data
+    autoFillExpenseForm(data) {
+        // Fill date
+        if (data.fecha) {
+            const fechaInput = document.getElementById('expense-fecha');
+            if (fechaInput) {
+                fechaInput.value = data.fecha;
+                this.highlightAutoFilled(fechaInput);
+            }
+        }
+
+        // Fill provider
+        if (data.proveedor) {
+            const proveedorInput = document.getElementById('expense-proveedor');
+            if (proveedorInput) {
+                proveedorInput.value = data.proveedor;
+                this.highlightAutoFilled(proveedorInput);
+            }
+        }
+
+        // Fill total amount
+        if (data.monto_total) {
+            const montoInput = document.getElementById('expense-monto');
+            if (montoInput) {
+                montoInput.value = data.monto_total.toFixed(2);
+                this.highlightAutoFilled(montoInput);
+            }
+        }
+
+        // Fill VAT
+        if (data.monto_iva) {
+            const ivaInput = document.getElementById('expense-iva');
+            if (ivaInput && !ivaInput.disabled) {
+                ivaInput.value = data.monto_iva.toFixed(2);
+                this.highlightAutoFilled(ivaInput);
+            }
+        }
+    },
+
+    // Visual feedback for auto-filled fields
+    highlightAutoFilled(input) {
+        input.classList.add('ring-2', 'ring-green-400', 'bg-green-50');
+        // Remove highlight after 5 seconds or on focus
+        const removeHighlight = () => {
+            input.classList.remove('ring-2', 'ring-green-400', 'bg-green-50');
+            input.removeEventListener('focus', removeHighlight);
+        };
+        input.addEventListener('focus', removeHighlight);
+        setTimeout(removeHighlight, 5000);
     },
 
     clearReceiptUpload() {
@@ -7664,8 +8250,30 @@ const app = {
     },
 
     // ====== VAT REPORT MODULE ======
-    async deleteExpense(id) {
-        if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
+    async deleteExpenseVAT(id) {
+        const expense = this.state.expenses.find(e => e.id === id);
+
+        // Check if expense has a receipt attached - require double confirmation
+        if (expense?.receiptUrl) {
+            // First confirmation
+            if (!confirm('⚠️ ATENCIÓN: Este gasto tiene un recibo adjunto.\n\n¿Estás seguro de que quieres eliminarlo?')) {
+                return;
+            }
+
+            // Second confirmation with legal warning
+            if (!confirm('🔒 CONFIRMACIÓN LEGAL REQUERIDA\n\n' +
+                'La ley exige guardar documentos contables durante 5 AÑOS.\n\n' +
+                'Fecha del gasto: ' + (expense.fecha_factura || expense.date || 'Desconocida') + '\n' +
+                'Proveedor: ' + (expense.proveedor || 'Sin nombre') + '\n' +
+                'Monto: ' + this.formatCurrency(expense.monto_total || expense.amount || 0) + '\n\n' +
+                '¿CONFIRMAS que deseas eliminar permanentemente este registro y su recibo?')) {
+                this.showToast('ℹ️ Eliminación cancelada');
+                return;
+            }
+        } else {
+            // Single confirmation for expenses without receipt
+            if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
+        }
 
         try {
             await db.collection('expenses').doc(id).delete();

@@ -13,6 +13,7 @@ export const getDb = () => {
                 clientEmail: config.FIREBASE_CLIENT_EMAIL,
                 privateKey: config.FIREBASE_PRIVATE_KEY,
             }),
+            storageBucket: 'el-cuartito-app.firebasestorage.app',
         });
         db = admin.firestore();
         console.log("🔥 Firebase Admin initialized successfully");
