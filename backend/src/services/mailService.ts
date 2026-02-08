@@ -9,7 +9,7 @@ const generateOrderItemsHtml = (items: any[]) => {
     return items.map((item: any) => `
         <tr>
             <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
-                <img src="${item.image || item.cover_image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+                <img src="${item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
             </td>
             <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
                 <div style="font-weight: bold; color: #333;">${item.album}</div>
@@ -62,7 +62,7 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
             return `
             <tr>
                 <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
-                    <img src="${item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+                    <img src="${item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
                 </td>
                 <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
                     <div style="font-weight: bold; color: #333;">${item.album}</div>
@@ -86,7 +86,7 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
             return `
             <tr>
                 <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
-                    <img src="${item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+                    <img src="${item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
                 </td>
                 <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
                     <div style="font-weight: bold; color: #333;">${item.album}</div>
