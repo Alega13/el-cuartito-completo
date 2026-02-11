@@ -466,6 +466,9 @@ const app = {
             // Load investments
             await this.loadInvestments();
 
+            // Initialize/Update Fuse.js for fuzzy search
+            this.initFuse();
+
             this.refreshCurrentView();
         } catch (error) {
             console.error("Failed to load data:", error);
@@ -2734,18 +2737,28 @@ const app = {
         const selectedMonths = this.state.filterMonths;
         const paymentFilter = document.getElementById('sales-payment-filter')?.value || 'all';
         const searchTerm = this.state.salesHistorySearch.toLowerCase();
-
+        const searchTerms = searchTerm.split(' ').filter(t => t.length > 0);
         const feedFilter = this.state.orderFeedFilter || 'all';
 
         const filteredSales = this.state.sales.filter(s => {
             const d = new Date(s.date);
             const dateMatch = d.getFullYear() === currentYear && selectedMonths.includes(d.getMonth());
             const paymentMatch = paymentFilter === 'all' || s.paymentMethod === paymentFilter;
-            const searchMatch = !searchTerm || (s.items && s.items.some(item => {
-                return (item.album || '').toLowerCase().includes(searchTerm) ||
-                    (item.artist || '').toLowerCase().includes(searchTerm) ||
-                    (s.sku || '').toLowerCase().includes(searchTerm);
-            })) || (s.album || '').toLowerCase().includes(searchTerm);
+
+            let searchMatch = true;
+            if (searchTerms.length > 0) {
+                searchMatch = searchTerms.every(term => {
+                    const matchesItems = s.items && s.items.some(item => {
+                        return (item.album || '').toLowerCase().includes(term) ||
+                            (item.artist || '').toLowerCase().includes(term) ||
+                            (item.label || '').toLowerCase().includes(term) ||
+                            (item.sku || '').toLowerCase().includes(term);
+                    });
+                    const matchesSale = (s.album || '').toLowerCase().includes(term) ||
+                        (s.sku || '').toLowerCase().includes(term);
+                    return matchesItems || matchesSale;
+                });
+            }
 
             // Channel/Status Feed Filter
             let feedMatch = true;
@@ -4865,20 +4878,63 @@ const app = {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
+    initFuse() {
+        if (typeof Fuse === 'undefined') {
+            console.warn('Fuse.js not loaded yet');
+            return;
+        }
+
+        const options = {
+            keys: [
+                { name: 'artist', weight: 0.4 },
+                { name: 'album', weight: 0.3 },
+                { name: 'label', weight: 0.2 },
+                { name: 'sku', weight: 0.1 },
+                { name: 'genre', weight: 0.05 },
+                { name: 'notes', weight: 0.05 }
+            ],
+            threshold: 0.4, // Lower is stricter, 0.4 is a good balance for typos
+            distance: 100,
+            ignoreLocation: true,
+            minMatchCharLength: 2
+        };
+
+        this.fuse = new Fuse(this.state.inventory, options);
+    },
+
     getFilteredInventory() {
-        const term = (this.state.inventorySearch || '').toLowerCase();
+        const searchTerm = (this.state.inventorySearch || '').trim().toLowerCase();
+
         const currentGenreFilter = this.state.filterGenre || 'all';
         const currentOwnerFilter = this.state.filterOwner || 'all';
         const currentLabelFilter = this.state.filterLabel || 'all';
         const currentStorageFilter = this.state.filterStorage || 'all';
         const currentDiscogsFilter = this.state.filterDiscogs || 'all';
 
-        return this.state.inventory.filter(item => {
-            const matchesSearch = !term ||
-                item.artist.toLowerCase().includes(term) ||
-                item.album.toLowerCase().includes(term) ||
-                item.sku.toLowerCase().includes(term);
+        let results = this.state.inventory;
 
+        // 1. Fuzzy Search (if term exists)
+        if (searchTerm.length >= 2) {
+            if (this.fuse) {
+                results = this.fuse.search(searchTerm).map(r => r.item);
+            } else {
+                // Fallback to basic search if fuse not ready
+                const terms = searchTerm.split(' ').filter(t => t.length > 0);
+                results = results.filter(item => {
+                    return terms.every(term => {
+                        return (item.artist || '').toLowerCase().includes(term) ||
+                            (item.album || '').toLowerCase().includes(term) ||
+                            (item.label || '').toLowerCase().includes(term) ||
+                            (item.genre || '').toLowerCase().includes(term) ||
+                            (item.notes || '').toLowerCase().includes(term) ||
+                            (item.sku || '').toLowerCase().includes(term);
+                    });
+                });
+            }
+        }
+
+        // 2. Apply static filters
+        return results.filter(item => {
             const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
             const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
             const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
@@ -4889,7 +4945,7 @@ const app = {
                 (currentDiscogsFilter === 'yes' && hasDiscogs) ||
                 (currentDiscogsFilter === 'no' && !hasDiscogs);
 
-            return matchesSearch && matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
+            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
         });
     },
     toggleSelectAll() {
@@ -5080,7 +5136,7 @@ const app = {
                 if (existingProduct && existingProduct.discogs_listing_id) {
                     // Update existing listing
                     try {
-                        const response = await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${existingProduct.discogs_listing_id}`, {
+                        const response = await fetch(`${BASE_API_URL}/discogs/update-listing/${existingProduct.discogs_listing_id}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ product: recordData })
@@ -5098,7 +5154,7 @@ const app = {
                 } else if (releaseId) {
                     // Create new listing
                     try {
-                        const response = await fetch('https://el-cuartito-completo.onrender.com/discogs/create-listing', {
+                        const response = await fetch(`${BASE_API_URL}/discogs/create-listing`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ releaseId: parseInt(releaseId), product: recordData })
@@ -5200,7 +5256,7 @@ const app = {
             if (product.data.discogs_listing_id) {
                 console.log('Attempting to delete from Discogs:', product.data.discogs_listing_id);
                 try {
-                    const response = await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${product.data.discogs_listing_id}`, {
+                    const response = await fetch(`${BASE_API_URL}/discogs/delete-listing/${product.data.discogs_listing_id}`, {
                         method: 'DELETE'
                     });
                     console.log('Discogs delete response status:', response.status);
@@ -7348,23 +7404,6 @@ const app = {
         const resultsContainer = document.getElementById('discogs-results');
         if (!query) return;
 
-        // Get token from localStorage
-        const token = localStorage.getItem('discogs_token');
-
-        if (!token) {
-            resultsContainer.innerHTML = `
-    <div class="text-center py-4 px-3" >
-                    <p class="text-xs text-red-500 font-bold mb-2">⚠️ Token de Discogs no configurado</p>
-                    <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
-                        class="text-xs font-bold text-brand-orange hover:underline">
-                        Ir a Configuración →
-                    </button>
-                </div>
-    `;
-            resultsContainer.classList.remove('hidden');
-            return;
-        }
-
         resultsContainer.innerHTML = '<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>';
         resultsContainer.classList.remove('hidden');
 
@@ -7374,19 +7413,18 @@ const app = {
             return;
         }
 
-        fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
+        fetch(`${BASE_API_URL}/discogs/search?q=${encodeURIComponent(query)}`)
             .then(res => {
-                if (res.status === 401) {
-                    throw new Error('Token inválido o expirado');
-                }
                 if (!res.ok) {
                     throw new Error(`Error ${res.status}`);
                 }
                 return res.json();
             })
             .then(data => {
-                if (data.results && data.results.length > 0) {
-                    resultsContainer.innerHTML = data.results.slice(0, 10).map(r => `
+                // Backend proxy returns { success: true, results: [...] }
+                const results = data.results || [];
+                if (results.length > 0) {
+                    resultsContainer.innerHTML = results.slice(0, 10).map(r => `
                         <div onclick='app.handleDiscogsSelection(${JSON.stringify(r).replace(/'/g, "&#39;")})' class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
                             <img src="${r.thumb || 'logo.jpg'}" class="w-12 h-12 rounded object-cover bg-slate-100 flex-shrink-0">
                             <div class="flex-1 min-w-0">
@@ -7406,10 +7444,7 @@ const app = {
                 resultsContainer.innerHTML = `
                     <div class="text-center py-4 px-3">
                         <p class="text-xs text-red-500 font-bold mb-2">❌ ${err.message}</p>
-                        <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
-                            class="text-xs font-bold text-brand-orange hover:underline">
-                            Verificar Token en Configuración →
-                        </button>
+                        <p class="text-[10px] text-slate-400">Hubo un error al buscar en Discogs a través del servidor.</p>
                     </div>
                 `;
             });
@@ -7473,10 +7508,9 @@ const app = {
         }
 
         // Fetch FULL release details to get all genres/styles
-        const token = localStorage.getItem('discogs_token');
-        if (token && release.id) {
+        if (release.id) {
             this.showToast('⏳ Cargando géneros...', 'info');
-            fetch(`https://api.discogs.com/releases/${release.id}?token=${token}`)
+            fetch(`${BASE_API_URL}/discogs/release/${release.id}`)
                 .then(res => res.json())
                 .then(fullRelease => {
                     console.log("Full Discogs Release:", fullRelease);
@@ -7665,8 +7699,7 @@ const app = {
 
         // Fetch Function
         const fetchAndRender = (id) => {
-            const token = localStorage.getItem('discogs_token') || "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";
-            fetch(`https://api.discogs.com/releases/${id}?token=${token}`)
+            fetch(`${BASE_API_URL}/discogs/release/${id}`)
                 .then(res => {
                     if (!res.ok) throw new Error('Release not found');
                     return res.json();
@@ -7728,8 +7761,7 @@ const app = {
         } else {
             // Fallback: Try to search by Artist + Album to get ID
             const query = `${item.artist} - ${item.album}`;
-            const token = localStorage.getItem('discogs_token') || "hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";
-            fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(query)}&type=release&token=${token}`)
+            fetch(`${BASE_API_URL}/discogs/search?q=${encodeURIComponent(query)}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.results && data.results.length > 0) {
@@ -9554,7 +9586,7 @@ const app = {
             resultsContainer.classList.remove('hidden');
         }
 
-        fetch(`https://api.discogs.com/releases/${id}?token=${token}`)
+        fetch(`${BASE_API_URL}/discogs/release/${id}`)
             .then(res => {
                 if (!res.ok) throw new Error(`Error ${res.status}`);
                 return res.json();

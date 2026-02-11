@@ -1,4 +1,105 @@
-(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))o(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const r of a.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&o(r)}).observe(document,{childList:!0,subtree:!0});function s(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function o(n){if(n.ep)return;n.ep=!0;const a=s(n);fetch(n.href,a)}})();const S=firebase.firestore(),z=window.auth,ue=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",B=ue?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",Y={async createSale(t){let e=[];if(await S.runTransaction(async s=>{const o=[];for(const i of t.items){const l=S.collection("products").doc(i.recordId||i.productId),d=await s.get(l);if(!d.exists)throw new Error(`Producto ${i.recordId} no encontrado`);const c=d.data();if(c.stock<i.quantity)throw new Error(`Stock insuficiente para ${c.artist||"Sin Artista"} - ${c.album||"Sin Album"}. Disponible: ${c.stock}`);o.push({ref:l,data:c,quantity:i.quantity,price:c.price,cost:c.cost||0})}const n=o.reduce((i,l)=>i+l.price*l.quantity,0),a=t.customTotal!==void 0?t.customTotal:n,r=S.collection("sales").doc();s.set(r,{...t,status:"completed",fulfillment_status:t.channel&&t.channel.toLowerCase()==="discogs"?"preparing":"fulfilled",total:a,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:o.map(i=>({productId:i.ref.id,artist:i.data.artist,album:i.data.album,sku:i.data.sku,unitPrice:i.price,costAtSale:i.cost,qty:i.quantity}))});for(const i of o){s.update(i.ref,{stock:i.data.stock-i.quantity});const l=S.collection("inventory_logs").doc();s.set(l,{type:"SOLD",sku:i.data.sku||"Unknown",album:i.data.album||"Unknown",artist:i.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=o.map(i=>({discogs_listing_id:i.data.discogs_listing_id,artist:i.data.artist,album:i.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const o=await fetch(`${B}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});o.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await o.text())}catch(o){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,o)}}},async notifyPreparing(t){const e=await z.currentUser.getIdToken(),s=await fetch(`${B}/sales/${t}/notify-preparing`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async updateTracking(t,e){const s=await z.currentUser.getIdToken(),o=await fetch(`${B}/sales/${t}/update-tracking`,{method:"POST",headers:{Authorization:`Bearer ${s}`,"Content-Type":"application/json"},body:JSON.stringify({trackingNumber:e})});if(!o.ok)throw new Error(await o.text());return o.json()},async notifyShipped(t,e,s=null){const o=await z.currentUser.getIdToken(),n={trackingNumber:e};s&&(n.trackingLink=s);const a=await fetch(`${B}/sales/${t}/notify-shipped`,{method:"POST",headers:{Authorization:`Bearer ${o}`,"Content-Type":"application/json"},body:JSON.stringify(n)});if(!a.ok)throw new Error(await a.text());return a.json()},async markDispatched(t){const e=await z.currentUser.getIdToken(),s=await fetch(`${B}/sales/${t}/mark-dispatched`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async notifyPickupReady(t){const e=await z.currentUser.getIdToken(),s=await fetch(`${B}/sales/${t}/notify-pickup-ready`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async markPickedUp(t){const e=await z.currentUser.getIdToken(),s=await fetch(`${B}/sales/${t}/mark-picked-up`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()}},ce={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:!1,manualSaleSearch:"",posCondition:"Used",posSelectedItemSku:null,orderFeedFilter:"all"},async init(){this._initialized||(this._initialized=!0,z.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),6e4),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}}))},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,o=document.getElementById("login-error"),n=document.getElementById("login-btn");o.classList.add("hidden"),n.disabled=!0,n.innerHTML="<span>Cargando...</span>";try{await z.signInWithEmailAndPassword(e,s)}catch(a){console.error("Login error:",a),o.innerText="Error: "+a.message,o.classList.remove("hidden"),n.disabled=!1,n.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var o,n,a;try{const r=((o=t==null?void 0:t.target)==null?void 0:o.closest("button"))||((a=(n=window.event)==null?void 0:n.target)==null?void 0:a.closest("button"));if(r){r.disabled=!0;const i=r.innerHTML;r.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await S.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(r){console.error("Fulfillment update error:",r),this.showToast("Error al actualizar estado: "+r.message,"error")}},async manualShipOrder(t){var e,s,o,n,a,r;try{const i=prompt("Introduce el número de seguimiento:");if(!i)return;const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const d=await fetch(`${B}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:i})}),c=await d.json();if(d.ok&&c.success){if(this.showToast("✅ Pedido marcado como enviado"),c.emailSent)this.showToast("📧 Cliente notificado por email","success");else{const m=typeof c.emailError=="object"?JSON.stringify(c.emailError):c.emailError;this.showToast("⚠️ Pedido marcado pero EL EMAIL FALLÓ: "+m,"warning")}await this.loadData();const p=document.getElementById("sale-detail-modal");p&&(p.remove(),this.openUnifiedOrderDetailModal(t))}else throw new Error(c.error||c.message||"Error desconocido")}catch(i){console.error("Error shipping manually:",i),this.showToast("❌ Error: "+(i.message||"No se pudo procesar el envío"),"error");const l=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));l&&(l.disabled=!1,l.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await z.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,o,n]=await Promise.all([S.collection("products").get(),S.collection("sales").get(),S.collection("expenses").get(),S.collection("events").orderBy("date","desc").get(),S.collection("consignors").get()]);this.state.inventory=t.docs.map(a=>{const r=a.data();return{id:a.id,...r,condition:r.condition||"VG",owner:r.owner||"El Cuartito",label:r.label||"Desconocido",storageLocation:r.storageLocation||"Tienda",cover_image:r.cover_image||r.coverImage||null}}),this.state.sales=e.docs.map(a=>{var l,d;const r=a.data(),i={id:a.id,...r,date:r.date||((l=r.timestamp)!=null&&l.toDate?r.timestamp.toDate().toISOString().split("T")[0]:(d=r.created_at)!=null&&d.toDate?r.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return r.total_amount!==void 0&&r.total===void 0&&(i.total=r.total_amount),r.payment_method&&!r.paymentMethod&&(i.paymentMethod=r.payment_method),i.items&&Array.isArray(i.items)&&(i.items=i.items.map(c=>({...c,priceAtSale:c.priceAtSale!==void 0?c.priceAtSale:c.unitPrice||0,qty:c.qty!==void 0?c.qty:c.quantity||1,costAtSale:c.costAtSale!==void 0?c.costAtSale:c.cost||0}))),i}).filter(a=>a.status!=="PENDING"&&a.status!=="failed").sort((a,r)=>{const i=new Date(a.date);return new Date(r.date)-i}),this.state.expenses=s.docs.map(a=>{var i;const r=a.data();return{id:a.id,...r,date:r.fecha_factura||r.date||((i=r.timestamp)==null?void 0:i.split("T")[0])||new Date().toISOString().split("T")[0]}}).sort((a,r)=>new Date(r.date)-new Date(a.date)),this.state.events=o.docs.map(a=>({id:a.id,...a.data()})),this.state.consignors=n.docs.map(a=>{const r=a.data();return{id:a.id,...r,agreementSplit:r.split||r.agreementSplit||(r.percentage?Math.round(r.percentage*100):70)}}),await this.loadInvestments(),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break;case"pickups":this.renderPickups(t);break;case"investments":this.renderInvestments(t);break;case"vatReport":this.renderVATReport(t);break}},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(n=>{n.classList.remove("bg-orange-50","text-brand-orange"),n.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const o=document.getElementById("app-content");o.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),o=e.getMonth(),n=new Date(s,o,1),r=new Date(s,o+1,0).getDate(),i=n.getDay()===0?6:n.getDay()-1,l=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],d=p=>{const m=`${s}-${String(o+1).padStart(2,"0")}-${String(p).padStart(2,"0")}`,g=this.state.sales.some(u=>u.date===m),h=this.state.expenses.some(u=>u.date===m),w=this.state.events.some(u=>u.date===m);return{hasSales:g,hasExpenses:h,hasEvents:w}},c=`
+(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const n of document.querySelectorAll('link[rel="modulepreload"]'))o(n);new MutationObserver(n=>{for(const a of n)if(a.type==="childList")for(const r of a.addedNodes)r.tagName==="LINK"&&r.rel==="modulepreload"&&o(r)}).observe(document,{childList:!0,subtree:!0});function s(n){const a={};return n.integrity&&(a.integrity=n.integrity),n.referrerPolicy&&(a.referrerPolicy=n.referrerPolicy),n.crossOrigin==="use-credentials"?a.credentials="include":n.crossOrigin==="anonymous"?a.credentials="omit":a.credentials="same-origin",a}function o(n){if(n.ep)return;n.ep=!0;const a=s(n);fetch(n.href,a)}})();const D=firebase.firestore(),H=window.auth,ue=window.location.hostname==="localhost"||window.location.hostname==="127.0.0.1",M=ue?"http://localhost:3001":"https://el-cuartito-shop.up.railway.app",be="K85403890688957",Y={async createSale(t){let e=[];if(await D.runTransaction(async s=>{const o=[];for(const c of t.items){const l=D.collection("products").doc(c.recordId||c.productId),i=await s.get(l);if(!i.exists)throw new Error(`Producto ${c.recordId} no encontrado`);const d=i.data();if(d.stock<c.quantity)throw new Error(`Stock insuficiente para ${d.artist||"Sin Artista"} - ${d.album||"Sin Album"}. Disponible: ${d.stock}`);o.push({ref:l,data:d,quantity:c.quantity,price:d.price,cost:d.cost||0})}const n=o.reduce((c,l)=>c+l.price*l.quantity,0),a=t.customTotal!==void 0?t.customTotal:n,r=D.collection("sales").doc();s.set(r,{...t,status:"completed",fulfillment_status:t.channel&&t.channel.toLowerCase()==="discogs"?"preparing":"fulfilled",total:a,date:new Date().toISOString().split("T")[0],timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:o.map(c=>({productId:c.ref.id,artist:c.data.artist,album:c.data.album,sku:c.data.sku,unitPrice:c.price,costAtSale:c.cost,qty:c.quantity}))});for(const c of o){s.update(c.ref,{stock:c.data.stock-c.quantity});const l=D.collection("inventory_logs").doc();s.set(l,{type:"SOLD",sku:c.data.sku||"Unknown",album:c.data.album||"Unknown",artist:c.data.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:`Venta registrada (Admin) - Canal: ${t.channel||"Tienda"}`})}e=o.map(c=>({discogs_listing_id:c.data.discogs_listing_id,artist:c.data.artist,album:c.data.album}))}),t.channel&&t.channel.toLowerCase()==="discogs"){for(const s of e)if(s.discogs_listing_id)try{const o=await fetch(`${M}/discogs/delete-listing/${s.discogs_listing_id}`,{method:"DELETE"});o.ok?console.log(`✅ Discogs listing ${s.discogs_listing_id} deleted for ${s.artist} - ${s.album}`):console.warn(`⚠️ Could not delete Discogs listing ${s.discogs_listing_id}:`,await o.text())}catch(o){console.error(`❌ Error deleting Discogs listing ${s.discogs_listing_id}:`,o)}}},async notifyPreparing(t){const e=await H.currentUser.getIdToken(),s=await fetch(`${M}/sales/${t}/notify-preparing`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async updateTracking(t,e){const s=await H.currentUser.getIdToken(),o=await fetch(`${M}/sales/${t}/update-tracking`,{method:"POST",headers:{Authorization:`Bearer ${s}`,"Content-Type":"application/json"},body:JSON.stringify({trackingNumber:e})});if(!o.ok)throw new Error(await o.text());return o.json()},async notifyShipped(t,e,s=null){const o=await H.currentUser.getIdToken(),n={trackingNumber:e};s&&(n.trackingLink=s);const a=await fetch(`${M}/sales/${t}/notify-shipped`,{method:"POST",headers:{Authorization:`Bearer ${o}`,"Content-Type":"application/json"},body:JSON.stringify(n)});if(!a.ok)throw new Error(await a.text());return a.json()},async markDispatched(t){const e=await H.currentUser.getIdToken(),s=await fetch(`${M}/sales/${t}/mark-dispatched`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async notifyPickupReady(t){const e=await H.currentUser.getIdToken(),s=await fetch(`${M}/sales/${t}/notify-pickup-ready`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()},async markPickedUp(t){const e=await H.currentUser.getIdToken(),s=await fetch(`${M}/sales/${t}/mark-picked-up`,{method:"POST",headers:{Authorization:`Bearer ${e}`}});if(!s.ok)throw new Error(await s.text());return s.json()}},ce={state:{inventory:[],sales:[],expenses:[],consignors:[],cart:[],viewMode:"list",selectedItems:new Set,currentView:"dashboard",filterMonths:[new Date().getMonth()],filterYear:new Date().getFullYear(),inventorySearch:"",salesHistorySearch:"",expensesSearch:"",events:[],selectedDate:new Date,vatActive:!1,manualSaleSearch:"",posCondition:"Used",posSelectedItemSku:null,orderFeedFilter:"all"},async init(){this._initialized||(this._initialized=!0,H.onAuthStateChanged(async t=>{if(t)try{document.getElementById("login-view").classList.add("hidden"),document.getElementById("main-app").classList.remove("hidden"),document.getElementById("mobile-nav").classList.remove("hidden"),await this.loadData(),this._pollInterval&&clearInterval(this._pollInterval),this._pollInterval=setInterval(()=>this.loadData(),6e4),this.setupMobileMenu(),this.setupNavigation()}catch(e){console.error("Auth token error:",e),this.logout()}else{document.getElementById("login-view").classList.remove("hidden"),document.getElementById("main-app").classList.add("hidden"),document.getElementById("mobile-nav").classList.add("hidden");const e=document.getElementById("login-btn");e&&(e.disabled=!1,e.innerHTML="<span>Entrar</span>")}}))},async handleLogin(t){t.preventDefault();const e=t.target.email.value,s=t.target.password.value,o=document.getElementById("login-error"),n=document.getElementById("login-btn");o.classList.add("hidden"),n.disabled=!0,n.innerHTML="<span>Cargando...</span>";try{await H.signInWithEmailAndPassword(e,s)}catch(a){console.error("Login error:",a),o.innerText="Error: "+a.message,o.classList.remove("hidden"),n.disabled=!1,n.innerHTML='<span>Ingresar</span><i class="ph-bold ph-arrow-right"></i>'}},async updateFulfillmentStatus(t,e,s){var o,n,a;try{const r=((o=t==null?void 0:t.target)==null?void 0:o.closest("button"))||((a=(n=window.event)==null?void 0:n.target)==null?void 0:a.closest("button"));if(r){r.disabled=!0;const c=r.innerHTML;r.innerHTML='<i class="ph ph-circle-notch animate-spin"></i>'}await D.collection("sales").doc(e).update({fulfillment_status:s}),await this.loadData(),document.getElementById("modal-overlay")&&(document.getElementById("modal-overlay").remove(),this.openOnlineSaleDetailModal(e)),this.showToast("Estado de envío actualizado")}catch(r){console.error("Fulfillment update error:",r),this.showToast("Error al actualizar estado: "+r.message,"error")}},async manualShipOrder(t){var e,s,o,n,a,r;try{const c=prompt("Introduce el número de seguimiento:");if(!c)return;const l=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));l&&(l.disabled=!0,l.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const i=await fetch(`${M}/api/manual-ship`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t,trackingNumber:c})}),d=await i.json();if(i.ok&&d.success){if(this.showToast("✅ Pedido marcado como enviado"),d.emailSent)this.showToast("📧 Cliente notificado por email","success");else{const m=typeof d.emailError=="object"?JSON.stringify(d.emailError):d.emailError;this.showToast("⚠️ Pedido marcado pero EL EMAIL FALLÓ: "+m,"warning")}await this.loadData();const u=document.getElementById("sale-detail-modal");u&&(u.remove(),this.openUnifiedOrderDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(c){console.error("Error shipping manually:",c),this.showToast("❌ Error: "+(c.message||"No se pudo procesar el envío"),"error");const l=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));l&&(l.disabled=!1,l.innerHTML='<i class="ph-bold ph-truck"></i> Ingresar Tracking y Cerrar')}},async logout(){try{await H.signOut(),location.reload()}catch(t){console.error("Sign out error:",t),location.reload()}},setupListeners(){},async loadData(){try{const[t,e,s,o,n]=await Promise.all([D.collection("products").get(),D.collection("sales").get(),D.collection("expenses").get(),D.collection("events").orderBy("date","desc").get(),D.collection("consignors").get()]);this.state.inventory=t.docs.map(a=>{const r=a.data();return{id:a.id,...r,condition:r.condition||"VG",owner:r.owner||"El Cuartito",label:r.label||"Desconocido",storageLocation:r.storageLocation||"Tienda",cover_image:r.cover_image||r.coverImage||null}}),this.state.sales=e.docs.map(a=>{var l,i;const r=a.data(),c={id:a.id,...r,date:r.date||((l=r.timestamp)!=null&&l.toDate?r.timestamp.toDate().toISOString().split("T")[0]:(i=r.created_at)!=null&&i.toDate?r.created_at.toDate().toISOString().split("T")[0]:new Date().toISOString().split("T")[0])};return r.total_amount!==void 0&&r.total===void 0&&(c.total=r.total_amount),r.payment_method&&!r.paymentMethod&&(c.paymentMethod=r.payment_method),c.items&&Array.isArray(c.items)&&(c.items=c.items.map(d=>({...d,priceAtSale:d.priceAtSale!==void 0?d.priceAtSale:d.unitPrice||0,qty:d.qty!==void 0?d.qty:d.quantity||1,costAtSale:d.costAtSale!==void 0?d.costAtSale:d.cost||0}))),c}).filter(a=>a.status!=="PENDING"&&a.status!=="failed").sort((a,r)=>{const c=new Date(a.date);return new Date(r.date)-c}),this.state.expenses=s.docs.map(a=>{var c;const r=a.data();return{id:a.id,...r,date:r.fecha_factura||r.date||((c=r.timestamp)==null?void 0:c.split("T")[0])||new Date().toISOString().split("T")[0]}}).sort((a,r)=>new Date(r.date)-new Date(a.date)),this.state.events=o.docs.map(a=>({id:a.id,...a.data()})),this.state.consignors=n.docs.map(a=>{const r=a.data();return{id:a.id,...r,agreementSplit:r.split||r.agreementSplit||(r.percentage?Math.round(r.percentage*100):70)}}),await this.loadInvestments(),this.initFuse(),this.refreshCurrentView()}catch(t){console.error("Failed to load data:",t),this.showToast("❌ Error de conexión: "+t.message,"error")}},refreshCurrentView(){const t=document.getElementById("app-content");if(t)switch(this.state.currentView){case"dashboard":this.renderDashboard(t);break;case"inventory":this.renderInventory(t);break;case"sales":this.renderSales(t);break;case"onlineSales":this.renderOnlineSales(t);break;case"discogsSales":this.renderDiscogsSales(t);break;case"expenses":this.renderExpenses(t);break;case"consignments":this.renderConsignments(t);break;case"backup":this.renderBackup(t);break;case"settings":this.renderSettings(t);break;case"calendar":this.renderCalendar(t);break;case"shipping":this.renderShipping(t);break;case"pickups":this.renderPickups(t);break;case"investments":this.renderInvestments(t);break;case"vatReport":this.renderVATReport(t);break;case"datosLegales":this.renderDatosLegales(t);break}},renderDatosLegales(t){const e=`
+            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <!-- Header Section -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">Datos <span class="text-brand-orange">Legales</span></h1>
+                        <p class="text-slate-500 font-medium">Información corporativa y de contacto</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Company Info Card -->
+                    <div class="bg-white rounded-3xl p-8 border border-orange-100 shadow-sm">
+                        <div class="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-brand-orange mb-6">
+                            <i class="ph-duotone ph-buildings text-2xl"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-brand-dark mb-6">Empresa</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nombre Comercial</label>
+                                <p class="text-lg font-semibold text-slate-700">El Cuartito Records I/S</p>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">CVR Number</label>
+                                    <p class="text-slate-700 font-medium">45943216</p>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">VAT Number</label>
+                                    <p class="text-slate-700 font-medium">DK45943216</p>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dirección</label>
+                                <p class="text-slate-700 leading-relaxed font-medium">
+                                    Dybbølsgade 14 st tv<br>
+                                    1721 København V<br>
+                                    Denmark
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact & Links Card -->
+                    <div class="bg-white rounded-3xl p-8 border border-orange-100 shadow-sm flex flex-col">
+                        <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 mb-6">
+                            <i class="ph-duotone ph-at text-2xl"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-brand-dark mb-6">Contacto & Canales</h2>
+
+                        <div class="space-y-6 flex-1">
+                            <a href="mailto:el.cuartito.cph@gmail.com" class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-orange-50 group transition-all">
+                                <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-brand-orange transition-colors">
+                                    <i class="ph-bold ph-envelope"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase block">Email</label>
+                                    <p class="text-sm font-bold text-slate-700">el.cuartito.cph@gmail.com</p>
+                                </div>
+                            </a>
+
+                            <a href="https://elcuartito.dk" target="_blank" class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-orange-50 group transition-all">
+                                <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-brand-orange transition-colors">
+                                    <i class="ph-bold ph-browser"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase block">Web Oficial</label>
+                                    <p class="text-sm font-bold text-slate-700">elcuartito.dk</p>
+                                </div>
+                            </a>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <a href="https://instagram.com/el.cuartito.records" target="_blank" class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50 hover:bg-pink-50 text-slate-400 hover:text-pink-500 transition-all group">
+                                    <i class="ph-bold ph-instagram-logo text-2xl"></i>
+                                    <span class="text-[10px] font-bold uppercase">Instagram</span>
+                                </a>
+                                <a href="https://www.discogs.com/es/user/elcuartitorecords.dk" target="_blank" class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50 hover:bg-slate-200 text-slate-400 hover:text-brand-dark transition-all group">
+                                    <i class="ph-bold ph-vinyl-record text-2xl"></i>
+                                    <span class="text-[10px] font-bold uppercase">Discogs</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 pt-6 border-t border-slate-100">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-3">Logística & Envíos</label>
+                            <a href="https://app.shipmondo.com/" target="_blank" class="flex items-center justify-between p-4 rounded-2xl bg-brand-dark text-white hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20 group">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                        <i class="ph-bold ph-package"></i>
+                                    </div>
+                                    <span class="font-bold text-sm">Shipmondo App</span>
+                                </div>
+                                <i class="ph-bold ph-arrow-square-out group-hover:translate-x-1 transition-transform"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;t.innerHTML=e},navigate(t){this.state.currentView=t,document.querySelectorAll(".nav-item, .nav-item-m").forEach(n=>{n.classList.remove("bg-orange-50","text-brand-orange"),n.classList.add("text-slate-500")});const e=document.getElementById(`nav-d-${t}`);e&&(e.classList.remove("text-slate-500"),e.classList.add("bg-orange-50","text-brand-orange"));const s=document.getElementById(`nav-m-${t}`);s&&(s.classList.remove("text-slate-400"),s.classList.add("text-brand-orange"));const o=document.getElementById("app-content");o.innerHTML="",this.refreshCurrentView()},renderCalendar(t){const e=this.state.selectedDate||new Date,s=e.getFullYear(),o=e.getMonth(),n=new Date(s,o,1),r=new Date(s,o+1,0).getDate(),c=n.getDay()===0?6:n.getDay()-1,l=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],i=u=>{const m=`${s}-${String(o+1).padStart(2,"0")}-${String(u).padStart(2,"0")}`,x=this.state.sales.some(k=>k.date===m),b=this.state.expenses.some(k=>k.date===m),y=this.state.events.some(k=>k.date===m);return{hasSales:x,hasExpenses:b,hasEvents:y}},d=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <div class="flex flex-col lg:flex-row gap-8 h-[calc(100vh-140px)]">
                     <!-- Calendar Grid -->
@@ -18,23 +119,23 @@
                         </div>
 
                         <div class="grid grid-cols-7 gap-2 mb-2 text-center">
-                            ${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(p=>`
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${p}</div>
+                            ${["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(u=>`
+                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${u}</div>
                             `).join("")}
                         </div>
 
                         <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
-                            ${Array(i).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join("")}
-                            ${Array.from({length:r},(p,m)=>{const g=m+1,h=`${s}-${String(o+1).padStart(2,"0")}-${String(g).padStart(2,"0")}`,w=e.getDate()===g,u=d(g),b=new Date().toDateString()===new Date(s,o,g).toDateString();return`
-                                    <button onclick="app.selectCalendarDate('${h}')" 
+                            ${Array(c).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join("")}
+                            ${Array.from({length:r},(u,m)=>{const x=m+1,b=`${s}-${String(o+1).padStart(2,"0")}-${String(x).padStart(2,"0")}`,y=e.getDate()===x,k=i(x),p=new Date().toDateString()===new Date(s,o,x).toDateString();return`
+                                    <button onclick="app.selectCalendarDate('${b}')" 
                                         class="relative rounded-xl p-2 flex flex-col items-center justify-start gap-1 transition-all border-2
-                                        ${w?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
-                                        ${b?"bg-blue-50":""}">
-                                        <span class="text-sm font-bold ${w?"text-brand-orange":"text-slate-700"} ${b?"text-blue-600":""}">${g}</span>
+                                        ${y?"border-brand-orange bg-orange-50":"border-transparent hover:bg-slate-50"}
+                                        ${p?"bg-blue-50":""}">
+                                        <span class="text-sm font-bold ${y?"text-brand-orange":"text-slate-700"} ${p?"text-blue-600":""}">${x}</span>
                                         <div class="flex gap-1 mt-1">
-                                            ${u.hasSales?'<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>':""}
-                                            ${u.hasExpenses?'<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>':""}
-                                            ${u.hasEvents?'<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>':""}
+                                            ${k.hasSales?'<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>':""}
+                                            ${k.hasExpenses?'<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>':""}
+                                            ${k.hasEvents?'<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>':""}
                                         </div>
                                     </button>
                                 `}).join("")}
@@ -47,7 +148,7 @@
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=c},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",o=t.customerEmail||e.email||"-";let n=t.address||e.address||"-";if(e.shipping){const a=e.shipping;n=`${a.line1||""} ${a.line2||""}, ${a.city||""}, ${a.postal_code||""}, ${a.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:o,address:n}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),o=this.state.sales.filter(l=>l.date===e),n=this.state.expenses.filter(l=>l.date===e),a=this.state.events.filter(l=>l.date===e),r=o.reduce((l,d)=>l+d.total,0),i=n.reduce((l,d)=>l+d.amount,0);return`
+        `;t.innerHTML=d},getCustomerInfo(t){const e=t.customer||{},s=t.customerName||e.name||(e.firstName?`${e.firstName} ${e.lastName||""}`.trim():"")||"Cliente",o=t.customerEmail||e.email||"-";let n=t.address||e.address||"-";if(e.shipping){const a=e.shipping;n=`${a.line1||""} ${a.line2||""}, ${a.city||""}, ${a.postal_code||""}, ${a.country||""}`.trim().replace(/^,|,$/g,"")}return{name:s,email:o,address:n}},renderCalendarDaySummary(t){const e=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`,s=t.toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"}),o=this.state.sales.filter(l=>l.date===e),n=this.state.expenses.filter(l=>l.date===e),a=this.state.events.filter(l=>l.date===e),r=o.reduce((l,i)=>l+i.total,0),c=n.reduce((l,i)=>l+i.amount,0);return`
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h3 class="font-display text-xl font-bold text-brand-dark capitalize">${s}</h3>
@@ -67,7 +168,7 @@
                     </div>
                     <div class="bg-red-50 p-3 rounded-xl border border-red-100">
                         <p class="text-[10px] font-bold text-red-600 uppercase">Gastos</p>
-                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(i)}</p>
+                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(c)}</p>
                     </div>
                 </div>
 
@@ -159,7 +260,7 @@
                     </form>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};S.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>console.error(o))},deleteEvent(t){confirm("¿Eliminar este evento?")&&S.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
+        `;document.body.insertAdjacentHTML("beforeend",e)},handleAddEvent(t){t.preventDefault();const e=new FormData(t.target),s={date:e.get("date"),title:e.get("title"),description:e.get("description"),createdAt:new Date().toISOString()};D.collection("events").add(s).then(()=>{this.showToast("✅ Evento agregado"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>console.error(o))},deleteEvent(t){confirm("¿Eliminar este evento?")&&D.collection("events").doc(t).delete().then(()=>{this.showToast("✅ Evento eliminado"),this.loadData()}).catch(e=>console.error(e))},renderBackup(t){const e=`
             <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Backup y Restauración</h2>
                 
@@ -224,6 +325,22 @@
                     </form>
                 </div>
 
+                <!-- Excel Export Section -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-200 mb-6">
+                    <div class="flex items-start gap-4 mb-6">
+                        <div class="w-12 h-12 rounded-full bg-green-50 text-green-500 flex items-center justify-center text-2xl">
+                            <i class="ph-fill ph-file-xls"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-brand-dark">Exportar Inventario a Excel</h3>
+                            <p class="text-sm text-slate-500 mt-1">Genera un archivo Excel con todos los discos, categorías, precios, estado en Discogs, estado en la web y más datos relevantes.</p>
+                        </div>
+                    </div>
+                    <button onclick="app.exportInventoryToExcel()" class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-file-xls"></i> Descargar Excel Completo
+                    </button>
+                </div>
+
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
                     <h3 class="font-bold text-lg text-brand-dark mb-4">Migraciones de Datos</h3>
                     <div class="space-y-4">
@@ -248,17 +365,17 @@
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},async migrateProductCondition(){if(confirm('¿Estás seguro? Esto marcará TODOS los productos como "Usado (Second-hand)".')){this.showToast("⏳ Migrando productos...","info");try{const t=await S.collection("products").get();let e=0;const s=S.batch();t.docs.forEach(o=>{o.data().product_condition||(s.update(o.ref,{product_condition:"Second-hand"}),e++)}),await s.commit(),this.showToast(`✅ ${e} productos marcados como "Usado"`),await this.loadData()}catch(t){console.error("Migration error:",t),this.showToast("❌ Error durante la migración: "+t.message,"error")}}},async migrateSalesData(){if(confirm("¿Migrar datos de ventas? Esto agregará información de costo y condición a ventas antiguas.")){this.showToast("⏳ Migrando ventas...","info");try{const t=await S.collection("sales").get();let e=0,s=0,o=S.batch();for(const n of t.docs){const r=n.data().items||[];let i=!1;const l=[];for(const d of r){const c={...d};if(!d.costAtSale&&d.costAtSale!==0){i=!0;const p=d.productId||d.recordId,m=d.album,g=this.state.inventory.find(h=>p&&(h.id===p||h.sku===p)||m&&h.album===m);g?(c.costAtSale=g.cost||0,c.productCondition=g.product_condition||"Second-hand",c.productId=g.id||p,c.album||(c.album=g.album)):(c.costAtSale=0,c.productCondition="Second-hand")}l.push(c)}i&&(o.update(n.ref,{items:l}),e++,s++,s>=450&&(await o.commit(),o=S.batch(),s=0))}s>0&&await o.commit(),this.showToast(`✅ ${e} ventas actualizadas con datos de producto`),await this.loadData()}catch(t){console.error("Sales migration error:",t),this.showToast("❌ Error: "+t.message,"error")}}},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=o=>{try{const n=JSON.parse(o.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const a=S.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),n.inventory&&n.inventory.forEach(r=>{const i=S.collection("products").doc(r.sku);a.set(i,r)}),a.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(n){alert("Error al leer el archivo de respaldo"),console.error(n)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
+        `;t.innerHTML=s},saveSettings(t){t.preventDefault();const s=new FormData(t.target).get("discogs_token").trim();s?(localStorage.setItem("discogs_token",s),localStorage.setItem("discogs_token_warned","true"),this.showToast("Configuración guardada correctamente")):(localStorage.removeItem("discogs_token"),this.showToast("Token eliminado"))},async migrateProductCondition(){if(confirm('¿Estás seguro? Esto marcará TODOS los productos como "Usado (Second-hand)".')){this.showToast("⏳ Migrando productos...","info");try{const t=await D.collection("products").get();let e=0;const s=D.batch();t.docs.forEach(o=>{o.data().product_condition||(s.update(o.ref,{product_condition:"Second-hand"}),e++)}),await s.commit(),this.showToast(`✅ ${e} productos marcados como "Usado"`),await this.loadData()}catch(t){console.error("Migration error:",t),this.showToast("❌ Error durante la migración: "+t.message,"error")}}},async migrateSalesData(){if(confirm("¿Migrar datos de ventas? Esto agregará información de costo y condición a ventas antiguas.")){this.showToast("⏳ Migrando ventas...","info");try{const t=await D.collection("sales").get();let e=0,s=0,o=D.batch();for(const n of t.docs){const r=n.data().items||[];let c=!1;const l=[];for(const i of r){const d={...i};if(!i.costAtSale&&i.costAtSale!==0){c=!0;const u=i.productId||i.recordId,m=i.album,x=this.state.inventory.find(b=>u&&(b.id===u||b.sku===u)||m&&b.album===m);x?(d.costAtSale=x.cost||0,d.productCondition=x.product_condition||"Second-hand",d.productId=x.id||u,d.album||(d.album=x.album)):(d.costAtSale=0,d.productCondition="Second-hand")}l.push(d)}c&&(o.update(n.ref,{items:l}),e++,s++,s>=450&&(await o.commit(),o=D.batch(),s=0))}s>0&&await o.commit(),this.showToast(`✅ ${e} ventas actualizadas con datos de producto`),await this.loadData()}catch(t){console.error("Sales migration error:",t),this.showToast("❌ Error: "+t.message,"error")}}},exportData(){const t={inventory:this.state.inventory,sales:this.state.sales,expenses:this.state.expenses,consignors:this.state.consignors,customGenres:this.state.customGenres,customCategories:this.state.customCategories,timestamp:new Date().toISOString()},e="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(t)),s=document.createElement("a");s.setAttribute("href",e),s.setAttribute("download","el_cuartito_backup_"+new Date().toISOString().slice(0,10)+".json"),document.body.appendChild(s),s.click(),s.remove()},exportInventoryToExcel(){this.showToast("⏳ Generando Excel...","info");try{const t=this.state.inventory.map(n=>{const a=[n.genre,n.genre2,n.genre3,n.genre4,n.genre5].filter(Boolean).join(", ");return{SKU:n.sku||"",Artista:n.artist||"",Álbum:n.album||"",Sello:n.label||"",Año:n.year||"",Géneros:a,"Condición Vinilo":n.status||"","Condición Cover":n.sleeveCondition||"","Condición Producto":n.product_condition||"Second-hand","Precio (DKK)":n.price||0,"Costo (DKK)":n.cost||0,Stock:n.stock||0,"En Web":n.is_online?"Sí":"No","En Discogs":n.discogs_listing_id?"Sí":"No","Discogs Listing ID":n.discogs_listing_id||"","Discogs Release ID":n.discogs_release_id||n.discogsId||"",Consignatario:n.consignor||"",Ubicación:n.location||"",Notas:n.notes||"","Fecha Creación":n.createdAt?new Date(n.createdAt).toLocaleDateString("es-ES"):"","URL Imagen":n.imageUrl||""}}),e=XLSX.utils.book_new(),s=XLSX.utils.json_to_sheet(t);s["!cols"]=[{wch:12},{wch:25},{wch:30},{wch:20},{wch:6},{wch:30},{wch:12},{wch:12},{wch:15},{wch:10},{wch:10},{wch:6},{wch:8},{wch:10},{wch:15},{wch:15},{wch:15},{wch:12},{wch:30},{wch:12},{wch:40}],XLSX.utils.book_append_sheet(e,s,"Inventario");const o=`ElCuartito_Inventario_${new Date().toISOString().slice(0,10)}.xlsx`;XLSX.writeFile(e,o),this.showToast(`✅ Excel exportado: ${this.state.inventory.length} discos`)}catch(t){console.error("Error exporting to Excel:",t),this.showToast("❌ Error al exportar: "+t.message,"error")}},importData(t){const e=t.files[0];if(!e)return;const s=new FileReader;s.onload=o=>{try{const n=JSON.parse(o.target.result);if(!confirm("¿Estás seguro de restaurar este backup? Se sobrescribirán los datos actuales."))return;const a=D.batch();alert("La importación completa sobrescribiendo datos en la nube es compleja. Por seguridad, esta función solo agrega/actualiza items de inventario por ahora."),n.inventory&&n.inventory.forEach(r=>{const c=D.collection("products").doc(r.sku);a.set(c,r)}),a.commit().then(()=>{this.showToast("Datos importados (Inventario)")})}catch(n){alert("Error al leer el archivo de respaldo"),console.error(n)}},s.readAsText(e)},resetApplication(){if(!confirm(`⚠️ ¡ADVERTENCIA! ⚠️
 
 Esto borrará PERMANENTEMENTE todo el inventario, ventas, gastos y socios de la base de datos.
 
-¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>S.collection(s).get().then(o=>{const n=S.batch();return o.docs.forEach(a=>{n.delete(a.ref)}),n.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),S.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
+¿Estás absolutamente seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Iniciando borrado completo...");const e=s=>D.collection(s).get().then(o=>{const n=D.batch();return o.docs.forEach(a=>{n.delete(a.ref)}),n.commit()});Promise.all([e("inventory"),e("sales"),e("expenses"),e("consignors"),D.collection("settings").doc("general").delete()]).then(()=>{this.showToast("♻️ Aplicación restablecida de fábrica"),setTimeout(()=>location.reload(),1500)}).catch(s=>{console.error(s),alert("Error al borrar datos: "+s.message)})},resetSales(){if(!confirm(`⚠️ ADVERTENCIA ⚠️
 
 Esto borrará PERMANENTEMENTE todas las ventas (manuales y online) de la base de datos.
 
 El inventario, gastos y socios NO serán afectados.
 
-¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),S.collection("sales").get().then(e=>{const s=S.batch();return e.docs.forEach(o=>{s.delete(o.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await S.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),S.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(o=>console.error("Error logging movement:",o))},openInventoryLogModal(){S.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
+¿Estás seguro?`))return;if(prompt("Para confirmar, ingresa la contraseña de administrador:")!=="alejo13"){alert("Contraseña incorrecta. Operación cancelada.");return}this.showToast("Borrando todas las ventas..."),D.collection("sales").get().then(e=>{const s=D.batch();return e.docs.forEach(o=>{s.delete(o.ref)}),s.commit()}).then(()=>{this.showToast("✅ Todas las ventas han sido eliminadas"),setTimeout(()=>location.reload(),1500)}).catch(e=>{console.error(e),alert("Error al borrar ventas: "+e.message)})},async findProductBySku(t){try{const e=await D.collection("products").where("sku","==",t).get();if(e.empty)return null;const s=e.docs[0];return{id:s.id,ref:s.ref,data:s.data()}}catch(e){return console.error("Error finding product by SKU:",e),null}},logInventoryMovement(t,e){let s="";t==="EDIT"?s="Producto actualizado":t==="ADD"?s="Ingreso de inventario":t==="DELETE"?s="Egreso manual":t==="SOLD"&&(s="Venta registrada"),D.collection("inventory_logs").add({type:t,sku:e.sku||"Unknown",album:e.album||"Unknown",artist:e.artist||"Unknown",timestamp:firebase.firestore.FieldValue.serverTimestamp(),details:s}).catch(o=>console.error("Error logging movement:",o))},openInventoryLogModal(){D.collection("inventory_logs").orderBy("timestamp","desc").limit(50).get().then(t=>{const s=`
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div class="bg-white rounded-3xl w-full max-w-4xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-fadeIn">
                         <div class="flex justify-between items-center mb-6 shrink-0">
@@ -301,7 +418,7 @@ El inventario, gastos y socios NO serán afectados.
             `;document.body.insertAdjacentHTML("beforeend",s)})},async syncWithDiscogs(){const t=document.getElementById("discogs-sync-btn");if(!t)return;const e=t.innerHTML;t.disabled=!0,t.innerHTML=`
             <i class="ph-bold ph-circle-notch text-xl animate-spin"></i>
             <span class="text-sm font-bold hidden sm:inline">Sincronizando...</span>
-        `;try{const s=B,n=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),r=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(n.success||r&&r.success){let i=`✅ Sincronizado: ${n.synced||0} productos`;r&&r.salesCreated>0&&(i+=`. ¡Detectadas ${r.salesCreated} nuevas ventas!`),this.showToast(i),await this.loadData(),this.refreshCurrentView()}else throw new Error(n.error||r&&r.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,o)=>s-o),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,o,n,a,r;try{const i=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));i&&(i.disabled=!0,i.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const l=await fetch(`${B}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),d=await l.json();if(l.ok&&d.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const c=document.getElementById("sale-detail-modal");c&&(c.remove(),this.openUnifiedOrderDetailModal(t))}else throw new Error(d.error||d.message||"Error desconocido")}catch(i){console.error("Error setting ready for pickup:",i),this.showToast("❌ Error: "+(i.message||"No se pudo procesar el estado"),"error");const l=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));l.disabled=!1,l.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro'}},renderDashboard(t){try{const e=this.state.filterMonths,s=this.state.filterYear,o=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],n=this.state.sales.filter(x=>{var _;const k=(_=x.timestamp)!=null&&_.toDate?x.timestamp.toDate():new Date(x.timestamp||x.date);return k.getFullYear()===s&&e.includes(k.getMonth())}),a=[...n].sort((x,k)=>{var j,L;const _=(j=x.timestamp)!=null&&j.toDate?x.timestamp.toDate():new Date(x.timestamp||x.date);return((L=k.timestamp)!=null&&L.toDate?k.timestamp.toDate():new Date(k.timestamp||k.date))-_}),r=[...this.state.sales.map(x=>({...x,type:"sale",sortDate:new Date(x.date)})),...this.state.expenses.map(x=>({...x,type:"expense",sortDate:new Date(x.date||x.fecha_factura)}))].sort((x,k)=>k.sortDate-x.sortDate).slice(0,5),i=[],l=[];for(let x=29;x>=0;x--){const k=new Date;k.setDate(k.getDate()-x);const _=k.toISOString().split("T")[0];i.push(k.getDate());const O=this.state.sales.filter(j=>j.date===_).reduce((j,L)=>j+(Number(L.total||L.total_amount)||0),0);l.push(O)}const d=new Date,c=d.getMonth(),p=d.getFullYear(),m=c===0?11:c-1,g=c===0?p-1:p,h=this.state.sales.filter(x=>{const k=new Date(x.date);return k.getMonth()===c&&k.getFullYear()===p}).reduce((x,k)=>x+(Number(k.originalTotal||k.total_amount||k.total)||0),0),w=this.state.sales.filter(x=>{const k=new Date(x.date);return k.getMonth()===m&&k.getFullYear()===g}).reduce((x,k)=>x+(Number(k.originalTotal||k.total_amount||k.total)||0),0),u=w>0?(h-w)/w*100:0,b=`${u>=0?"+":""}${u.toFixed(1)}% vs ${this.getMonthName(m)}`;let f=0,y=0,E=0,$=0,I=0,C=0,T=0,N=0;n.forEach(x=>{var ie;const k=((ie=x.channel)==null?void 0:ie.toLowerCase())==="discogs",_=Number(x.originalTotal)||Number(x.total_amount)||Number(x.total)||0,O=Number(x.total)||Number(x.total_amount)||0,j=k?_-O:0,L=Number(x.shipping_cost)||0;f+=_,E+=L;let se=0;const le=x.items||[];le.length>0?le.forEach(A=>{const oe=Number(A.priceAtSale||A.unitPrice||A.price)||0,X=Number(A.qty||A.quantity)||1;let U=Number(A.costAtSale||A.cost)||0;const re=(A.owner||"").toLowerCase(),pe=A.productCondition||A.condition||"Used",de=oe*X;if(U===0){const q=A.productId||A.recordId,ee=A.album,te=this.state.inventory.find(ne=>q&&(ne.id===q||ne.sku===q)||ee&&ne.album===ee);te&&(U=te.cost||0)}if(pe==="New")I+=de*.2;else{const q=de-U*X;C+=q>0?q*.2:0}if(re==="el cuartito"||re==="")U=Number(A.costAtSale||A.cost)||0;else{if(U===0||isNaN(U)){const q=this.state.consignors?this.state.consignors.find(te=>(te.name||"").toLowerCase()===re):null,ee=q&&(q.agreementSplit||q.split)||70;U=oe*(Number(ee)||70)/100}$+=U*X}se+=(oe-U)*X}):(se=_,I+=_*.2);const ae=parseFloat(x.shipping_income||x.shipping||x.shipping_cost||0);ae>0&&(T+=ae*.2,N+=ae),y+=se-j});const K=this.state.expenses.filter(x=>{var O;const k=x.fecha_factura?new Date(x.fecha_factura):(O=x.timestamp)!=null&&O.toDate?x.timestamp.toDate():new Date(x.timestamp||x.date);return(x.categoria_tipo==="operativo"||x.categoria_tipo==="stock_nuevo"||x.is_vat_deductible)&&k.getFullYear()===s&&e.includes(k.getMonth())}).reduce((x,k)=>x+(parseFloat(k.monto_iva)||0),0),H=I+C+T-K,v=this.state.expenses.filter(x=>{const k=new Date(x.date||x.fecha_factura);return k.getFullYear()===s&&e.includes(k.getMonth())}).reduce((x,k)=>x+(Number(k.monto_total||k.amount)||0),0),D=y-H-v,R=y-H,V=this.state.inventory.reduce((x,k)=>x+k.price*k.stock,0),Q=this.state.inventory.reduce((x,k)=>x+k.stock,0),M=this.state.inventory.filter(x=>x.stock>0&&x.stock<1),F=this.state.sales.filter(x=>{var k;return x.fulfillment_status==="preparing"||x.status==="paid"||((k=x.channel)==null?void 0:k.toLowerCase())==="discogs"&&x.status!=="shipped"&&x.fulfillment_status!=="shipped"}),G=H,Z=`
+        `;try{const s=M,n=await(await fetch(`${s}/discogs/sync`,{method:"POST",headers:{"Content-Type":"application/json"}})).json(),r=await(await fetch(`${s}/discogs/sync-orders`,{method:"POST",headers:{"Content-Type":"application/json"}})).json();if(n.success||r&&r.success){let c=`✅ Sincronizado: ${n.synced||0} productos`;r&&r.salesCreated>0&&(c+=`. ¡Detectadas ${r.salesCreated} nuevas ventas!`),this.showToast(c),await this.loadData(),this.refreshCurrentView()}else throw new Error(n.error||r&&r.error||"Error desconocido")}catch(s){console.error("Sync error:",s),this.showToast(`❌ Error al sincronizar: ${s.message}`)}finally{t.disabled=!1,t.innerHTML=e}},formatCurrency(t){return new Intl.NumberFormat("da-DK",{style:"currency",currency:"DKK"}).format(t)},formatDate(t){return t?new Date(t).toLocaleDateString("es-ES",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"},getMonthName(t){return["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][t]},generateId(){return Date.now().toString(36)+Math.random().toString(36).substr(2)},showToast(t){const e=document.getElementById("toast");document.getElementById("toast-message").innerText=t,e.classList.remove("opacity-0","-translate-y-20","md:translate-y-20"),setTimeout(()=>{e.classList.add("opacity-0","-translate-y-20","md:translate-y-20")},3e3)},setupNavigation(){},setupMobileMenu(){},toggleMobileMenu(){const t=document.getElementById("mobile-menu"),e=document.getElementById("mobile-menu-overlay");!t||!e||(t.classList.contains("translate-y-full")?(t.classList.remove("translate-y-full"),e.classList.remove("hidden")):(t.classList.add("translate-y-full"),e.classList.add("hidden")))},toggleMonthFilter(t){const e=this.state.filterMonths.indexOf(t);e===-1?this.state.filterMonths.push(t):this.state.filterMonths.length>1&&this.state.filterMonths.splice(e,1),this.state.filterMonths.sort((s,o)=>s-o),this.refreshCurrentView()},async setReadyForPickup(t){var e,s,o,n,a,r;try{const c=((e=event==null?void 0:event.target)==null?void 0:e.closest("button"))||((o=(s=window.event)==null?void 0:s.target)==null?void 0:o.closest("button"));c&&(c.disabled=!0,c.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Guardando...');const l=await fetch(`${M}/api/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})}),i=await l.json();if(l.ok&&i.success){this.showToast("✅ Pedido listo para retiro"),this.showToast("📧 Cliente notificado por email"),await this.loadData();const d=document.getElementById("sale-detail-modal");d&&(d.remove(),this.openUnifiedOrderDetailModal(t))}else throw new Error(i.error||i.message||"Error desconocido")}catch(c){console.error("Error setting ready for pickup:",c),this.showToast("❌ Error: "+(c.message||"No se pudo procesar el estado"),"error");const l=((n=event==null?void 0:event.target)==null?void 0:n.closest("button"))||((r=(a=window.event)==null?void 0:a.target)==null?void 0:r.closest("button"));l.disabled=!1,l.innerHTML='<i class="ph-bold ph-storefront"></i> Listo para Retiro'}},renderDashboard(t){try{const e=this.state.filterMonths,s=this.state.filterYear,o=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],n=this.state.sales.filter(h=>{var L;const w=(L=h.timestamp)!=null&&L.toDate?h.timestamp.toDate():new Date(h.timestamp||h.date);return w.getFullYear()===s&&e.includes(w.getMonth())}),a=[...n].sort((h,w)=>{var j,A;const L=(j=h.timestamp)!=null&&j.toDate?h.timestamp.toDate():new Date(h.timestamp||h.date);return((A=w.timestamp)!=null&&A.toDate?w.timestamp.toDate():new Date(w.timestamp||w.date))-L}),r=[...this.state.sales.map(h=>({...h,type:"sale",sortDate:new Date(h.date)})),...this.state.expenses.map(h=>({...h,type:"expense",sortDate:new Date(h.date||h.fecha_factura)}))].sort((h,w)=>w.sortDate-h.sortDate).slice(0,5),c=[],l=[];for(let h=29;h>=0;h--){const w=new Date;w.setDate(w.getDate()-h);const L=w.toISOString().split("T")[0];c.push(w.getDate());const O=this.state.sales.filter(j=>j.date===L).reduce((j,A)=>j+(Number(A.total||A.total_amount)||0),0);l.push(O)}const i=new Date,d=i.getMonth(),u=i.getFullYear(),m=d===0?11:d-1,x=d===0?u-1:u,b=this.state.sales.filter(h=>{const w=new Date(h.date);return w.getMonth()===d&&w.getFullYear()===u}).reduce((h,w)=>h+(Number(w.originalTotal||w.total_amount||w.total)||0),0),y=this.state.sales.filter(h=>{const w=new Date(h.date);return w.getMonth()===m&&w.getFullYear()===x}).reduce((h,w)=>h+(Number(w.originalTotal||w.total_amount||w.total)||0),0),k=y>0?(b-y)/y*100:0,p=`${k>=0?"+":""}${k.toFixed(1)}% vs ${this.getMonthName(m)}`;let g=0,v=0,E=0,$=0,I=0,S=0,_=0,F=0;n.forEach(h=>{var ie;const w=((ie=h.channel)==null?void 0:ie.toLowerCase())==="discogs",L=Number(h.originalTotal)||Number(h.total_amount)||Number(h.total)||0,O=Number(h.total)||Number(h.total_amount)||0,j=w?L-O:0,A=Number(h.shipping_cost)||0;g+=L,E+=A;let se=0;const le=h.items||[];le.length>0?le.forEach(B=>{const oe=Number(B.priceAtSale||B.unitPrice||B.price)||0,X=Number(B.qty||B.quantity)||1;let U=Number(B.costAtSale||B.cost)||0;const re=(B.owner||"").toLowerCase(),pe=B.productCondition||B.condition||"Used",de=oe*X;if(U===0){const q=B.productId||B.recordId,ee=B.album,te=this.state.inventory.find(ne=>q&&(ne.id===q||ne.sku===q)||ee&&ne.album===ee);te&&(U=te.cost||0)}if(pe==="New")I+=de*.2;else{const q=de-U*X;S+=q>0?q*.2:0}if(re==="el cuartito"||re==="")U=Number(B.costAtSale||B.cost)||0;else{if(U===0||isNaN(U)){const q=this.state.consignors?this.state.consignors.find(te=>(te.name||"").toLowerCase()===re):null,ee=q&&(q.agreementSplit||q.split)||70;U=oe*(Number(ee)||70)/100}$+=U*X}se+=(oe-U)*X}):(se=L,I+=L*.2);const ae=parseFloat(h.shipping_income||h.shipping||h.shipping_cost||0);ae>0&&(_+=ae*.2,F+=ae),v+=se-j});const K=this.state.expenses.filter(h=>{var O;const w=h.fecha_factura?new Date(h.fecha_factura):(O=h.timestamp)!=null&&O.toDate?h.timestamp.toDate():new Date(h.timestamp||h.date);return(h.categoria_tipo==="operativo"||h.categoria_tipo==="stock_nuevo"||h.is_vat_deductible)&&w.getFullYear()===s&&e.includes(w.getMonth())}).reduce((h,w)=>h+(parseFloat(w.monto_iva)||0),0),z=I+S+_-K,f=this.state.expenses.filter(h=>{const w=new Date(h.date||h.fecha_factura);return w.getFullYear()===s&&e.includes(w.getMonth())}).reduce((h,w)=>h+(Number(w.monto_total||w.amount)||0),0),C=v-z-f,R=v-z,V=this.state.inventory.reduce((h,w)=>h+w.price*w.stock,0),J=this.state.inventory.reduce((h,w)=>h+w.stock,0),P=this.state.inventory.filter(h=>h.stock>0&&h.stock<1),N=this.state.sales.filter(h=>{var w;return h.fulfillment_status==="preparing"||h.status==="paid"||((w=h.channel)==null?void 0:w.toLowerCase())==="discogs"&&h.status!=="shipped"&&h.fulfillment_status!=="shipped"}),G=z,Z=`
             <div class="max-w-7xl mx-auto space-y-8 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!-- Header with Navigation and Filter -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -311,7 +428,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                         <div>
                             <h2 class="font-display text-3xl font-bold text-brand-dark">Resumen Operativo</h2>
-                            <p class="text-slate-500 text-sm">Monitor de actividad: <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(x=>this.getMonthName(x)).join(", ")} ${s} `}</span></p>
+                            <p class="text-slate-500 text-sm">Monitor de actividad: <span class="font-bold text-brand-orange">${e.length===12?`Año ${s} `:`${e.map(h=>this.getMonthName(h)).join(", ")} ${s} `}</span></p>
                         </div>
                     </div>
 
@@ -322,10 +439,10 @@ El inventario, gastos y socios NO serán afectados.
                         </select>
                         <div class="h-6 w-px bg-slate-100 mx-1"></div>
                         <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar">
-                            ${o.map((x,k)=>`
-                                <button onclick="app.toggleMonthFilter(${k})" 
-                                    class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${e.includes(k)?"bg-brand-orange text-white shadow-lg shadow-brand-orange/20":"text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
-                                    ${x}
+                            ${o.map((h,w)=>`
+                                <button onclick="app.toggleMonthFilter(${w})" 
+                                    class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${e.includes(w)?"bg-brand-orange text-white shadow-lg shadow-brand-orange/20":"text-slate-400 hover:text-brand-dark hover:bg-slate-50"}">
+                                    ${h}
                                 </button>
                             `).join("")}
                         </div>
@@ -342,10 +459,10 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Ventas del Mes</span>
                         </div>
-                        <p class="text-4xl font-display font-bold text-brand-dark mb-2">${this.formatCurrency(h)}</p>
+                        <p class="text-4xl font-display font-bold text-brand-dark mb-2">${this.formatCurrency(b)}</p>
                         <div class="flex items-center gap-2">
-                             <span class="text-[10px] font-bold ${u>=0?"text-emerald-500 bg-emerald-50":"text-red-500 bg-red-50"} px-2 py-0.5 rounded-full border ${u>=0?"border-emerald-100":"border-red-100"}">
-                                ${b}
+                             <span class="text-[10px] font-bold ${k>=0?"text-emerald-500 bg-emerald-50":"text-red-500 bg-red-50"} px-2 py-0.5 rounded-full border ${k>=0?"border-emerald-100":"border-red-100"}">
+                                ${p}
                              </span>
                         </div>
                     </div>
@@ -358,20 +475,20 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Beneficio Neto</span>
                         </div>
-                        <p class="text-4xl font-display font-bold text-emerald-600 mb-2">${this.formatCurrency(D)}</p>
+                        <p class="text-4xl font-display font-bold text-emerald-600 mb-2">${this.formatCurrency(C)}</p>
                         <p class="text-[10px] text-slate-400 font-medium">Incluye costos, fees y gastos operativos.</p>
                     </div>
 
                     <!-- Card 3: Alerta de Pedidos -->
                     <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                         <div class="flex items-center gap-3 mb-4">
-                            <div class="w-10 h-10 ${F.length>0?"bg-red-50 text-red-500":"bg-green-50 text-green-500"} rounded-xl flex items-center justify-center">
-                                <i class="ph-bold ${F.length>0?"ph-package":"ph-check-circle"} text-xl"></i>
+                            <div class="w-10 h-10 ${N.length>0?"bg-red-50 text-red-500":"bg-green-50 text-green-500"} rounded-xl flex items-center justify-center">
+                                <i class="ph-bold ${N.length>0?"ph-package":"ph-check-circle"} text-xl"></i>
                             </div>
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Alerta de Pedidos</span>
                         </div>
                         <div class="flex items-baseline gap-2">
-                            ${F.length>0?`<p class="text-5xl font-display font-bold text-red-500">${F.length}</p>`:'<p class="text-3xl font-display font-bold text-green-600">Al día</p>'}
+                            ${N.length>0?`<p class="text-5xl font-display font-bold text-red-500">${N.length}</p>`:'<p class="text-3xl font-display font-bold text-green-600">Al día</p>'}
                         </div>
                         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Pedidos por despachar</p>
                     </div>
@@ -411,25 +528,25 @@ El inventario, gastos y socios NO serán afectados.
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
                                     <tbody class="divide-y divide-slate-50">
-                                        ${r.map(x=>{const k=x.type==="sale",_=k?x.album||"Venta de Items":x.proveedor||x.description||"Gasto registrado",O=k?x.channel||"Tienda Local":x.categoria||"Operativo";let j="ph-receipt";if(k){const L=(x.channel||"").toLowerCase();L.includes("web")&&(j="ph-globe-simple"),L.includes("discogs")&&(j="ph-vinyl-record")}else j="ph-credit-card";return`
+                                        ${r.map(h=>{const w=h.type==="sale",L=w?h.album||"Venta de Items":h.proveedor||h.description||"Gasto registrado",O=w?h.channel||"Tienda Local":h.categoria||"Operativo";let j="ph-receipt";if(w){const A=(h.channel||"").toLowerCase();A.includes("web")&&(j="ph-globe-simple"),A.includes("discogs")&&(j="ph-vinyl-record")}else j="ph-credit-card";return`
                                                 <tr class="hover:bg-slate-50/50 transition-colors group">
                                                     <td class="px-6 py-4">
                                                         <div class="flex items-center gap-3">
-                                                            <div class="w-10 h-10 rounded-xl ${k?"bg-orange-50 text-brand-orange":"bg-slate-100 text-slate-400"} flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
+                                                            <div class="w-10 h-10 rounded-xl ${w?"bg-orange-50 text-brand-orange":"bg-slate-100 text-slate-400"} flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
                                                                  <i class="ph-bold ${j} text-lg"></i>
                                                              </div>
                                                              <div class="min-w-0">
-                                                                 <div class="font-bold text-sm text-brand-dark truncate max-w-[200px]" title="${_}">${_}</div>
+                                                                 <div class="font-bold text-sm text-brand-dark truncate max-w-[200px]" title="${L}">${L}</div>
                                                                  <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${O}</div>
                                                              </div>
                                                          </div>
                                                      </td>
                                                      <td class="px-6 py-4 text-xs text-slate-500 font-medium whitespace-nowrap">
-                                                         ${this.formatDate(x.date||x.fecha_factura)}
+                                                         ${this.formatDate(h.date||h.fecha_factura)}
                                                      </td>
                                                      <td class="px-6 py-4 text-right">
-                                                         <span class="font-bold text-sm ${k?"text-brand-dark":"text-red-500"}">
-                                                            ${k?"":"-"}${this.formatCurrency(x.total||x.monto_total||x.amount||0)}
+                                                         <span class="font-bold text-sm ${w?"text-brand-dark":"text-red-500"}">
+                                                            ${w?"":"-"}${this.formatCurrency(h.total||h.monto_total||h.amount||0)}
                                                          </span>
                                                      </td>
                                                  </tr>
@@ -504,7 +621,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=Z,this.renderDashboardCharts(n,i,l)}catch(e){console.error("Dashboard render error:",e),t.innerHTML=`<div class="p-12 text-center text-red-500 font-bold bg-red-50 rounded-3xl m-8 border border-red-100">
+        `;t.innerHTML=Z,this.renderDashboardCharts(n,c,l)}catch(e){console.error("Dashboard render error:",e),t.innerHTML=`<div class="p-12 text-center text-red-500 font-bold bg-red-50 rounded-3xl m-8 border border-red-100">
                 <i class="ph-bold ph-warning-circle text-4xl mb-4"></i>
                 <p>Error al cargar el dashboard: ${e.message}</p>
                 <button onclick="app.loadData()" class="mt-4 px-4 py-2 bg-red-500 text-white rounded-xl">Intentar de nuevo</button>
@@ -735,7 +852,7 @@ El inventario, gastos y socios NO serán afectados.
                     </table>
                 </div>
             `}
-`},renderInventory(t){const e=[...new Set(this.state.inventory.map(d=>d.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(d=>d.owner).filter(Boolean))].sort(),o=[...new Set(this.state.inventory.map(d=>d.label).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(d=>d.storageLocation).filter(Boolean))].sort(),a=this.getFilteredInventory(),r=this.state.sortBy||"dateDesc";a.sort((d,c)=>{if(r==="priceDesc")return(c.price||0)-(d.price||0);if(r==="priceAsc")return(d.price||0)-(c.price||0);if(r==="stockDesc")return(c.stock||0)-(d.stock||0);const p=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0,m=c.created_at?c.created_at.seconds?c.created_at.seconds*1e3:new Date(c.created_at).getTime():0;return r==="dateDesc"?m-p:r==="dateAsc"?p-m:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
+`},renderInventory(t){const e=[...new Set(this.state.inventory.map(i=>i.genre).filter(Boolean))].sort(),s=[...new Set(this.state.inventory.map(i=>i.owner).filter(Boolean))].sort(),o=[...new Set(this.state.inventory.map(i=>i.label).filter(Boolean))].sort(),n=[...new Set(this.state.inventory.map(i=>i.storageLocation).filter(Boolean))].sort(),a=this.getFilteredInventory(),r=this.state.sortBy||"dateDesc";a.sort((i,d)=>{if(r==="priceDesc")return(d.price||0)-(i.price||0);if(r==="priceAsc")return(i.price||0)-(d.price||0);if(r==="stockDesc")return(d.stock||0)-(i.stock||0);const u=i.created_at?i.created_at.seconds?i.created_at.seconds*1e3:new Date(i.created_at).getTime():0,m=d.created_at?d.created_at.seconds?d.created_at.seconds*1e3:new Date(d.created_at).getTime():0;return r==="dateDesc"?m-u:r==="dateAsc"?u-m:0}),document.getElementById("inventory-layout-root")||(t.innerHTML=`
     <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
                     <!--Header(Search) -->
                     <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
@@ -780,14 +897,14 @@ El inventario, gastos y socios NO serán afectados.
             </div>
             <div class="space-y-4 md:hidden">
                 <!-- Mobile Items (Simplified) -->
-                ${this.state.inventory.map(d=>"<!-- Mobile Card Placeholder - Handled by renderInventoryContent actually? No, duplicate logic. Let's merge mobile into renderInventoryContent -->").join("")}
+                ${this.state.inventory.map(i=>"<!-- Mobile Card Placeholder - Handled by renderInventoryContent actually? No, duplicate logic. Let's merge mobile into renderInventoryContent -->").join("")}
                 <!-- Actually, let's let renderInventoryContent handle ALL content including mobile -->
             </div>
             <div id="inventory-content-container"></div>
         </div>
     </div>
                 </div>
-    `),this.renderInventoryCart();const i=document.getElementById("inventory-filters-container");i&&(i.innerHTML=`
+    `),this.renderInventoryCart();const c=document.getElementById("inventory-filters-container");c&&(c.innerHTML=`
     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 sticky top-24">
                     <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
                     <div class="space-y-4">
@@ -807,28 +924,28 @@ El inventario, gastos y socios NO serán afectados.
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Género</label>
                             <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
-                                ${e.map(d=>`<option value="${d}" ${this.state.filterGenre===d?"selected":""}>${d}</option>`).join("")}
+                                ${e.map(i=>`<option value="${i}" ${this.state.filterGenre===i?"selected":""}>${i}</option>`).join("")}
                             </select>
                         </div>
                          <div>
                             <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Label Disquería</label>
                             <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todas</option>
-                                ${n.map(d=>`<option value="${d}" ${this.state.filterStorage===d?"selected":""}>${d}</option>`).join("")}
+                                ${n.map(i=>`<option value="${i}" ${this.state.filterStorage===i?"selected":""}>${i}</option>`).join("")}
                             </select>
                         </div>
                          <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
                             <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
-                                ${o.map(d=>`<option value="${d}" ${this.state.filterLabel===d?"selected":""}>${d}</option>`).join("")}
+                                ${o.map(i=>`<option value="${i}" ${this.state.filterLabel===i?"selected":""}>${i}</option>`).join("")}
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Dueño</label>
                             <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
                                 <option value="all">Todos</option>
-                                ${s.map(d=>`<option value="${d}" ${this.state.filterOwner===d?"selected":""}>${d}</option>`).join("")}
+                                ${s.map(i=>`<option value="${i}" ${this.state.filterOwner===i?"selected":""}>${i}</option>`).join("")}
                             </select>
                         </div>
                         <div>
@@ -841,7 +958,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-    `);const l=document.getElementById("inventory-content-container");l&&this.renderInventoryContent(l,a,e,s,n)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const o=[],n=[],a=[];s.forEach(i=>{o.push(this.getMonthName(i).substring(0,3));const l=t.filter(c=>new Date(c.date).getMonth()===i).reduce((c,p)=>c+p.total,0),d=e.filter(c=>new Date(c.date).getMonth()===i).reduce((c,p)=>c+p.amount,0);n.push(l),a.push(d)});const r={};t.forEach(i=>{r[i.genre]=(r[i.genre]||0)+i.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:o,datasets:[{label:"Ventas",data:n,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:a,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[],e=[],s=[]){var g,h,w,u,b;const o=t,n=(g=document.getElementById("last30DaysChart"))==null?void 0:g.getContext("2d");n&&(this.last30ChartInstance&&this.last30ChartInstance.destroy(),this.last30ChartInstance=new Chart(n,{type:"line",data:{labels:e,datasets:[{label:"Ventas ($)",data:s,borderColor:"#F05A28",backgroundColor:f=>{const y=f.chart,{ctx:E,chartArea:$}=y;if(!$)return null;const I=E.createLinearGradient(0,$.top,0,$.bottom);return I.addColorStop(0,"rgba(240, 90, 40, 0.2)"),I.addColorStop(1,"rgba(240, 90, 40, 0)"),I},borderWidth:3,fill:!0,tension:.4,pointRadius:0,pointHoverRadius:6,pointBackgroundColor:"#F05A28",pointBorderColor:"#fff",pointBorderWidth:2}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1},tooltip:{mode:"index",intersect:!1,backgroundColor:"#1e293b",titleFont:{size:10},bodyFont:{size:12,weight:"bold"},padding:12,cornerRadius:12,displayColors:!1,callbacks:{label:f=>this.formatCurrency(f.parsed.y)}}},scales:{y:{beginAtZero:!0,grid:{color:"#f8fafc"},ticks:{font:{size:10},color:"#94a3b8"}},x:{grid:{display:!1},ticks:{font:{size:10},color:"#94a3b8",autoSkip:!0,maxRotation:0,callback:function(f,y){return y%5===0?this.getLabelForValue(f):""}}}},interaction:{mode:"index",intersect:!1}}}));const a=(f,y)=>({type:"doughnut",data:{labels:Object.keys(f),datasets:[{data:Object.values(f),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),r={};o.forEach(f=>{const y=f.genre||"Otros";let E=Number(f.quantity)||0;E===0&&f.items&&Array.isArray(f.items)&&(E=f.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),r[y]=(r[y]||0)+Number(E)}),this.genreChartInstance&&this.genreChartInstance.destroy();const i=(h=document.getElementById("genreChart"))==null?void 0:h.getContext("2d");i&&(this.genreChartInstance=new Chart(i,a(r)));const l={};o.forEach(f=>{const y=f.paymentMethod||"Otros";let E=Number(f.quantity)||0;E===0&&f.items&&Array.isArray(f.items)&&(E=f.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),l[y]=(l[y]||0)+Number(E)}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const d=(w=document.getElementById("paymentChart"))==null?void 0:w.getContext("2d");d&&(this.paymentChartInstance=new Chart(d,a(l)));const c={};o.forEach(f=>{const y=f.channel||"Tienda";let E=Number(f.quantity)||0;E===0&&f.items&&Array.isArray(f.items)&&(E=f.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),c[y]=(c[y]||0)+Number(E)}),this.channelChartInstance&&this.channelChartInstance.destroy();const p=(u=document.getElementById("channelChart"))==null?void 0:u.getContext("2d");p&&(this.channelChartInstance=new Chart(p,a(c)));const m=(b=document.getElementById("salesTrendChart"))==null?void 0:b.getContext("2d");if(m){const f=new Array(31).fill(0).map((E,$)=>$+1),y=new Array(31).fill(0);o.forEach(E=>{const $=new Date(E.date);isNaN($.getDate())||(y[$.getDate()-1]+=parseFloat(E.total)||0)}),this.trendChartInstance&&this.trendChartInstance.destroy(),this.trendChartInstance=new Chart(m,{type:"line",data:{labels:f,datasets:[{label:"Ventas ($)",data:y,borderColor:"#F05A28",backgroundColor:"rgba(240, 90, 40, 0.1)",borderWidth:3,fill:!0,tension:.4,pointRadius:2}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1}},scales:{y:{beginAtZero:!0,grid:{color:"#f1f5f9"}},x:{grid:{display:!1}}}}})}},updateFilter(t,e){if(t==="month"){const s=parseInt(e);this.state.filterMonth=s,this.state.filterMonths=[s]}t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var w;const e=new Date().toISOString().split("T")[0],s=new Date(Date.now()-864e5).toISOString().split("T")[0],o=this.state.sales.filter(u=>u.date===e).reduce((u,b)=>u+(parseFloat(b.total)||0),0),n=this.state.sales.filter(u=>u.date===s).reduce((u,b)=>u+(parseFloat(b.total)||0),0),a=this.state.sales.filter(u=>u.fulfillment_status==="preparing"||u.status==="paid"||u.channel==="Discogs"&&u.status!=="shipped").length,r=this.state.filterYear,i=this.state.filterMonths,l=((w=document.getElementById("sales-payment-filter"))==null?void 0:w.value)||"all",d=this.state.salesHistorySearch.toLowerCase(),c=this.state.orderFeedFilter||"all",p=this.state.sales.filter(u=>{const b=new Date(u.date),f=b.getFullYear()===r&&i.includes(b.getMonth()),y=l==="all"||u.paymentMethod===l,E=!d||u.items&&u.items.some(I=>(I.album||"").toLowerCase().includes(d)||(I.artist||"").toLowerCase().includes(d)||(u.sku||"").toLowerCase().includes(d))||(u.album||"").toLowerCase().includes(d);let $=!0;return c==="to_ship"?$=u.status!=="shipped"&&u.source!=="STORE":c==="completed"?$=u.status==="shipped":c==="store"&&($=u.source==="STORE"),f&&y&&E&&$}),m=p.reduce((u,b)=>u+(parseFloat(b.total)||0),0),g=p.length>0?m/p.length:0,h=`
+    `);const l=document.getElementById("inventory-content-container");l&&this.renderInventoryContent(l,a,e,s,n)},getStatusBadge(t){return`<span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${{NM:"bg-green-100 text-green-700 border-green-200","VG+":"bg-blue-100 text-blue-700 border-blue-200",VG:"bg-yellow-100 text-yellow-700 border-yellow-200",G:"bg-orange-100 text-orange-700 border-orange-200",B:"bg-red-100 text-red-700 border-red-200",S:"bg-purple-100 text-purple-700 border-purple-200"}[t]||"bg-slate-100 text-slate-600 border-slate-200"}"> ${t}</span> `},renderCharts(t,e){const s=this.state.filterMonths;this.state.filterYear;const o=[],n=[],a=[];s.forEach(c=>{o.push(this.getMonthName(c).substring(0,3));const l=t.filter(d=>new Date(d.date).getMonth()===c).reduce((d,u)=>d+u.total,0),i=e.filter(d=>new Date(d.date).getMonth()===c).reduce((d,u)=>d+u.amount,0);n.push(l),a.push(i)});const r={};t.forEach(c=>{r[c.genre]=(r[c.genre]||0)+c.quantity}),new Chart(document.getElementById("financeChart"),{type:"bar",data:{labels:o,datasets:[{label:"Ventas",data:n,backgroundColor:"#F05A28",borderRadius:6},{label:"Gastos",data:a,backgroundColor:"#94a3b8",borderRadius:6}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"bottom"}},scales:{y:{grid:{color:"#f1f5f9"},beginAtZero:!0},x:{grid:{display:!1}}}}})},renderDashboardCharts(t=[],e=[],s=[]){var x,b,y,k,p;const o=t,n=(x=document.getElementById("last30DaysChart"))==null?void 0:x.getContext("2d");n&&(this.last30ChartInstance&&this.last30ChartInstance.destroy(),this.last30ChartInstance=new Chart(n,{type:"line",data:{labels:e,datasets:[{label:"Ventas ($)",data:s,borderColor:"#F05A28",backgroundColor:g=>{const v=g.chart,{ctx:E,chartArea:$}=v;if(!$)return null;const I=E.createLinearGradient(0,$.top,0,$.bottom);return I.addColorStop(0,"rgba(240, 90, 40, 0.2)"),I.addColorStop(1,"rgba(240, 90, 40, 0)"),I},borderWidth:3,fill:!0,tension:.4,pointRadius:0,pointHoverRadius:6,pointBackgroundColor:"#F05A28",pointBorderColor:"#fff",pointBorderWidth:2}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1},tooltip:{mode:"index",intersect:!1,backgroundColor:"#1e293b",titleFont:{size:10},bodyFont:{size:12,weight:"bold"},padding:12,cornerRadius:12,displayColors:!1,callbacks:{label:g=>this.formatCurrency(g.parsed.y)}}},scales:{y:{beginAtZero:!0,grid:{color:"#f8fafc"},ticks:{font:{size:10},color:"#94a3b8"}},x:{grid:{display:!1},ticks:{font:{size:10},color:"#94a3b8",autoSkip:!0,maxRotation:0,callback:function(g,v){return v%5===0?this.getLabelForValue(g):""}}}},interaction:{mode:"index",intersect:!1}}}));const a=(g,v)=>({type:"doughnut",data:{labels:Object.keys(g),datasets:[{data:Object.values(g),backgroundColor:["#F05A28","#FDE047","#8b5cf6","#10b981","#f43f5e","#64748b"],borderWidth:0}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{position:"right",labels:{boxWidth:10,font:{size:10}}}}}}),r={};o.forEach(g=>{const v=g.genre||"Otros";let E=Number(g.quantity)||0;E===0&&g.items&&Array.isArray(g.items)&&(E=g.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),r[v]=(r[v]||0)+Number(E)}),this.genreChartInstance&&this.genreChartInstance.destroy();const c=(b=document.getElementById("genreChart"))==null?void 0:b.getContext("2d");c&&(this.genreChartInstance=new Chart(c,a(r)));const l={};o.forEach(g=>{const v=g.paymentMethod||"Otros";let E=Number(g.quantity)||0;E===0&&g.items&&Array.isArray(g.items)&&(E=g.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),l[v]=(l[v]||0)+Number(E)}),this.paymentChartInstance&&this.paymentChartInstance.destroy();const i=(y=document.getElementById("paymentChart"))==null?void 0:y.getContext("2d");i&&(this.paymentChartInstance=new Chart(i,a(l)));const d={};o.forEach(g=>{const v=g.channel||"Tienda";let E=Number(g.quantity)||0;E===0&&g.items&&Array.isArray(g.items)&&(E=g.items.reduce(($,I)=>$+(Number(I.qty||I.quantity)||1),0)),E<=0&&(E=1),d[v]=(d[v]||0)+Number(E)}),this.channelChartInstance&&this.channelChartInstance.destroy();const u=(k=document.getElementById("channelChart"))==null?void 0:k.getContext("2d");u&&(this.channelChartInstance=new Chart(u,a(d)));const m=(p=document.getElementById("salesTrendChart"))==null?void 0:p.getContext("2d");if(m){const g=new Array(31).fill(0).map((E,$)=>$+1),v=new Array(31).fill(0);o.forEach(E=>{const $=new Date(E.date);isNaN($.getDate())||(v[$.getDate()-1]+=parseFloat(E.total)||0)}),this.trendChartInstance&&this.trendChartInstance.destroy(),this.trendChartInstance=new Chart(m,{type:"line",data:{labels:g,datasets:[{label:"Ventas ($)",data:v,borderColor:"#F05A28",backgroundColor:"rgba(240, 90, 40, 0.1)",borderWidth:3,fill:!0,tension:.4,pointRadius:2}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1}},scales:{y:{beginAtZero:!0,grid:{color:"#f1f5f9"}},x:{grid:{display:!1}}}}})}},updateFilter(t,e){if(t==="month"){const s=parseInt(e);this.state.filterMonth=s,this.state.filterMonths=[s]}t==="year"&&(this.state.filterYear=parseInt(e)),this.renderDashboard(document.getElementById("app-content"))},renderSales(t){var k;const e=new Date().toISOString().split("T")[0],s=new Date(Date.now()-864e5).toISOString().split("T")[0],o=this.state.sales.filter(p=>p.date===e).reduce((p,g)=>p+(parseFloat(g.total)||0),0),n=this.state.sales.filter(p=>p.date===s).reduce((p,g)=>p+(parseFloat(g.total)||0),0),a=this.state.sales.filter(p=>p.fulfillment_status==="preparing"||p.status==="paid"||p.channel==="Discogs"&&p.status!=="shipped").length,r=this.state.filterYear,c=this.state.filterMonths,l=((k=document.getElementById("sales-payment-filter"))==null?void 0:k.value)||"all",d=this.state.salesHistorySearch.toLowerCase().split(" ").filter(p=>p.length>0),u=this.state.orderFeedFilter||"all",m=this.state.sales.filter(p=>{const g=new Date(p.date),v=g.getFullYear()===r&&c.includes(g.getMonth()),E=l==="all"||p.paymentMethod===l;let $=!0;d.length>0&&($=d.every(S=>{const _=p.items&&p.items.some(T=>(T.album||"").toLowerCase().includes(S)||(T.artist||"").toLowerCase().includes(S)||(T.label||"").toLowerCase().includes(S)||(T.sku||"").toLowerCase().includes(S)),F=(p.album||"").toLowerCase().includes(S)||(p.sku||"").toLowerCase().includes(S);return _||F}));let I=!0;return u==="to_ship"?I=p.status!=="shipped"&&p.source!=="STORE":u==="completed"?I=p.status==="shipped":u==="store"&&(I=p.source==="STORE"),v&&E&&$&&I}),x=m.reduce((p,g)=>p+(parseFloat(g.total)||0),0),b=m.length>0?x/m.length:0,y=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <!-- Header Component -->
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
@@ -861,10 +978,10 @@ El inventario, gastos y socios NO serán afectados.
                             </select>
                         </div>
                         <div class="flex flex-wrap gap-1">
-                            ${["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"].map((u,b)=>`
-                                <button onclick="app.toggleMonthFilter(${b})" 
-                                    class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${i.includes(b)?"bg-brand-dark text-white":"bg-slate-50 text-slate-400 hover:bg-slate-100"}">
-                                    ${u}
+                            ${["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"].map((p,g)=>`
+                                <button onclick="app.toggleMonthFilter(${g})" 
+                                    class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${c.includes(g)?"bg-brand-dark text-white":"bg-slate-50 text-slate-400 hover:bg-slate-100"}">
+                                    ${p}
                                 </button>
                             `).join("")}
                         </div>
@@ -911,7 +1028,7 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Métrica</span>
                         </div>
-                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(g)}</h3>
+                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(b)}</h3>
                         <p class="text-xs text-slate-400 font-medium">Valor promedio por cliente</p>
                     </div>
                 </div>
@@ -932,10 +1049,10 @@ El inventario, gastos y socios NO serán afectados.
                         <div class="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
                             <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Stock por Dueño</h4>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                ${["El Cuartito",...this.state.consignors.map(u=>u.name)].map(u=>{const b=this.state.inventory.filter(f=>f.owner===u).reduce((f,y)=>f+y.stock,0);return`
+                                ${["El Cuartito",...this.state.consignors.map(p=>p.name)].map(p=>{const g=this.state.inventory.filter(v=>v.owner===p).reduce((v,E)=>v+E.stock,0);return`
                                         <div class="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-                                            <span class="text-xs font-bold text-slate-600 truncate mr-2">${u}</span>
-                                            <span class="bg-slate-100 px-2 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-400">${b}</span>
+                                            <span class="text-xs font-bold text-slate-600 truncate mr-2">${p}</span>
+                                            <span class="bg-slate-100 px-2 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-400">${g}</span>
                                         </div>
                                     `}).join("")}
                             </div>
@@ -953,11 +1070,11 @@ El inventario, gastos y socios NO serán afectados.
 
                         <!-- Filter Tabs -->
                         <div class="flex bg-slate-100/50 p-1 rounded-2xl border border-slate-100">
-                            ${[{id:"all",label:"Todos",icon:"ph-list"},{id:"to_ship",label:"Por Enviar",icon:"ph-package"},{id:"completed",label:"Completados",icon:"ph-check-circle"},{id:"store",label:"Tienda Física",icon:"ph-storefront"}].map(u=>`
-                                <button onclick="app.updateOrderFeedFilter('${u.id}')" 
-                                    class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold transition-all ${c===u.id?"bg-white text-brand-dark shadow-sm ring-1 ring-slate-200":"text-slate-400 hover:text-slate-600"}">
-                                    <i class="ph-bold ${u.icon} ${c===u.id?"text-brand-orange":""}"></i>
-                                    ${u.label.toUpperCase()}
+                            ${[{id:"all",label:"Todos",icon:"ph-list"},{id:"to_ship",label:"Por Enviar",icon:"ph-package"},{id:"completed",label:"Completados",icon:"ph-check-circle"},{id:"store",label:"Tienda Física",icon:"ph-storefront"}].map(p=>`
+                                <button onclick="app.updateOrderFeedFilter('${p.id}')" 
+                                    class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold transition-all ${u===p.id?"bg-white text-brand-dark shadow-sm ring-1 ring-slate-200":"text-slate-400 hover:text-slate-600"}">
+                                    <i class="ph-bold ${p.icon} ${u===p.id?"text-brand-orange":""}"></i>
+                                    ${p.label.toUpperCase()}
                                 </button>
                             `).join("")}
                         </div>
@@ -982,70 +1099,70 @@ El inventario, gastos y socios NO serán afectados.
 
                         <!-- Feed List -->
                         <div class="space-y-3 max-h-[1200px] overflow-y-auto pr-2 custom-scrollbar">
-                            ${p.map(u=>{const b=u.status==="shipped",f=u.status==="paid"||u.source==="STORE"||u.paymentMethod!=="Pending",y=u.channel==="Discogs",E=u.source==="STORE",$=u.items&&u.items.length>0?u.items[0]:{album:u.album||"Venta Manual",artist:u.artist||"Desconocido"},I=u.items&&u.items.length>1?u.items.length-1:0;return`
-                                <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all cursor-pointer group flex items-center gap-4 relative" onclick="app.openUnifiedOrderDetailModal('${u.id}')">
+                            ${m.map(p=>{const g=p.status==="shipped",v=p.status==="paid"||p.source==="STORE"||p.paymentMethod!=="Pending",E=p.channel==="Discogs",$=p.source==="STORE",I=p.items&&p.items.length>0?p.items[0]:{album:p.album||"Venta Manual",artist:p.artist||"Desconocido"},S=p.items&&p.items.length>1?p.items.length-1:0;return`
+                                <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all cursor-pointer group flex items-center gap-4 relative" onclick="app.openUnifiedOrderDetailModal('${p.id}')">
                                     <!-- Source Icon -->
-                                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${y?"bg-slate-900 text-white":E?"bg-orange-100 text-brand-orange":"bg-blue-100 text-blue-600"}">
-                                        <i class="ph-bold ${y?"ph-disc":E?"ph-storefront":"ph-globe"} text-xl"></i>
+                                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${E?"bg-slate-900 text-white":$?"bg-orange-100 text-brand-orange":"bg-blue-100 text-blue-600"}">
+                                        <i class="ph-bold ${E?"ph-disc":$?"ph-storefront":"ph-globe"} text-xl"></i>
                                     </div>
 
                                     <!-- Details -->
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-0.5">
-                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${this.formatDate(u.date)}</span>
+                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${this.formatDate(p.date)}</span>
                                             <div class="h-1 w-1 rounded-full bg-slate-200"></div>
-                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${u.paymentMethod}</span>
+                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${p.paymentMethod}</span>
                                         </div>
                                         <h4 class="font-bold text-brand-dark truncate pr-2">
-                                            ${$.album} 
-                                            ${I>0?`<span class="text-brand-orange font-medium text-xs ml-1">y ${I} más</span>`:""}
+                                            ${I.album} 
+                                            ${S>0?`<span class="text-brand-orange font-medium text-xs ml-1">y ${S} más</span>`:""}
                                         </h4>
                                         
                                         <!-- Status Badges -->
                                         <div class="flex items-center gap-2 mt-2">
-                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${f?"bg-emerald-50 text-emerald-600":"bg-amber-50 text-amber-600"}">
-                                                ${f?"Pagado":"Pendiente"}
+                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${v?"bg-emerald-50 text-emerald-600":"bg-amber-50 text-amber-600"}">
+                                                ${v?"Pagado":"Pendiente"}
                                             </span>
-                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${b?"bg-slate-100 text-slate-500":"bg-rose-50 text-rose-500"}">
-                                                ${b?"Enviado":"Por Enviar"}
+                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${g?"bg-slate-100 text-slate-500":"bg-rose-50 text-rose-500"}">
+                                                ${g?"Enviado":"Por Enviar"}
                                             </span>
                                         </div>
                                     </div>
 
                                     <!-- Economic Breakdown -->
                                     <div class="text-right shrink-0 border-l border-slate-50 pl-4 py-1">
-                                        <p class="font-display font-bold text-brand-dark text-base">${this.formatCurrency(u.total)}</p>
-                                        ${u.shipping_cost>0?`<p class="text-[10px] text-slate-400 font-bold">Envío: ${this.formatCurrency(u.shipping_cost)}</p>`:""}
+                                        <p class="font-display font-bold text-brand-dark text-base">${this.formatCurrency(p.total)}</p>
+                                        ${p.shipping_cost>0?`<p class="text-[10px] text-slate-400 font-bold">Envío: ${this.formatCurrency(p.shipping_cost)}</p>`:""}
                                     </div>
 
                                     <!-- Quick Action -->
                                     <div class="relative ml-2">
-                                        <button onclick="event.stopPropagation(); app.toggleOrderActionMenu('${u.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-50 text-slate-300 hover:text-brand-dark transition-colors flex items-center justify-center">
+                                        <button onclick="event.stopPropagation(); app.toggleOrderActionMenu('${p.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-50 text-slate-300 hover:text-brand-dark transition-colors flex items-center justify-center">
                                             <i class="ph-bold ph-dots-three-vertical text-xl"></i>
                                         </button>
                                         
                                         <!-- Dropdown (Hidden by default) -->
-                                        <div id="action-menu-${u.id}" class="hidden absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2 space-y-1 py-2">
-                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${u.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                        <div id="action-menu-${p.id}" class="hidden absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2 space-y-1 py-2">
+                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${p.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                 <i class="ph ph-file-text text-blue-500"></i> Ver Factura
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${u.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${p.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                 <i class="ph ph-printer text-indigo-500"></i> Imprimir Etiqueta
                                             </button>
-                                            ${b?"":`
-                                                <button onclick="event.stopPropagation(); app.markOrderAsShipped('${u.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                            ${g?"":`
+                                                <button onclick="event.stopPropagation(); app.markOrderAsShipped('${p.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                     <i class="ph ph-truck text-emerald-500"></i> Marcar Enviado
                                                 </button>
                                             `}
                                             <div class="h-px bg-slate-50 mx-2 my-1"></div>
-                                            <button onclick="event.stopPropagation(); app.deleteSale('${u.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors">
+                                            <button onclick="event.stopPropagation(); app.deleteSale('${p.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors">
                                                 <i class="ph ph-trash"></i> Eliminar
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             `}).join("")}
-                            ${p.length===0?`
+                            ${m.length===0?`
                                 <div class="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
                                     <p class="text-slate-400 italic text-sm">No hay pedidos en esta categoría.</p>
                                 </div>
@@ -1054,7 +1171,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=h},renderSalesCartWidget(){return`
+        `;t.innerHTML=y},renderSalesCartWidget(){return`
             <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 ring-2 ring-emerald-500/10">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="font-bold text-brand-dark flex items-center gap-2">
@@ -1213,7 +1330,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `},updatePOSCondition(t){this.state.posCondition=t,this.renderSales(document.getElementById("app-content"))},selectPOSPayment(t){const e=document.getElementById("input-payment-method");e&&(e.value=t),["MobilePay","Tarjeta","Efectivo"].forEach(s=>{const o=document.getElementById(`pay-${s}`);if(o)if(s===t){o.classList.add("border-brand-dark","bg-slate-50","ring-2","ring-brand-dark/10"),o.classList.remove("border-slate-100","bg-white");const n=o.querySelector("i"),a=o.querySelector("span");n&&(n.classList.add(s==="MobilePay"?"text-blue-500":s==="Tarjeta"?"text-indigo-500":"text-emerald-500"),n.classList.remove("text-slate-400")),a&&(a.classList.add(s==="MobilePay"?"text-blue-600":s==="Tarjeta"?"text-indigo-600":"text-emerald-600"),a.classList.remove("text-slate-500"))}else{o.classList.remove("border-brand-dark","bg-slate-50","ring-2","ring-brand-dark/10"),o.classList.add("border-slate-100","bg-white");const n=o.querySelector("i"),a=o.querySelector("span");n&&(n.className=n.className.replace(/text-(blue|indigo|emerald)-500/g,"text-slate-400")),a&&(a.className=a.className.replace(/text-(blue|indigo|emerald)-600/g,"text-slate-500"))}})},async handleQuickPOSAction(){const t=document.getElementById("btn-pos-action"),e=document.getElementById("input-sku"),s=document.getElementById("input-price"),o=document.getElementById("input-payment-method"),n=document.getElementById("input-artist"),a=document.getElementById("input-album"),r=document.getElementById("input-cost"),i=document.getElementById("input-cost-pos"),l=e==null?void 0:e.value,d=parseFloat(s==null?void 0:s.value),c=(o==null?void 0:o.value)||"MobilePay",p=n==null?void 0:n.value,m=a==null?void 0:a.value,g=this.state.posCondition==="Used";let h=parseFloat(r==null?void 0:r.value)||0;if(g){const w=parseFloat(i==null?void 0:i.value);isNaN(w)||(h=w)}if(!d||isNaN(d)){this.showToast("⚠️ Debes ingresar un precio válido","error");return}if(!l&&!this.state.manualSaleSearch){this.showToast("⚠️ Debes buscar un producto o ingresar un nombre","error");return}try{t&&(t.disabled=!0,t.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Procesando...');const w=this.state.inventory.find(b=>b.sku===l),u={items:[{recordId:w?w.id:"manual-"+Date.now(),quantity:1,unitPrice:d,costAtSale:h,artist:p||"Desconocido",album:m||this.state.manualSaleSearch||"Venta Manual",sku:l||"N/A"}],paymentMethod:c,customerName:"Venta Mostrador",total_amount:d,source:"STORE",channel:"tienda",condition:this.state.posCondition||"New",timestamp:firebase.firestore.FieldValue.serverTimestamp()};await Y.createSale(u),this.showToast("✅ Venta registrada correctamente"),this.printTicket(u),this.state.manualSaleSearch="",this.state.posSelectedItemSku=null,this.loadData()}catch(w){console.error("POS Action Error:",w),this.showToast("❌ Error: "+w.message,"error")}finally{t&&(t.disabled=!1,t.innerHTML='<i class="ph-bold ph-printer text-xl"></i> Cobrar e Imprimir Ticket')}},printTicket(t){const e=window.open("","_blank","width=300,height=600");if(!e){this.showToast("⚠️ El bloqueador de ventanas emergentes impidió imprimir el ticket","warning");return}const s=t.items[0];e.document.write(`
+        `},updatePOSCondition(t){this.state.posCondition=t,this.renderSales(document.getElementById("app-content"))},selectPOSPayment(t){const e=document.getElementById("input-payment-method");e&&(e.value=t),["MobilePay","Tarjeta","Efectivo"].forEach(s=>{const o=document.getElementById(`pay-${s}`);if(o)if(s===t){o.classList.add("border-brand-dark","bg-slate-50","ring-2","ring-brand-dark/10"),o.classList.remove("border-slate-100","bg-white");const n=o.querySelector("i"),a=o.querySelector("span");n&&(n.classList.add(s==="MobilePay"?"text-blue-500":s==="Tarjeta"?"text-indigo-500":"text-emerald-500"),n.classList.remove("text-slate-400")),a&&(a.classList.add(s==="MobilePay"?"text-blue-600":s==="Tarjeta"?"text-indigo-600":"text-emerald-600"),a.classList.remove("text-slate-500"))}else{o.classList.remove("border-brand-dark","bg-slate-50","ring-2","ring-brand-dark/10"),o.classList.add("border-slate-100","bg-white");const n=o.querySelector("i"),a=o.querySelector("span");n&&(n.className=n.className.replace(/text-(blue|indigo|emerald)-500/g,"text-slate-400")),a&&(a.className=a.className.replace(/text-(blue|indigo|emerald)-600/g,"text-slate-500"))}})},async handleQuickPOSAction(){const t=document.getElementById("btn-pos-action"),e=document.getElementById("input-sku"),s=document.getElementById("input-price"),o=document.getElementById("input-payment-method"),n=document.getElementById("input-artist"),a=document.getElementById("input-album"),r=document.getElementById("input-cost"),c=document.getElementById("input-cost-pos"),l=e==null?void 0:e.value,i=parseFloat(s==null?void 0:s.value),d=(o==null?void 0:o.value)||"MobilePay",u=n==null?void 0:n.value,m=a==null?void 0:a.value,x=this.state.posCondition==="Used";let b=parseFloat(r==null?void 0:r.value)||0;if(x){const y=parseFloat(c==null?void 0:c.value);isNaN(y)||(b=y)}if(!i||isNaN(i)){this.showToast("⚠️ Debes ingresar un precio válido","error");return}if(!l&&!this.state.manualSaleSearch){this.showToast("⚠️ Debes buscar un producto o ingresar un nombre","error");return}try{t&&(t.disabled=!0,t.innerHTML='<i class="ph ph-circle-notch animate-spin"></i> Procesando...');const y=this.state.inventory.find(p=>p.sku===l),k={items:[{recordId:y?y.id:"manual-"+Date.now(),quantity:1,unitPrice:i,costAtSale:b,artist:u||"Desconocido",album:m||this.state.manualSaleSearch||"Venta Manual",sku:l||"N/A"}],paymentMethod:d,customerName:"Venta Mostrador",total_amount:i,source:"STORE",channel:"tienda",condition:this.state.posCondition||"New",timestamp:firebase.firestore.FieldValue.serverTimestamp()};await Y.createSale(k),this.showToast("✅ Venta registrada correctamente"),this.printTicket(k),this.state.manualSaleSearch="",this.state.posSelectedItemSku=null,this.loadData()}catch(y){console.error("POS Action Error:",y),this.showToast("❌ Error: "+y.message,"error")}finally{t&&(t.disabled=!1,t.innerHTML='<i class="ph-bold ph-printer text-xl"></i> Cobrar e Imprimir Ticket')}},printTicket(t){const e=window.open("","_blank","width=300,height=600");if(!e){this.showToast("⚠️ El bloqueador de ventanas emergentes impidió imprimir el ticket","warning");return}const s=t.items[0];e.document.write(`
             <html>
                 <head>
                     <style>
@@ -1258,7 +1375,7 @@ El inventario, gastos y socios NO serán afectados.
                     <\/script>
                 </body>
             </html>
-        `),e.document.close()},updateOrderFeedFilter(t){this.state.orderFeedFilter=t,this.renderSales(document.getElementById("app-content"))},toggleOrderActionMenu(t){const e=document.getElementById(`action-menu-${t}`);document.querySelectorAll('[id^="action-menu-"]').forEach(s=>{s.id!==`action-menu-${t}`&&s.classList.add("hidden")}),e&&e.classList.toggle("hidden")},async markOrderAsShipped(t){try{await S.collection("sales").doc(t).update({status:"shipped",fulfillment_status:"fulfilled",shipped_at:firebase.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido marcado como enviado"),this.loadData()}catch(e){console.error("Error marking order as shipped:",e),this.showToast("❌ Error al actualizar estado","error")}},searchSku(t){this.state.manualSaleSearch=t;const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(o=>o.artist.toLowerCase().includes(t.toLowerCase())||o.album.toLowerCase().includes(t.toLowerCase())||o.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(o=>`
+        `),e.document.close()},updateOrderFeedFilter(t){this.state.orderFeedFilter=t,this.renderSales(document.getElementById("app-content"))},toggleOrderActionMenu(t){const e=document.getElementById(`action-menu-${t}`);document.querySelectorAll('[id^="action-menu-"]').forEach(s=>{s.id!==`action-menu-${t}`&&s.classList.add("hidden")}),e&&e.classList.toggle("hidden")},async markOrderAsShipped(t){try{await D.collection("sales").doc(t).update({status:"shipped",fulfillment_status:"fulfilled",shipped_at:firebase.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido marcado como enviado"),this.loadData()}catch(e){console.error("Error marking order as shipped:",e),this.showToast("❌ Error al actualizar estado","error")}},searchSku(t){this.state.manualSaleSearch=t;const e=document.getElementById("sku-results");if(t.length<2){e.classList.add("hidden");return}const s=this.state.inventory.filter(o=>o.artist.toLowerCase().includes(t.toLowerCase())||o.album.toLowerCase().includes(t.toLowerCase())||o.sku.toLowerCase().includes(t.toLowerCase()));s.length>0?(e.innerHTML=s.map(o=>`
     <div onclick="app.selectSku('${o.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
                     <div>
                         <p class="font-bold text-sm text-brand-dark">${o.album}</p>
@@ -1269,7 +1386,7 @@ El inventario, gastos y socios NO serán afectados.
                         <p class="text-xs ${o.stock>0?"text-green-500":"text-red-500"}">Stock: ${o.stock}</p>
                     </div>
                 </div>
-    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(s=>s.sku===t);e&&(this.state.posSelectedItemSku=e.sku,this.renderSales(document.getElementById("app-content")),setTimeout(()=>{const s=document.getElementById("input-price"),o=document.getElementById("input-sku"),n=document.getElementById("input-cost"),a=document.getElementById("input-artist"),r=document.getElementById("input-album"),i=document.getElementById("input-genre"),l=document.getElementById("input-owner"),d=document.getElementById("sku-search");s&&(s.value=e.price),o&&(o.value=e.sku),n&&(n.value=e.cost||0),a&&(a.value=e.artist),r&&(r.value=e.album),i&&(i.value=e.genre),l&&(l.value=e.owner),d&&(d.value=`${e.artist} - ${e.album}`,this.state.manualSaleSearch=d.value);const c=document.getElementById("sku-results");c&&c.classList.add("hidden")},50),e.stock<=0&&this.showToast("⚠️ Este producto no tiene stock disponible","warning"))},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",condition:"NM",product_condition:"Second-hand",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const r=this.state.inventory.find(i=>i.sku===t);r&&(e=r,s=!0)}if(!s){const r=this.state.inventory.map(l=>{const d=l.sku.match(/^SKU\s*-\s*(\d+)/);return d?parseInt(d[1]):0}),i=Math.max(0,...r);e.sku=`SKU-${String(i+1).padStart(3,"0")}`}const o=["Minimal","Techno","House","Deep House","Electro"],n=[...new Set([...o,...this.state.customGenres||[]])],a=`
+    `).join(""),e.classList.remove("hidden")):e.classList.add("hidden")},selectSku(t){const e=this.state.inventory.find(s=>s.sku===t);e&&(this.state.posSelectedItemSku=e.sku,this.renderSales(document.getElementById("app-content")),setTimeout(()=>{const s=document.getElementById("input-price"),o=document.getElementById("input-sku"),n=document.getElementById("input-cost"),a=document.getElementById("input-artist"),r=document.getElementById("input-album"),c=document.getElementById("input-genre"),l=document.getElementById("input-owner"),i=document.getElementById("sku-search");s&&(s.value=e.price),o&&(o.value=e.sku),n&&(n.value=e.cost||0),a&&(a.value=e.artist),r&&(r.value=e.album),c&&(c.value=e.genre),l&&(l.value=e.owner),i&&(i.value=`${e.artist} - ${e.album}`,this.state.manualSaleSearch=i.value);const d=document.getElementById("sku-results");d&&d.classList.add("hidden")},50),e.stock<=0&&this.showToast("⚠️ Este producto no tiene stock disponible","warning"))},updateTotal(){const t=parseFloat(document.getElementById("input-price").value)||0,e=parseInt(document.getElementById("input-qty").value)||1,s=t*e;document.getElementById("form-total").innerText=this.formatCurrency(s)},openAddVinylModal(t=null){let e={sku:"",artist:"",album:"",genre:"Minimal",condition:"NM",product_condition:"Second-hand",price:"",cost:"",stock:1,owner:"El Cuartito"},s=!1;if(t){const r=this.state.inventory.find(c=>c.sku===t);r&&(e=r,s=!0)}if(!s){const r=this.state.inventory.map(l=>{const i=l.sku.match(/^SKU\s*-\s*(\d+)/);return i?parseInt(i[1]):0}),c=Math.max(0,...r);e.sku=`SKU-${String(c+1).padStart(3,"0")}`}const o=["Minimal","Techno","House","Deep House","Electro"],n=[...new Set([...o,...this.state.customGenres||[]])],a=`
     <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
             <div class="flex justify-between items-center mb-6 shrink-0">
@@ -1688,7 +1805,7 @@ El inventario, gastos y socios NO serán afectados.
                         </div>
                     </div>
                 </div>
-                `;document.body.insertAdjacentHTML("beforeend",o)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-price");if(s){const a=parseFloat(s)/100;if(a>0){const r=t/a;n.value=Math.ceil(r)}}else{const r=1-(parseFloat(o.value)||0)/100;if(r>0){const i=t/r;n.value=Math.ceil(i)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-cost"),a=document.getElementById("cost-helper");if(s){const r=parseFloat(s)/100,i=t*r;n.value=Math.round(i),o.value=100-parseFloat(s),o.readOnly=!0,o.classList.add("opacity-50"),a&&(a.innerText=`Consignación: ${s}% Socio`)}else{const r=parseFloat(n.value)||0;if(r>0&&t>0){const i=(t-r)/r*100;o.value=Math.round(i)}o.readOnly=!1,o.classList.remove("opacity-50"),a&&(a.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const o=e*(1+t/100);s.value=Math.ceil(o)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var o;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(o=e==null?void 0:e.querySelector("input"))==null||o.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
+                `;document.body.insertAdjacentHTML("beforeend",o)}catch(e){console.error("Error opening product modal:",e),alert("Hubo un error al abrir la ficha. Por favor recarga la página.")}},handleCostChange(){const t=parseFloat(document.getElementById("modal-cost").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-price");if(s){const a=parseFloat(s)/100;if(a>0){const r=t/a;n.value=Math.ceil(r)}}else{const r=1-(parseFloat(o.value)||0)/100;if(r>0){const c=t/r;n.value=Math.ceil(c)}}},handlePriceChange(){const t=parseFloat(document.getElementById("modal-price").value)||0,e=document.getElementById("modal-owner"),s=e.options[e.selectedIndex].getAttribute("data-split"),o=document.getElementById("modal-margin"),n=document.getElementById("modal-cost"),a=document.getElementById("cost-helper");if(s){const r=parseFloat(s)/100,c=t*r;n.value=Math.round(c),o.value=100-parseFloat(s),o.readOnly=!0,o.classList.add("opacity-50"),a&&(a.innerText=`Consignación: ${s}% Socio`)}else{const r=parseFloat(n.value)||0;if(r>0&&t>0){const c=(t-r)/r*100;o.value=Math.round(c)}o.readOnly=!1,o.classList.remove("opacity-50"),a&&(a.innerText="Modo Propio: Margen variable")}},handleMarginChange(){const t=parseFloat(document.getElementById("modal-margin").value)||0,e=parseFloat(document.getElementById("modal-cost").value)||0,s=document.getElementById("modal-price");if(e>0){const o=e*(1+t/100);s.value=Math.ceil(o)}},checkCustomInput(t,e){const s=document.getElementById(e);t.value==="other"?(s.classList.remove("hidden"),s.querySelector("input").required=!0,s.querySelector("input").focus()):(s.classList.add("hidden"),s.querySelector("input").required=!1)},toggleCollectionNote(t){const e=document.getElementById("collection-note-container");e&&t&&t!==""?e.classList.remove("hidden"):e&&e.classList.add("hidden")},handleCollectionChange(t){var o;const e=document.getElementById("custom-collection-container"),s=document.getElementById("collection-note-container");t==="other"?(e==null||e.classList.remove("hidden"),(o=e==null?void 0:e.querySelector("input"))==null||o.focus()):e==null||e.classList.add("hidden"),t&&t!==""?s==null||s.classList.remove("hidden"):s==null||s.classList.add("hidden")},openAddSaleModal(){const t=this.state.cart.length>0?this.state.cart.map(s=>`
                 <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
                     <div class="min-w-0 pr-2">
                         <p class="font-bold text-xs text-brand-dark truncate">${s.album}</p>
@@ -1836,7 +1953,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </form>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast(`⚠️ No queda más stock de "${s.album}"`,"warning");return}this.openAddSaleModal(),setTimeout(()=>{const n=document.getElementById("sku-search");n.value=t,this.searchSku(t),setTimeout(()=>{const a=document.getElementById("sku-results").firstElementChild;a&&a.click()},500)},200)},openUnifiedOrderDetailModal(t){var g,h,w,u;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=this.getCustomerInfo(e),o=e.history||[],n=(g=e.timestamp)!=null&&g.toDate?e.timestamp.toDate():e.date?new Date(e.date):new Date;let a=[];o.length>0?a=o.map(b=>({status:b.status,timestamp:new Date(b.timestamp),note:b.note})).sort((b,f)=>f.timestamp-b.timestamp):a.push({status:e.fulfillment_status||"pending",timestamp:(h=e.updated_at)!=null&&h.toDate?e.updated_at.toDate():e.updated_at?new Date(e.updated_at):new Date,note:"Última actualización"}),a.push({status:"created",timestamp:n,note:`Orden recibida via ${e.channel||e.soldAt||"Sistema"}`});const r=b=>({created:{icon:"ph-shopping-cart",color:"bg-slate-100 text-slate-500",label:"Recibido"},preparing:{icon:"ph-package",color:"bg-blue-100 text-blue-600",label:"En Preparación"},ready_for_pickup:{icon:"ph-storefront",color:"bg-emerald-100 text-emerald-600",label:"Listo para Retiro"},in_transit:{icon:"ph-truck",color:"bg-orange-100 text-orange-600",label:"En Tránsito"},shipped:{icon:"ph-archive",color:"bg-green-100 text-green-600",label:"Despachado"},picked_up:{icon:"ph-check-circle",color:"bg-green-100 text-green-600",label:"Retirado"},completed:{icon:"ph-check-circle",color:"bg-green-100 text-green-600",label:"Confirmado"},failed:{icon:"ph-x-circle",color:"bg-red-100 text-red-600",label:"Fallido"},PENDING:{icon:"ph-clock",color:"bg-yellow-100 text-yellow-600",label:"Pendiente"}})[b]||{icon:"ph-info",color:"bg-slate-100",label:b},i=e.items?e.items.reduce((b,f)=>{var y;return b+(f.unitPrice||f.priceAtSale||((y=f.record)==null?void 0:y.price)||0)*(f.qty||f.quantity||1)},0):e.total||0,l=parseFloat(e.shipping_income||e.shipping_cost||e.shipping||((w=e.shipping_method)==null?void 0:w.price)||0),d=l*.2,c=(e.discogsFee||0)+(e.paypalFee||0),p=e.total_amount||e.total||i+l,m=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",e),setTimeout(()=>document.getElementById("sku-search").focus(),100)},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast(`⚠️ No queda más stock de "${s.album}"`,"warning");return}this.openAddSaleModal(),setTimeout(()=>{const n=document.getElementById("sku-search");n.value=t,this.searchSku(t),setTimeout(()=>{const a=document.getElementById("sku-results").firstElementChild;a&&a.click()},500)},200)},openUnifiedOrderDetailModal(t){var x,b,y,k;const e=this.state.sales.find(p=>p.id===t);if(!e)return;const s=this.getCustomerInfo(e),o=e.history||[],n=(x=e.timestamp)!=null&&x.toDate?e.timestamp.toDate():e.date?new Date(e.date):new Date;let a=[];o.length>0?a=o.map(p=>({status:p.status,timestamp:new Date(p.timestamp),note:p.note})).sort((p,g)=>g.timestamp-p.timestamp):a.push({status:e.fulfillment_status||"pending",timestamp:(b=e.updated_at)!=null&&b.toDate?e.updated_at.toDate():e.updated_at?new Date(e.updated_at):new Date,note:"Última actualización"}),a.push({status:"created",timestamp:n,note:`Orden recibida via ${e.channel||e.soldAt||"Sistema"}`});const r=p=>({created:{icon:"ph-shopping-cart",color:"bg-slate-100 text-slate-500",label:"Recibido"},preparing:{icon:"ph-package",color:"bg-blue-100 text-blue-600",label:"En Preparación"},ready_for_pickup:{icon:"ph-storefront",color:"bg-emerald-100 text-emerald-600",label:"Listo para Retiro"},in_transit:{icon:"ph-truck",color:"bg-orange-100 text-orange-600",label:"En Tránsito"},shipped:{icon:"ph-archive",color:"bg-green-100 text-green-600",label:"Despachado"},picked_up:{icon:"ph-check-circle",color:"bg-green-100 text-green-600",label:"Retirado"},completed:{icon:"ph-check-circle",color:"bg-green-100 text-green-600",label:"Confirmado"},failed:{icon:"ph-x-circle",color:"bg-red-100 text-red-600",label:"Fallido"},PENDING:{icon:"ph-clock",color:"bg-yellow-100 text-yellow-600",label:"Pendiente"}})[p]||{icon:"ph-info",color:"bg-slate-100",label:p},c=e.items?e.items.reduce((p,g)=>{var v;return p+(g.unitPrice||g.priceAtSale||((v=g.record)==null?void 0:v.price)||0)*(g.qty||g.quantity||1)},0):e.total||0,l=parseFloat(e.shipping_income||e.shipping_cost||e.shipping||((y=e.shipping_method)==null?void 0:y.price)||0),i=l*.2,d=(e.discogsFee||0)+(e.paypalFee||0),u=e.total_amount||e.total||c+l,m=`
         <div id="unified-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
             <div class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
                 
@@ -1881,7 +1998,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div class="bg-brand-dark p-4 rounded-2xl text-white">
                                     <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Monto Total</p>
-                                    <div class="text-xl font-bold">${this.formatCurrency(p)}</div>
+                                    <div class="text-xl font-bold">${this.formatCurrency(u)}</div>
                                 </div>
                             </div>
 
@@ -1901,20 +2018,20 @@ El inventario, gastos y socios NO serán afectados.
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-slate-50">
-                                            ${(e.items||[]).map(b=>{var f,y,E,$,I;return`
+                                            ${(e.items||[]).map(p=>{var g,v,E,$,I;return`
                                                 <tr>
                                                     <td class="px-4 py-4">
                                                         <div class="flex items-center gap-3">
-                                                            <img src="${b.image||b.cover_image||((f=b.record)==null?void 0:f.cover_image)||"https://elcuartito.dk/default-vinyl.png"}" class="w-10 h-10 rounded-lg object-cover shadow-sm">
+                                                            <img src="${p.image||p.cover_image||((g=p.record)==null?void 0:g.cover_image)||"https://elcuartito.dk/default-vinyl.png"}" class="w-10 h-10 rounded-lg object-cover shadow-sm">
                                                             <div>
-                                                                <p class="font-bold text-brand-dark">${b.album||((y=b.record)==null?void 0:y.album)||"Desconocido"}</p>
-                                                                <p class="text-[10px] text-slate-500">${b.artist||((E=b.record)==null?void 0:E.artist)||""}</p>
+                                                                <p class="font-bold text-brand-dark">${p.album||((v=p.record)==null?void 0:v.album)||"Desconocido"}</p>
+                                                                <p class="text-[10px] text-slate-500">${p.artist||((E=p.record)==null?void 0:E.artist)||""}</p>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td class="px-4 py-4 text-center font-mono text-xs text-slate-400">${b.sku||(($=b.record)==null?void 0:$.sku)||"-"}</td>
-                                                    <td class="px-4 py-4 text-center font-medium">${b.quantity||b.qty||1}</td>
-                                                    <td class="px-4 py-4 text-right font-bold text-brand-dark">${this.formatCurrency(b.unitPrice||b.priceAtSale||((I=b.record)==null?void 0:I.price)||0)}</td>
+                                                    <td class="px-4 py-4 text-center font-mono text-xs text-slate-400">${p.sku||(($=p.record)==null?void 0:$.sku)||"-"}</td>
+                                                    <td class="px-4 py-4 text-center font-medium">${p.quantity||p.qty||1}</td>
+                                                    <td class="px-4 py-4 text-right font-bold text-brand-dark">${this.formatCurrency(p.unitPrice||p.priceAtSale||((I=p.record)==null?void 0:I.price)||0)}</td>
                                                 </tr>
                                             `}).join("")}
                                         </tbody>
@@ -1929,7 +2046,7 @@ El inventario, gastos y socios NO serán afectados.
                                     <div class="space-y-2 text-sm">
                                         <div class="flex justify-between">
                                             <span class="text-slate-500">Subtotal</span>
-                                            <span class="font-medium text-brand-dark">${this.formatCurrency(i)}</span>
+                                            <span class="font-medium text-brand-dark">${this.formatCurrency(c)}</span>
                                         </div>
                                         <div class="flex justify-between">
                                             <span class="text-slate-500">Envío (Gross)</span>
@@ -1937,17 +2054,17 @@ El inventario, gastos y socios NO serán afectados.
                                         </div>
                                         <div class="flex justify-between text-blue-600 text-[10px] font-bold">
                                             <span>↳ Salgsmoms Envío (25%)</span>
-                                            <span>${this.formatCurrency(d)}</span>
+                                            <span>${this.formatCurrency(i)}</span>
                                         </div>
-                                        ${c!==0?`
+                                        ${d!==0?`
                                             <div class="flex justify-between text-red-500">
                                                 <span>Fees (Discogs/PayPal)</span>
-                                                <span class="font-medium">-${this.formatCurrency(c)}</span>
+                                                <span class="font-medium">-${this.formatCurrency(d)}</span>
                                             </div>
                                         `:""}
                                         <div class="flex justify-between font-bold text-brand-dark pt-2 border-t border-slate-200">
                                             <span>Monto Final</span>
-                                            <span>${this.formatCurrency(p)}</span>
+                                            <span>${this.formatCurrency(u)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1989,7 +2106,7 @@ El inventario, gastos y socios NO serán afectados.
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</p>
-                                        <p class="text-sm font-medium text-slate-600">${((u=e.customer)==null?void 0:u.phone)||"-"}</p>
+                                        <p class="text-sm font-medium text-slate-600">${((k=e.customer)==null?void 0:k.phone)||"-"}</p>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
@@ -2027,19 +2144,19 @@ El inventario, gastos y socios NO serán afectados.
                                     <i class="ph-fill ph-clock-counter-clockwise text-brand-orange"></i> Movimientos
                                 </h4>
                                 <div class="relative pl-4 border-l-2 border-slate-100 space-y-6">
-                                    ${a.map((b,f)=>{const y=r(b.status);return`
+                                    ${a.map((p,g)=>{const v=r(p.status);return`
                                             <div class="relative">
-                                                <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${f===0?"bg-brand-orange ring-4 ring-orange-50":"bg-slate-300"}"></div>
+                                                <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${g===0?"bg-brand-orange ring-4 ring-orange-50":"bg-slate-300"}"></div>
                                                 <div class="flex flex-col gap-0.5">
                                                     <div class="flex items-center gap-2">
-                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${y.color}">
-                                                            ${y.label}
+                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${v.color}">
+                                                            ${v.label}
                                                         </span>
                                                         <span class="text-[9px] text-slate-400 font-mono">
-                                                            ${b.timestamp.toLocaleDateString("es-ES",{day:"2-digit",month:"short"})} ${b.timestamp.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}
+                                                            ${p.timestamp.toLocaleDateString("es-ES",{day:"2-digit",month:"short"})} ${p.timestamp.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}
                                                         </span>
                                                     </div>
-                                                    <p class="text-xs text-slate-500">${b.note||"-"}</p>
+                                                    <p class="text-xs text-slate-500">${p.note||"-"}</p>
                                                 </div>
                                             </div>
                                         `}).join("")}
@@ -2057,16 +2174,16 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
             </div>
         </div>
-        `;document.body.insertAdjacentHTML("beforeend",m)},openInvoiceModal(t){var f;const e=this.state.sales.find(y=>y.id===t);if(!e){this.showToast("Sale not found","error");return}const s=e.items||[],o=(f=e.date)!=null&&f.toDate?e.date.toDate():new Date(e.date||e.timestamp),n=o.toISOString().slice(0,10).replace(/-/g,""),a=e.invoiceNumber||`ECR-${n}-${t.slice(-4).toUpperCase()}`,r=s.filter(y=>y.productCondition==="New"),i=s.filter(y=>y.productCondition!=="New");let l=0,d=0;const c=(y,E)=>y.map($=>{const I=$.priceAtSale||$.price||0,C=$.qty||$.quantity||1,T=I*C;if(d+=T,E){const N=T*.2;return l+=N,`
+        `;document.body.insertAdjacentHTML("beforeend",m)},openInvoiceModal(t){var g;const e=this.state.sales.find(v=>v.id===t);if(!e){this.showToast("Sale not found","error");return}const s=e.items||[],o=(g=e.date)!=null&&g.toDate?e.date.toDate():new Date(e.date||e.timestamp),n=o.toISOString().slice(0,10).replace(/-/g,""),a=e.invoiceNumber||`ECR-${n}-${t.slice(-4).toUpperCase()}`,r=s.filter(v=>v.productCondition==="New"),c=s.filter(v=>v.productCondition!=="New");let l=0,i=0;const d=(v,E)=>v.map($=>{const I=$.priceAtSale||$.price||0,S=$.qty||$.quantity||1,_=I*S;if(i+=_,E){const F=_*.2;return l+=F,`
                         <tr>
                             <td style="padding: 12px 0; border-bottom: 1px solid #eee;">
                                 <div style="font-weight: bold;">${$.album||"Product"}</div>
                                 <div style="font-size: 11px; color: #666;">${$.artist||""}</div>
-                                <div style="font-size: 11px; color: #2563eb; margin-top: 4px;">✓ Moms (25%): DKK ${N.toFixed(2)}</div>
+                                <div style="font-size: 11px; color: #2563eb; margin-top: 4px;">✓ Moms (25%): DKK ${F.toFixed(2)}</div>
                             </td>
-                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${C}</td>
+                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${S}</td>
                             <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee;">DKK ${I.toFixed(2)}</td>
-                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${T.toFixed(2)}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${_.toFixed(2)}</td>
                         </tr>
                     `}else return`
                         <tr>
@@ -2075,16 +2192,16 @@ El inventario, gastos y socios NO serán afectados.
                                 <div style="font-size: 11px; color: #666;">${$.artist||""}</div>
                                 <div style="font-size: 10px; color: #d97706; margin-top: 4px; font-style: italic;">Brugtmoms - Køber har ikke fradrag for momsen</div>
                             </td>
-                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${C}</td>
+                            <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eee;">${S}</td>
                             <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee;">DKK ${I.toFixed(2)}</td>
-                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${T.toFixed(2)}</td>
+                            <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eee; font-weight: bold;">DKK ${_.toFixed(2)}</td>
                         </tr>
-                    `}).join("");let p="";r.length>0&&i.length>0?p=`
+                    `}).join("");let u="";r.length>0&&c.length>0?u=`
                 <tr><td colspan="4" style="padding: 15px 0 8px 0; font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase;">🆕 New Products (VAT Deductible)</td></tr>
-                ${c(r,!0)}
+                ${d(r,!0)}
                 <tr><td colspan="4" style="padding: 20px 0 8px 0; font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase;">📦 Used Products (Margin Scheme / Brugtmoms)</td></tr>
-                ${c(i,!1)}
-            `:p=c(r,!0)+c(i,!1);const m=parseFloat(e.shipping_income||e.shipping||e.shipping_cost||0),g=m*.2,h=d+m,w=e.customer?`${e.customer.firstName||""} ${e.customer.lastName||""}`.trim():e.customerName||"Customer",u=e.customer?`${e.customer.address||""}<br>${e.customer.postalCode||""} ${e.customer.city||""}<br>${e.customer.country||""}`:"",b=`
+                ${d(c,!1)}
+            `:u=d(r,!0)+d(c,!1);const m=parseFloat(e.shipping_income||e.shipping||e.shipping_cost||0),x=m*.2,b=i+m,y=e.customer?`${e.customer.firstName||""} ${e.customer.lastName||""}`.trim():e.customerName||"Customer",k=e.customer?`${e.customer.address||""}<br>${e.customer.postalCode||""} ${e.customer.city||""}<br>${e.customer.country||""}`:"",p=`
             <div id="invoice-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onclick="if(event.target.id === 'invoice-modal') this.remove()">
                 <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                     <div class="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
@@ -2112,8 +2229,8 @@ El inventario, gastos y socios NO serán afectados.
                             <div style="display: flex; justify-content: space-between; margin-bottom: 25px; font-size: 13px;">
                                 <div>
                                     <p style="font-weight: bold; margin-bottom: 5px;">Bill To:</p>
-                                    <p style="color: #666; margin: 0;">${w}</p>
-                                    ${u?`<p style="color: #666; margin: 5px 0; font-size: 12px;">${u}</p>`:""}
+                                    <p style="color: #666; margin: 0;">${y}</p>
+                                    ${k?`<p style="color: #666; margin: 5px 0; font-size: 12px;">${k}</p>`:""}
                                 </div>
                                 <div style="text-align: right;">
                                     <p style="margin: 0;"><strong>Invoice:</strong> ${a}</p>
@@ -2131,14 +2248,14 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${p}
+                                    ${u}
                                 </tbody>
                             </table>
 
                             <div style="border-top: 2px solid #eee; padding-top: 15px; font-size: 14px;">
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                                     <span>Subtotal:</span>
-                                    <span>DKK ${d.toFixed(2)}</span>
+                                    <span>DKK ${i.toFixed(2)}</span>
                                 </div>
                                 ${l>0?`
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #2563eb; font-size: 13px;">
@@ -2152,11 +2269,11 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #2563eb; font-size: 11px;">
                                     <span>↳ Shipping VAT (25%):</span>
-                                    <span>DKK ${g.toFixed(2)}</span>
+                                    <span>DKK ${x.toFixed(2)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; padding-top: 10px; border-top: 2px solid #333; font-weight: 900; font-size: 18px;">
                                     <span>Total:</span>
-                                    <span>DKK ${h.toFixed(2)}</span>
+                                    <span>DKK ${b.toFixed(2)}</span>
                                 </div>
                             </div>
 
@@ -2168,7 +2285,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",b)},printInvoice(){const t=document.getElementById("invoice-content").innerHTML,e=window.open("","_blank");e.document.write(`
+        `;document.body.insertAdjacentHTML("beforeend",p)},printInvoice(){const t=document.getElementById("invoice-content").innerHTML,e=window.open("","_blank");e.document.write(`
             <!DOCTYPE html>
             <html>
             <head>
@@ -2299,7 +2416,7 @@ El inventario, gastos y socios NO serán afectados.
                 }
     </style>
                                                     </div>
-    `;document.body.insertAdjacentHTML("beforeend",s)},getFilteredInventory(){const t=(this.state.inventorySearch||"").toLowerCase(),e=this.state.filterGenre||"all",s=this.state.filterOwner||"all",o=this.state.filterLabel||"all",n=this.state.filterStorage||"all",a=this.state.filterDiscogs||"all";return this.state.inventory.filter(r=>{const i=!t||r.artist.toLowerCase().includes(t)||r.album.toLowerCase().includes(t)||r.sku.toLowerCase().includes(t),l=e==="all"||r.genre===e,d=s==="all"||r.owner===s,c=o==="all"||r.label===o,p=n==="all"||r.storageLocation===n,m=!!r.discogs_listing_id;return i&&l&&d&&c&&p&&(a==="all"||a==="yes"&&m||a==="no"&&!m)})},toggleSelectAll(){const t=this.getFilteredInventory();t.length>0&&t.every(e=>this.state.selectedItems.has(e.sku))?t.forEach(e=>this.state.selectedItems.delete(e.sku)):t.forEach(e=>this.state.selectedItems.add(e.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=S.batch(),e=[];this.state.selectedItems.forEach(s=>{const o=S.collection("products").doc(s),n=this.state.inventory.find(a=>a.sku===s);n&&e.push(n),t.delete(o)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
+    `;document.body.insertAdjacentHTML("beforeend",s)},initFuse(){if(typeof Fuse>"u"){console.warn("Fuse.js not loaded yet");return}const t={keys:[{name:"artist",weight:.4},{name:"album",weight:.3},{name:"label",weight:.2},{name:"sku",weight:.1},{name:"genre",weight:.05},{name:"notes",weight:.05}],threshold:.4,distance:100,ignoreLocation:!0,minMatchCharLength:2};this.fuse=new Fuse(this.state.inventory,t)},getFilteredInventory(){const t=(this.state.inventorySearch||"").trim().toLowerCase(),e=this.state.filterGenre||"all",s=this.state.filterOwner||"all",o=this.state.filterLabel||"all",n=this.state.filterStorage||"all",a=this.state.filterDiscogs||"all";let r=this.state.inventory;if(t.length>=2)if(this.fuse)r=this.fuse.search(t).map(c=>c.item);else{const c=t.split(" ").filter(l=>l.length>0);r=r.filter(l=>c.every(i=>(l.artist||"").toLowerCase().includes(i)||(l.album||"").toLowerCase().includes(i)||(l.label||"").toLowerCase().includes(i)||(l.genre||"").toLowerCase().includes(i)||(l.notes||"").toLowerCase().includes(i)||(l.sku||"").toLowerCase().includes(i)))}return r.filter(c=>{const l=e==="all"||c.genre===e,i=s==="all"||c.owner===s,d=o==="all"||c.label===o,u=n==="all"||c.storageLocation===n,m=!!c.discogs_listing_id;return l&&i&&d&&u&&(a==="all"||a==="yes"&&m||a==="no"&&!m)})},toggleSelectAll(){const t=this.getFilteredInventory();t.length>0&&t.every(e=>this.state.selectedItems.has(e.sku))?t.forEach(e=>this.state.selectedItems.delete(e.sku)):t.forEach(e=>this.state.selectedItems.add(e.sku)),this.refreshCurrentView()},addSelectionToCart(){this.state.selectedItems.forEach(t=>{const e=this.state.inventory.find(s=>s.sku===t);e&&e.stock>0&&(this.state.cart.find(s=>s.sku===t)||this.state.cart.push(e))}),this.state.selectedItems.clear(),this.showToast(`${this.state.cart.length} items agregados al carrito`),this.refreshCurrentView()},deleteSelection(){if(!confirm(`¿Estás seguro de eliminar ${this.state.selectedItems.size} productos ? `))return;const t=D.batch(),e=[];this.state.selectedItems.forEach(s=>{const o=D.collection("products").doc(s),n=this.state.inventory.find(a=>a.sku===s);n&&e.push(n),t.delete(o)}),t.commit().then(()=>{this.showToast("Productos eliminados"),e.forEach(s=>this.logInventoryMovement("DELETE",s)),this.state.selectedItems.clear()}).catch(s=>{console.error("Error logging movement:",s),alert("Error al eliminar")})},openAddExpenseModal(){const t=["Alquiler","Servicios","Marketing","Suministros","Honorarios"],s=`
     <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
             <div class="flex justify-between items-center mb-4">
@@ -2346,7 +2463,7 @@ El inventario, gastos y socios NO serán afectados.
             </form>
         </div>
                                                     </div>
-    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let o=s.get("genre");o==="other"&&(o=s.get("custom_genre"));let n=s.get("collection");n==="other"&&(n=s.get("custom_collection"));const a=s.get("sku"),r=s.get("publish_webshop")==="on",i=s.get("publish_discogs")==="on",l=s.get("publish_local")==="on",d={sku:a,artist:s.get("artist"),album:s.get("album"),genre:o,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:n||null,collectionNote:s.get("collectionNote")||null,condition:s.get("condition"),product_condition:s.get("product_condition")||"Second-hand",sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:r,publish_webshop:r,publish_discogs:i,publish_local:l,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let c=null,p=null;if(e){const m=await this.findProductBySku(e);if(!m){this.showToast("❌ Producto no encontrado","error");return}p=m.data,c=m.id,await m.ref.update(d),this.showToast("✅ Disco actualizado")}else c=(await S.collection("products").add(d)).id,this.showToast("✅ Disco agregado al inventario");if(i){const m=s.get("discogs_release_id");if(p&&p.discogs_listing_id)try{const h=await(await fetch(`https://el-cuartito-completo.onrender.com/discogs/update-listing/${p.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:d})})).json();if(h.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(h.error||"Error desconocido")}catch(g){console.error("Error updating Discogs listing:",g),this.showToast(`⚠️ Error Discogs: ${g.message}`,"error")}else if(m)try{const h=await(await fetch("https://el-cuartito-completo.onrender.com/discogs/create-listing",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(m),product:d})})).json();if(h.success&&h.listingId)await S.collection("products").doc(c).update({discogs_listing_id:String(h.listingId),discogs_release_id:parseInt(m)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(h.error||"Error desconocido")}catch(g){console.error("Error creating Discogs listing:",g);let h=g.message;(h.toLowerCase().includes("mp3")||h.toLowerCase().includes("digital")||h.toLowerCase().includes("format"))&&(h="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${h}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(c){console.error(c),this.showToast("❌ Error: "+(c.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(o=>o.sku===t);if(!e){alert("Error: Item not found");return}const s=`
+    `;document.body.insertAdjacentHTML("beforeend",s)},async handleAddVinyl(t,e){t.preventDefault();const s=new FormData(t.target);let o=s.get("genre");o==="other"&&(o=s.get("custom_genre"));let n=s.get("collection");n==="other"&&(n=s.get("custom_collection"));const a=s.get("sku"),r=s.get("publish_webshop")==="on",c=s.get("publish_discogs")==="on",l=s.get("publish_local")==="on",i={sku:a,artist:s.get("artist"),album:s.get("album"),genre:o,genre2:s.get("genre2")||null,genre3:s.get("genre3")||null,genre4:s.get("genre4")||null,genre5:s.get("genre5")||null,label:s.get("label"),collection:n||null,collectionNote:s.get("collectionNote")||null,condition:s.get("condition"),product_condition:s.get("product_condition")||"Second-hand",sleeveCondition:s.get("sleeveCondition")||"",comments:s.get("comments")||"",price:parseFloat(s.get("price")),cost:parseFloat(s.get("cost"))||0,stock:parseInt(s.get("stock")),storageLocation:s.get("storageLocation"),owner:s.get("owner"),is_online:r,publish_webshop:r,publish_discogs:c,publish_local:l,cover_image:s.get("cover_image")||null,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{let d=null,u=null;if(e){const m=await this.findProductBySku(e);if(!m){this.showToast("❌ Producto no encontrado","error");return}u=m.data,d=m.id,await m.ref.update(i),this.showToast("✅ Disco actualizado")}else d=(await D.collection("products").add(i)).id,this.showToast("✅ Disco agregado al inventario");if(c){const m=s.get("discogs_release_id");if(u&&u.discogs_listing_id)try{const b=await(await fetch(`${M}/discogs/update-listing/${u.discogs_listing_id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:i})})).json();if(b.success)this.showToast("💿 Listing de Discogs actualizado");else throw new Error(b.error||"Error desconocido")}catch(x){console.error("Error updating Discogs listing:",x),this.showToast(`⚠️ Error Discogs: ${x.message}`,"error")}else if(m)try{const b=await(await fetch(`${M}/discogs/create-listing`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({releaseId:parseInt(m),product:i})})).json();if(b.success&&b.listingId)await D.collection("products").doc(d).update({discogs_listing_id:String(b.listingId),discogs_release_id:parseInt(m)}),this.showToast("💿 Publicado en Discogs correctamente");else throw new Error(b.error||"Error desconocido")}catch(x){console.error("Error creating Discogs listing:",x);let b=x.message;(b.toLowerCase().includes("mp3")||b.toLowerCase().includes("digital")||b.toLowerCase().includes("format"))&&(b="Discogs solo permite formatos físicos (Vinyl, CD, Cassette). Este release es digital o MP3."),this.showToast(`⚠️ Error Discogs: ${b}`,"error")}else this.showToast("⚠️ Necesitas buscar el disco en Discogs primero para publicarlo","warning")}document.getElementById("modal-overlay").remove(),this.loadData()}catch(d){console.error(d),this.showToast("❌ Error: "+(d.message||"desconocido"),"error")}},deleteVinyl(t){const e=this.state.inventory.find(o=>o.sku===t);if(!e){alert("Error: Item not found");return}const s=`
                                                     <div id="delete-confirm-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
                                                         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all">
                                                             <div class="flex items-center gap-4 mb-4">
@@ -2373,7 +2490,7 @@ El inventario, gastos y socios NO serán afectados.
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const o=await this.findProductBySku(t);if(!o){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",o.data),console.log("Has discogs_listing_id?",o.data.discogs_listing_id),o.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",o.data.discogs_listing_id);try{const n=await fetch(`https://el-cuartito-completo.onrender.com/discogs/delete-listing/${o.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",n.status);const a=await n.json();console.log("Discogs delete result:",a),a.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(a.error||"Error en Discogs"),"warning")}catch(n){console.error("Error deleting from Discogs:",n),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await o.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(o){console.error("Error removing document: ",o),this.showToast("❌ Error al eliminar: "+o.message,"error")}},handleSaleSubmit(t){var y,E,$,I,C,T,N;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(y=document.getElementById("input-sku"))==null?void 0:y.value);const o=this.state.inventory.find(P=>P.sku===s);if(!o){this.showToast("⚠️ Debes seleccionar un producto válido del listado","error");const P=document.getElementById("sku-search");P&&(P.focus(),P.classList.add("border-red-500","animate-pulse"),setTimeout(()=>P.classList.remove("border-red-500","animate-pulse"),2e3));return}let n=parseInt(e.get("quantity"));if(isNaN(n)&&(n=parseInt((E=document.getElementById("input-qty"))==null?void 0:E.value)||1),o.stock<n){this.showToast(`❌ Stock insuficiente. Disponible: ${o.stock}`,"error");return}let a=parseFloat(e.get("price"));isNaN(a)&&(a=parseFloat(($=document.getElementById("input-price"))==null?void 0:$.value)||0);const r=parseFloat(e.get("cost"))||0,i=parseFloat(e.get("shipping_income"))||0,l=a*n+i;e.get("date")||new Date().toISOString();const d=e.get("paymentMethod"),c=e.get("soldAt");e.get("comment");let p=e.get("artist");p||(p=(I=document.getElementById("input-artist"))==null?void 0:I.value);let m=e.get("album");m||(m=(C=document.getElementById("input-album"))==null?void 0:C.value);let g=e.get("genre");g||(g=(T=document.getElementById("input-genre"))==null?void 0:T.value);let h=e.get("owner");h||(h=(N=document.getElementById("input-owner"))==null?void 0:N.value);const w=e.get("customerName"),u=e.get("customerEmail"),b=e.get("requestInvoice")==="on",f={items:[{recordId:o.id,quantity:n,unitPrice:a,costAtSale:r}],paymentMethod:d||"CASH",customerName:w||"Venta Manual",customerEmail:u||null,shipping_income:i,total_amount:l,source:"STORE",channel:(c==null?void 0:c.toLowerCase())||"store"};Y.createSale(f).then(()=>{this.showToast(b?"Venta registrada (Factura Solicitada)":"Venta registrada");const P=document.getElementById("modal-overlay");P&&P.remove();const K=t.target;K&&K.reset();const W=document.getElementById("form-total");W&&(W.innerText="$0.00");const H=document.getElementById("sku-search");H&&(H.value=""),this.state.manualSaleSearch="",this.loadData()}).catch(P=>{console.error("Error adding sale: ",P),this.showToast("❌ Error al registrar venta: "+(P.message||""),"error")})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(a=>a.channel==="online"),s=e.filter(a=>a.status==="completed"),o=e.filter(a=>a.status==="PENDING"),n=s.reduce((a,r)=>a+(parseFloat(r.total_amount||r.total)||0),0);t.innerHTML=`
+                                                    `;document.body.insertAdjacentHTML("beforeend",s)},async confirmDelete(t){const e=document.getElementById("delete-confirm-modal");e&&e.remove();const s=document.getElementById("modal-overlay");s&&s.remove();try{const o=await this.findProductBySku(t);if(!o){this.showToast("❌ Producto no encontrado","error");return}if(console.log("Product to delete:",o.data),console.log("Has discogs_listing_id?",o.data.discogs_listing_id),o.data.discogs_listing_id){console.log("Attempting to delete from Discogs:",o.data.discogs_listing_id);try{const n=await fetch(`${M}/discogs/delete-listing/${o.data.discogs_listing_id}`,{method:"DELETE"});console.log("Discogs delete response status:",n.status);const a=await n.json();console.log("Discogs delete result:",a),a.success?(console.log("Discogs listing deleted successfully"),this.showToast("💿 Eliminado de Discogs")):this.showToast("⚠️ "+(a.error||"Error en Discogs"),"warning")}catch(n){console.error("Error deleting from Discogs:",n),this.showToast("⚠️ Error eliminando de Discogs, pero continuando...","warning")}}else console.log("No discogs_listing_id found, skipping Discogs deletion");await o.ref.delete(),this.showToast("✅ Disco eliminado"),await this.loadData()}catch(o){console.error("Error removing document: ",o),this.showToast("❌ Error al eliminar: "+o.message,"error")}},handleSaleSubmit(t){var v,E,$,I,S,_,F;t.preventDefault();const e=new FormData(t.target);let s=e.get("sku");s||(s=(v=document.getElementById("input-sku"))==null?void 0:v.value);const o=this.state.inventory.find(T=>T.sku===s);if(!o){this.showToast("⚠️ Debes seleccionar un producto válido del listado","error");const T=document.getElementById("sku-search");T&&(T.focus(),T.classList.add("border-red-500","animate-pulse"),setTimeout(()=>T.classList.remove("border-red-500","animate-pulse"),2e3));return}let n=parseInt(e.get("quantity"));if(isNaN(n)&&(n=parseInt((E=document.getElementById("input-qty"))==null?void 0:E.value)||1),o.stock<n){this.showToast(`❌ Stock insuficiente. Disponible: ${o.stock}`,"error");return}let a=parseFloat(e.get("price"));isNaN(a)&&(a=parseFloat(($=document.getElementById("input-price"))==null?void 0:$.value)||0);const r=parseFloat(e.get("cost"))||0,c=parseFloat(e.get("shipping_income"))||0,l=a*n+c;e.get("date")||new Date().toISOString();const i=e.get("paymentMethod"),d=e.get("soldAt");e.get("comment");let u=e.get("artist");u||(u=(I=document.getElementById("input-artist"))==null?void 0:I.value);let m=e.get("album");m||(m=(S=document.getElementById("input-album"))==null?void 0:S.value);let x=e.get("genre");x||(x=(_=document.getElementById("input-genre"))==null?void 0:_.value);let b=e.get("owner");b||(b=(F=document.getElementById("input-owner"))==null?void 0:F.value);const y=e.get("customerName"),k=e.get("customerEmail"),p=e.get("requestInvoice")==="on",g={items:[{recordId:o.id,quantity:n,unitPrice:a,costAtSale:r}],paymentMethod:i||"CASH",customerName:y||"Venta Manual",customerEmail:k||null,shipping_income:c,total_amount:l,source:"STORE",channel:(d==null?void 0:d.toLowerCase())||"store"};Y.createSale(g).then(()=>{this.showToast(p?"Venta registrada (Factura Solicitada)":"Venta registrada");const T=document.getElementById("modal-overlay");T&&T.remove();const K=t.target;K&&K.reset();const W=document.getElementById("form-total");W&&(W.innerText="$0.00");const z=document.getElementById("sku-search");z&&(z.value=""),this.state.manualSaleSearch="",this.loadData()}).catch(T=>{console.error("Error adding sale: ",T),this.showToast("❌ Error al registrar venta: "+(T.message||""),"error")})},addToCart(t,e){e&&e.stopPropagation();const s=this.state.inventory.find(n=>n.sku===t);if(!s)return;if(this.state.cart.filter(n=>n.sku===t).length>=s.stock){this.showToast("⚠️ No hay más stock disponible");return}this.state.cart.push(s),document.getElementById("inventory-cart-container")?this.renderInventoryCart():this.renderCartWidget(),this.showToast("Agregado al carrito")},removeFromCart(t){this.state.cart.splice(t,1),this.renderCartWidget()},clearCart(){this.state.cart=[],this.renderCartWidget()},renderOnlineSales(t){const e=this.state.sales.filter(a=>a.channel==="online"),s=e.filter(a=>a.status==="completed"),o=e.filter(a=>a.status==="PENDING"),n=s.reduce((a,r)=>a+(parseFloat(r.total_amount||r.total)||0),0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -2454,18 +2571,18 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(a=>{var i;const r=(i=a.timestamp)!=null&&i.toDate?a.timestamp.toDate():new Date(a.date||0);return{...a,_sortDate:r.getTime()}}).sort((a,r)=>r._sortDate-a._sortDate).map(a=>{var g,h,w,u,b,f,y;const r=a.customer||{},i=a.orderNumber||"N/A",l=(g=a.timestamp)!=null&&g.toDate?a.timestamp.toDate():new Date(a.date),c=((h=a.completed_at)!=null&&h.toDate?a.completed_at.toDate():null)||l,p={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},m={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
+                                ${e.map(a=>{var c;const r=(c=a.timestamp)!=null&&c.toDate?a.timestamp.toDate():new Date(a.date||0);return{...a,_sortDate:r.getTime()}}).sort((a,r)=>r._sortDate-a._sortDate).map(a=>{var x,b,y,k,p,g,v;const r=a.customer||{},c=a.orderNumber||"N/A",l=(x=a.timestamp)!=null&&x.toDate?a.timestamp.toDate():new Date(a.date),d=((b=a.completed_at)!=null&&b.toDate?a.completed_at.toDate():null)||l,u={completed:"bg-green-50 text-green-700 border-green-200",PENDING:"bg-yellow-50 text-yellow-700 border-yellow-200",failed:"bg-red-50 text-red-700 border-red-200"},m={completed:"✅ Completado",PENDING:"⏳ Pendiente",failed:"❌ Fallido"};return`
                                         <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${a.id}')">
                                             <td class="px-6 py-4">
-                                                <div class="font-mono text-sm font-bold text-brand-orange">${i}</div>
+                                                <div class="font-mono text-sm font-bold text-brand-orange">${c}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${r.name||(r.firstName?`${r.firstName} ${r.lastName||""}`:"")||((w=r.stripe_info)==null?void 0:w.name)||"Cliente"}</div>
-                                                <div class="text-xs text-slate-500">${r.email||((u=r.stripe_info)==null?void 0:u.email)||"No email"}</div>
+                                                <div class="font-semibold text-brand-dark">${r.name||(r.firstName?`${r.firstName} ${r.lastName||""}`:"")||((y=r.stripe_info)==null?void 0:y.name)||"Cliente"}</div>
+                                                <div class="text-xs text-slate-500">${r.email||((k=r.stripe_info)==null?void 0:k.email)||"No email"}</div>
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm text-slate-600 truncate max-w-[200px]">
-                                                    ${((b=r.shipping)==null?void 0:b.line1)||r.address||((y=(f=r.stripe_info)==null?void 0:f.shipping)==null?void 0:y.line1)||"Sin dirección"}
+                                                    ${((p=r.shipping)==null?void 0:p.line1)||r.address||((v=(g=r.stripe_info)==null?void 0:g.shipping)==null?void 0:v.line1)||"Sin dirección"}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -2486,7 +2603,7 @@ El inventario, gastos y socios NO serán afectados.
                                                 <div class="font-bold text-brand-dark">DKK ${(a.total_amount||a.total||0).toFixed(2)}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${p[a.status]||"bg-slate-50 text-slate-700"}">
+                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${u[a.status]||"bg-slate-50 text-slate-700"}">
                                                     ${m[a.status]||a.status}
                                                 </span>
                                             </td>
@@ -2497,8 +2614,8 @@ El inventario, gastos y socios NO serán afectados.
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="text-xs text-slate-600">
-                                                    ${c.toLocaleDateString("es-ES")}
-                                                    <div class="text-[10px] text-slate-400">${c.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</div>
+                                                    ${d.toLocaleDateString("es-ES")}
+                                                    <div class="text-[10px] text-slate-400">${d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4 text-center" onclick="event.stopPropagation()">
@@ -2514,12 +2631,12 @@ El inventario, gastos y socios NO serán afectados.
                 `}
             </div>
         </div>
-    `},openOnlineSaleDetailModal(t){var l,d,c;const e=this.state.sales.find(p=>p.id===t);if(!e)return;const s=e.customer||{},o=s.stripe_info||{},n=s.shipping||o.shipping||{},a={line1:n.line1||s.address||"Sin dirección",line2:n.line2||"",city:n.city||s.city||"",postal:n.postal_code||s.postalCode||"",country:n.country||s.country||"Denmark"},r=`
+    `},openOnlineSaleDetailModal(t){var l,i,d;const e=this.state.sales.find(u=>u.id===t);if(!e)return;const s=e.customer||{},o=s.stripe_info||{},n=s.shipping||o.shipping||{},a={line1:n.line1||s.address||"Sin dirección",line2:n.line2||"",city:n.city||s.city||"",postal:n.postal_code||s.postalCode||"",country:n.country||s.country||"Denmark"},r=`
             <p class="font-medium">${a.line1}</p>
             ${a.line2?`<p class="font-medium">${a.line2}</p>`:""}
             <p class="text-slate-500">${a.postal} ${a.city}</p>
             <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${a.country}</p>
-        `,i=`
+        `,c=`
         <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
             <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
                 
@@ -2610,7 +2727,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
                                     <span class="text-slate-500 text-xs">Fecha</span>
-                                    <span class="font-bold">${new Date((d=e.timestamp)!=null&&d.toDate?e.timestamp.toDate():(c=e.completed_at)!=null&&c.toDate?e.completed_at.toDate():e.date).toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"})}</span>
+                                    <span class="font-bold">${new Date((i=e.timestamp)!=null&&i.toDate?e.timestamp.toDate():(d=e.completed_at)!=null&&d.toDate?e.completed_at.toDate():e.date).toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"})}</span>
                                 </div>
                                 <div class="space-y-1">
                                     <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Stripe ID</span>
@@ -2670,14 +2787,14 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${(e.items||[]).map(p=>{var m,g,h;return`
+                                    ${(e.items||[]).map(u=>{var m,x,b;return`
                                         <tr>
                                             <td class="px-4 py-3">
-                                                <p class="font-bold text-brand-dark">${p.album||((m=p.record)==null?void 0:m.album)||"Unknown"}</p>
-                                                <p class="text-xs text-slate-500">${p.artist||((g=p.record)==null?void 0:g.artist)||""}</p>
+                                                <p class="font-bold text-brand-dark">${u.album||((m=u.record)==null?void 0:m.album)||"Unknown"}</p>
+                                                <p class="text-xs text-slate-500">${u.artist||((x=u.record)==null?void 0:x.artist)||""}</p>
                                             </td>
-                                            <td class="px-4 py-3 text-center font-medium">${p.quantity||1}</td>
-                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(p.unitPrice||((h=p.record)==null?void 0:h.price)||0).toFixed(2)}</td>
+                                            <td class="px-4 py-3 text-center font-medium">${u.quantity||1}</td>
+                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(u.unitPrice||((b=u.record)==null?void 0:b.price)||0).toFixed(2)}</td>
                                         </tr>
                                     `}).join("")}
                                 </tbody>
@@ -2697,7 +2814,7 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
             </div>
         </div>
-    `;document.body.insertAdjacentHTML("beforeend",i)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),o=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const n=this.state.cart.reduce((a,r)=>a+r.price,0);o.innerText=this.formatCurrency(n),s.innerHTML=this.state.cart.map((a,r)=>`
+    `;document.body.insertAdjacentHTML("beforeend",c)},renderCartWidget(){const t=document.getElementById("cart-widget");if(!t)return;const e=document.getElementById("cart-count"),s=document.getElementById("cart-items-mini"),o=document.getElementById("cart-total-mini");if(this.state.cart.length===0){t.classList.add("hidden");return}t.classList.remove("hidden"),e.innerText=this.state.cart.length;const n=this.state.cart.reduce((a,r)=>a+r.price,0);o.innerText=this.formatCurrency(n),s.innerHTML=this.state.cart.map((a,r)=>`
                                                                 <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                                                                     <div class="truncate pr-2">
                                                                         <p class="font-bold text-xs text-brand-dark truncate">${a.album}</p>
@@ -2707,7 +2824,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         <i class="ph-bold ph-x"></i>
                                                                     </button>
                                                                 </div>
-                                                                `).join("")},openCheckoutModal(t,e){if(this.state.cart.length===0)return;const s=this.state.cart.reduce((d,c)=>d+c.price,0),o=`
+                                                                `).join("")},openCheckoutModal(t,e){if(this.state.cart.length===0)return;const s=this.state.cart.reduce((i,d)=>i+d.price,0),o=`
             <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                 <div class="bg-white rounded-3xl w-full max-w-lg p-8 shadow-2xl transform scale-100 transition-all border border-slate-100 max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <div class="flex justify-between items-center mb-8">
@@ -2721,10 +2838,10 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
 
                     <div class="bg-slate-50/50 rounded-2xl p-5 mb-8 border border-slate-100 max-h-40 overflow-y-auto custom-scrollbar">
-                        ${this.state.cart.map(d=>`
+                        ${this.state.cart.map(i=>`
                             <div class="flex justify-between py-2 border-b border-slate-100 last:border-0 text-sm">
-                                <span class="truncate pr-4 font-bold text-slate-700">${d.album}</span>
-                                <span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(d.price)}</span>
+                                <span class="truncate pr-4 font-bold text-slate-700">${i.album}</span>
+                                <span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(i.price)}</span>
                             </div>
                         `).join("")}
                     </div>
@@ -2806,7 +2923,7 @@ El inventario, gastos y socios NO serán afectados.
                     </form>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",o);const n=s,a=document.getElementById("checkout-final-price"),r=document.getElementById("discogs-fee-section"),i=document.getElementById("discogs-fee-value"),l=()=>{const d=parseFloat(a.value)||0,c=n-d;document.getElementById("checkout-total-value").innerText=this.formatCurrency(d),c>0?(r.classList.remove("hidden"),i.innerText=`- kr.${c.toFixed(0)} `):r.classList.add("hidden")};a.addEventListener("input",l)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,o=this.state.cart.reduce((a,r)=>a+r.price,0),n={items:this.state.cart.map(a=>({recordId:a.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:o,feeDeducted:o-s};Y.createSale(n).then(()=>{const a=n.channel==="Discogs"?" (Discogs listing eliminado)":"",r=n.feeDeducted>0?` | Fee: ${this.formatCurrency(n.feeDeducted)} `:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${a}${r} `),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(a=>{console.error("Error checkout",a),alert("Error al procesar venta: "+a.message)})},handleSalesViewCheckout(){var s,o;if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}const t=(s=document.getElementById("cart-payment"))==null?void 0:s.value,e=(o=document.getElementById("cart-channel"))==null?void 0:o.value;this.openCheckoutModal(t,e)},async notifyPreparingDiscogs(t){try{this.showToast('Enviando notificación "Preparando"...',"info"),await Y.notifyPreparing(t),this.showToast("✅ Cliente notificado (Preparando Orden)"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in notifyPreparingDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async notifyShippedDiscogs(t,e,s){try{const o=document.getElementById(e),n=o?o.value.trim():"",a=s?document.getElementById(s):null,r=a?a.value.trim():null;if(!n){this.showToast("⚠️ Ingresa un número de seguimiento","warning");return}this.showToast("Enviando notificación de envío...","info"),await Y.notifyShipped(t,n,r),this.showToast("✅ Cliente notificado y Tracking guardado"),await this.loadData(),this.refreshCurrentView()}catch(o){console.error("Error in notifyShippedDiscogs:",o),this.showToast("❌ Error: "+o.message,"error")}},async markDispatchedDiscogs(t){try{if(!confirm("¿Marcar como despachado? Esto moverá la orden al historial."))return;this.showToast("Marcando como despachado...","info"),await Y.markDispatched(t),this.showToast("✅ Orden despachada y archivada"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in markDispatchedDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async notifyPickupReadyDiscogs(t){try{this.showToast('Enviando notificación "Listo para Retirar"...',"info"),await Y.notifyPickupReady(t),this.showToast("✅ Cliente notificado (Listo para Retirar)"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in notifyPickupReadyDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async markPickedUpDiscogs(t){try{if(!confirm("¿El cliente ya retiró el pedido? Esto moverá la orden al historial."))return;this.showToast("Marcando como retirado...","info"),await Y.markPickedUp(t),this.showToast("✅ Orden retirada y archivada"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in markPickedUpDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(o=>o.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const o=S.batch(),n=S.collection("sales").doc(t);if(o.delete(n),e.items&&Array.isArray(e.items))for(const a of e.items){const r=a.productId||a.recordId,i=a.sku||((s=a.record)==null?void 0:s.sku),l=parseInt(a.quantity||a.qty)||1;let d=null;if(r)try{const c=await S.collection("products").doc(r).get();c.exists&&(d={ref:c.ref,data:c.data()})}catch{console.warn("Could not find product by ID:",r)}!d&&i&&(d=await this.findProductBySku(i)),d?o.update(d.ref,{stock:firebase.firestore.FieldValue.increment(l)}):console.warn("Could not restore stock for item:",a)}else if(e.sku){const a=await this.findProductBySku(e.sku);if(a){const r=parseInt(e.quantity)||1;o.update(a.ref,{stock:firebase.firestore.FieldValue.increment(r)})}}await o.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(o){console.error("Error deleting sale:",o),this.showToast("❌ Error al eliminar venta: "+o.message,"error")}},renderExpenses(t){const e=[{value:"alquiler",label:"Alquiler",type:"operativo"},{value:"servicios",label:"Servicios (internet, luz)",type:"operativo"},{value:"marketing",label:"Marketing",type:"operativo"},{value:"envios",label:"Envíos/Packaging",type:"operativo"},{value:"software",label:"Software/Suscripciones",type:"operativo"},{value:"honorarios",label:"Honorarios Profesionales",type:"operativo"},{value:"oficina",label:"Material de Oficina",type:"operativo"},{value:"transporte",label:"Transporte",type:"operativo"},{value:"otros_op",label:"Otros Gastos Operativos",type:"operativo"},{value:"stock_nuevo",label:"📦 Stock: Vinilos NUEVOS (Distribuidor)",type:"stock_nuevo"},{value:"stock_usado",label:"📦 Stock: Vinilos USADOS (Particular/Brugtmoms)",type:"stock_usado"}];window.expenseCategories=e;const s=(this.state.expensesSearch||"").toLowerCase(),o=this.state.expenses.filter(a=>!s||(a.description||a.proveedor||"").toLowerCase().includes(s)||(a.category||a.categoria||"").toLowerCase().includes(s)||(a.proveedor||"").toLowerCase().includes(s)),n=`
+        `;document.body.insertAdjacentHTML("beforeend",o);const n=s,a=document.getElementById("checkout-final-price"),r=document.getElementById("discogs-fee-section"),c=document.getElementById("discogs-fee-value"),l=()=>{const i=parseFloat(a.value)||0,d=n-i;document.getElementById("checkout-total-value").innerText=this.formatCurrency(i),d>0?(r.classList.remove("hidden"),c.innerText=`- kr.${d.toFixed(0)} `):r.classList.add("hidden")};a.addEventListener("input",l)},onCheckoutChannelChange(t){},handleCheckoutSubmit(t){t.preventDefault();const e=new FormData(t.target),s=parseFloat(e.get("finalPrice"))||0,o=this.state.cart.reduce((a,r)=>a+r.price,0),n={items:this.state.cart.map(a=>({recordId:a.id,quantity:1})),paymentMethod:e.get("paymentMethod"),customerName:e.get("customerName"),customerEmail:e.get("customerEmail"),channel:e.get("soldAt")||"Tienda",source:"STORE",customTotal:s,originalTotal:o,feeDeducted:o-s};Y.createSale(n).then(()=>{const a=n.channel==="Discogs"?" (Discogs listing eliminado)":"",r=n.feeDeducted>0?` | Fee: ${this.formatCurrency(n.feeDeducted)} `:"";this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(s)} registrada!${a}${r} `),this.clearCart(),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(a=>{console.error("Error checkout",a),alert("Error al procesar venta: "+a.message)})},handleSalesViewCheckout(){var s,o;if(this.state.cart.length===0){this.showToast("El carrito está vacío");return}const t=(s=document.getElementById("cart-payment"))==null?void 0:s.value,e=(o=document.getElementById("cart-channel"))==null?void 0:o.value;this.openCheckoutModal(t,e)},async notifyPreparingDiscogs(t){try{this.showToast('Enviando notificación "Preparando"...',"info"),await Y.notifyPreparing(t),this.showToast("✅ Cliente notificado (Preparando Orden)"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in notifyPreparingDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async notifyShippedDiscogs(t,e,s){try{const o=document.getElementById(e),n=o?o.value.trim():"",a=s?document.getElementById(s):null,r=a?a.value.trim():null;if(!n){this.showToast("⚠️ Ingresa un número de seguimiento","warning");return}this.showToast("Enviando notificación de envío...","info"),await Y.notifyShipped(t,n,r),this.showToast("✅ Cliente notificado y Tracking guardado"),await this.loadData(),this.refreshCurrentView()}catch(o){console.error("Error in notifyShippedDiscogs:",o),this.showToast("❌ Error: "+o.message,"error")}},async markDispatchedDiscogs(t){try{if(!confirm("¿Marcar como despachado? Esto moverá la orden al historial."))return;this.showToast("Marcando como despachado...","info"),await Y.markDispatched(t),this.showToast("✅ Orden despachada y archivada"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in markDispatchedDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async notifyPickupReadyDiscogs(t){try{this.showToast('Enviando notificación "Listo para Retirar"...',"info"),await Y.notifyPickupReady(t),this.showToast("✅ Cliente notificado (Listo para Retirar)"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in notifyPickupReadyDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async markPickedUpDiscogs(t){try{if(!confirm("¿El cliente ya retiró el pedido? Esto moverá la orden al historial."))return;this.showToast("Marcando como retirado...","info"),await Y.markPickedUp(t),this.showToast("✅ Orden retirada y archivada"),await this.loadData(),this.refreshCurrentView()}catch(e){console.error("Error in markPickedUpDiscogs:",e),this.showToast("❌ Error: "+e.message,"error")}},async deleteSale(t){var s;if(!confirm("¿Eliminar esta venta y restaurar stock?"))return;const e=this.state.sales.find(o=>o.id===t);if(!e){this.showToast("❌ Venta no encontrada","error");return}try{const o=D.batch(),n=D.collection("sales").doc(t);if(o.delete(n),e.items&&Array.isArray(e.items))for(const a of e.items){const r=a.productId||a.recordId,c=a.sku||((s=a.record)==null?void 0:s.sku),l=parseInt(a.quantity||a.qty)||1;let i=null;if(r)try{const d=await D.collection("products").doc(r).get();d.exists&&(i={ref:d.ref,data:d.data()})}catch{console.warn("Could not find product by ID:",r)}!i&&c&&(i=await this.findProductBySku(c)),i?o.update(i.ref,{stock:firebase.firestore.FieldValue.increment(l)}):console.warn("Could not restore stock for item:",a)}else if(e.sku){const a=await this.findProductBySku(e.sku);if(a){const r=parseInt(e.quantity)||1;o.update(a.ref,{stock:firebase.firestore.FieldValue.increment(r)})}}await o.commit(),this.showToast("✅ Venta eliminada y stock restaurado"),this.loadData()}catch(o){console.error("Error deleting sale:",o),this.showToast("❌ Error al eliminar venta: "+o.message,"error")}},renderExpenses(t){const e=[{value:"alquiler",label:"Alquiler",type:"operativo"},{value:"servicios",label:"Servicios (internet, luz)",type:"operativo"},{value:"marketing",label:"Marketing",type:"operativo"},{value:"envios",label:"Envíos/Packaging",type:"operativo"},{value:"software",label:"Software/Suscripciones",type:"operativo"},{value:"honorarios",label:"Honorarios Profesionales",type:"operativo"},{value:"oficina",label:"Material de Oficina",type:"operativo"},{value:"transporte",label:"Transporte",type:"operativo"},{value:"otros_op",label:"Otros Gastos Operativos",type:"operativo"},{value:"stock_nuevo",label:"📦 Stock: Vinilos NUEVOS (Distribuidor)",type:"stock_nuevo"},{value:"stock_usado",label:"📦 Stock: Vinilos USADOS (Particular/Brugtmoms)",type:"stock_usado"}];window.expenseCategories=e;const s=(this.state.expensesSearch||"").toLowerCase(),o=this.state.expenses.filter(a=>!s||(a.description||a.proveedor||"").toLowerCase().includes(s)||(a.category||a.categoria||"").toLowerCase().includes(s)||(a.proveedor||"").toLowerCase().includes(s)),n=`
     <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6" >
                 <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">
                     <i class="ph-duotone ph-file-text text-brand-orange mr-2"></i>
@@ -2963,7 +3080,7 @@ El inventario, gastos y socios NO serán afectados.
                                             <th class="p-4">Categoría</th>
                                             <th class="p-4 text-right">Total</th>
                                             <th class="p-4 text-right">IVA</th>
-                                            <th class="p-4 text-center">📎</th>
+                                            <th class="p-4 text-center">Estado</th>
                                             <th class="p-4 w-20"></th>
                                         </tr>
                                     </thead>
@@ -2979,7 +3096,7 @@ El inventario, gastos y socios NO serán afectados.
                                                 </td>
                                                 <td class="p-4">
                                                     <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-                                                        ${((r=e.find(i=>i.value===(a.categoria||a.category)))==null?void 0:r.label)||a.categoria||a.category||"-"}
+                                                        ${((r=e.find(c=>c.value===(a.categoria||a.category)))==null?void 0:r.label)||a.categoria||a.category||"-"}
                                                     </span>
                                                     ${a.categoria==="stock_nuevo"||a.categoria==="stock_usado"||a.category==="Inventario (compra de vinilos)"?`
                                                         <button onclick="app.openInventoryIngest('${a.id}')" 
@@ -2996,12 +3113,33 @@ El inventario, gastos y socios NO serán afectados.
                                                 </td>
                                                 <td class="p-4 text-center">
                                                     ${a.receiptUrl?`
-                                                        <a href="${a.receiptUrl}" target="_blank" 
-                                                            class="text-brand-orange hover:text-orange-600 transition-colors" 
-                                                            title="Ver factura">
-                                                            <i class="ph-fill ph-file-text text-lg"></i>
-                                                        </a>
-                                                    `:'<span class="text-slate-300">-</span>'}
+                                                        <div class="relative inline-block group/preview">
+                                                            <a href="${a.receiptUrl}" target="_blank" 
+                                                                class="inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors" 
+                                                                title="Comprobante respaldado ✓">
+                                                                <i class="ph-fill ph-paperclip text-lg"></i>
+                                                                <i class="ph-fill ph-check-circle text-xs"></i>
+                                                            </a>
+                                                            <!-- Hover Preview Tooltip -->
+                                                            <div class="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/preview:opacity-100 group-hover/preview:visible transition-all duration-200 pointer-events-none">
+                                                                <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-2 w-48">
+                                                                    <img src="${a.receiptUrl}" alt="Preview" class="w-full h-32 object-cover rounded-lg mb-1" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                                    <div class="hidden items-center justify-center h-32 bg-slate-100 rounded-lg">
+                                                                        <i class="ph-duotone ph-file-pdf text-4xl text-red-500"></i>
+                                                                    </div>
+                                                                    <p class="text-[10px] text-slate-500 text-center font-medium">
+                                                                        <i class="ph-bold ph-eye"></i> Click para abrir
+                                                                    </p>
+                                                                </div>
+                                                                <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white -mt-px"></div>
+                                                            </div>
+                                                        </div>
+                                                    `:`
+                                                        <span class="inline-flex items-center gap-1 text-red-500" title="⚠️ Sin comprobante - Peligro fiscal">
+                                                            <i class="ph-fill ph-paperclip text-lg"></i>
+                                                            <i class="ph-fill ph-warning text-xs"></i>
+                                                        </span>
+                                                    `}
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3032,33 +3170,77 @@ El inventario, gastos y socios NO serán afectados.
 
                             <!-- Summary -->
                             ${o.length>0?`
-                                <div class="p-4 bg-slate-50 border-t border-orange-100 flex justify-between items-center">
-                                    <span class="text-xs text-slate-500">${o.length} registro(s)</span>
-                                    <div class="text-right">
-                                        <p class="text-xs text-slate-500">Total IVA Recuperable</p>
-                                        <p class="text-lg font-bold text-green-600">
-                                            ${this.formatCurrency(o.reduce((a,r)=>a+(r.monto_iva||0),0))}
-                                        </p>
+                                <div class="p-4 bg-slate-50 border-t border-orange-100">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <div class="flex items-center gap-4">
+                                            <span class="text-xs text-slate-500">${o.length} registro(s)</span>
+                                            <span class="text-xs text-slate-400">|</span>
+                                            <span class="text-xs ${o.filter(a=>a.receiptUrl).length===o.length?"text-green-600":"text-red-500"}">
+                                                <i class="ph-fill ph-paperclip"></i>
+                                                ${o.filter(a=>a.receiptUrl).length}/${o.length} respaldados
+                                            </span>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-xs text-slate-500">Total IVA Recuperable</p>
+                                            <p class="text-lg font-bold text-green-600">
+                                                ${this.formatCurrency(o.reduce((a,r)=>a+(r.monto_iva||0),0))}
+                                            </p>
+                                        </div>
                                     </div>
+                                    <!-- Export Button -->
+                                    <button onclick="app.downloadReceiptsZip()" 
+                                        class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
+                                        <i class="ph-bold ph-file-zip"></i>
+                                        Descargar Comprobantes del Mes (ZIP)
+                                    </button>
                                 </div>
                             `:""}
                         </div>
                     </div>
                 </div>
             </div>
-    `;t.innerHTML=n},editExpense(t){if(!confirm("¿Seguro que deseas editar esta compra?"))return;const e=this.state.expenses.find(o=>o.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-proveedor").value=e.proveedor||e.description||"",document.getElementById("expense-fecha").value=e.fecha_factura||(e.date?e.date.split("T")[0]:""),document.getElementById("expense-monto").value=e.monto_total||e.amount||0,document.getElementById("expense-iva").value=e.monto_iva||0,document.getElementById("expense-categoria").value=e.categoria||e.category||"Otros",document.getElementById("expense-descripcion").value=e.descripcion||"";const s=document.getElementById("expense-categoria");s&&(s.value=e.categoria||e.category||"",this.handleExpenseCategoryChange(s)),e.receiptUrl&&(document.getElementById("receipt-url").value=e.receiptUrl,document.getElementById("upload-placeholder").classList.add("hidden"),document.getElementById("upload-preview").classList.remove("hidden"),document.getElementById("receipt-preview-img").src=e.receiptUrl,document.getElementById("receipt-filename").textContent="Recibo guardado"),document.getElementById("expense-form-title").innerHTML='<i class="ph-duotone ph-pencil-simple text-brand-orange"></i> Editar Compra',document.getElementById("expense-submit-btn").innerHTML='<i class="ph-bold ph-floppy-disk"></i> Actualizar',document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-fecha").value=new Date().toISOString().split("T")[0],document.getElementById("expense-iva").value="0",document.getElementById("expense-form-title").innerHTML='<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra',document.getElementById("expense-submit-btn").innerHTML='<i class="ph-bold ph-floppy-disk"></i> Guardar',document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("receipt-url").value="",document.getElementById("receipt-file").value="",document.getElementById("upload-placeholder").classList.remove("hidden"),document.getElementById("upload-preview").classList.add("hidden"),document.getElementById("receipt-preview-img").src="",document.getElementById("receipt-filename").textContent=""},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target),s=e.get("categoria"),o=(window.expenseCategories||[]).find(r=>r.value===s),n={proveedor:e.get("proveedor"),fecha_factura:e.get("fecha_factura"),date:e.get("fecha_factura"),monto_total:parseFloat(e.get("monto_total"))||0,monto_iva:parseFloat(e.get("monto_iva"))||0,categoria:s,categoria_label:(o==null?void 0:o.label)||s,categoria_tipo:(o==null?void 0:o.type)||"operativo",is_vat_deductible:(o==null?void 0:o.type)==="operativo"||(o==null?void 0:o.type)==="stock_nuevo",descripcion:e.get("descripcion")||"",receiptUrl:document.getElementById("receipt-url").value||"",timestamp:new Date().toISOString()},a=e.get("id");a?S.collection("expenses").doc(a).update(n).then(()=>{this.showToast("✅ Compra actualizada"),this.loadData()}).catch(r=>console.error(r)):S.collection("expenses").add(n).then(()=>{this.showToast("✅ Compra registrada"),this.loadData()}).catch(r=>console.error(r)),this.resetExpenseForm()},handleExpenseCategoryChange(t){const e=t.value,s=(window.expenseCategories||[]).find(a=>a.value===e),o=document.getElementById("expense-iva"),n=document.getElementById("category-warning");(s==null?void 0:s.type)==="stock_usado"?(o.value="0",o.disabled=!0,o.classList.add("bg-slate-100","cursor-not-allowed"),n.classList.remove("hidden")):(o.disabled=!1,o.classList.remove("bg-slate-100","cursor-not-allowed"),n.classList.add("hidden"))},openInventoryIngest(t){this.state.expenses.find(s=>s.id===t)&&(this.navigate("inventory"),this.showToast('ℹ️ Usa "Añadir Disco" para ingresar el stock de esta compra.'))},deleteExpense(t){confirm("¿Eliminar esta compra?")&&S.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Compra eliminada"),this.loadData()}).catch(e=>console.error(e))},async handleReceiptUpload(t){const e=t.files[0];if(!e)return;const s=document.getElementById("upload-placeholder"),o=document.getElementById("upload-preview"),n=document.getElementById("receipt-preview-img"),a=document.getElementById("receipt-filename"),r=document.getElementById("receipt-url");s.innerHTML='<i class="ph-duotone ph-spinner text-4xl text-brand-orange animate-spin mb-2"></i><p class="text-sm text-slate-500">Subiendo...</p>';try{const l=firebase.storage().ref().child(`receipts / ${Date.now()}_${e.name} `);await l.put(e);const d=await l.getDownloadURL();if(r.value=d,e.type.startsWith("image/"))n.src=d,n.classList.remove("hidden");else if(e.type==="application/pdf"){n.src="",n.classList.add("hidden");const c=n.parentNode.querySelector(".ph-file-pdf");c&&c.remove();const p=document.createElement("i");p.className="ph-duotone ph-file-pdf text-6xl text-red-500 mb-2 block mx-auto",n.parentNode.insertBefore(p,n)}a.textContent=e.name,s.classList.add("hidden"),o.classList.remove("hidden"),s.innerHTML=`
-    < i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2" ></i >
+    `;t.innerHTML=n},editExpense(t){if(!confirm("¿Seguro que deseas editar esta compra?"))return;const e=this.state.expenses.find(o=>o.id===t);if(!e)return;document.getElementById("expense-id").value=e.id,document.getElementById("expense-proveedor").value=e.proveedor||e.description||"",document.getElementById("expense-fecha").value=e.fecha_factura||(e.date?e.date.split("T")[0]:""),document.getElementById("expense-monto").value=e.monto_total||e.amount||0,document.getElementById("expense-iva").value=e.monto_iva||0,document.getElementById("expense-categoria").value=e.categoria||e.category||"Otros",document.getElementById("expense-descripcion").value=e.descripcion||"";const s=document.getElementById("expense-categoria");s&&(s.value=e.categoria||e.category||"",this.handleExpenseCategoryChange(s)),e.receiptUrl&&(document.getElementById("receipt-url").value=e.receiptUrl,document.getElementById("upload-placeholder").classList.add("hidden"),document.getElementById("upload-preview").classList.remove("hidden"),document.getElementById("receipt-preview-img").src=e.receiptUrl,document.getElementById("receipt-filename").textContent="Recibo guardado"),document.getElementById("expense-form-title").innerHTML='<i class="ph-duotone ph-pencil-simple text-brand-orange"></i> Editar Compra',document.getElementById("expense-submit-btn").innerHTML='<i class="ph-bold ph-floppy-disk"></i> Actualizar',document.getElementById("expense-cancel-btn").classList.remove("hidden")},resetExpenseForm(){document.getElementById("expense-form").reset(),document.getElementById("expense-id").value="",document.getElementById("expense-fecha").value=new Date().toISOString().split("T")[0],document.getElementById("expense-iva").value="0",document.getElementById("expense-form-title").innerHTML='<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra',document.getElementById("expense-submit-btn").innerHTML='<i class="ph-bold ph-floppy-disk"></i> Guardar',document.getElementById("expense-cancel-btn").classList.add("hidden"),document.getElementById("receipt-url").value="",document.getElementById("receipt-file").value="",document.getElementById("upload-placeholder").classList.remove("hidden"),document.getElementById("upload-preview").classList.add("hidden"),document.getElementById("receipt-preview-img").src="",document.getElementById("receipt-filename").textContent=""},handleExpenseSubmit(t){t.preventDefault();const e=new FormData(t.target),s=e.get("categoria"),o=(window.expenseCategories||[]).find(r=>r.value===s),n={proveedor:e.get("proveedor"),fecha_factura:e.get("fecha_factura"),date:e.get("fecha_factura"),monto_total:parseFloat(e.get("monto_total"))||0,monto_iva:parseFloat(e.get("monto_iva"))||0,categoria:s,categoria_label:(o==null?void 0:o.label)||s,categoria_tipo:(o==null?void 0:o.type)||"operativo",is_vat_deductible:(o==null?void 0:o.type)==="operativo"||(o==null?void 0:o.type)==="stock_nuevo",descripcion:e.get("descripcion")||"",receiptUrl:document.getElementById("receipt-url").value||"",timestamp:new Date().toISOString()},a=e.get("id");a?D.collection("expenses").doc(a).update(n).then(()=>{this.showToast("✅ Compra actualizada"),this.loadData()}).catch(r=>console.error(r)):D.collection("expenses").add(n).then(()=>{this.showToast("✅ Compra registrada"),this.loadData()}).catch(r=>console.error(r)),this.resetExpenseForm()},handleExpenseCategoryChange(t){const e=t.value,s=(window.expenseCategories||[]).find(a=>a.value===e),o=document.getElementById("expense-iva"),n=document.getElementById("category-warning");(s==null?void 0:s.type)==="stock_usado"?(o.value="0",o.disabled=!0,o.classList.add("bg-slate-100","cursor-not-allowed"),n.classList.remove("hidden")):(o.disabled=!1,o.classList.remove("bg-slate-100","cursor-not-allowed"),n.classList.add("hidden"))},openInventoryIngest(t){this.state.expenses.find(s=>s.id===t)&&(this.navigate("inventory"),this.showToast('ℹ️ Usa "Añadir Disco" para ingresar el stock de esta compra.'))},deleteExpense(t){const e=this.state.expenses.find(s=>s.id===t);if(e!=null&&e.receiptUrl){if(!confirm(`⚠️ ATENCIÓN: Este gasto tiene un recibo adjunto.
+
+¿Estás seguro de que quieres eliminarlo?`))return;if(!confirm(`🔒 CONFIRMACIÓN LEGAL REQUERIDA
+
+La ley exige guardar documentos contables durante 5 AÑOS.
+
+Fecha del gasto: `+(e.fecha_factura||e.date||"Desconocida")+`
+Proveedor: `+(e.proveedor||"Sin nombre")+`
+Monto: `+this.formatCurrency(e.monto_total||e.amount||0)+`
+
+¿CONFIRMAS que deseas eliminar permanentemente este registro y su recibo?`)){this.showToast("ℹ️ Eliminación cancelada");return}}else if(!confirm("¿Eliminar esta compra?"))return;D.collection("expenses").doc(t).delete().then(()=>{this.showToast("✅ Compra eliminada"),this.loadData()}).catch(s=>console.error(s))},async downloadReceiptsZip(){const t=new Date,e=t.getFullYear(),s=t.getMonth(),o=this.state.expenses.filter(n=>{const a=new Date(n.fecha_factura||n.date);return a.getFullYear()===e&&a.getMonth()===s&&n.receiptUrl});if(o.length===0){this.showToast("ℹ️ No hay comprobantes con recibo este mes");return}this.showToast(`📦 Preparando ZIP con ${o.length} comprobantes...`);try{const n=new JSZip,a=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],r=`Comprobantes_${e}_${String(s+1).padStart(2,"0")}_${a[s]}`,c=n.folder(r);let l=`RESUMEN DE COMPROBANTES - ${a[s]} ${e}
+`;l+=`${"=".repeat(50)}
+
+`,l+=`Generado: ${t.toLocaleString("es-ES")}
+`,l+=`Total comprobantes: ${o.length}
+`,l+=`Total gastos: ${this.formatCurrency(o.reduce((x,b)=>x+(b.monto_total||b.amount||0),0))}
+`,l+=`Total IVA: ${this.formatCurrency(o.reduce((x,b)=>x+(b.monto_iva||0),0))}
+
+`,l+=`${"=".repeat(50)}
+
+`,l+=`DETALLE:
+
+`;let i=0,d=0;for(let x=0;x<o.length;x++){const b=o[x],k=new Date(b.fecha_factura||b.date).toISOString().split("T")[0],p=(b.proveedor||"SinNombre").replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g,"").replace(/\s+/g,"-").substring(0,20).trim(),g=Math.round(b.monto_total||b.amount||0);let v="jpg";b.receiptUrl.includes(".pdf")?v="pdf":b.receiptUrl.includes(".png")&&(v="png");const E=`${String(x+1).padStart(3,"0")}_${k}_${p}_${g}DKK.${v}`;try{const $=await fetch(b.receiptUrl);if(!$.ok)throw new Error("Fetch failed");const I=await $.blob();c.file(E,I),i++,l+=`${String(x+1).padStart(3,"0")}. ${k} | ${p}
+`,l+=`    Total: ${this.formatCurrency(b.monto_total||b.amount||0)} | IVA: ${this.formatCurrency(b.monto_iva||0)}
+`,l+=`    Archivo: ${E}
+
+`}catch($){console.warn(`Could not fetch receipt for ${b.proveedor}:`,$),d++,l+=`${String(x+1).padStart(3,"0")}. ${k} | ${p} - ⚠️ ERROR: No se pudo descargar
+
+`}}c.file("_INDICE.txt",l);const u=await n.generateAsync({type:"blob",compression:"DEFLATE",compressionOptions:{level:6}}),m=`${r}.zip`;saveAs(u,m),d>0?this.showToast(`⚠️ ZIP generado: ${i} OK, ${d} con error`):this.showToast(`✅ ZIP descargado: ${i} comprobantes`)}catch(n){console.error("ZIP generation error:",n),this.showToast("❌ Error al generar ZIP")}},async handleReceiptUpload(t){const e=t.files[0];if(!e)return;const s=document.getElementById("upload-placeholder"),o=document.getElementById("upload-preview"),n=document.getElementById("receipt-preview-img"),a=document.getElementById("receipt-filename"),r=document.getElementById("receipt-url");s.innerHTML='<i class="ph-duotone ph-spinner text-4xl text-brand-orange animate-spin mb-2"></i><p class="text-sm text-slate-500">Subiendo...</p>';try{this._pendingReceiptFile=e,this._pendingReceiptOriginalName=e.name;const c=e.name.split(".").pop().toLowerCase(),{structuredPath:l,structuredFilename:i}=this.generateReceiptPath(c),u=firebase.storage().ref().child(l);await u.put(e);const m=await u.getDownloadURL();if(r.value=m,document.getElementById("receipt-url").dataset.structuredPath=l,document.getElementById("receipt-url").dataset.structuredFilename=i,e.type.startsWith("image/"))n.src=URL.createObjectURL(e),n.classList.remove("hidden");else if(e.type==="application/pdf"){n.src="",n.classList.add("hidden");const x=n.parentNode.querySelector(".ph-file-pdf");x&&x.remove();const b=document.createElement("i");b.className="ph-duotone ph-file-pdf text-6xl text-red-500 mb-2 block mx-auto",n.parentNode.insertBefore(b,n)}a.textContent=i,s.classList.add("hidden"),o.classList.remove("hidden"),s.innerHTML=`
+                <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
                 <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">
                     Subir Factura/Recibo
                 </p>
                 <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
-`,this.showToast("✅ Archivo subido")}catch(i){console.error("Upload error:",i),s.innerHTML=`
-    < i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2" ></i >
+            `,this.showToast("✅ Archivo subido - procesando OCR..."),this.processReceiptOCR(m)}catch(c){console.error("Upload error details:",c),alert("Error al subir: "+c.message),s.innerHTML=`
+                <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
                 <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">
                     Subir Factura/Recibo
                 </p>
                 <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
-`,this.showToast("❌ Error al subir archivo")}},clearReceiptUpload(){document.getElementById("receipt-file").value="",document.getElementById("receipt-url").value="",document.getElementById("upload-placeholder").classList.remove("hidden"),document.getElementById("upload-preview").classList.add("hidden"),document.getElementById("receipt-preview-img").src="",document.getElementById("receipt-filename").textContent=""},renderConsignments(t){if(!t)return;const e=`
+            `,this.showToast("❌ Error: "+c.message)}},generateReceiptPath(t){var e,s;try{const o=new Date,n=o.getFullYear(),a=o.getMonth()+1,r=o.getDate(),c=((e=document.getElementById("expense-proveedor"))==null?void 0:e.value)||"Proveedor",l=((s=document.getElementById("expense-monto"))==null?void 0:s.value)||"0",i=c.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]/g,"").replace(/\s+/g,"-").substring(0,20).trim()||"Proveedor",d=Math.round(parseFloat(l)||0)+"dkk",u=Math.random().toString(36).substring(2,7).toUpperCase(),x=`${`${n}-${String(a).padStart(2,"0")}-${String(r).padStart(2,"0")}`}_${i}_${d}_${u}.${t}`,b=`receipts/${x}`;return console.log("📁 Structured Receipt Path:",b),{structuredPath:b,structuredFilename:x}}catch(o){console.error("Error in generateReceiptPath:",o);const n=`receipt_${Date.now()}.${t}`;return{structuredPath:`receipts/${n}`,structuredFilename:n}}},async processReceiptOCR(t){var e,s;try{const o=document.getElementById("expense-form-title"),n=o.innerHTML;o.innerHTML='<i class="ph-duotone ph-scan text-brand-orange animate-pulse"></i> Escaneando recibo...';const a=new FormData;a.append("url",t),a.append("language","dan"),a.append("isOverlayRequired","false"),a.append("OCREngine","2"),a.append("scale","true"),a.append("isTable","false");const c=await(await fetch("https://api.ocr.space/parse/image",{method:"POST",headers:{apikey:be},body:a})).json();if(c.IsErroredOnProcessing)throw new Error(c.ErrorMessage||"OCR processing failed");const l=((s=(e=c.ParsedResults)==null?void 0:e[0])==null?void 0:s.ParsedText)||"";console.log("OCR Raw Text:",l);const i=this.parseReceiptText(l);this.autoFillExpenseForm(i),o.innerHTML='<i class="ph-duotone ph-check-circle text-green-500"></i> Datos extraídos - verifica';const d=Object.values(i).filter(u=>u).length;d>=3?this.showToast("✨ Datos extraídos correctamente"):d>0?this.showToast("⚠️ Algunos datos extraídos - completa manualmente"):(this.showToast("ℹ️ No se detectaron datos - ingresa manualmente"),o.innerHTML=n)}catch(o){console.error("OCR Error:",o),this.showToast("⚠️ OCR no disponible - ingresa datos manualmente");const n=document.getElementById("expense-form-title");n.innerHTML='<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra'}},fileToBase64(t){return new Promise((e,s)=>{const o=new FileReader;o.onload=()=>e(o.result),o.onerror=s,o.readAsDataURL(t)})},parseReceiptText(t){const e={fecha:null,proveedor:null,monto_total:null,monto_iva:null},s=t.replace(/\r\n/g,`
+`).replace(/\s+/g," "),o=t.split(/\r?\n/).map(i=>i.trim()).filter(i=>i),n=[/(\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4})/,/(\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})/,/(\d{1,2}\.\s?\w+\.?\s?\d{2,4})/i];for(const i of n){const d=s.match(i);if(d){e.fecha=this.normalizeDate(d[1]);break}}const a=[/(?:i\s*alt|total|sum|totalt|att\s*betala)[:\s]*(\d+[.,]\d{2})/i,/(?:total|sum)[:\s]*(?:kr\.?|dkk)?\s*(\d+[.,]\d{2})/i,/(\d+[.,]\d{2})\s*(?:dkk|kr)/i];for(const i of a){const d=s.match(i);if(d){e.monto_total=parseFloat(d[1].replace(",","."));break}}const r=[/(?:moms|25%|heraf\s*moms)[:\s]*(\d+[.,]\d{2})/i,/(?:vat|iva|tax)[:\s]*(\d+[.,]\d{2})/i,/moms\s*(?:kr\.?|dkk)?\s*(\d+[.,]\d{2})/i];for(const i of r){const d=s.match(i);if(d){e.monto_iva=parseFloat(d[1].replace(",","."));break}}e.monto_total&&!e.monto_iva&&(e.monto_iva=Math.round(e.monto_total*.2*100)/100);const c=["kvittering","receipt","bon","faktura","invoice","kopi","copy"];for(const i of o.slice(0,5)){const d=i.trim();if(d.length>2&&d.length<50&&!c.some(u=>d.toLowerCase().includes(u))&&!/^\d+$/.test(d)&&!/^[\d\s\-\/\.]+$/.test(d)){e.proveedor=d;break}}const l=s.match(/(?:cvr|org\.?\s*nr)[:\s]*(\d{8})/i);if(l&&o.length>0){const i=o.findIndex(d=>d.includes(l[0]));i>0&&!e.proveedor&&(e.proveedor=o[i-1])}return console.log("Parsed Receipt Data:",e),e},normalizeDate(t){try{const s=t.replace(/\s/g,"").replace(/[\.\/]/g,"-").split("-");if(s.length>=3){let o,n,a;return s[0].length===4?[a,n,o]=s:([o,n,a]=s,a.length===2&&(a="20"+a)),o=o.padStart(2,"0"),n=n.padStart(2,"0"),`${a}-${n}-${o}`}}catch{console.warn("Date normalization failed:",t)}return null},autoFillExpenseForm(t){if(t.fecha){const e=document.getElementById("expense-fecha");e&&(e.value=t.fecha,this.highlightAutoFilled(e))}if(t.proveedor){const e=document.getElementById("expense-proveedor");e&&(e.value=t.proveedor,this.highlightAutoFilled(e))}if(t.monto_total){const e=document.getElementById("expense-monto");e&&(e.value=t.monto_total.toFixed(2),this.highlightAutoFilled(e))}if(t.monto_iva){const e=document.getElementById("expense-iva");e&&!e.disabled&&(e.value=t.monto_iva.toFixed(2),this.highlightAutoFilled(e))}},highlightAutoFilled(t){t.classList.add("ring-2","ring-green-400","bg-green-50");const e=()=>{t.classList.remove("ring-2","ring-green-400","bg-green-50"),t.removeEventListener("focus",e)};t.addEventListener("focus",e),setTimeout(e,5e3)},clearReceiptUpload(){document.getElementById("receipt-file").value="",document.getElementById("receipt-url").value="",document.getElementById("upload-placeholder").classList.remove("hidden"),document.getElementById("upload-preview").classList.add("hidden"),document.getElementById("receipt-preview-img").src="",document.getElementById("receipt-filename").textContent=""},renderConsignments(t){if(!t)return;const e=`
     <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn" >
                                                                     <div class="flex justify-between items-center mb-8">
                                                                         <h2 class="font-display text-2xl font-bold text-brand-dark">Socios y Consignación</h2>
@@ -3069,7 +3251,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                     </div>
 
                                                                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                                        ${this.state.consignors.map(s=>{const o=s.name,a=this.state.inventory.filter(c=>c.owner===o).reduce((c,p)=>c+p.stock,0),r=[];this.state.sales.forEach(c=>{(c.items||[]).filter(m=>{if((m.owner||"").toLowerCase()===o.toLowerCase())return!0;const g=this.state.inventory.find(h=>h.id===(m.productId||m.recordId));return g&&(g.owner||"").toLowerCase()===o.toLowerCase()}).forEach(m=>{const g=Number(m.priceAtSale||m.unitPrice||0),h=s.agreementSplit||s.split||70,w=g*h/100;r.push({...m,id:c.id,date:c.date,cost:m.costAtSale||m.cost||w,payoutStatus:c.payoutStatus||"pending",payoutDate:c.payoutDate||null})}),(!c.items||c.items.length===0)&&(c.owner||"").toLowerCase()===o.toLowerCase()&&r.push({...c,album:c.album||c.sku||"Record",cost:c.cost||(Number(c.total)||0)*(s.agreementSplit||70)/100})}),r.sort((c,p)=>new Date(p.date)-new Date(c.date)),r.reduce((c,p)=>c+(Number(p.qty||p.quantity)||1),0);const i=r.reduce((c,p)=>c+(Number(p.cost)||0),0),l=r.filter(c=>c.payoutStatus==="paid").reduce((c,p)=>c+(Number(p.cost)||0),0),d=i-l;return`
+                                                                        ${this.state.consignors.map(s=>{const o=s.name,a=this.state.inventory.filter(d=>d.owner===o).reduce((d,u)=>d+u.stock,0),r=[];this.state.sales.forEach(d=>{(d.items||[]).filter(m=>{if((m.owner||"").toLowerCase()===o.toLowerCase())return!0;const x=this.state.inventory.find(b=>b.id===(m.productId||m.recordId));return x&&(x.owner||"").toLowerCase()===o.toLowerCase()}).forEach(m=>{const x=Number(m.priceAtSale||m.unitPrice||0),b=s.agreementSplit||s.split||70,y=x*b/100;r.push({...m,id:d.id,date:d.date,cost:m.costAtSale||m.cost||y,payoutStatus:d.payoutStatus||"pending",payoutDate:d.payoutDate||null})}),(!d.items||d.items.length===0)&&(d.owner||"").toLowerCase()===o.toLowerCase()&&r.push({...d,album:d.album||d.sku||"Record",cost:d.cost||(Number(d.total)||0)*(s.agreementSplit||70)/100})}),r.sort((d,u)=>new Date(u.date)-new Date(d.date)),r.reduce((d,u)=>d+(Number(u.qty||u.quantity)||1),0);const c=r.reduce((d,u)=>d+(Number(u.cost)||0),0),l=r.filter(d=>d.payoutStatus==="paid").reduce((d,u)=>d+(Number(u.cost)||0),0),i=c-l;return`
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                             <div class="flex justify-between items-start mb-6">
                                 <div>
@@ -3090,7 +3272,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </div>
                                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pendiente Pago</p>
-                                    <p class="font-display font-bold text-xl ${d>0?"text-brand-orange":"text-slate-500"}">${this.formatCurrency(d)}</p>
+                                    <p class="font-display font-bold text-xl ${i>0?"text-brand-orange":"text-slate-500"}">${this.formatCurrency(i)}</p>
                                 </div>
                             </div>
 
@@ -3100,18 +3282,18 @@ El inventario, gastos y socios NO serán afectados.
                                     <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(l)}</span>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                                    ${r.length>0?r.map(c=>`
-                                        <div class="flex items-center justify-between p-3 rounded-xl border ${c.payoutStatus==="paid"?"bg-slate-50 border-slate-100 opacity-60":"bg-white border-orange-100 shadow-sm"} transition-all">
+                                    ${r.length>0?r.map(d=>`
+                                        <div class="flex items-center justify-between p-3 rounded-xl border ${d.payoutStatus==="paid"?"bg-slate-50 border-slate-100 opacity-60":"bg-white border-orange-100 shadow-sm"} transition-all">
                                             <div class="flex-1 min-w-0 pr-3">
-                                                <div class="font-bold text-xs truncate text-brand-dark">${c.album||c.sku}</div>
-                                                <div class="text-[10px] text-slate-400">${this.formatDate(c.date)} • ${this.formatCurrency(c.cost)}</div>
-                                                ${c.payoutStatus==="paid"&&c.payoutDate?`<div class="text-[9px] text-green-600 font-bold mt-0.5"><i class="ph-bold ph-check"></i> Pagado: ${this.formatDate(c.payoutDate)}</div>`:""}
+                                                <div class="font-bold text-xs truncate text-brand-dark">${d.album||d.sku}</div>
+                                                <div class="text-[10px] text-slate-400">${this.formatDate(d.date)} • ${this.formatCurrency(d.cost)}</div>
+                                                ${d.payoutStatus==="paid"&&d.payoutDate?`<div class="text-[9px] text-green-600 font-bold mt-0.5"><i class="ph-bold ph-check"></i> Pagado: ${this.formatDate(d.payoutDate)}</div>`:""}
                                             </div>
                                             <button 
-                                                onclick="app.togglePayoutStatus('${c.id}', '${c.payoutStatus||"pending"}')"
-                                                class="shrink-0 h-8 px-3 rounded-lg text-[10px] font-bold border transition-colors ${c.payoutStatus==="paid"?"bg-slate-200 border-slate-300 text-slate-500 hover:bg-slate-300":"bg-green-100 border-green-200 text-green-700 hover:bg-green-200"}"
+                                                onclick="app.togglePayoutStatus('${d.id}', '${d.payoutStatus||"pending"}')"
+                                                class="shrink-0 h-8 px-3 rounded-lg text-[10px] font-bold border transition-colors ${d.payoutStatus==="paid"?"bg-slate-200 border-slate-300 text-slate-500 hover:bg-slate-300":"bg-green-100 border-green-200 text-green-700 hover:bg-green-200"}"
                                             >
-                                                ${c.payoutStatus==="paid"?"PAGADO":"PAGAR"}
+                                                ${d.payoutStatus==="paid"?"PAGADO":"PAGAR"}
                                             </button>
                                         </div>
                                     `).join(""):'<div class="text-center py-4 text-xs text-slate-400 italic">No hay ventas registradas</div>'}
@@ -3162,15 +3344,7 @@ El inventario, gastos y socios NO serán afectados.
             </form>
         </div>
 
-`)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};S.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>{console.error(o),this.showToast("❌ Error al crear socio: "+o.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&S.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},searchDiscogs(){const t=document.getElementById("discogs-search-input").value,e=document.getElementById("discogs-results");if(!t)return;const s=localStorage.getItem("discogs_token");if(!s){e.innerHTML=`
-    <div class="text-center py-4 px-3" >
-                    <p class="text-xs text-red-500 font-bold mb-2">⚠️ Token de Discogs no configurado</p>
-                    <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
-                        class="text-xs font-bold text-brand-orange hover:underline">
-                        Ir a Configuración →
-                    </button>
-                </div>
-    `,e.classList.remove("hidden");return}if(e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),/^\d+$/.test(t.trim())){this.fetchDiscogsById(t.trim());return}fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(t)}&type=release&token=${s}`).then(o=>{if(o.status===401)throw new Error("Token inválido o expirado");if(!o.ok)throw new Error(`Error ${o.status}`);return o.json()}).then(o=>{o.results&&o.results.length>0?e.innerHTML=o.results.slice(0,10).map(n=>`
+`)},handleAddConsignor(t){t.preventDefault();const e=new FormData(t.target),s={name:e.get("name"),agreementSplit:parseFloat(e.get("split")),email:e.get("email"),phone:e.get("phone")};D.collection("consignors").add(s).then(()=>{this.showToast("✅ Socio registrado correctamente"),document.getElementById("modal-overlay").remove(),this.loadData()}).catch(o=>{console.error(o),this.showToast("❌ Error al crear socio: "+o.message,"error")})},deleteConsignor(t){confirm("¿Eliminar este socio?")&&D.collection("consignors").doc(t).delete().then(()=>{this.showToast("✅ Socio eliminado"),this.loadData()}).catch(e=>{console.error(e),this.showToast("❌ Error al eliminar socio: "+e.message,"error")})},saveData(){try{const t={};localStorage.setItem("el-cuartito-settings",JSON.stringify(t))}catch(t){console.error("Error saving settings:",t)}},searchDiscogs(){const t=document.getElementById("discogs-search-input").value,e=document.getElementById("discogs-results");if(t){if(e.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>',e.classList.remove("hidden"),/^\d+$/.test(t.trim())){this.fetchDiscogsById(t.trim());return}fetch(`${M}/discogs/search?q=${encodeURIComponent(t)}`).then(s=>{if(!s.ok)throw new Error(`Error ${s.status}`);return s.json()}).then(s=>{const o=s.results||[];o.length>0?e.innerHTML=o.slice(0,10).map(n=>`
                         <div onclick='app.handleDiscogsSelection(${JSON.stringify(n).replace(/'/g,"&#39;")})' class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
                             <img src="${n.thumb||"logo.jpg"}" class="w-12 h-12 rounded object-cover bg-slate-100 flex-shrink-0">
                             <div class="flex-1 min-w-0">
@@ -3180,31 +3354,28 @@ El inventario, gastos y socios NO serán afectados.
                             </div>
                             <i class="ph-bold ph-plus-circle text-brand-orange text-lg flex-shrink-0"></i>
                         </div>
-                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(o=>{console.error(o),e.innerHTML=`
+                    `).join(""):e.innerHTML='<p class="text-xs text-slate-400 p-2">No se encontraron resultados.</p>'}).catch(s=>{console.error(s),e.innerHTML=`
                     <div class="text-center py-4 px-3">
-                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${o.message}</p>
-                        <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" 
-                            class="text-xs font-bold text-brand-orange hover:underline">
-                            Verificar Token en Configuración →
-                        </button>
+                        <p class="text-xs text-red-500 font-bold mb-2">❌ ${s.message}</p>
+                        <p class="text-[10px] text-slate-400">Hubo un error al buscar en Discogs a través del servidor.</p>
                     </div>
-                `})},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(o=>{const n=document.getElementById(o);n&&(n.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",o=e.slice(1).join(" - ")||t.title,n=document.querySelector("#modal-overlay form");if(!n)return;if(n.artist&&(n.artist.value=s),n.album&&(n.album.value=o),n.year&&t.year&&(n.year.value=t.year),n.label&&t.label&&t.label.length>0&&(n.label.value=t.label[0]),t.thumb||t.cover_image){const i=t.cover_image||t.thumb,l=document.getElementById("input-cover-image"),d=document.getElementById("cover-preview");l&&(l.value=i),d&&(d.querySelector("img").src=i,d.classList.remove("hidden"))}const a=document.getElementById("input-discogs-release-id");a&&t.id&&(a.value=t.id);const r=localStorage.getItem("discogs_token");if(r&&t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`https://api.discogs.com/releases/${t.id}?token=${r}`).then(i=>i.json()).then(i=>{console.log("Full Discogs Release:",i);const l=[...i.styles||[],...i.genres||[]];console.log("ALL Genres/Styles from full release:",l);const d=[...new Set(l)];if(d.length>0){const w=n.querySelector('select[name="genre"]'),u=n.querySelector('select[name="genre2"]'),b=n.querySelector('select[name="genre3"]'),f=n.querySelector('select[name="genre4"]'),y=n.querySelector('select[name="genre5"]'),E=[w,u,b,f,y];d.slice(0,5).forEach(($,I)=>{if(E[I]){let C=!1;for(let T of E[I].options)if(T.value===$){E[I].value=$,C=!0;break}if(!C){const T=document.createElement("option");T.value=$,T.text=$,T.selected=!0,E[I].add(T)}}}),this.showToast(`✅ ${d.length} géneros cargados`,"success")}if(i.images&&i.images.length>0){const w=i.images[0].uri,u=document.getElementById("input-cover-image"),b=document.getElementById("cover-preview");u&&(u.value=w),b&&(b.querySelector("img").src=w)}const c=document.getElementById("tracklist-preview"),p=document.getElementById("tracklist-preview-content");c&&p&&i.tracklist&&i.tracklist.length>0&&(p.innerHTML=i.tracklist.map(w=>`
+                `})}},resyncMusic(){["input-discogs-id","input-discogs-release-id","input-discogs-url","input-cover-image"].forEach(o=>{const n=document.getElementById(o);n&&(n.value="")});const t=document.querySelector('input[name="artist"]').value,e=document.querySelector('input[name="album"]').value,s=document.getElementById("discogs-search-input");s&&t&&e?(s.value=`${t} - ${e}`,this.searchDiscogs(),this.showToast("✅ Música desvinculada. Selecciona una nueva edición.","success")):this.showToast("⚠️ Falta Artista o Álbum para buscar.","error")},handleDiscogsSelection(t){const e=t.title.split(" - "),s=e[0]||"",o=e.slice(1).join(" - ")||t.title,n=document.querySelector("#modal-overlay form");if(!n)return;if(n.artist&&(n.artist.value=s),n.album&&(n.album.value=o),n.year&&t.year&&(n.year.value=t.year),n.label&&t.label&&t.label.length>0&&(n.label.value=t.label[0]),t.thumb||t.cover_image){const r=t.cover_image||t.thumb,c=document.getElementById("input-cover-image"),l=document.getElementById("cover-preview");c&&(c.value=r),l&&(l.querySelector("img").src=r,l.classList.remove("hidden"))}const a=document.getElementById("input-discogs-release-id");if(a&&t.id&&(a.value=t.id),t.id)this.showToast("⏳ Cargando géneros...","info"),fetch(`${M}/discogs/release/${t.id}`).then(r=>r.json()).then(r=>{console.log("Full Discogs Release:",r);const c=[...r.styles||[],...r.genres||[]];console.log("ALL Genres/Styles from full release:",c);const l=[...new Set(c)];if(l.length>0){const b=n.querySelector('select[name="genre"]'),y=n.querySelector('select[name="genre2"]'),k=n.querySelector('select[name="genre3"]'),p=n.querySelector('select[name="genre4"]'),g=n.querySelector('select[name="genre5"]'),v=[b,y,k,p,g];l.slice(0,5).forEach((E,$)=>{if(v[$]){let I=!1;for(let S of v[$].options)if(S.value===E){v[$].value=E,I=!0;break}if(!I){const S=document.createElement("option");S.value=E,S.text=E,S.selected=!0,v[$].add(S)}}}),this.showToast(`✅ ${l.length} géneros cargados`,"success")}if(r.images&&r.images.length>0){const b=r.images[0].uri,y=document.getElementById("input-cover-image"),k=document.getElementById("cover-preview");y&&(y.value=b),k&&(k.querySelector("img").src=b)}const i=document.getElementById("tracklist-preview"),d=document.getElementById("tracklist-preview-content");i&&d&&r.tracklist&&r.tracklist.length>0&&(d.innerHTML=r.tracklist.map(b=>`
                             <div class="flex items-center gap-2 py-1 border-b border-slate-100 last:border-0">
-                                <span class="text-[10px] font-mono text-slate-400 w-6">${w.position||""}</span>
-                                <span class="flex-1">${w.title}</span>
-                                <span class="text-[10px] text-slate-400">${w.duration||""}</span>
+                                <span class="text-[10px] font-mono text-slate-400 w-6">${b.position||""}</span>
+                                <span class="flex-1">${b.title}</span>
+                                <span class="text-[10px] text-slate-400">${b.duration||""}</span>
                             </div>
-                        `).join(""),c.classList.remove("hidden"));const m=document.getElementById("price-suggestions-preview"),g=document.getElementById("price-suggestions-content"),h=document.getElementById("discogs-release-link");if(h&&i.uri){const w=i.uri.startsWith("http")?i.uri:"https://www.discogs.com"+i.uri;h.href=w,h.classList.remove("hidden")}m&&g&&(g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',m.classList.remove("hidden"),fetch(`${B}/discogs/price-suggestions/${t.id}`).then(u=>u.json()).then(u=>{if(u.success&&u.suggestions){const b=u.suggestions,f=b.currency==="DKK"?" kr.":b.currency==="USD"?" $":" "+b.currency,y=(E,$)=>{const I=b[$];return`
+                        `).join(""),i.classList.remove("hidden"));const u=document.getElementById("price-suggestions-preview"),m=document.getElementById("price-suggestions-content"),x=document.getElementById("discogs-release-link");if(x&&r.uri){const b=r.uri.startsWith("http")?r.uri:"https://www.discogs.com"+r.uri;x.href=b,x.classList.remove("hidden")}u&&m&&(m.innerHTML='<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>',u.classList.remove("hidden"),fetch(`${M}/discogs/price-suggestions/${t.id}`).then(y=>y.json()).then(y=>{if(y.success&&y.suggestions){const k=y.suggestions,p=k.currency==="DKK"?" kr.":k.currency==="USD"?" $":" "+k.currency,g=(v,E)=>{const $=k[E];return`
                                             <div class="bg-white p-2 rounded-lg border border-brand-orange/10">
-                                                <span class="text-[9px] text-slate-400 block leading-none mb-1">${E}</span>
-                                                <span class="font-bold text-brand-dark">${I?I.value.toFixed(0)+f:"N/A"}</span>
+                                                <span class="text-[9px] text-slate-400 block leading-none mb-1">${v}</span>
+                                                <span class="font-bold text-brand-dark">${$?$.value.toFixed(0)+p:"N/A"}</span>
                                             </div>
-                                        `};g.innerHTML=`
-                                        ${y("Mint (M)","Mint (M)")}
-                                        ${y("Near Mint (NM)","Near Mint (NM or M-)")}
-                                        ${y("Very Good Plus (VG+)","Very Good Plus (VG+)")}
-                                        ${y("Very Good (VG)","Very Good (VG)")}
-                                    `}else g.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(u=>{console.error("Price suggestion error:",u),g.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(i=>{console.error("Error fetching full release:",i),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const i=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",i);const l=[...new Set(i)];if(l.length>0){const d=n.querySelector('select[name="genre"]');if(d){const c=l[0];let p=!1;for(let m of d.options)if(m.value===c){d.value=c,p=!0;break}if(!p){const m=document.createElement("option");m.value=c,m.text=c,m.selected=!0,d.add(m)}}}}if(t.uri||t.resource_url){const i=t.uri||t.resource_url,l=i.startsWith("http")?i:"https://www.discogs.com"+i,d=document.getElementById("input-discogs-url");d&&(d.value=l)}if(t.id){const i=document.getElementById("input-discogs-id");i&&(i.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(a=>a.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
+                                        `};m.innerHTML=`
+                                        ${g("Mint (M)","Mint (M)")}
+                                        ${g("Near Mint (NM)","Near Mint (NM or M-)")}
+                                        ${g("Very Good Plus (VG+)","Very Good Plus (VG+)")}
+                                        ${g("Very Good (VG)","Very Good (VG)")}
+                                    `}else m.innerHTML='<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>'}).catch(y=>{console.error("Price suggestion error:",y),m.innerHTML='<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>'}))}).catch(r=>{console.error("Error fetching full release:",r),this.showToast("⚠️ No se pudieron cargar todos los géneros","warning")});else{const r=[...t.style||[],...t.genre||[]];console.log("Fallback Genres (limited, no token):",r);const c=[...new Set(r)];if(c.length>0){const l=n.querySelector('select[name="genre"]');if(l){const i=c[0];let d=!1;for(let u of l.options)if(u.value===i){l.value=i,d=!0;break}if(!d){const u=document.createElement("option");u.value=i,u.text=i,u.selected=!0,l.add(u)}}}}if(t.uri||t.resource_url){const r=t.uri||t.resource_url,c=r.startsWith("http")?r:"https://www.discogs.com"+r,l=document.getElementById("input-discogs-url");l&&(l.value=c)}if(t.id){const r=document.getElementById("input-discogs-id");r&&(r.value=t.id)}document.getElementById("discogs-results").classList.add("hidden")},openTracklistModal(t){const e=this.state.inventory.find(a=>a.sku===t);if(!e)return;let s=e.discogsId;document.body.insertAdjacentHTML("beforeend",`
                                                                 <div id="tracklist-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
                                                                     <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl relative animate-fadeIn">
                                                                         <h3 class="font-display text-xl font-bold text-brand-dark mb-4">Lista de Temas (Tracklist)</h3>
@@ -3214,15 +3385,15 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                `);const n=a=>{const r=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/releases/${a}?token=${r}`).then(i=>{if(!i.ok)throw new Error("Release not found");return i.json()}).then(i=>{const l=i.tracklist||[],d=l.map(p=>`
+                                                                `);const n=a=>{fetch(`${M}/discogs/release/${a}`).then(r=>{if(!r.ok)throw new Error("Release not found");return r.json()}).then(r=>{const c=r.tracklist||[],l=c.map(d=>`
                                                                 <div class="flex items-center justify-between py-3 border-b border-slate-50 hover:bg-slate-50 px-2 transition-colors rounded-lg group">
                                                                     <div class="flex items-center gap-3">
-                                                                        <span class="text-xs font-mono font-bold text-slate-400 w-8">${p.position}</span>
-                                                                        <span class="text-sm font-bold text-brand-dark group-hover:text-brand-orange transition-colors">${p.title}</span>
+                                                                        <span class="text-xs font-mono font-bold text-slate-400 w-8">${d.position}</span>
+                                                                        <span class="text-sm font-bold text-brand-dark group-hover:text-brand-orange transition-colors">${d.title}</span>
                                                                     </div>
-                                                                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">${p.duration||"--:--"}</span>
+                                                                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">${d.duration||"--:--"}</span>
                                                                 </div>
-                                                                `).join(""),c=`
+                                                                `).join(""),i=`
                                                                 <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative animate-fadeIn max-h-[85vh] flex flex-col overflow-hidden">
                                                                     <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 shrink-0">
                                                                         <div>
@@ -3234,7 +3405,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </button>
                                                                     </div>
                                                                     <div class="p-4 overflow-y-auto custom-scrollbar flex-1">
-                                                                        ${l.length>0?d:'<p class="text-center text-slate-500 py-8">No se encontraron temas para esta edición.</p>'}
+                                                                        ${c.length>0?l:'<p class="text-center text-slate-500 py-8">No se encontraron temas para esta edición.</p>'}
                                                                     </div>
                                                                     <div class="p-3 bg-slate-50 text-center shrink-0 border-t border-slate-100">
                                                                         <a href="https://www.discogs.com/release/${a}" target="_blank" class="text-xs font-bold text-brand-orange hover:underline flex items-center justify-center gap-1">
@@ -3242,7 +3413,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                `;document.getElementById("tracklist-overlay").innerHTML=c}).catch(i=>{console.error(i),document.getElementById("tracklist-overlay").innerHTML=`
+                                                                `;document.getElementById("tracklist-overlay").innerHTML=i}).catch(r=>{console.error(r),document.getElementById("tracklist-overlay").innerHTML=`
                                                                 <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
                                                                     <div class="text-center py-6">
                                                                         <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
@@ -3253,7 +3424,7 @@ El inventario, gastos y socios NO serán afectados.
                                                                         <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                                                                     </div>
                                                                 </div>
-                                                                `})};if(s)n(s);else{const a=`${e.artist} - ${e.album}`,r=localStorage.getItem("discogs_token")||"hSIAXlFqQzYEwZzzQzXlFqQzYEwZzz";fetch(`https://api.discogs.com/database/search?q=${encodeURIComponent(a)}&type=release&token=${r}`).then(i=>i.json()).then(i=>{if(i.results&&i.results.length>0)n(i.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
+                                                                `})};if(s)n(s);else{const a=`${e.artist} - ${e.album}`;fetch(`${M}/discogs/search?q=${encodeURIComponent(a)}`).then(r=>r.json()).then(r=>{if(r.results&&r.results.length>0)n(r.results[0].id);else throw new Error("No results found in fallback search")}).catch(()=>{document.getElementById("tracklist-overlay").innerHTML=`
                          <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
                             <div class="text-center py-6">
                                 <div class="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4 text-brand-orange">
@@ -3264,7 +3435,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <button onclick="document.getElementById('tracklist-overlay').remove()" class="px-6 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-600 transition-colors">Cerrar</button>
                             </div>
                         </div>
-                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(l=>l.channel==="discogs"),s=l=>parseFloat(l.total)||0,o=l=>parseFloat(l.originalTotal)||parseFloat(l.total)+(parseFloat(l.discogsFee||0)+parseFloat(l.paypalFee||0)),n=l=>o(l)-s(l),a=e.reduce((l,d)=>l+s(d),0),r=e.reduce((l,d)=>l+n(d),0),i=e.reduce((l,d)=>{const c=s(d);let p=0;return d.items&&Array.isArray(d.items)&&(p=d.items.reduce((m,g)=>{const h=parseFloat(g.costAtSale||0),w=parseInt(g.qty||g.quantity)||1;return m+h*w},0)),l+(c-p)},0);t.innerHTML=`
+                    `})}},renderDiscogsSales(t){const e=this.state.sales.filter(l=>l.channel==="discogs"),s=l=>parseFloat(l.total)||0,o=l=>parseFloat(l.originalTotal)||parseFloat(l.total)+(parseFloat(l.discogsFee||0)+parseFloat(l.paypalFee||0)),n=l=>o(l)-s(l),a=e.reduce((l,i)=>l+s(i),0),r=e.reduce((l,i)=>l+n(i),0),c=e.reduce((l,i)=>{const d=s(i);let u=0;return i.items&&Array.isArray(i.items)&&(u=i.items.reduce((m,x)=>{const b=parseFloat(x.costAtSale||0),y=parseInt(x.qty||x.quantity)||1;return m+b*y},0)),l+(d-u)},0);t.innerHTML=`
         <div class="p-6">
             <!-- Header -->
             <div class="flex items-center justify-between mb-8">
@@ -3306,7 +3477,7 @@ El inventario, gastos y socios NO serán afectados.
                 <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-2xl font-bold text-green-600">${this.formatCurrency(i)}</div>
+                            <div class="text-2xl font-bold text-green-600">${this.formatCurrency(c)}</div>
                             <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Ganancia Real</div>
                         </div>
                         <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
@@ -3348,21 +3519,21 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody>
-                                ${e.map(l=>{var c;const d=(c=l.timestamp)!=null&&c.toDate?l.timestamp.toDate():l.date?new Date(l.date):new Date(0);return{...l,_sortDate:d.getTime()}}).sort((l,d)=>d._sortDate-l._sortDate).map(l=>{var h;const d=(h=l.timestamp)!=null&&h.toDate?l.timestamp.toDate():new Date(l.date),c=l.items&&l.items[0],p=l.originalTotal||l.total+(l.discogsFee||0)+(l.paypalFee||0);l.discogsFee,l.paypalFee;const m=l.total,g=l.status==="pending_review"||l.needsReview;return`
-                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors cursor-pointer ${g?"bg-orange-50/50":""}" onclick="app.openUnifiedOrderDetailModal('${l.id}')">
-                                            <td class="px-6 py-4 text-sm text-slate-600">${d.toLocaleDateString("es-ES")}</td>
+                                ${e.map(l=>{var d;const i=(d=l.timestamp)!=null&&d.toDate?l.timestamp.toDate():l.date?new Date(l.date):new Date(0);return{...l,_sortDate:i.getTime()}}).sort((l,i)=>i._sortDate-l._sortDate).map(l=>{var b;const i=(b=l.timestamp)!=null&&b.toDate?l.timestamp.toDate():new Date(l.date),d=l.items&&l.items[0],u=l.originalTotal||l.total+(l.discogsFee||0)+(l.paypalFee||0);l.discogsFee,l.paypalFee;const m=l.total,x=l.status==="pending_review"||l.needsReview;return`
+                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors cursor-pointer ${x?"bg-orange-50/50":""}" onclick="app.openUnifiedOrderDetailModal('${l.id}')">
+                                            <td class="px-6 py-4 text-sm text-slate-600">${i.toLocaleDateString("es-ES")}</td>
                                             <td class="px-6 py-4">
-                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[200px]">${(c==null?void 0:c.album)||"Producto"}</div>
-                                                <div class="text-xs text-slate-500">${(c==null?void 0:c.artist)||"-"}</div>
+                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[200px]">${(d==null?void 0:d.album)||"Producto"}</div>
+                                                <div class="text-xs text-slate-500">${(d==null?void 0:d.artist)||"-"}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-xs text-slate-500">Precio Lista: <span class="font-bold text-slate-700">${this.formatCurrency(p)}</span></div>
+                                                <div class="text-xs text-slate-500">Precio Lista: <span class="font-bold text-slate-700">${this.formatCurrency(u)}</span></div>
                                                 ${l.discogs_order_id?`<div class="text-[10px] text-purple-600 font-medium">Order: ${l.discogs_order_id}</div>`:""}
                                             </td>
                                             <td class="px-6 py-4">
-                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(p-m)}</div>
+                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(u-m)}</div>
                                                 <div class="text-[10px] text-slate-400 font-medium">
-                                                    ${p>0?`(${((p-m)/p*100).toFixed(1)}%)`:""}
+                                                    ${u>0?`(${((u-m)/u*100).toFixed(1)}%)`:""}
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -3370,12 +3541,12 @@ El inventario, gastos y socios NO serán afectados.
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="flex flex-col gap-2">
-                                                    ${g?`
+                                                    ${x?`
                                                         <span class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider text-center">Pendiente</span>
                                                     `:`
                                                         <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider text-center">Confirmado</span>
                                                     `}
-                                                    <button onclick="app.openUpdateSaleValueModal('${l.id}', ${p}, ${m})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
+                                                    <button onclick="app.openUpdateSaleValueModal('${l.id}', ${u}, ${m})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
                                                         <i class="ph-bold ph-pencil-simple"></i> Editar Neto
                                                     </button>
                                                 </div>
@@ -3457,7 +3628,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,o=e-s,n=e>0?o/e*100:0,a=document.getElementById("modal-fee-display"),r=document.getElementById("modal-fee-value");if(o>0){a.classList.remove("hidden"),r.innerText=`- kr. ${o.toFixed(2)}`;const i=document.getElementById("modal-fee-percent");i&&(i.innerText=`${n.toFixed(1)}%`)}else a.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const n=new FormData(t.target).get("netReceived"),a=document.getElementById("update-sale-submit-btn");if(n){a.disabled=!0,a.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const r=B,i=await z.currentUser.getIdToken(),l=await fetch(`${r}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${i}`},body:JSON.stringify({netReceived:n})}),d=l.headers.get("content-type");if(!d||!d.includes("application/json")){const p=await l.text();throw console.error("Non-JSON response received:",p),new Error(`Server returned non-JSON response (${l.status})`)}const c=await l.json();if(c.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(c.error||"Error al actualizar")}catch(r){console.error("Update sale error:",r),this.showToast(`❌ Error: ${r.message}`),a.disabled=!1,a.innerText="Confirmar Ajuste"}}},renderPickups(t){const e=this.state.sales.filter(r=>{var i;return r.channel==="online"&&(((i=r.shipping_method)==null?void 0:i.id)==="local_pickup"||r.shipping_cost===0&&r.status!=="failed")}),s=e.filter(r=>r.status==="completed"||r.status==="paid"||r.status==="paid_pending"),o=e.filter(r=>r.status==="ready_for_pickup"),n=e.filter(r=>r.status==="shipped"||r.status==="delivered"||r.status==="picked_up"),a=`
+        `;document.body.insertAdjacentHTML("beforeend",s)},calculateModalFee(t,e){const s=parseFloat(t)||0,o=e-s,n=e>0?o/e*100:0,a=document.getElementById("modal-fee-display"),r=document.getElementById("modal-fee-value");if(o>0){a.classList.remove("hidden"),r.innerText=`- kr. ${o.toFixed(2)}`;const c=document.getElementById("modal-fee-percent");c&&(c.innerText=`${n.toFixed(1)}%`)}else a.classList.add("hidden")},async handleSaleValueUpdate(t,e,s){t.preventDefault();const n=new FormData(t.target).get("netReceived"),a=document.getElementById("update-sale-submit-btn");if(n){a.disabled=!0,a.innerHTML='<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';try{const r=M,c=await H.currentUser.getIdToken(),l=await fetch(`${r}/firebase/sales/${e}/value`,{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${c}`},body:JSON.stringify({netReceived:n})}),i=l.headers.get("content-type");if(!i||!i.includes("application/json")){const u=await l.text();throw console.error("Non-JSON response received:",u),new Error(`Server returned non-JSON response (${l.status})`)}const d=await l.json();if(d.success)this.showToast("✅ Venta actualizada y fee registrado"),document.getElementById("update-sale-modal").remove(),await this.loadData(),this.refreshCurrentView();else throw new Error(d.error||"Error al actualizar")}catch(r){console.error("Update sale error:",r),this.showToast(`❌ Error: ${r.message}`),a.disabled=!1,a.innerText="Confirmar Ajuste"}}},renderPickups(t){const e=this.state.sales.filter(r=>{var c;return r.channel==="online"&&(((c=r.shipping_method)==null?void 0:c.id)==="local_pickup"||r.shipping_cost===0&&r.status!=="failed")}),s=e.filter(r=>r.status==="completed"||r.status==="paid"||r.status==="paid_pending"),o=e.filter(r=>r.status==="ready_for_pickup"),n=e.filter(r=>r.status==="shipped"||r.status==="delivered"||r.status==="picked_up"),a=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -3505,10 +3676,10 @@ El inventario, gastos y socios NO serán afectados.
                                     <tr>
                                         <td colspan="5" class="p-12 text-center text-slate-400 italic">No hay retiros pendientes.</td>
                                     </tr>
-                                `:s.map(r=>{var i,l;return`
+                                `:s.map(r=>{var c,l;return`
                                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${r.id}')">
                                         <td class="p-4 text-sm font-bold text-brand-orange">#${r.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm font-bold text-brand-dark">${((i=r.customer)==null?void 0:i.name)||r.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((c=r.customer)==null?void 0:c.name)||r.customerName||"Cliente"}</td>
                                         <td class="p-4 text-xs text-slate-500">${((l=r.items)==null?void 0:l.length)||0} items</td>
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(r.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
@@ -3545,10 +3716,10 @@ El inventario, gastos y socios NO serán afectados.
                                     <tr>
                                         <td colspan="4" class="p-12 text-center text-slate-400 italic">No hay pedidos esperando retiro.</td>
                                     </tr>
-                                `:o.map(r=>{var i,l;return`
+                                `:o.map(r=>{var c,l;return`
                                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${r.id}')">
                                         <td class="p-4 text-sm font-bold text-brand-orange">#${r.id.slice(0,8)}</td>
-                                        <td class="p-4 text-sm font-bold text-brand-dark">${((i=r.customer)==null?void 0:i.name)||r.customerName||"Cliente"}</td>
+                                        <td class="p-4 text-sm font-bold text-brand-dark">${((c=r.customer)==null?void 0:c.name)||r.customerName||"Cliente"}</td>
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate((l=r.updated_at)!=null&&l.toDate?r.updated_at.toDate():r.updated_at||r.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.markAsDelivered('${r.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
@@ -3584,7 +3755,17 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=a},async setReadyForPickup(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");if(s&&(s.disabled=!0),(await fetch(`${B}/shipping/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})})).ok)this.showToast("✅ Cliente notificado - El pedido está listo para retiro"),await this.loadData(),this.refreshCurrentView();else throw new Error("Error al notificar")}catch(s){this.showToast("❌ error: "+s.message,"error")}},async markAsDelivered(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");s&&(s.disabled=!0),await S.collection("sales").doc(t).update({status:"picked_up",fulfillment_status:"delivered",picked_up_at:firebase.firestore.FieldValue.serverTimestamp(),updated_at:firebase.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido retirado correctamente"),await this.loadData(),this.refreshCurrentView()}catch(s){this.showToast("❌ Error: "+s.message,"error")}},async deleteExpense(t){if(confirm("¿Estás seguro de que quieres eliminar este gasto?"))try{await S.collection("expenses").doc(t).delete(),this.showToast("✅ Gasto eliminado"),this.loadData()}catch(e){console.error("Error deleting expense:",e),this.showToast("❌ Error al eliminar gasto")}},renderVATReport(t){const e=new Date,s=Math.floor(e.getMonth()/3)+1,o=e.getFullYear(),n=this.state.vatReportQuarter||s,a=this.state.vatReportYear||o,r=(n-1)*3,i=new Date(a,r,1),l=new Date(a,r+3,0,23,59,59),d=this.state.sales.filter(v=>{var R;const D=(R=v.timestamp)!=null&&R.toDate?v.timestamp.toDate():new Date(v.timestamp||v.date);return D>=i&&D<=l});let c=[],p=[],m=[],g=0,h=0,w=0,u=0;d.forEach(v=>{var Q;const D=(Q=v.timestamp)!=null&&Q.toDate?v.timestamp.toDate():new Date(v.timestamp||v.date);(v.items||[]).forEach(M=>{const F=M.priceAtSale||M.price||0;let G=M.costAtSale||M.cost||0;const J=M.productId||M.recordId,Z=M.album;if(G===0){const j=this.state.inventory.find(L=>J&&(L.id===J||L.sku===J)||Z&&L.album===Z);j&&(G=j.cost||0)}const x=M.qty||M.quantity||1,k=M.productCondition||"Second-hand",_=F*x,O=G*x;if(k==="New"){const j=_*.2;g+=j,c.push({date:D,productId:M.productId||M.album||"N/A",album:M.album||"N/A",salePrice:_,vat:j})}else{const j=_-O,L=j>0?j*.2:0;h+=L,p.push({date:D,productId:M.productId||M.album||"N/A",album:M.album||"N/A",cost:O,salePrice:_,margin:j,vat:L})}});const V=parseFloat(v.shipping_income||v.shipping||v.shipping_cost||0);if(V>0){const M=V*.2;w+=M,u+=V,m.push({date:D,orderId:v.orderNumber||(v.id&&typeof v.id=="string"?v.id.slice(-8):"N/A"),income:V,vat:M})}});const b=g+h+w,f=this.state.expenses.filter(v=>{var V;const D=v.fecha_factura?new Date(v.fecha_factura):(V=v.timestamp)!=null&&V.toDate?v.timestamp.toDate():new Date(v.timestamp||v.date);return(v.categoria_tipo==="operativo"||v.categoria_tipo==="stock_nuevo"||v.is_vat_deductible)&&D>=i&&D<=l}),y=f.filter(v=>v.categoria!=="envios"),E=f.filter(v=>v.categoria==="envios"),$=y.reduce((v,D)=>v+(parseFloat(D.monto_iva)||0),0),I=E.reduce((v,D)=>v+(parseFloat(D.monto_iva)||0),0);E.reduce((v,D)=>v+(parseFloat(D.monto_total)||0),0);const C=$+I,T=b-C,P={1:`1 de junio, ${a}`,2:`1 de septiembre, ${a}`,3:`1 de diciembre, ${a}`,4:`1 de marzo, ${a+1}`}[n],H=`
+        `;t.innerHTML=a},async setReadyForPickup(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");if(s&&(s.disabled=!0),(await fetch(`${M}/shipping/ready-for-pickup`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({orderId:t})})).ok)this.showToast("✅ Cliente notificado - El pedido está listo para retiro"),await this.loadData(),this.refreshCurrentView();else throw new Error("Error al notificar")}catch(s){this.showToast("❌ error: "+s.message,"error")}},async markAsDelivered(t){var e;try{const s=(e=event==null?void 0:event.target)==null?void 0:e.closest("button");s&&(s.disabled=!0),await D.collection("sales").doc(t).update({status:"picked_up",fulfillment_status:"delivered",picked_up_at:firebase.firestore.FieldValue.serverTimestamp(),updated_at:firebase.firestore.FieldValue.serverTimestamp()}),this.showToast("✅ Pedido retirado correctamente"),await this.loadData(),this.refreshCurrentView()}catch(s){this.showToast("❌ Error: "+s.message,"error")}},async deleteExpenseVAT(t){const e=this.state.expenses.find(s=>s.id===t);if(e!=null&&e.receiptUrl){if(!confirm(`⚠️ ATENCIÓN: Este gasto tiene un recibo adjunto.
+
+¿Estás seguro de que quieres eliminarlo?`))return;if(!confirm(`🔒 CONFIRMACIÓN LEGAL REQUERIDA
+
+La ley exige guardar documentos contables durante 5 AÑOS.
+
+Fecha del gasto: `+(e.fecha_factura||e.date||"Desconocida")+`
+Proveedor: `+(e.proveedor||"Sin nombre")+`
+Monto: `+this.formatCurrency(e.monto_total||e.amount||0)+`
+
+¿CONFIRMAS que deseas eliminar permanentemente este registro y su recibo?`)){this.showToast("ℹ️ Eliminación cancelada");return}}else if(!confirm("¿Estás seguro de que quieres eliminar este gasto?"))return;try{await D.collection("expenses").doc(t).delete(),this.showToast("✅ Gasto eliminado"),this.loadData()}catch(s){console.error("Error deleting expense:",s),this.showToast("❌ Error al eliminar gasto")}},renderVATReport(t){const e=new Date,s=Math.floor(e.getMonth()/3)+1,o=e.getFullYear(),n=this.state.vatReportQuarter||s,a=this.state.vatReportYear||o,r=(n-1)*3,c=new Date(a,r,1),l=new Date(a,r+3,0,23,59,59),i=this.state.sales.filter(f=>{var R;const C=(R=f.timestamp)!=null&&R.toDate?f.timestamp.toDate():new Date(f.timestamp||f.date);return C>=c&&C<=l});let d=[],u=[],m=[],x=0,b=0,y=0,k=0;i.forEach(f=>{var J;const C=(J=f.timestamp)!=null&&J.toDate?f.timestamp.toDate():new Date(f.timestamp||f.date);(f.items||[]).forEach(P=>{const N=P.priceAtSale||P.price||0;let G=P.costAtSale||P.cost||0;const Q=P.productId||P.recordId,Z=P.album;if(G===0){const j=this.state.inventory.find(A=>Q&&(A.id===Q||A.sku===Q)||Z&&A.album===Z);j&&(G=j.cost||0)}const h=P.qty||P.quantity||1,w=P.productCondition||"Second-hand",L=N*h,O=G*h;if(w==="New"){const j=L*.2;x+=j,d.push({date:C,productId:P.productId||P.album||"N/A",album:P.album||"N/A",salePrice:L,vat:j})}else{const j=L-O,A=j>0?j*.2:0;b+=A,u.push({date:C,productId:P.productId||P.album||"N/A",album:P.album||"N/A",cost:O,salePrice:L,margin:j,vat:A})}});const V=parseFloat(f.shipping_income||f.shipping||f.shipping_cost||0);if(V>0){const P=V*.2;y+=P,k+=V,m.push({date:C,orderId:f.orderNumber||(f.id&&typeof f.id=="string"?f.id.slice(-8):"N/A"),income:V,vat:P})}});const p=x+b+y,g=this.state.expenses.filter(f=>{var V;const C=f.fecha_factura?new Date(f.fecha_factura):(V=f.timestamp)!=null&&V.toDate?f.timestamp.toDate():new Date(f.timestamp||f.date);return(f.categoria_tipo==="operativo"||f.categoria_tipo==="stock_nuevo"||f.is_vat_deductible)&&C>=c&&C<=l}),v=g.filter(f=>f.categoria!=="envios"),E=g.filter(f=>f.categoria==="envios"),$=v.reduce((f,C)=>f+(parseFloat(C.monto_iva)||0),0),I=E.reduce((f,C)=>f+(parseFloat(C.monto_iva)||0),0);E.reduce((f,C)=>f+(parseFloat(C.monto_total)||0),0);const S=$+I,_=p-S,T={1:`1 de junio, ${a}`,2:`1 de septiembre, ${a}`,3:`1 de diciembre, ${a}`,4:`1 de marzo, ${a+1}`}[n],z=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 <!-- Header Section -->
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
@@ -3621,11 +3802,11 @@ El inventario, gastos y socios NO serán afectados.
                 <!-- Main KPIs Section (Prompt 1) -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <!-- Tarjeta A: Moms Tilsvar (Total a Pagar) -->
-                    <div class="${T>0?"bg-red-50 border-red-100":"bg-emerald-50 border-emerald-100"} rounded-3xl p-8 border shadow-sm relative overflow-hidden group">
-                        <p class="${T>0?"text-red-700/60":"text-emerald-700/60"} text-xs font-bold uppercase tracking-widest mb-4">Moms Tilsvar</p>
-                        <p class="text-4xl font-display font-bold mb-2 ${T>0?"text-red-700":"text-emerald-700"}">${this.formatCurrency(T)}</p>
-                        <p class="text-[11px] ${T>0?"text-red-600/70":"text-emerald-600/70"} mt-4 italic font-medium">
-                            <i class="ph-bold ph-calendar"></i> Límite de pago: ${P}
+                    <div class="${_>0?"bg-red-50 border-red-100":"bg-emerald-50 border-emerald-100"} rounded-3xl p-8 border shadow-sm relative overflow-hidden group">
+                        <p class="${_>0?"text-red-700/60":"text-emerald-700/60"} text-xs font-bold uppercase tracking-widest mb-4">Moms Tilsvar</p>
+                        <p class="text-4xl font-display font-bold mb-2 ${_>0?"text-red-700":"text-emerald-700"}">${this.formatCurrency(_)}</p>
+                        <p class="text-[11px] ${_>0?"text-red-600/70":"text-emerald-600/70"} mt-4 italic font-medium">
+                            <i class="ph-bold ph-calendar"></i> Límite de pago: ${T}
                         </p>
                     </div>
 
@@ -3635,7 +3816,7 @@ El inventario, gastos y socios NO serán afectados.
                             <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Salgsmoms</p>
                             <span class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-up-right"></i></span>
                         </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(b)}</p>
+                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(p)}</p>
                         <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA generado por Ventas + Envíos Cobrados.</p>
                     </div>
 
@@ -3645,7 +3826,7 @@ El inventario, gastos y socios NO serán afectados.
                             <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Købsmoms</p>
                             <span class="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-down-left"></i></span>
                         </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(C)}</p>
+                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(S)}</p>
                         <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA soportado en Gastos, Envíos Pagados y Stock.</p>
                     </div>
                 </div>
@@ -3667,15 +3848,15 @@ El inventario, gastos y socios NO serán afectados.
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <p class="font-bold text-brand-dark">Ventas Estándar (Nuevos)</p>
-                                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Monto: ${this.formatCurrency(c.reduce((v,D)=>v+D.salePrice,0))}</p>
+                                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Monto: ${this.formatCurrency(d.reduce((f,C)=>f+C.salePrice,0))}</p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-lg font-bold text-blue-600">${this.formatCurrency(g)}</p>
+                                        <p class="text-lg font-bold text-blue-600">${this.formatCurrency(x)}</p>
                                         <p class="text-[10px] text-slate-400 font-bold">IVA (25%)</p>
                                     </div>
                                 </div>
                                 <div class="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                                    <div class="h-full bg-blue-500 rounded-full" style="width: ${b>0?g/b*100:0}%"></div>
+                                    <div class="h-full bg-blue-500 rounded-full" style="width: ${p>0?x/p*100:0}%"></div>
                                 </div>
 
                                 <!-- Margin Scheme Sales -->
@@ -3683,14 +3864,14 @@ El inventario, gastos y socios NO serán afectados.
                                     <div class="flex items-center justify-between mb-1">
                                         <div>
                                             <p class="font-bold text-brand-dark">Régimen Margen (Usados)</p>
-                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Margen total: ${this.formatCurrency(p.reduce((v,D)=>v+D.margin,0))}</p>
+                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Margen total: ${this.formatCurrency(u.reduce((f,C)=>f+C.margin,0))}</p>
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-lg font-bold text-amber-600">${this.formatCurrency(h)}</p>
+                                            <p class="text-lg font-bold text-amber-600">${this.formatCurrency(b)}</p>
                                             <p class="text-[10px] text-slate-400 font-bold">IVA s/Margen</p>
                                         </div>
                                     </div>
-                                    ${p.some(v=>v.margin<0)?`
+                                    ${u.some(f=>f.margin<0)?`
                                         <div class="flex items-center gap-1.5 text-red-500 text-[11px] font-bold bg-red-50 px-3 py-1.5 rounded-lg mt-2 border border-red-100/50">
                                             <i class="ph-bold ph-warning-circle"></i>
                                             Alerta: Se detectaron ventas con margen negativo.
@@ -3703,10 +3884,10 @@ El inventario, gastos y socios NO serán afectados.
                                     <div class="flex items-center justify-between">
                                         <div>
                                             <p class="font-bold text-brand-dark">Ingresos por Envío</p>
-                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Total cobrado: ${this.formatCurrency(u)}</p>
+                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Total cobrado: ${this.formatCurrency(k)}</p>
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-lg font-bold text-indigo-500">${this.formatCurrency(w)}</p>
+                                            <p class="text-lg font-bold text-indigo-500">${this.formatCurrency(y)}</p>
                                             <p class="text-[10px] text-slate-400 font-bold">IVA (25%)</p>
                                         </div>
                                     </div>
@@ -3728,8 +3909,8 @@ El inventario, gastos y socios NO serán afectados.
                                 <div class="flex justify-between items-center mb-6">
                                     <div class="space-y-1">
                                         <p class="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Balance Neto IVA</p>
-                                        <p class="text-2xl font-display font-bold ${w-I>=0?"text-emerald-400":"text-red-400"}">
-                                            ${this.formatCurrency(w-I)}
+                                        <p class="text-2xl font-display font-bold ${y-I>=0?"text-emerald-400":"text-red-400"}">
+                                            ${this.formatCurrency(y-I)}
                                         </p>
                                     </div>
                                     <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-xl">
@@ -3739,7 +3920,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <div class="space-y-3">
                                     <div class="flex justify-between text-xs">
                                         <span class="text-slate-400 italic">IVA Cobrado (Ingreso)</span>
-                                        <span class="font-bold text-emerald-400">+ ${this.formatCurrency(w)}</span>
+                                        <span class="font-bold text-emerald-400">+ ${this.formatCurrency(y)}</span>
                                     </div>
                                     <div class="flex justify-between text-xs">
                                         <span class="text-slate-400 italic">IVA Pagado (Gasto)</span>
@@ -3761,15 +3942,15 @@ El inventario, gastos y socios NO serán afectados.
 
                             <!-- Categorized Deductions Panel -->
                             <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
-                                ${Object.entries(y.reduce((v,D)=>{const R=D.categoria||"otros";return v[R]=(v[R]||0)+(parseFloat(D.monto_iva)||0),v},{})).sort((v,D)=>D[1]-v[1]).map(([v,D])=>`
+                                ${Object.entries(v.reduce((f,C)=>{const R=C.categoria||"otros";return f[R]=(f[R]||0)+(parseFloat(C.monto_iva)||0),f},{})).sort((f,C)=>C[1]-f[1]).map(([f,C])=>`
                                     <div class="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                                         <div class="flex items-center gap-3">
                                             <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400">
                                                 <i class="ph-bold ph-tag"></i>
                                             </div>
-                                            <span class="font-bold text-slate-600 capitalize text-sm">${v.replace("_"," ")}</span>
+                                            <span class="font-bold text-slate-600 capitalize text-sm">${f.replace("_"," ")}</span>
                                         </div>
-                                        <span class="font-bold text-slate-900 text-sm">${this.formatCurrency(D)}</span>
+                                        <span class="font-bold text-slate-900 text-sm">${this.formatCurrency(C)}</span>
                                     </div>
                                 `).join("")||`
                                     <div class="p-8 text-center text-slate-400 italic text-sm">No se registraron otros gastos deducibles.</div>
@@ -3803,12 +3984,12 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${c.length>0?c.map(v=>`
+                                    ${d.length>0?d.map(f=>`
                                         <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${v.date.toLocaleDateString("es-DK")}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">${v.album}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(v.salePrice)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(v.vat)}</td>
+                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${f.date.toLocaleDateString("es-DK")}</td>
+                                            <td class="px-6 py-4 font-bold text-brand-dark">${f.album}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(f.salePrice)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(f.vat)}</td>
                                         </tr>
                                     `).join(""):`
                                         <tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
@@ -3817,7 +3998,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <tfoot class="bg-slate-50/30 font-bold">
                                     <tr class="text-brand-dark">
                                         <td colspan="3" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Estándar:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(g)}</td>
+                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(x)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -3848,14 +4029,14 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${p.length>0?p.map(v=>`
+                                    ${u.length>0?u.map(f=>`
                                         <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${v.date.toLocaleDateString("es-DK")}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">${v.album}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-400">${this.formatCurrency(v.cost)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(v.salePrice)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums ${v.margin>0?"text-emerald-600":"text-red-500"}">${this.formatCurrency(v.margin)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-amber-600">${this.formatCurrency(v.vat)}</td>
+                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${f.date.toLocaleDateString("es-DK")}</td>
+                                            <td class="px-6 py-4 font-bold text-brand-dark">${f.album}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-slate-400">${this.formatCurrency(f.cost)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(f.salePrice)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums ${f.margin>0?"text-emerald-600":"text-red-500"}">${this.formatCurrency(f.margin)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-amber-600">${this.formatCurrency(f.vat)}</td>
                                         </tr>
                                     `).join(""):`
                                         <tr><td colspan="6" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
@@ -3864,7 +4045,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <tfoot class="bg-slate-50/30 font-bold">
                                     <tr class="text-brand-dark">
                                         <td colspan="5" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Margen:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-amber-600">${this.formatCurrency(h)}</td>
+                                        <td class="px-6 py-4 text-right text-lg text-amber-600">${this.formatCurrency(b)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -3893,12 +4074,12 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
-                                    ${m.length>0?m.map(v=>`
+                                    ${m.length>0?m.map(f=>`
                                         <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${v.date.toLocaleDateString("es-DK")}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">#${v.orderId}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(v.income)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(v.vat)}</td>
+                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${f.date.toLocaleDateString("es-DK")}</td>
+                                            <td class="px-6 py-4 font-bold text-brand-dark">#${f.orderId}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(f.income)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(f.vat)}</td>
                                         </tr>
                                     `).join(""):`
                                         <tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
@@ -3907,7 +4088,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <tfoot class="bg-slate-50/30 font-bold">
                                     <tr class="text-brand-dark">
                                         <td colspan="3" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Envíos:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(w)}</td>
+                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(y)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -3915,8 +4096,8 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=H},updateVATQuarter(){const t=parseInt(document.getElementById("vat-quarter-select").value),e=parseInt(document.getElementById("vat-year-select").value);this.state.vatReportQuarter=t,this.state.vatReportYear=e,this.renderVATReport(document.getElementById("app-content"))},downloadVATAuditReport(){const t=new Date,e=Math.floor(t.getMonth()/3)+1,s=t.getFullYear(),o=this.state.vatReportQuarter||e,n=this.state.vatReportYear||s,a=(o-1)*3,r=new Date(n,a,1),i=new Date(n,a+3,0,23,59,59),l=this.state.sales.filter(b=>{var y;const f=(y=b.timestamp)!=null&&y.toDate?b.timestamp.toDate():new Date(b.timestamp||b.date);return f>=r&&f<=i}),d=[];let c=1;l.forEach(b=>{var I;const f=(I=b.timestamp)!=null&&I.toDate?b.timestamp.toDate():new Date(b.timestamp||b.date),y=f.toISOString().slice(0,10).replace(/-/g,"");(b.items||[]).forEach(C=>{const T=C.priceAtSale||C.price||0;let N=C.costAtSale||C.cost||0;const P=C.productId||C.recordId,K=C.album;if(N===0){const F=this.state.inventory.find(G=>P&&(G.id===P||G.sku===P)||K&&G.album===K);F&&(N=F.cost||0)}const W=C.qty||C.quantity||1,v=(C.productCondition||"Second-hand")==="New",D=T*W,R=N*W;let V,Q;if(v)V=D,Q=D*.2;else{const F=D-R;V=F>0?F:0,Q=F>0?F*.2:0}const M=`ECR-${y}-${String(c).padStart(4,"0")}`;c++,d.push({transactionId:M,date:f.toISOString().slice(0,10),productName:`${C.album||"N/A"} - ${C.artist||"N/A"}`,sku:C.sku||P||"N/A",condition:v?"New":"Second-hand",costPrice:R.toFixed(2),salesPrice:D.toFixed(2),calculationBasis:V.toFixed(2),outputVAT:Q.toFixed(2)})});const $=parseFloat(b.shipping_income||b.shipping||b.shipping_cost||0);if($>0){const C=`ECR-SHIP-${y}-${String(c).padStart(4,"0")}`;c++,d.push({transactionId:C,date:f.toISOString().slice(0,10),productName:`Envío - Orden: ${b.orderNumber||(b.id&&typeof b.id=="string"?b.id.slice(-8):"N/A")}`,sku:"SHIPPING",condition:"Service",costPrice:"0.00",salesPrice:$.toFixed(2),calculationBasis:$.toFixed(2),outputVAT:($*.2).toFixed(2)})}});const m=[["Transaction ID","Date","Product Name","SKU","Condition","Cost Price (DKK)","Sales Price (DKK)","Calculation Basis (DKK)","Output VAT / Salgsmoms (DKK)"].join(","),...d.map(b=>[b.transactionId,b.date,`"${b.productName.replace(/"/g,'""')}"`,b.sku,b.condition,b.costPrice,b.salesPrice,b.calculationBasis,b.outputVAT].join(","))].join(`
-`),g="\uFEFF",h=new Blob([g+m],{type:"text/csv;charset=utf-8;"}),w=URL.createObjectURL(h),u=document.createElement("a");u.href=w,u.download=`VAT_Audit_Report_Q${o}_${n}.csv`,document.body.appendChild(u),u.click(),document.body.removeChild(u),URL.revokeObjectURL(w),this.showToast(`✅ Audit report downloaded: ${d.length} transactions`)},renderInvestments(t){const e=["Alejo","Facundo","Rafael"],s=this.state.investments||[],o=e.reduce((r,i)=>(r[i]=s.filter(l=>l.partner===i).reduce((l,d)=>l+(parseFloat(d.amount)||0),0),r),{}),n=Object.values(o).reduce((r,i)=>r+i,0),a=`
+        `;t.innerHTML=z},updateVATQuarter(){const t=parseInt(document.getElementById("vat-quarter-select").value),e=parseInt(document.getElementById("vat-year-select").value);this.state.vatReportQuarter=t,this.state.vatReportYear=e,this.renderVATReport(document.getElementById("app-content"))},downloadVATAuditReport(){const t=new Date,e=Math.floor(t.getMonth()/3)+1,s=t.getFullYear(),o=this.state.vatReportQuarter||e,n=this.state.vatReportYear||s,a=(o-1)*3,r=new Date(n,a,1),c=new Date(n,a+3,0,23,59,59),l=this.state.sales.filter(p=>{var v;const g=(v=p.timestamp)!=null&&v.toDate?p.timestamp.toDate():new Date(p.timestamp||p.date);return g>=r&&g<=c}),i=[];let d=1;l.forEach(p=>{var I;const g=(I=p.timestamp)!=null&&I.toDate?p.timestamp.toDate():new Date(p.timestamp||p.date),v=g.toISOString().slice(0,10).replace(/-/g,"");(p.items||[]).forEach(S=>{const _=S.priceAtSale||S.price||0;let F=S.costAtSale||S.cost||0;const T=S.productId||S.recordId,K=S.album;if(F===0){const N=this.state.inventory.find(G=>T&&(G.id===T||G.sku===T)||K&&G.album===K);N&&(F=N.cost||0)}const W=S.qty||S.quantity||1,f=(S.productCondition||"Second-hand")==="New",C=_*W,R=F*W;let V,J;if(f)V=C,J=C*.2;else{const N=C-R;V=N>0?N:0,J=N>0?N*.2:0}const P=`ECR-${v}-${String(d).padStart(4,"0")}`;d++,i.push({transactionId:P,date:g.toISOString().slice(0,10),productName:`${S.album||"N/A"} - ${S.artist||"N/A"}`,sku:S.sku||T||"N/A",condition:f?"New":"Second-hand",costPrice:R.toFixed(2),salesPrice:C.toFixed(2),calculationBasis:V.toFixed(2),outputVAT:J.toFixed(2)})});const $=parseFloat(p.shipping_income||p.shipping||p.shipping_cost||0);if($>0){const S=`ECR-SHIP-${v}-${String(d).padStart(4,"0")}`;d++,i.push({transactionId:S,date:g.toISOString().slice(0,10),productName:`Envío - Orden: ${p.orderNumber||(p.id&&typeof p.id=="string"?p.id.slice(-8):"N/A")}`,sku:"SHIPPING",condition:"Service",costPrice:"0.00",salesPrice:$.toFixed(2),calculationBasis:$.toFixed(2),outputVAT:($*.2).toFixed(2)})}});const m=[["Transaction ID","Date","Product Name","SKU","Condition","Cost Price (DKK)","Sales Price (DKK)","Calculation Basis (DKK)","Output VAT / Salgsmoms (DKK)"].join(","),...i.map(p=>[p.transactionId,p.date,`"${p.productName.replace(/"/g,'""')}"`,p.sku,p.condition,p.costPrice,p.salesPrice,p.calculationBasis,p.outputVAT].join(","))].join(`
+`),x="\uFEFF",b=new Blob([x+m],{type:"text/csv;charset=utf-8;"}),y=URL.createObjectURL(b),k=document.createElement("a");k.href=y,k.download=`VAT_Audit_Report_Q${o}_${n}.csv`,document.body.appendChild(k),k.click(),document.body.removeChild(k),URL.revokeObjectURL(y),this.showToast(`✅ Audit report downloaded: ${i.length} transactions`)},renderInvestments(t){const e=["Alejo","Facundo","Rafael"],s=this.state.investments||[],o=e.reduce((r,c)=>(r[c]=s.filter(l=>l.partner===c).reduce((l,i)=>l+(parseFloat(i.amount)||0),0),r),{}),n=Object.values(o).reduce((r,c)=>r+c,0),a=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -3939,7 +4120,7 @@ El inventario, gastos y socios NO serán afectados.
                                 <h3 class="font-bold text-brand-dark">${r}</h3>
                             </div>
                             <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(o[r])}</p>
-                            <p class="text-xs text-slate-400">${s.filter(i=>i.partner===r).length} inversiones</p>
+                            <p class="text-xs text-slate-400">${s.filter(c=>c.partner===r).length} inversiones</p>
                         </div>
                     `).join("")}
                     <div class="bg-brand-dark rounded-2xl shadow-lg p-5 text-white">
@@ -3955,7 +4136,7 @@ El inventario, gastos y socios NO serán afectados.
                 </div>
 
                 <!-- Investments per Partner -->
-                ${e.map(r=>{const i=s.filter(l=>l.partner===r).sort((l,d)=>new Date(d.date)-new Date(l.date));return`
+                ${e.map(r=>{const c=s.filter(l=>l.partner===r).sort((l,i)=>new Date(i.date)-new Date(l.date));return`
                     <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-6">
                         <div class="p-5 border-b border-orange-50 bg-orange-50/30 flex justify-between items-center">
                             <h3 class="font-bold text-brand-dark flex items-center gap-2">
@@ -3975,13 +4156,13 @@ El inventario, gastos y socios NO serán afectados.
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
-                                    ${i.length===0?`
+                                    ${c.length===0?`
                                         <tr>
                                             <td colspan="4" class="p-8 text-center text-slate-400 italic">
                                                 Sin inversiones registradas
                                             </td>
                                         </tr>
-                                    `:i.map(l=>`
+                                    `:c.map(l=>`
                                         <tr class="hover:bg-slate-50 transition-colors">
                                             <td class="p-4 text-sm text-slate-500">${this.formatDate(l.date)}</td>
                                             <td class="p-4 text-sm font-medium text-brand-dark">${l.description}</td>
@@ -4040,7 +4221,7 @@ El inventario, gastos y socios NO serán afectados.
                     </form>
                 </div>
             </div>
-        `;document.body.insertAdjacentHTML("beforeend",s)},async saveInvestment(t){t.preventDefault();const e=t.target,s={partner:e.partner.value,amount:parseFloat(e.amount.value),description:e.description.value,date:e.date.value,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{await S.collection("investments").add(s),document.getElementById("add-investment-modal").remove(),this.showToast("✅ Inversión registrada"),await this.loadInvestments(),this.refreshCurrentView()}catch(o){this.showToast("❌ Error: "+o.message,"error")}},async deleteInvestment(t){if(confirm("¿Eliminar esta inversión?"))try{await S.collection("investments").doc(t).delete(),this.showToast("🗑️ Inversión eliminada"),await this.loadInvestments(),this.refreshCurrentView()}catch(e){this.showToast("❌ Error: "+e.message,"error")}},async loadInvestments(){const t=await S.collection("investments").get();this.state.investments=t.docs.map(e=>({id:e.id,...e.data()}))},renderShipping(t){const e=l=>{var d;return((d=l.shipping_method)==null?void 0:d.id)==="local_pickup"||l.shipping_method&&typeof l.shipping_method=="string"&&l.shipping_method.toLowerCase().includes("pickup")||l.shippingMethod&&l.shippingMethod.toLowerCase().includes("pickup")},s=l=>!e(l),o=l=>!["shipped","picked_up"].includes(l.fulfillment_status),n=this.state.sales.filter(l=>{var d;return(l.channel==="online"||((d=l.channel)==null?void 0:d.toLowerCase())==="discogs")&&e(l)&&o(l)}).sort((l,d)=>new Date(l.date)-new Date(d.date)),a=this.state.sales.filter(l=>{var d;return(l.channel==="online"||((d=l.channel)==null?void 0:d.toLowerCase())==="discogs")&&s(l)&&o(l)}).sort((l,d)=>new Date(l.date)-new Date(d.date)),r=this.state.sales.filter(l=>{var d;return(l.channel==="online"||((d=l.channel)==null?void 0:d.toLowerCase())==="discogs")&&!o(l)}).sort((l,d)=>{var c,p;return new Date((c=d.updated_at)!=null&&c.toDate?d.updated_at.toDate():d.updated_at||d.date)-new Date((p=l.updated_at)!=null&&p.toDate?l.updated_at.toDate():l.updated_at||l.date)}).slice(0,20),i=`
+        `;document.body.insertAdjacentHTML("beforeend",s)},async saveInvestment(t){t.preventDefault();const e=t.target,s={partner:e.partner.value,amount:parseFloat(e.amount.value),description:e.description.value,date:e.date.value,created_at:firebase.firestore.FieldValue.serverTimestamp()};try{await D.collection("investments").add(s),document.getElementById("add-investment-modal").remove(),this.showToast("✅ Inversión registrada"),await this.loadInvestments(),this.refreshCurrentView()}catch(o){this.showToast("❌ Error: "+o.message,"error")}},async deleteInvestment(t){if(confirm("¿Eliminar esta inversión?"))try{await D.collection("investments").doc(t).delete(),this.showToast("🗑️ Inversión eliminada"),await this.loadInvestments(),this.refreshCurrentView()}catch(e){this.showToast("❌ Error: "+e.message,"error")}},async loadInvestments(){const t=await D.collection("investments").get();this.state.investments=t.docs.map(e=>({id:e.id,...e.data()}))},renderShipping(t){const e=l=>{var i;return((i=l.shipping_method)==null?void 0:i.id)==="local_pickup"||l.shipping_method&&typeof l.shipping_method=="string"&&l.shipping_method.toLowerCase().includes("pickup")||l.shippingMethod&&l.shippingMethod.toLowerCase().includes("pickup")},s=l=>!e(l),o=l=>!["shipped","picked_up"].includes(l.fulfillment_status),n=this.state.sales.filter(l=>{var i;return(l.channel==="online"||((i=l.channel)==null?void 0:i.toLowerCase())==="discogs")&&e(l)&&o(l)}).sort((l,i)=>new Date(l.date)-new Date(i.date)),a=this.state.sales.filter(l=>{var i;return(l.channel==="online"||((i=l.channel)==null?void 0:i.toLowerCase())==="discogs")&&s(l)&&o(l)}).sort((l,i)=>new Date(l.date)-new Date(i.date)),r=this.state.sales.filter(l=>{var i;return(l.channel==="online"||((i=l.channel)==null?void 0:i.toLowerCase())==="discogs")&&!o(l)}).sort((l,i)=>{var d,u;return new Date((d=i.updated_at)!=null&&d.toDate?i.updated_at.toDate():i.updated_at||i.date)-new Date((u=l.updated_at)!=null&&u.toDate?l.updated_at.toDate():l.updated_at||l.date)}).slice(0,20),c=`
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
                 <div class="flex justify-between items-center mb-8">
                     <div>
@@ -4052,7 +4233,7 @@ El inventario, gastos y socios NO serán afectados.
                             <i class="ph-fill ph-hand-coins text-2xl opacity-80"></i>
                             <div>
                                 <p class="text-[10px] text-indigo-100 font-bold uppercase leading-none mb-1">Dinero Envíos (Aprox)</p>
-                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((l,d)=>l+parseFloat(d.shipping||d.shipping_cost||0),0))}</p>
+                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((l,i)=>l+parseFloat(i.shipping||i.shipping_cost||0),0))}</p>
                             </div>
                         </div>
                         <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
@@ -4087,7 +4268,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-blue-50">
-                                ${n.length>0?n.map(l=>{var m;const d=this.getCustomerInfo(l),c=l.fulfillment_status||"unfulfilled";let p="";return c==="preparing"?p=`
+                                ${n.length>0?n.map(l=>{var m;const i=this.getCustomerInfo(l),d=l.fulfillment_status||"unfulfilled";let u="";return d==="preparing"?u=`
                                             <div class="flex flex-col gap-2 items-center">
                                                 <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">En Preparación</span>
                                                 <button onclick="app.notifyPickupReadyDiscogs('${l.id}')" 
@@ -4095,7 +4276,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <i class="ph-bold ph-bell-ringing"></i> Listo para Retirar
                                                 </button>
                                             </div>
-                                        `:c==="ready_for_pickup"?p=`
+                                        `:d==="ready_for_pickup"?u=`
                                             <div class="flex flex-col gap-2 items-center">
                                                 <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Esperando Retiro</span>
                                                 <button onclick="app.markPickedUpDiscogs('${l.id}')" 
@@ -4103,7 +4284,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <i class="ph-bold ph-check-circle"></i> Ya Retiró
                                                 </button>
                                             </div>
-                                        `:p=`
+                                        `:u=`
                                             <button onclick="app.notifyPreparingDiscogs('${l.id}')" 
                                                     class="w-full bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                 <i class="ph-bold ph-package"></i> Avisar Preparando
@@ -4115,14 +4296,14 @@ El inventario, gastos y socios NO serán afectados.
                                             <div class="text-[10px] text-slate-400 font-normal mt-0.5">${this.formatDate(l.date)}</div>
                                         </td>
                                         <td class="p-4">
-                                            <div class="font-bold text-sm text-brand-dark">${d.name}</div>
-                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${d.email}">${d.email}</div>
+                                            <div class="font-bold text-sm text-brand-dark">${i.name}</div>
+                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${i.email}">${i.email}</div>
                                         </td>
                                         <td class="p-4">
                                             <div class="flex -space-x-2 overflow-hidden">
-                                                ${(l.items||[]).slice(0,3).map(g=>`<img src="${g.image||g.cover_image||"https://elcuartito.dk/default-vinyl.png"}" 
+                                                ${(l.items||[]).slice(0,3).map(x=>`<img src="${x.image||x.cover_image||"https://elcuartito.dk/default-vinyl.png"}" 
                                                          class="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" 
-                                                         title="${g.album}">`).join("")}
+                                                         title="${x.album}">`).join("")}
                                                 ${(l.items||[]).length>3?`<span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] ring-2 ring-white text-slate-500 font-bold">+${l.items.length-3}</span>`:""}
                                             </div>
                                             <div class="text-[10px] text-slate-400 mt-1">${((m=l.items)==null?void 0:m.length)||0} items</div>
@@ -4133,7 +4314,7 @@ El inventario, gastos y socios NO serán afectados.
                                             </span>
                                         </td>
                                         <td class="p-4">
-                                            ${p}
+                                            ${u}
                                         </td>
                                     </tr>
                                     `}).join(""):`
@@ -4168,7 +4349,7 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-orange-50">
-                                ${a.length>0?a.map(l=>{var m;const d=this.getCustomerInfo(l),c=l.fulfillment_status||"unfulfilled";let p="";return c==="preparing"?p=`
+                                ${a.length>0?a.map(l=>{var m;const i=this.getCustomerInfo(l),d=l.fulfillment_status||"unfulfilled";let u="";return d==="preparing"?u=`
                                             <div class="flex flex-col gap-2">
                                                  <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 text-center">En Preparación</span>
                                                  <div class="flex flex-col gap-1 w-full">
@@ -4186,7 +4367,7 @@ El inventario, gastos y socios NO serán afectados.
                                                      </div>
                                                 </div>
                                             </div>
-                                        `:c==="in_transit"?p=`
+                                        `:d==="in_transit"?u=`
                                             <div class="flex flex-col gap-2 items-center">
                                                 <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">En Tránsito</span>
                                                 <div class="text-[10px] font-mono text-slate-500">${l.tracking_number}</div>
@@ -4195,7 +4376,7 @@ El inventario, gastos y socios NO serán afectados.
                                                     <i class="ph-bold ph-archive"></i> Finalizar (Despachado)
                                                 </button>
                                             </div>
-                                        `:p=`
+                                        `:u=`
                                             <button onclick="app.notifyPreparingDiscogs('${l.id}')" 
                                                     class="w-full bg-brand-orange hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                 <i class="ph-bold ph-package"></i> Avisar Preparando
@@ -4207,14 +4388,14 @@ El inventario, gastos y socios NO serán afectados.
                                             <div class="text-[10px] text-slate-400 font-normal mt-0.5">${this.formatDate(l.date)}</div>
                                         </td>
                                         <td class="p-4">
-                                            <div class="font-bold text-sm text-brand-dark">${d.name}</div>
-                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${d.email}">${d.email}</div>
+                                            <div class="font-bold text-sm text-brand-dark">${i.name}</div>
+                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${i.email}">${i.email}</div>
                                         </td>
                                         <td class="p-4">
                                             <div class="flex -space-x-2 overflow-hidden">
-                                                ${(l.items||[]).slice(0,3).map(g=>`<img src="${g.image||g.cover_image||"https://elcuartito.dk/default-vinyl.png"}" 
+                                                ${(l.items||[]).slice(0,3).map(x=>`<img src="${x.image||x.cover_image||"https://elcuartito.dk/default-vinyl.png"}" 
                                                          class="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" 
-                                                         title="${g.album}">`).join("")}
+                                                         title="${x.album}">`).join("")}
                                                 ${(l.items||[]).length>3?`<span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] ring-2 ring-white text-slate-500 font-bold">+${l.items.length-3}</span>`:""}
                                             </div>
                                             <div class="text-[10px] text-slate-400 mt-1">${((m=l.items)==null?void 0:m.length)||0} items</div>
@@ -4223,7 +4404,7 @@ El inventario, gastos y socios NO serán afectados.
                                             ${l.city||""}, ${l.country||"DK"}
                                         </td>
                                         <td class="p-4">
-                                            ${p}
+                                            ${u}
                                         </td>
                                     </tr>
                                     `}).join(""):`
@@ -4253,14 +4434,14 @@ El inventario, gastos y socios NO serán afectados.
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-50">
-                                ${r.map(l=>{var d;return`
+                                ${r.map(l=>{var i;return`
                                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${l.id}')" title="Ver historial">
                                         <td class="p-4 text-sm font-medium text-slate-500">
                                             #${l.orderNumber||l.id.slice(0,8)}
                                             <i class="ph-bold ph-clock-counter-clockwise text-xs ml-1 text-slate-300"></i>
                                         </td>
                                         <td class="p-4 text-xs text-slate-400">
-                                            ${this.formatDate((d=l.updated_at)!=null&&d.toDate?l.updated_at.toDate():l.updated_at||l.date)}
+                                            ${this.formatDate((i=l.updated_at)!=null&&i.toDate?l.updated_at.toDate():l.updated_at||l.date)}
                                         </td>
                                         <td class="p-4 text-right">
                                             <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase ${l.fulfillment_status==="shipped"?"bg-green-100 text-green-700":"bg-blue-100 text-blue-700"}">
@@ -4274,7 +4455,7 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `;t.innerHTML=i},openOrderHistoryModal(t){var l,d,c,p,m,g;const e=this.state.sales.find(h=>h.id===t);if(!e)return;const s=e.history||[],o=(l=e.timestamp)!=null&&l.toDate?e.timestamp.toDate():new Date(e.date);let n=[];s.length>0?n=s.map(h=>({status:h.status,timestamp:new Date(h.timestamp),note:h.note})).sort((h,w)=>w.timestamp-h.timestamp):n.push({status:e.fulfillment_status,timestamp:(d=e.updated_at)!=null&&d.toDate?e.updated_at.toDate():new Date,note:"Última actualización"}),n.push({status:"created",timestamp:o,note:`Orden recibida via ${e.channel||"Online"}`});const a=h=>h==="created"?"bg-slate-100 text-slate-500":h==="preparing"?"bg-blue-100 text-blue-600":h==="ready_for_pickup"?"bg-emerald-100 text-emerald-600":h==="in_transit"?"bg-orange-100 text-orange-600":h==="shipped"||h==="picked_up"?"bg-green-100 text-green-600":"bg-slate-100",r=h=>({created:"Orden Creada",preparing:"En Preparación",ready_for_pickup:"Listo para Retiro",in_transit:"En Tránsito",shipped:"Despachado",picked_up:"Retirado"})[h]||h,i=document.createElement("div");i.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",i.onclick=h=>{h.target===i&&i.remove()},i.innerHTML=`
+        `;t.innerHTML=c},openOrderHistoryModal(t){var l,i,d,u,m,x;const e=this.state.sales.find(b=>b.id===t);if(!e)return;const s=e.history||[],o=(l=e.timestamp)!=null&&l.toDate?e.timestamp.toDate():new Date(e.date);let n=[];s.length>0?n=s.map(b=>({status:b.status,timestamp:new Date(b.timestamp),note:b.note})).sort((b,y)=>y.timestamp-b.timestamp):n.push({status:e.fulfillment_status,timestamp:(i=e.updated_at)!=null&&i.toDate?e.updated_at.toDate():new Date,note:"Última actualización"}),n.push({status:"created",timestamp:o,note:`Orden recibida via ${e.channel||"Online"}`});const a=b=>b==="created"?"bg-slate-100 text-slate-500":b==="preparing"?"bg-blue-100 text-blue-600":b==="ready_for_pickup"?"bg-emerald-100 text-emerald-600":b==="in_transit"?"bg-orange-100 text-orange-600":b==="shipped"||b==="picked_up"?"bg-green-100 text-green-600":"bg-slate-100",r=b=>({created:"Orden Creada",preparing:"En Preparación",ready_for_pickup:"Listo para Retiro",in_transit:"En Tránsito",shipped:"Despachado",picked_up:"Retirado"})[b]||b,c=document.createElement("div");c.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",c.onclick=b=>{b.target===c&&c.remove()},c.innerHTML=`
             <div class="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div class="bg-slate-50 p-6 border-b border-slate-100 flex justify-between items-center">
                     <div>
@@ -4288,20 +4469,20 @@ El inventario, gastos y socios NO serán afectados.
                 
                 <div class="p-8 max-h-[60vh] overflow-y-auto">
                     <div class="relative pl-4 border-l-2 border-slate-100 space-y-8">
-                        ${n.map((h,w)=>`
+                        ${n.map((b,y)=>`
                             <div class="relative">
-                                <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${w===0?"bg-brand-orange ring-4 ring-orange-50":"bg-slate-300"}"></div>
+                                <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${y===0?"bg-brand-orange ring-4 ring-orange-50":"bg-slate-300"}"></div>
                                 
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${a(h.status)}">
-                                            ${r(h.status)}
+                                        <span class="text-xs font-bold px-2 py-0.5 rounded-full ${a(b.status)}">
+                                            ${r(b.status)}
                                         </span>
                                         <span class="text-xs text-slate-400 font-mono">
-                                            ${h.timestamp.toLocaleString("es-AR",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}
+                                            ${b.timestamp.toLocaleString("es-AR",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"})}
                                         </span>
                                     </div>
-                                    <p class="text-sm text-slate-600 mt-1">${h.note||"-"}</p>
+                                    <p class="text-sm text-slate-600 mt-1">${b.note||"-"}</p>
                                 </div>
                             </div>
                         `).join("")}
@@ -4309,13 +4490,13 @@ El inventario, gastos y socios NO serán afectados.
                     
                     <div class="mt-8 pt-6 border-t border-slate-50 flex justify-between items-end">
                        <div class="text-xs text-slate-400">
-                            Cliente: <span class="font-bold text-slate-600">${e.customerName||((c=e.customer)==null?void 0:c.name)||((p=e.customer)==null?void 0:p.firstName)+" "+((m=e.customer)==null?void 0:m.lastName)}</span><br>
-                            Email: ${e.customerEmail||((g=e.customer)==null?void 0:g.email)}
+                            Cliente: <span class="font-bold text-slate-600">${e.customerName||((d=e.customer)==null?void 0:d.name)||((u=e.customer)==null?void 0:u.firstName)+" "+((m=e.customer)==null?void 0:m.lastName)}</span><br>
+                            Email: ${e.customerEmail||((x=e.customer)==null?void 0:x.email)}
                        </div>
                     </div>
                 </div>
             </div>
-        `,document.body.appendChild(i)},fetchDiscogsById(t=null){const e=t||document.getElementById("discogs-search-input").value.trim(),s=document.getElementById("discogs-results");if(!e||!/^\d+$/.test(e)){this.showToast("⚠️ Ingresa un ID numérico válido","error");return}const o=localStorage.getItem("discogs_token");if(!o){this.showToast("⚠️ Token no configurado","error");return}s&&(s.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>',s.classList.remove("hidden")),fetch(`https://api.discogs.com/releases/${e}?token=${o}`).then(n=>{if(!n.ok)throw new Error(`Error ${n.status}`);return n.json()}).then(n=>{var r;const a={id:n.id,title:`${n.artists_sort||((r=n.artists[0])==null?void 0:r.name)} - ${n.title}`,year:n.year,thumb:n.thumb,cover_image:n.images?n.images[0].uri:null,label:n.labels?[n.labels[0].name]:[],format:n.formats?[n.formats[0].name]:[]};this.handleDiscogsSelection(a),s&&s.classList.add("hidden"),this.showToast("✅ Datos importados con éxito")}).catch(n=>{console.error(n),this.showToast("❌ Error al importar ID: "+n.message,"error"),s&&s.classList.add("hidden")})},openBulkImportModal(){const t=document.createElement("div");t.id="bulk-import-modal",t.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",t.innerHTML=`
+        `,document.body.appendChild(c)},fetchDiscogsById(t=null){const e=t||document.getElementById("discogs-search-input").value.trim(),s=document.getElementById("discogs-results");if(!e||!/^\d+$/.test(e)){this.showToast("⚠️ Ingresa un ID numérico válido","error");return}if(!localStorage.getItem("discogs_token")){this.showToast("⚠️ Token no configurado","error");return}s&&(s.innerHTML='<p class="text-xs text-slate-400 animate-pulse p-2">Importando Release por ID...</p>',s.classList.remove("hidden")),fetch(`${M}/discogs/release/${e}`).then(n=>{if(!n.ok)throw new Error(`Error ${n.status}`);return n.json()}).then(n=>{var r;const a={id:n.id,title:`${n.artists_sort||((r=n.artists[0])==null?void 0:r.name)} - ${n.title}`,year:n.year,thumb:n.thumb,cover_image:n.images?n.images[0].uri:null,label:n.labels?[n.labels[0].name]:[],format:n.formats?[n.formats[0].name]:[]};this.handleDiscogsSelection(a),s&&s.classList.add("hidden"),this.showToast("✅ Datos importados con éxito")}).catch(n=>{console.error(n),this.showToast("❌ Error al importar ID: "+n.message,"error"),s&&s.classList.add("hidden")})},openBulkImportModal(){const t=document.createElement("div");t.id="bulk-import-modal",t.className="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4",t.innerHTML=`
             <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
                 <div class="bg-emerald-500 p-6 text-white flex justify-between items-center">
                     <div>
@@ -4349,4 +4530,4 @@ El inventario, gastos y socios NO serán afectados.
                     </div>
                 </div>
             </div>
-        `,document.body.appendChild(t)},async handleBulkImportBatch(){const t=document.getElementById("bulk-csv-data").value.trim();if(!t){this.showToast("Por favor, pega el contenido del CSV.","error");return}const e=document.getElementById("start-bulk-import-btn");e.innerHTML,e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> Importando...';try{const s=await fetch(`${B}/discogs/bulk-import`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csvData:t})}),o=await s.json();s.ok&&(this.showToast(`✅ ${o.summary}`),document.getElementById("bulk-import-modal").remove(),await this.loadData(),this.refreshCurrentView())}catch(s){console.error("Bulk import error:",s),this.showToast("❌ "+s.message,"error");const o=document.getElementById("start-bulk-import-btn");o&&(o.disabled=!1,o.innerHTML='<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación')}},async refreshProductMetadata(t){const e=document.getElementById("refresh-metadata-btn");if(!e)return;const s=e.innerHTML;e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> ...';try{let o=t;const n=this.state.inventory.find(i=>i.sku===t||i.id===t);n&&n.id&&(o=n.id);const a=await fetch(`${B}/discogs/refresh-metadata/${o}`,{method:"POST",headers:{"Content-Type":"application/json"}}),r=await a.json();if(a.ok){this.showToast("✅ Metadata actualizada correctamente");const i=document.getElementById("modal-overlay");i&&i.remove(),await this.loadData(),this.refreshCurrentView(),n&&this.openProductModal(n.sku)}else throw new Error(r.error||"Error al actualizar metadata")}catch(o){console.error("Refresh metadata error:",o),this.showToast("❌ "+o.message,"error"),e.disabled=!1,e.innerHTML=s}}};window.app=ce;document.addEventListener("DOMContentLoaded",()=>{ce.init()});
+        `,document.body.appendChild(t)},async handleBulkImportBatch(){const t=document.getElementById("bulk-csv-data").value.trim();if(!t){this.showToast("Por favor, pega el contenido del CSV.","error");return}const e=document.getElementById("start-bulk-import-btn");e.innerHTML,e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> Importando...';try{const s=await fetch(`${M}/discogs/bulk-import`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csvData:t})}),o=await s.json();s.ok&&(this.showToast(`✅ ${o.summary}`),document.getElementById("bulk-import-modal").remove(),await this.loadData(),this.refreshCurrentView())}catch(s){console.error("Bulk import error:",s),this.showToast("❌ "+s.message,"error");const o=document.getElementById("start-bulk-import-btn");o&&(o.disabled=!1,o.innerHTML='<i class="ph-bold ph-rocket-launch"></i> Comenzar Importación')}},async refreshProductMetadata(t){const e=document.getElementById("refresh-metadata-btn");if(!e)return;const s=e.innerHTML;e.disabled=!0,e.innerHTML='<i class="ph-bold ph-spinner animate-spin"></i> ...';try{let o=t;const n=this.state.inventory.find(c=>c.sku===t||c.id===t);n&&n.id&&(o=n.id);const a=await fetch(`${M}/discogs/refresh-metadata/${o}`,{method:"POST",headers:{"Content-Type":"application/json"}}),r=await a.json();if(a.ok){this.showToast("✅ Metadata actualizada correctamente");const c=document.getElementById("modal-overlay");c&&c.remove(),await this.loadData(),this.refreshCurrentView(),n&&this.openProductModal(n.sku)}else throw new Error(r.error||"Error al actualizar metadata")}catch(o){console.error("Refresh metadata error:",o),this.showToast("❌ "+o.message,"error"),e.disabled=!1,e.innerHTML=s}}};window.app=ce;document.addEventListener("DOMContentLoaded",()=>{ce.init()});

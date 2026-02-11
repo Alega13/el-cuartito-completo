@@ -56,6 +56,16 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- JSZip for Receipt ZIP Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- Fuse.js for Fuzzy Search -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+
     <!-- Firebase SDK (Compatibility version for easier integration with existing code) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
@@ -120,7 +130,7 @@
             transform: scale(0.98);
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-CwSmBeLX.js"></script>
+  <script type="module" crossorigin src="/assets/index-DzUE6RNf.js"></script>
 </head>
 
 <body class="h-screen overflow-hidden selection:bg-brand-orange selection:text-white bg-brand-bg">
@@ -278,6 +288,11 @@
                     <i class="ph-duotone ph-gear text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Configuración</span>
                 </button>
+                <button onclick="app.navigate('datosLegales')" id="nav-d-datosLegales"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-info text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Datos Legales</span>
+                </button>
             </nav>
 
             <div class="p-4 border-t border-orange-50">
@@ -369,6 +384,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-gear text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Config</span>
+            </button>
+            <button onclick="app.navigate('datosLegales'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-info text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Legal</span>
             </button>
         </div>
     </div>

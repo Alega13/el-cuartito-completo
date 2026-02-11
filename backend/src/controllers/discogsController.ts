@@ -832,21 +832,12 @@ export const searchRelease = async (req: Request, res: Response) => {
         }
 
         const discogsService = new DiscogsService(username, token);
-        const result = await discogsService.searchRelease(q);
+        const results = await discogsService.searchReleases(q);
 
-        if (result) {
-            res.json({
-                success: true,
-                releaseId: result.id,
-                title: result.title,
-                year: result.year
-            });
-        } else {
-            res.json({
-                success: false,
-                message: 'No release found'
-            });
-        }
+        res.json({
+            success: true,
+            results: results
+        });
     } catch (error: any) {
         console.error('Search release failed:', error);
         res.status(500).json({

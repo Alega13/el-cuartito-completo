@@ -405,6 +405,14 @@ export class DiscogsService {
      * Search for a release by query string
      */
     async searchRelease(query: string): Promise<any> {
+        const results = await this.searchReleases(query, 1);
+        return results.length > 0 ? results[0] : null;
+    }
+
+    /**
+     * Search for releases by query string
+     */
+    async searchReleases(query: string, perPage: number = 20): Promise<any[]> {
         try {
             const response = await axios.get(
                 `${this.baseUrl}/database/search`,
@@ -416,18 +424,28 @@ export class DiscogsService {
                     params: {
                         q: query,
                         type: 'release',
-                        per_page: 1
+                        per_page: perPage
                     }
                 }
             );
 
-            if (response.data.results && response.data.results.length > 0) {
-                return response.data.results[0];
-            }
-            return null;
+            return response.data.results || [];
         } catch (error: any) {
-            console.error(`Error searching Discogs release for "${query}":`, error.response?.data || error.message);
-            throw new Error(`Failed to search Discogs release: ${error.message}`);
+            console.error(`Error searching Discogs releases for "${query}":`, error.response?.data || error.message);
+            throw new Error(`Failed to search Discogs releases: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get tracklist and other details for a release
+     */
+    async getTracklist(releaseId: number): Promise<any[]> {
+        try {
+            const release = await this.getRelease(releaseId);
+            return release.tracklist || [];
+        } catch (error: any) {
+            console.error(`Error fetching tracklist for release ${releaseId}:`, error.response?.data || error.message);
+            throw new Error(`Failed to fetch tracklist: ${error.message}`);
         }
     }
 
