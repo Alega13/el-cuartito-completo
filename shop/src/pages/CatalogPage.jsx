@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Filter, ArrowUpDown } from 'lucide-react';
+import { X, Filter, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import SEO from '../components/SEO';
@@ -21,6 +21,8 @@ const CatalogPage = ({ products }) => {
     const [sortOption, setSortOption] = useState('newest');
     const [showMobileFilters, setShowMobileFilters] = useState(false);
     const [artistSearch, setArtistSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 28;
 
     // Filter products with stock
     const availableProducts = useMemo(() => products.filter(p => p.stock > 0), [products]);
@@ -104,6 +106,20 @@ const CatalogPage = ({ products }) => {
             }
         });
     }, [availableProducts, selectedFilters, sortOption, artistSearch, fuse]);
+
+    // Reset to page 1 when filters/search change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [artistSearch, selectedFilters, sortOption]);
+
+    // Pagination calculations
+    const totalPages = Math.ceil(sortedProducts.length / ITEMS_PER_PAGE);
+    const paginatedProducts = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return sortedProducts.slice(startIndex, endIndex);
+    }, [sortedProducts, currentPage, ITEMS_PER_PAGE]);
+
 
     const isValidImage = (url) => {
         if (!url) return false;
@@ -229,10 +245,67 @@ const CatalogPage = ({ products }) => {
 
                         {/* Product Grid */}
                         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8">
-                            {sortedProducts.map((product) => (
+                            {paginatedProducts.map((product) => (
                                 <ProductCard key={product.id} product={product} />
                             ))}
                         </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-4 mt-12 pt-8 border-t border-black/5">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    <ChevronLeft size={14} />
+                                    Prev
+                                </button>
+
+                                <div className="flex items-center gap-2">
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        let pageNum;
+                                        if (totalPages <= 5) {
+                                            pageNum = i + 1;
+                                        } else if (currentPage <= 3) {
+                                            pageNum = i + 1;
+                                        } else if (currentPage >= totalPages - 2) {
+                                            pageNum = totalPages - 4 + i;
+                                        } else {
+                                            pageNum = currentPage - 2 + i;
+                                        }
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${currentPage === pageNum
+                                                        ? 'bg-black text-white'
+                                                        : 'hover:bg-black/5'
+                                                    }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    Next
+                                    <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Page info */}
+                        {totalPages > 1 && (
+                            <p className="text-center text-xs text-black/40 mt-4">
+                                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, sortedProducts.length)} of {sortedProducts.length} releases
+                            </p>
+                        )}
 
                         {sortedProducts.length === 0 && (
                             <div className="text-center py-32 border-t border-black/5">

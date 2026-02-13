@@ -1,227 +1,221 @@
-import { Request, Response } from 'express';
-import { getDb } from '../config/firebaseAdmin';
-import * as admin from 'firebase-admin';
-import { calculateSaleVATLiability } from '../services/vatCalculator';
-import { generateInvoice, buildInvoiceFromPOSSale } from '../services/invoiceService';
-
-// Types for clarity
-interface ProductData {
-    id?: string;
-    sku: string;
-    artist: string;
-    album: string;
-    price: number;
-    stock: number;
-    is_online: boolean;
-    genre?: string;
-    condition?: string;
-    cost?: number;
-    owner?: string;
-    label?: string;
-    storageLocation?: string;
-    cover_image?: string;
-    updated_at?: admin.firestore.FieldValue;
-}
-
-const normalizeProduct = (data: any, id: string) => {
-    return {
-        ...data,
-        id,
-        // Dual mapping for Shop and Admin compatibility
-        availableOnline: data.is_online ?? data.availableOnline ?? false,
-        is_online: data.is_online ?? data.availableOnline ?? false,
-        coverImage: data.cover_image ?? data.coverImage ?? null,
-        cover_image: data.cover_image ?? data.coverImage ?? null,
-        condition: data.condition ?? data.status ?? 'VG',
-        status: data.condition ?? data.status ?? 'VG'
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
     };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
 };
-
-export const getAllProducts = async (req: Request, res: Response) => {
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.markAsPickedUp = exports.notifyReadyForPickup = exports.markAsDispatched = exports.notifyShipped = exports.updateTrackingNumber = exports.notifyPreparing = exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
+const firebaseAdmin_1 = require("../config/firebaseAdmin");
+const admin = __importStar(require("firebase-admin"));
+const vatCalculator_1 = require("../services/vatCalculator");
+const invoiceService_1 = require("../services/invoiceService");
+const normalizeProduct = (data, id) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    return Object.assign(Object.assign({}, data), { id, 
+        // Dual mapping for Shop and Admin compatibility
+        availableOnline: (_b = (_a = data.is_online) !== null && _a !== void 0 ? _a : data.availableOnline) !== null && _b !== void 0 ? _b : false, is_online: (_d = (_c = data.is_online) !== null && _c !== void 0 ? _c : data.availableOnline) !== null && _d !== void 0 ? _d : false, coverImage: (_f = (_e = data.cover_image) !== null && _e !== void 0 ? _e : data.coverImage) !== null && _f !== void 0 ? _f : null, cover_image: (_h = (_g = data.cover_image) !== null && _g !== void 0 ? _g : data.coverImage) !== null && _h !== void 0 ? _h : null, condition: (_k = (_j = data.condition) !== null && _j !== void 0 ? _j : data.status) !== null && _k !== void 0 ? _k : 'VG', status: (_m = (_l = data.condition) !== null && _l !== void 0 ? _l : data.status) !== null && _m !== void 0 ? _m : 'VG' });
+};
+const getAllProducts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const db = getDb();
-        const snapshot = await db.collection('products').get();
+        const db = (0, firebaseAdmin_1.getDb)();
+        const snapshot = yield db.collection('products').get();
         const products = snapshot.docs.map(doc => normalizeProduct(doc.data(), doc.id));
         res.json(products);
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const listProducts = async (req: Request, res: Response) => {
+});
+exports.getAllProducts = getAllProducts;
+const listProducts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const db = getDb();
-        const productsSnapshot = await db.collection('products')
+        const db = (0, firebaseAdmin_1.getDb)();
+        const productsSnapshot = yield db.collection('products')
             .where('is_online', '==', true)
             .get();
-
         const products = productsSnapshot.docs.map(doc => normalizeProduct(doc.data(), doc.id));
-
         res.json(products);
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-
-export const createProduct = async (req: Request, res: Response) => {
+});
+exports.listProducts = listProducts;
+const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c, _d, _e, _f;
     try {
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const data = req.body;
-
         // Canonicalize names for Firestore
-        const flattedData = {
-            ...data,
-            is_online: data.is_online ?? data.availableOnline ?? false,
-            cover_image: data.cover_image ?? data.coverImage ?? null,
-            condition: data.condition ?? data.status ?? 'VG',
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
-        };
-
-        const docRef = await db.collection('products').add(flattedData);
+        const flattedData = Object.assign(Object.assign({}, data), { is_online: (_b = (_a = data.is_online) !== null && _a !== void 0 ? _a : data.availableOnline) !== null && _b !== void 0 ? _b : false, cover_image: (_d = (_c = data.cover_image) !== null && _c !== void 0 ? _c : data.coverImage) !== null && _d !== void 0 ? _d : null, condition: (_f = (_e = data.condition) !== null && _e !== void 0 ? _e : data.status) !== null && _f !== void 0 ? _f : 'VG', updated_at: admin.firestore.FieldValue.serverTimestamp() });
+        const docRef = yield db.collection('products').add(flattedData);
         res.status(201).json(normalizeProduct(flattedData, docRef.id));
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const updateProduct = async (req: Request, res: Response) => {
+});
+exports.createProduct = createProduct;
+const updateProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const data = req.body;
-
-        const updateData: any = {
-            ...data,
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
-        };
-
-        if (data.availableOnline !== undefined) updateData.is_online = data.availableOnline;
-        if (data.coverImage !== undefined) updateData.cover_image = data.coverImage;
-        if (data.status !== undefined) updateData.condition = data.status;
-
-        await db.collection('products').doc(id).update(updateData);
-        res.json({ id, ...updateData });
-    } catch (error: any) {
+        const updateData = Object.assign(Object.assign({}, data), { updated_at: admin.firestore.FieldValue.serverTimestamp() });
+        if (data.availableOnline !== undefined)
+            updateData.is_online = data.availableOnline;
+        if (data.coverImage !== undefined)
+            updateData.cover_image = data.coverImage;
+        if (data.status !== undefined)
+            updateData.condition = data.status;
+        yield db.collection('products').doc(id).update(updateData);
+        res.json(Object.assign({ id }, updateData));
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-
-export const deleteProduct = async (req: Request, res: Response) => {
+});
+exports.updateProduct = updateProduct;
+const deleteProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
-
+        const db = (0, firebaseAdmin_1.getDb)();
         // Dependency check removed to allow deletion. 
         // Sales data is denormalized (album/artist stored in sale), so deleting product won't break history display.
         // However, calculating historical profit for old sales without costAtSale might be less accurate (fallback to 0).
-
-        await db.collection('products').doc(id).delete();
+        yield db.collection('products').doc(id).delete();
         res.status(204).send();
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const reserveStock = async (req: Request, res: Response) => {
+});
+exports.deleteProduct = deleteProduct;
+const reserveStock = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { productId, qty } = req.body;
-
     try {
-        const db = getDb();
-        await db.runTransaction(async (transaction: admin.firestore.Transaction) => {
+        const db = (0, firebaseAdmin_1.getDb)();
+        yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
             const productRef = db.collection('products').doc(productId);
-            const productDoc = await transaction.get(productRef);
-
+            const productDoc = yield transaction.get(productRef);
             if (!productDoc.exists) {
                 throw new Error('Product not found');
             }
-
-            const currentStock = (productDoc.data() as any)?.stock || 0;
+            const currentStock = ((_a = productDoc.data()) === null || _a === void 0 ? void 0 : _a.stock) || 0;
             if (currentStock < qty) {
                 throw new Error('Insufficient stock');
             }
-
             transaction.update(productRef, {
                 stock: admin.firestore.FieldValue.increment(-qty),
                 updated_at: admin.firestore.FieldValue.serverTimestamp()
             });
-        });
-
+        }));
         res.json({ success: true, message: 'Stock reserved successfully' });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(400).json({ error: error.message });
     }
-};
-
-export const releaseStock = async (req: Request, res: Response) => {
+});
+exports.reserveStock = reserveStock;
+const releaseStock = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { productId, qty } = req.body;
-
     try {
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const productRef = db.collection('products').doc(productId);
-        await productRef.update({
+        yield productRef.update({
             stock: admin.firestore.FieldValue.increment(qty),
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
-
         res.json({ success: true, message: 'Stock released successfully' });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(400).json({ error: error.message });
     }
-};
-
-export const createSale = async (req: Request, res: Response) => {
+});
+exports.releaseStock = releaseStock;
+const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { items, channel, totalAmount, paymentMethod, customerName, customerEmail } = req.body;
     // items: [{ productId, qty, priceAtSale, album }]
-
     try {
-        const db = getDb();
-
+        const db = (0, firebaseAdmin_1.getDb)();
         // Normalize items - accept both recordId/productId and quantity/qty
-        const normalizedItems = items.map((item: any) => {
-            const normalized: any = {
+        const normalizedItems = items.map((item) => {
+            const normalized = {
                 productId: item.productId || item.recordId,
                 qty: item.qty || item.quantity || 1,
             };
-            if (item.priceAtSale !== undefined) normalized.priceAtSale = item.priceAtSale;
-            if (item.price !== undefined) normalized.priceAtSale = item.price;
-            if (item.album !== undefined) normalized.album = item.album;
+            if (item.priceAtSale !== undefined)
+                normalized.priceAtSale = item.priceAtSale;
+            if (item.price !== undefined)
+                normalized.priceAtSale = item.price;
+            if (item.album !== undefined)
+                normalized.album = item.album;
             return normalized;
         });
-
-        const saleId = await db.runTransaction(async (transaction: admin.firestore.Transaction) => {
+        const saleId = yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
             let calculatedTotal = 0;
-
             // 1. Validate all items have enough stock AND calculate total
             for (const item of normalizedItems) {
                 if (!item.productId) {
                     throw new Error('Missing productId/recordId in sale item');
                 }
                 const productRef = db.collection('products').doc(item.productId);
-                const productDoc = await transaction.get(productRef);
-
+                const productDoc = yield transaction.get(productRef);
                 if (!productDoc.exists) {
                     throw new Error(`Product ${item.productId} not found`);
                 }
-
-                const productData = productDoc.data() as any;
-                const currentStock = productData?.stock || 0;
-
+                const productData = productDoc.data();
+                const currentStock = (productData === null || productData === void 0 ? void 0 : productData.stock) || 0;
                 if (currentStock < item.qty) {
                     throw new Error(`Insufficient stock for product ${item.album || item.productId}`);
                 }
-
                 // Use price from request if available (e.g. override), otherwise use product price
                 const price = item.priceAtSale || productData.price || 0;
                 item.priceAtSale = price; // Store the price used in the item
                 item.costAtSale = productData.cost || 0; // Store cost for profit calculation
                 item.productCondition = productData.product_condition || 'Second-hand'; // Store for VAT calculation
                 item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
-
                 calculatedTotal += price * item.qty;
             }
-
             // 2. Decrement stock and Prepare Sale document
             for (const item of normalizedItems) {
                 const productRef = db.collection('products').doc(item.productId);
@@ -229,7 +223,6 @@ export const createSale = async (req: Request, res: Response) => {
                     stock: admin.firestore.FieldValue.increment(-item.qty),
                     updated_at: admin.firestore.FieldValue.serverTimestamp()
                 });
-
                 // Record movement
                 const movementRef = db.collection('inventory_movements').doc();
                 transaction.set(movementRef, {
@@ -241,10 +234,8 @@ export const createSale = async (req: Request, res: Response) => {
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
             }
-
             // Calculate VAT liability using Denmark rules (Brugtmoms for used goods)
-            const calculatedVatLiability = calculateSaleVATLiability(normalizedItems);
-
+            const calculatedVatLiability = (0, vatCalculator_1.calculateSaleVATLiability)(normalizedItems);
             const saleRef = db.collection('sales').doc();
             transaction.set(saleRef, {
                 items: normalizedItems,
@@ -257,206 +248,173 @@ export const createSale = async (req: Request, res: Response) => {
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 status: 'completed'
             });
-
             return saleRef.id;
-        });
-
+        }));
         res.json({ success: true, saleId });
-
         // Generate invoice in background (non-blocking)
-        const finalTotal = totalAmount || normalizedItems.reduce((sum: number, i: any) => sum + (i.priceAtSale * i.qty), 0);
+        const finalTotal = totalAmount || normalizedItems.reduce((sum, i) => sum + (i.priceAtSale * i.qty), 0);
         setTimeout(() => {
-            const invoiceData = buildInvoiceFromPOSSale(
-                saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName
-            );
-            generateInvoice(invoiceData).catch(e =>
-                console.error('⚠️ Invoice generation failed for POS sale:', e.message)
-            );
+            const invoiceData = (0, invoiceService_1.buildInvoiceFromPOSSale)(saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName);
+            (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error('⚠️ Invoice generation failed for POS sale:', e.message));
         }, 1);
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(400).json({ error: error.message });
     }
-};
-
-export const getSales = async (req: Request, res: Response) => {
+});
+exports.createSale = createSale;
+const getSales = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const db = getDb();
-        const snapshot = await db.collection('sales').orderBy('timestamp', 'desc').get();
-        const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const db = (0, firebaseAdmin_1.getDb)();
+        const snapshot = yield db.collection('sales').orderBy('timestamp', 'desc').get();
+        const sales = snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
         res.json(sales);
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const getSaleById = async (req: Request, res: Response) => {
+});
+exports.getSales = getSales;
+const getSaleById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
-        const doc = await db.collection('sales').doc(id).get();
-
+        const db = (0, firebaseAdmin_1.getDb)();
+        const doc = yield db.collection('sales').doc(id).get();
         if (!doc.exists) {
             return res.status(404).json({ error: 'Sale not found' });
         }
-
         const data = doc.data();
         // Return only necessary fields for the success page (avoid leaking sensitive admin data if any)
         const publicData = {
             id: doc.id,
-            orderNumber: data?.orderNumber,
-            total_amount: data?.total_amount,
-            items_total: data?.items_total,
-            shipping_cost: data?.shipping_cost,
-            status: data?.status,
-            customer: data?.customer || null,
-            items: data?.items || [],
-            shipping_method: data?.shipping_method,
-            date: data?.date
+            orderNumber: data === null || data === void 0 ? void 0 : data.orderNumber,
+            total_amount: data === null || data === void 0 ? void 0 : data.total_amount,
+            items_total: data === null || data === void 0 ? void 0 : data.items_total,
+            shipping_cost: data === null || data === void 0 ? void 0 : data.shipping_cost,
+            status: data === null || data === void 0 ? void 0 : data.status,
+            customer: (data === null || data === void 0 ? void 0 : data.customer) || null,
+            items: (data === null || data === void 0 ? void 0 : data.items) || [],
+            shipping_method: data === null || data === void 0 ? void 0 : data.shipping_method,
+            date: data === null || data === void 0 ? void 0 : data.date
         };
-
         res.json(publicData);
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
+});
+exports.getSaleById = getSaleById;
 /**
  * Trigger confirmation flow manually for local development
  * (Since Stripe webhooks don't reach localhost)
  */
-import { sendOrderConfirmationEmail } from '../services/mailService';
-export const confirmLocalPayment = async (req: Request, res: Response) => {
+const mailService_1 = require("../services/mailService");
+const confirmLocalPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { paymentIntentId } = req.body;
         console.log(`📡 [LOCAL CONFIRM] Received request for sale: ${id}`);
-
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-
+        const saleDoc = yield saleRef.get();
         if (!saleDoc.exists) {
             console.error(`❌ [LOCAL CONFIRM] Sale not found: ${id}`);
             return res.status(404).json({ error: 'Sale not found' });
         }
-
-        const saleData = saleDoc.data() as any;
+        const saleData = saleDoc.data();
         console.log(`📡 [LOCAL CONFIRM] Sale details: Number=${saleData.orderNumber}, Status=${saleData.status}`);
-
         // Only process if not already completed
         if (saleData.status !== 'completed') {
             console.log(`📡 [LOCAL CONFIRM] Updating sale ${id} to completed and sending email...`);
-            await saleRef.update({
+            yield saleRef.update({
                 status: 'completed',
                 stripePaymentIntentId: paymentIntentId,
                 updated_at: admin.firestore.FieldValue.serverTimestamp()
             });
-
             // Trigger email
-            await sendOrderConfirmationEmail({
-                ...saleData,
-                status: 'completed'
-            });
-        } else {
+            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
+        }
+        else {
             console.log(`📡 [LOCAL CONFIRM] Sale ${id} already completed.`);
             // SEND EMAIL ANYWAY FOR DEBUGGING if requested? Let's just do it to be sure.
-            await sendOrderConfirmationEmail({
-                ...saleData,
-                status: 'completed'
-            });
+            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
         }
-
         res.json({ success: true, message: 'Local confirmation processed' });
-    } catch (error: any) {
+    }
+    catch (error) {
         console.error('❌ [LOCAL CONFIRM] Error:', error);
         res.status(500).json({ error: error.message });
     }
-};
-
-export const updateFulfillmentStatus = async (req: Request, res: Response) => {
+});
+exports.confirmLocalPayment = confirmLocalPayment;
+const updateFulfillmentStatus = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { status } = req.body;
-        const db = getDb();
-
+        const db = (0, firebaseAdmin_1.getDb)();
         if (!['pending', 'preparing', 'shipped', 'delivered'].includes(status)) {
             return res.status(400).json({ error: 'Invalid fulfillment status' });
         }
-
-        await db.collection('sales').doc(id).update({
+        yield db.collection('sales').doc(id).update({
             fulfillment_status: status,
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
-
         res.json({ success: true, id, fulfillment_status: status });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const updateSaleValue = async (req: Request, res: Response) => {
+});
+exports.updateFulfillmentStatus = updateFulfillmentStatus;
+const updateSaleValue = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { netReceived } = req.body; // The actual amount received after fees
-        const db = getDb();
-
+        const db = (0, firebaseAdmin_1.getDb)();
         const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-
+        const saleDoc = yield saleRef.get();
         if (!saleDoc.exists) {
             return res.status(404).json({ error: 'Sale not found' });
         }
-
-        const saleData = saleDoc.data() as any;
+        const saleData = saleDoc.data();
         const originalTotal = saleData.originalTotal || saleData.total || 0;
         const newNetReceived = parseFloat(netReceived);
-
         if (isNaN(newNetReceived)) {
             return res.status(400).json({ error: 'Invalid netReceived amount' });
         }
-
         const totalFees = originalTotal - newNetReceived;
-
-        await saleRef.update({
+        yield saleRef.update({
             total: newNetReceived, // Update with the actual received amount
             totalFees: totalFees,
             status: 'completed', // Move from pending_review to completed
             needsReview: false,
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
-
         res.json({
             success: true,
             id,
             newTotal: newNetReceived,
             fees: totalFees
         });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-import {
-    sendDiscogsOrderPreparingEmail,
-    sendDiscogsShippingNotificationEmail,
-    sendPickupReadyEmail
-} from '../services/mailService';
-
-export const notifyPreparing = async (req: Request, res: Response) => {
+});
+exports.updateSaleValue = updateSaleValue;
+const mailService_2 = require("../services/mailService");
+const notifyPreparing = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-
+        const saleDoc = yield saleRef.get();
         if (!saleDoc.exists) {
             return res.status(404).json({ error: 'Sale not found' });
         }
-
-        const saleData = saleDoc.data() as any;
-
+        const saleData = saleDoc.data();
         // Update status in Firestore
-        await saleRef.update({
+        yield saleRef.update({
             fulfillment_status: 'preparing',
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -465,58 +423,51 @@ export const notifyPreparing = async (req: Request, res: Response) => {
                 note: 'Order is being prepared. Notification sent.'
             })
         });
-
         // Send email
-        const mailResult = await sendDiscogsOrderPreparingEmail(saleData);
-
+        const mailResult = yield (0, mailService_2.sendDiscogsOrderPreparingEmail)(saleData);
         res.json({ success: true, mailResult });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const updateTrackingNumber = async (req: Request, res: Response) => {
+});
+exports.notifyPreparing = notifyPreparing;
+const updateTrackingNumber = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { trackingNumber } = req.body;
-        const db = getDb();
-
+        const db = (0, firebaseAdmin_1.getDb)();
         if (!trackingNumber) {
             return res.status(400).json({ error: 'Tracking number is required' });
         }
-
-        await db.collection('sales').doc(id).update({
+        yield db.collection('sales').doc(id).update({
             tracking_number: trackingNumber,
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
-
         res.json({ success: true, trackingNumber });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const notifyShipped = async (req: Request, res: Response) => {
+});
+exports.updateTrackingNumber = updateTrackingNumber;
+const notifyShipped = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { trackingNumber, trackingLink } = req.body;
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-
+        const saleDoc = yield saleRef.get();
         if (!saleDoc.exists) {
             return res.status(404).json({ error: 'Sale not found' });
         }
-
-        const saleData = saleDoc.data() as any;
+        const saleData = saleDoc.data();
         const finalTrackingNumber = trackingNumber || saleData.tracking_number;
-
         if (!finalTrackingNumber) {
             return res.status(400).json({ error: 'Tracking number is required to notify shipment' });
         }
-
         // Prepare update data
-        const updateData: any = {
+        const updateData = {
             fulfillment_status: 'in_transit', // Step 2: In Transit (Tracking sent)
             tracking_number: finalTrackingNumber,
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -526,31 +477,27 @@ export const notifyShipped = async (req: Request, res: Response) => {
                 note: `Order is in transit. Tracking: ${finalTrackingNumber}`
             })
         };
-
         if (trackingLink) {
             updateData.tracking_link = trackingLink;
             // Update local object for email content
             saleData.tracking_link = trackingLink;
         }
-
         // Update status in Firestore
-        await saleRef.update(updateData);
-
+        yield saleRef.update(updateData);
         // Send email
-        const mailResult = await sendDiscogsShippingNotificationEmail(saleData, finalTrackingNumber);
-
+        const mailResult = yield (0, mailService_2.sendDiscogsShippingNotificationEmail)(saleData, finalTrackingNumber);
         res.json({ success: true, mailResult });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const markAsDispatched = async (req: Request, res: Response) => {
+});
+exports.notifyShipped = notifyShipped;
+const markAsDispatched = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
-
-        await db.collection('sales').doc(id).update({
+        const db = (0, firebaseAdmin_1.getDb)();
+        yield db.collection('sales').doc(id).update({
             fulfillment_status: 'shipped', // Step 3: Dispatched (Closed)
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -559,25 +506,23 @@ export const markAsDispatched = async (req: Request, res: Response) => {
                 note: 'Order dispatched (Archived).'
             })
         });
-
         res.json({ success: true });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const notifyReadyForPickup = async (req: Request, res: Response) => {
+});
+exports.markAsDispatched = markAsDispatched;
+const notifyReadyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
+        const db = (0, firebaseAdmin_1.getDb)();
         const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-
-        if (!saleDoc.exists) return res.status(404).json({ error: 'Sale not found' });
-
-        const saleData = saleDoc.data() as any;
-
-        await saleRef.update({
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists)
+            return res.status(404).json({ error: 'Sale not found' });
+        const saleData = saleDoc.data();
+        yield saleRef.update({
             fulfillment_status: 'ready_for_pickup',
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -586,20 +531,19 @@ export const notifyReadyForPickup = async (req: Request, res: Response) => {
                 note: 'Ready for pickup. Notification sent.'
             })
         });
-
-        const mailResult = await sendPickupReadyEmail(saleData);
+        const mailResult = yield (0, mailService_2.sendPickupReadyEmail)(saleData);
         res.json({ success: true, mailResult });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
-
-export const markAsPickedUp = async (req: Request, res: Response) => {
+});
+exports.notifyReadyForPickup = notifyReadyForPickup;
+const markAsPickedUp = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
-        const db = getDb();
-
-        await db.collection('sales').doc(id).update({
+        const db = (0, firebaseAdmin_1.getDb)();
+        yield db.collection('sales').doc(id).update({
             fulfillment_status: 'picked_up', // Closed
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -608,9 +552,10 @@ export const markAsPickedUp = async (req: Request, res: Response) => {
                 note: 'Order picked up by customer (Archived).'
             })
         });
-
         res.json({ success: true });
-    } catch (error: any) {
+    }
+    catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
+});
+exports.markAsPickedUp = markAsPickedUp;

@@ -281,18 +281,6 @@ const Navbar = ({ setSearchQuery }) => {
                                 </motion.div>
 
                                 <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
-                                    <button
-                                        onClick={() => {
-                                            setIsSearchOpen(true);
-                                            const catalogueSection = document.getElementById('catalogue');
-                                            if (catalogueSection) {
-                                                catalogueSection.scrollIntoView({ behavior: 'smooth' });
-                                            }
-                                        }}
-                                        className="p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
-                                    >
-                                        <Search size={18} strokeWidth={2.5} />
-                                    </button>
                                     {/* Cart */}
                                     <button
                                         onClick={() => setIsCartOpen(true)}

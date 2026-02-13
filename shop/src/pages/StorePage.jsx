@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
-import { Filter, ArrowUpDown } from 'lucide-react';
+import { Filter, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import Fuse from 'fuse.js';
 
 const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCollection }) => {
@@ -15,6 +15,9 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
     });
     const [sortOption, setSortOption] = useState('newest'); // 'newest', 'price-asc', 'price-desc', 'year-desc'
     const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const [localSearch, setLocalSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 28;
 
     // Initialize Fuse.js for fuzzy search
     const fuse = useMemo(() => {
@@ -60,8 +63,9 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         let result = products;
 
         // 1. Search (Fuzzy or simple)
-        if (searchQuery) {
-            const fuseResults = fuse.search(searchQuery);
+        const activeSearch = localSearch || searchQuery;
+        if (activeSearch) {
+            const fuseResults = fuse.search(activeSearch);
             result = fuseResults.map(res => res.item);
         }
 
@@ -103,8 +107,20 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                     return 0; // Keeping default order (usually newest from backend)
             }
         });
-    }, [products, searchQuery, collectionFilter, selectedFilters, sortOption, fuse]);
+    }, [products, searchQuery, localSearch, collectionFilter, selectedFilters, sortOption, fuse]);
 
+    // Reset to page 1 when filters/search change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [localSearch, searchQuery, selectedFilters, sortOption, collectionFilter]);
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+    const paginatedProducts = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        const endIndex = startIndex + ITEMS_PER_PAGE;
+        return filteredProducts.slice(startIndex, endIndex);
+    }, [filteredProducts, currentPage, ITEMS_PER_PAGE]);
 
     if (loading) {
         return (
@@ -171,6 +187,19 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
 
                 {/* Product Grid */}
                 <div className="flex-1 min-w-0">
+                    {/* Search Bar */}
+                    <div className="mb-10 max-w-md">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-3">
+                            Search Everything
+                        </div>
+                        <input
+                            type="text"
+                            value={localSearch}
+                            onChange={(e) => setLocalSearch(e.target.value)}
+                            placeholder="Search artist, album, label..."
+                            className="w-full px-4 py-3 text-sm bg-black/5 border border-transparent rounded-lg focus:bg-white focus:border-black/10 outline-none transition-all"
+                        />
+                    </div>
                     {filteredProducts.length === 0 ? (
                         <div className="py-20 text-center border-t border-black/5">
                             <h3 className="text-xl font-bold mb-2">No matches found</h3>
@@ -183,19 +212,78 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                             </button>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8">
-                            {filteredProducts.map(product => (
-                                <ProductCard
-                                    key={product.id}
-                                    product={{
-                                        ...product,
-                                        image: product.image || product.cover_image,
-                                        title: product.album, // Ensure title is mapped for card
-                                        year: product.year || '2024'
-                                    }}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8">
+                                {paginatedProducts.map(product => (
+                                    <ProductCard
+                                        key={product.id}
+                                        product={{
+                                            ...product,
+                                            image: product.image || product.cover_image,
+                                            title: product.album,
+                                            year: product.year || '2024'
+                                        }}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-center gap-4 mt-12 pt-8 border-t border-black/5">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        <ChevronLeft size={14} />
+                                        Prev
+                                    </button>
+
+                                    <div className="flex items-center gap-2">
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                            let pageNum;
+                                            if (totalPages <= 5) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage <= 3) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage >= totalPages - 2) {
+                                                pageNum = totalPages - 4 + i;
+                                            } else {
+                                                pageNum = currentPage - 2 + i;
+                                            }
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${currentPage === pageNum
+                                                        ? 'bg-black text-white'
+                                                        : 'hover:bg-black/5'
+                                                        }`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        Next
+                                        <ChevronRight size={14} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Page info */}
+                            {totalPages > 1 && (
+                                <p className="text-center text-xs text-black/40 mt-4">
+                                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} releases
+                                </p>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

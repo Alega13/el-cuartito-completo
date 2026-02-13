@@ -270,6 +270,11 @@ const ProductPage = ({ products = [] }) => {
                                 <p className="text-xs text-black/40 py-4 italic">No tracklist found for this release.</p>
                             )}
                         </div>
+                        {tracks.length > 0 && (
+                            <p className="text-[10px] text-black/30 italic mt-2">
+                                Tracks shown may not be matched correctly. We recommend double-checking before purchase.
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-4">

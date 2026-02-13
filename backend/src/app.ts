@@ -11,6 +11,7 @@ import firebaseRecordRoutes from './routes/firebaseRecordRoutes';
 import firebaseSaleRoutes from './routes/firebaseSaleRoutes';
 import discogsRoutes from './routes/discogsRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import invoiceRoutes from './routes/invoiceRoutes';
 import healthRoutes from './routes/health';
 import { stripeWebhookHandler } from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
@@ -69,6 +70,9 @@ app.use('/discogs', discogsRoutes);
 
 // Upload routes (for receipt uploads via backend proxy)
 app.use('/upload', uploadRoutes);
+
+// Invoice routes (Brugtmoms-compliant PDF invoices)
+app.use('/invoices', invoiceRoutes);
 
 
 // Health check endpoint

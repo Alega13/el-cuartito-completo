@@ -247,6 +247,21 @@ const app = {
                 }
             }
         });
+
+        // Global click listener to hide search results when clicking outside
+        document.addEventListener('click', (e) => {
+            const discogsResults = document.getElementById('discogs-results');
+            const discogsInput = document.getElementById('discogs-search-input');
+            if (discogsResults && !discogsResults.contains(e.target) && e.target !== discogsInput) {
+                discogsResults.classList.add('hidden');
+            }
+
+            const skuResults = document.getElementById('sku-results');
+            const skuInput = document.getElementById('sku-search');
+            if (skuResults && !skuResults.contains(e.target) && e.target !== skuInput) {
+                skuResults.classList.add('hidden');
+            }
+        });
     },
 
     async handleLogin(event) {
@@ -497,6 +512,7 @@ const app = {
             case 'investments': this.renderInvestments(container); break;
             case 'vatReport': this.renderVATReport(container); break;
             case 'datosLegales': this.renderDatosLegales(container); break;
+            case 'contabilidad': this.renderContabilidad(container); break;
         }
     },
 
@@ -604,6 +620,277 @@ const app = {
             </div>
         `;
         container.innerHTML = html;
+    },
+
+    // ── Contabilidad (Brugtmoms Invoices) ──────────────────────────
+
+    renderContabilidad(container) {
+        const currentYear = new Date().getFullYear();
+        const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+
+        // Initialize state if needed
+        if (!this.state.contabilidadYear) this.state.contabilidadYear = currentYear;
+        if (!this.state.contabilidadQuarter) this.state.contabilidadQuarter = currentQuarter;
+        if (!this.state.contabilidadInvoices) this.state.contabilidadInvoices = [];
+        if (!this.state.contabilidadLoading) this.state.contabilidadLoading = false;
+
+        const year = this.state.contabilidadYear;
+        const quarter = this.state.contabilidadQuarter;
+        const invoices = this.state.contabilidadInvoices;
+        const loading = this.state.contabilidadLoading;
+
+        const channelBadge = (ch) => {
+            const colors = { local: 'bg-emerald-100 text-emerald-700', online: 'bg-blue-100 text-blue-700', discogs: 'bg-purple-100 text-purple-700' };
+            const labels = { local: 'Tienda', online: 'Webshop', discogs: 'Discogs' };
+            return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${colors[ch] || 'bg-slate-100 text-slate-600'}">${labels[ch] || ch}</span>`;
+        };
+
+        const html = `
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <!-- Header -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">📑 <span class="text-brand-orange">Contabilidad</span></h1>
+                        <p class="text-slate-500 font-medium">Facturas de venta — Brugtmoms compliance</p>
+                    </div>
+                </div>
+
+                <!-- Filters + Download Quarter -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 mb-6">
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-bold text-slate-400 uppercase">Año</label>
+                            <select id="contab-year" onchange="app.state.contabilidadYear = parseInt(this.value); app.loadInvoices()" class="dashboard-input bg-white h-10 px-3 rounded-lg border border-slate-200 font-semibold text-sm">
+                                ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-bold text-slate-400 uppercase">Trimestre</label>
+                            <select id="contab-quarter" onchange="app.state.contabilidadQuarter = parseInt(this.value); app.loadInvoices()" class="dashboard-input bg-white h-10 px-3 rounded-lg border border-slate-200 font-semibold text-sm">
+                                ${[1, 2, 3, 4].map(q => `<option value="${q}" ${q === quarter ? 'selected' : ''}>Q${q} (${['Ene-Mar', 'Abr-Jun', 'Jul-Sep', 'Oct-Dic'][q - 1]})</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="flex-1"></div>
+
+                        <button onclick="app.loadInvoices()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-sm text-slate-600 transition-colors">
+                            <i class="ph-bold ph-arrows-clockwise"></i> Actualizar
+                        </button>
+
+                        <button onclick="app.backfillInvoices()" class="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl font-semibold text-sm text-emerald-700 transition-colors">
+                            <i class="ph-bold ph-database"></i> Generar facturas anteriores
+                        </button>
+
+                        <button onclick="app.downloadQuarterInvoices()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
+                            <i class="ph-bold ph-download-simple"></i> Descargar Trimestre Q${quarter}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="kpi-card">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Total Facturas</div>
+                        <div class="text-2xl font-bold text-brand-dark">${invoices.length}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Ventas Totales</div>
+                        <div class="text-2xl font-bold text-brand-orange">${invoices.reduce((s, i) => s + (i.totalAmount || 0), 0).toFixed(0)} DKK</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tienda</div>
+                        <div class="text-2xl font-bold text-emerald-600">${invoices.filter(i => i.channel === 'local').length}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Online + Discogs</div>
+                        <div class="text-2xl font-bold text-blue-600">${invoices.filter(i => i.channel !== 'local').length}</div>
+                    </div>
+                </div>
+
+                <!-- Invoice Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                    ${loading ? `
+                        <div class="flex items-center justify-center py-20">
+                            <div class="text-center">
+                                <div class="animate-spin w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full mx-auto mb-4"></div>
+                                <p class="text-slate-400 font-medium">Cargando facturas...</p>
+                            </div>
+                        </div>
+                    ` : invoices.length === 0 ? `
+                        <div class="flex flex-col items-center justify-center py-20">
+                            <i class="ph-duotone ph-receipt text-6xl text-slate-300 mb-4"></i>
+                            <p class="text-slate-400 font-medium text-lg">No hay facturas para Q${quarter} ${year}</p>
+                            <p class="text-slate-300 text-sm mt-1">Las facturas se generan automáticamente con cada venta</p>
+                        </div>
+                    ` : `
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-orange-100 bg-orange-50/50">
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">#</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Fecha</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Canal</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Cliente</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Descripción</th>
+                                        <th class="text-right px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Total</th>
+                                        <th class="text-center px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">PDF</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${invoices.map((inv, idx) => `
+                                        <tr class="inv-row border-b border-slate-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}">
+                                            <td class="px-5 py-3 text-sm font-mono font-bold text-brand-dark">${inv.invoiceNumber || '-'}</td>
+                                            <td class="px-5 py-3 text-sm text-slate-600">${inv.date || '-'}</td>
+                                            <td class="px-5 py-3">${channelBadge(inv.channel)}</td>
+                                            <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || 'Butikskunde'}</td>
+                                            <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
+                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${(inv.totalAmount || 0).toFixed(0)} DKK</td>
+                                            <td class="px-5 py-3 text-center">
+                                                <button onclick="app.downloadInvoicePdf('${inv.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
+                                                    <i class="ph-bold ph-file-pdf"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+
+                <!-- Brugtmoms Notice -->
+                <div class="mt-6 bg-orange-50 border border-orange-200 rounded-2xl p-5">
+                    <div class="flex items-start gap-3">
+                        <i class="ph-duotone ph-scales text-2xl text-brand-orange mt-1"></i>
+                        <div>
+                            <p class="font-bold text-brand-dark text-sm mb-1">Brugtmoms — Margin Scheme Compliance</p>
+                            <p class="text-sm text-slate-600">Todas las facturas incluyen la frase legal: <em>"Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen."</em></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+
+        // Auto-load invoices if not already loaded
+        if (!this.state.contabilidadLoaded) {
+            this.loadInvoices();
+        }
+    },
+
+    async loadInvoices() {
+        this.state.contabilidadLoading = true;
+        this.state.contabilidadLoaded = true;
+        this.refreshCurrentView();
+
+        try {
+            const year = this.state.contabilidadYear;
+            const quarter = this.state.contabilidadQuarter;
+            const token = await auth.currentUser.getIdToken();
+            const resp = await fetch(`${this.API_BASE}/invoices?year=${year}&quarter=${quarter}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!resp.ok) throw new Error('Error cargando facturas');
+            const data = await resp.json();
+            this.state.contabilidadInvoices = data.invoices || [];
+        } catch (err) {
+            console.error('Error loading invoices:', err);
+            this.showToast('Error cargando facturas: ' + err.message, 'error');
+            this.state.contabilidadInvoices = [];
+        }
+
+        this.state.contabilidadLoading = false;
+        this.refreshCurrentView();
+    },
+
+    async downloadInvoicePdf(invoiceId) {
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const resp = await fetch(`${this.API_BASE}/invoices/${invoiceId}/download`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!resp.ok) throw new Error('Error descargando factura');
+            const data = await resp.json();
+
+            if (data.downloadUrl) {
+                window.open(data.downloadUrl, '_blank');
+            }
+        } catch (err) {
+            console.error('Error downloading invoice:', err);
+            this.showToast('Error descargando factura: ' + err.message, 'error');
+        }
+    },
+
+    async downloadQuarterInvoices() {
+        try {
+            const year = this.state.contabilidadYear;
+            const quarter = this.state.contabilidadQuarter;
+            const token = await auth.currentUser.getIdToken();
+
+            this.showToast(`Preparando descarga Q${quarter} ${year}...`);
+
+            const resp = await fetch(`${this.API_BASE}/invoices/quarter-download?year=${year}&quarter=${quarter}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!resp.ok) throw new Error('Error descargando trimestre');
+            const data = await resp.json();
+
+            if (!data.invoices || data.invoices.length === 0) {
+                this.showToast('No hay facturas para este trimestre', 'error');
+                return;
+            }
+
+            // Download all PDFs using JSZip (already loaded in index.html)
+            const zip = new JSZip();
+            const folder = zip.folder(`Contabilidad_ElCuartito_${year}_Q${quarter}`);
+
+            for (const inv of data.invoices) {
+                try {
+                    const pdfResp = await fetch(inv.downloadUrl);
+                    const blob = await pdfResp.blob();
+                    folder.file(inv.fileName, blob);
+                } catch (e) {
+                    console.error(`Error downloading ${inv.fileName}:`, e);
+                }
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            saveAs(content, `Contabilidad_ElCuartito_${year}_Q${quarter}.zip`);
+            this.showToast(`✅ ${data.invoices.length} facturas descargadas`);
+        } catch (err) {
+            console.error('Error downloading quarter:', err);
+            this.showToast('Error descargando trimestre: ' + err.message, 'error');
+        }
+    },
+
+    async backfillInvoices() {
+        if (!confirm('¿Generar facturas PDF para todas las ventas anteriores que no tienen factura?\n\nEsto puede tardar unos minutos.')) return;
+
+        try {
+            this.showToast('🔄 Generando facturas para ventas anteriores... esto puede tardar unos minutos');
+            const token = await auth.currentUser.getIdToken();
+
+            const resp = await fetch(`${this.API_BASE}/invoices/backfill`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!resp.ok) throw new Error('Error en backfill');
+            const data = await resp.json();
+
+            const msg = `✅ Backfill completado: ${data.generated} facturas generadas, ${data.skipped} ya existentes` +
+                (data.errors?.length ? `, ${data.errors.length} errores` : '');
+            this.showToast(msg);
+
+            // Refresh the invoice list
+            await this.loadInvoices();
+        } catch (err) {
+            console.error('Error in backfill:', err);
+            this.showToast('Error en backfill: ' + err.message, 'error');
+        }
     },
 
     navigate(view) {
@@ -2194,10 +2481,10 @@ const app = {
                 `}
             ` : `
                 <!-- LIST VIEW (Table) -->
-                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden relative">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative">
                     <!-- Bulk Action Bar -->
                     ${this.state.selectedItems.size > 0 ? `
-                        <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-fade-in">
+                        <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-slide-up">
                             <div class="flex items-center gap-3">
                                 <span class="font-bold text-sm bg-white/10 px-3 py-1 rounded-lg">${this.state.selectedItems.size} seleccionados</span>
                                 <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</button>
@@ -2214,68 +2501,71 @@ const app = {
                     ` : ''}
 
                     <table class="w-full text-left">
-                        <thead class="bg-orange-50/50 border-b border-orange-100 text-slate-500 font-bold uppercase text-xs">
-                            <tr>
+                        <thead class="bg-slate-50 border-b border-slate-100">
+                            <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 <th class="p-4 w-10">
                                     <input type="checkbox" onchange="app.toggleSelectAll()" 
                                         class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
                                         ${filteredInventory.length > 0 && filteredInventory.every(i => this.state.selectedItems.has(i.sku)) ? 'checked' : ''}>
                                 </th>
-                                <th class="p-3 rounded-tl-2xl">Disco</th>
-                                <th class="p-3">Sello</th>
-                                <th class="p-3 text-center w-16">Estado</th>
-                                <th class="p-3 text-right w-20">Precio</th>
-                                <th class="p-3 text-center w-16">Stock</th>
-                                <th class="p-3 text-center w-12" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-500"></i></th>
-                                <th class="p-3 text-right rounded-tr-2xl w-32">Acciones</th>
+                                <th class="p-3">Disco</th>
+                                <th class="p-3 hidden md:table-cell">Sello</th>
+                                <th class="p-3 text-center w-16 hidden sm:table-cell">Estado</th>
+                                <th class="p-3 text-right w-24">Precio</th>
+                                <th class="p-3 text-center w-16 hidden sm:table-cell">Stock</th>
+                                <th class="p-3 text-center w-12 hidden md:table-cell" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-400"></i></th>
+                                <th class="p-3 text-right w-28">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
                             ${filteredInventory.map(item => `
-                                <tr class="hover:bg-orange-50/30 transition-colors group cursor-pointer relative ${this.state.selectedItems.has(item.sku) ? 'bg-orange-50/50' : ''}" 
-                                    onclick="app.openProductModal('${item.sku.replace(/'/g, "\\'")}')">
+                                <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.sku) ? 'bg-orange-50/50' : ''}" 
+                                    onclick="app.openProductModal('${item.sku.replace(/'/g, "\\\\'")}')">
                                     <td class="p-3" onclick="event.stopPropagation()">
-                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\'")}')"
+                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\\\'")}')"
                                             class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
                                             ${this.state.selectedItems.has(item.sku) ? 'checked' : ''}>
                                     </td>
                                     <td class="p-3">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-sm border border-slate-100">
+                                            <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-md border border-slate-100">
                                                 ${item.cover_image
                             ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
-                            : `<i class="ph-fill ph-disc text-lg"></i>`
+                            : `<i class="ph-fill ph-disc text-xl"></i>`
                         }
                                             </div>
                                             <div class="min-w-0">
-                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[180px]" title="${item.album}">${item.album}</div>
-                                                <div class="text-xs text-slate-500 font-medium truncate max-w-[180px]">${item.artist}</div>
+                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[220px]" title="${item.album}">${item.album}</div>
+                                                <div class="text-xs text-slate-400 font-medium truncate max-w-[220px]">${item.artist}</div>
+                                                <div class="text-[10px] text-slate-300 font-mono mt-0.5 sm:hidden">${item.sku}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="p-3 text-xs text-slate-500 font-medium max-w-[80px] truncate">${item.label || '-'}</td>
-                                    <td class="p-3 text-center">${this.getStatusBadge(item.condition)}</td>
-                                    <td class="p-3 text-right font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price)}</td>
-                                    <td class="p-3 text-center">
-                                        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
+                                    <td class="p-3 text-xs text-slate-500 font-medium max-w-[100px] truncate hidden md:table-cell">${item.label || '-'}</td>
+                                    <td class="p-3 text-center hidden sm:table-cell">${this.getStatusBadge(item.condition)}</td>
+                                    <td class="p-3 text-right">
+                                        <span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price)}</span>
+                                    </td>
+                                    <td class="p-3 text-center hidden sm:table-cell">
+                                        <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-1 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}">
                                             ${item.stock}
                                         </span>
                                     </td>
-                                    <td class="p-3 text-center">
+                                    <td class="p-3 text-center hidden md:table-cell">
                                         ${item.discogs_listing_id
                             ? `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-100 text-purple-600" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>`
-                            : `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-100 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>`
+                            : `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-50 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>`
                         }
                                     </td>
                                     <td class="p-3 text-right" onclick="event.stopPropagation()">
-                                        <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark hover:border-brand-dark transition-all flex items-center justify-center shadow-sm" title="Editar">
+                                        <div class="flex justify-end gap-1">
+                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-7 h-7 rounded-full bg-brand-orange text-white flex items-center justify-center shadow-lg hover:scale-110 transition-transform" title="Añadir">
+                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\'")}')" class="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-500 transition-all flex items-center justify-center shadow-sm" title="Eliminar">
+                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center" title="Eliminar">
                                                 <i class="ph-bold ph-trash text-sm"></i>
                                             </button>
                                         </div>
@@ -2285,8 +2575,9 @@ const app = {
                         </tbody>
                     </table>
                 </div>
+
             `}
-`;
+        `;
     },
 
     renderInventory(container) {
@@ -2311,136 +2602,174 @@ const app = {
             return 0;
         });
 
+        // KPI calculations
+        const totalItems = this.state.inventory.length;
+        const totalValue = this.state.inventory.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+        const inStock = this.state.inventory.filter(i => (i.stock || 0) > 0).length;
+        const onDiscogs = this.state.inventory.filter(i => i.discogs_listing_id).length;
+
+        // Active filter count
+        const activeFilters = [
+            this.state.filterGenre !== 'all' ? 1 : 0,
+            this.state.filterOwner !== 'all' ? 1 : 0,
+            this.state.filterLabel !== 'all' ? 1 : 0,
+            this.state.filterStorage !== 'all' ? 1 : 0,
+            this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 1 : 0,
+        ].reduce((a, b) => a + b, 0);
+
         // 1. Static Layout Init
         if (!document.getElementById('inventory-layout-root')) {
             container.innerHTML = `
     <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
-                    <!--Header(Search) -->
+                    <!--Header -->
                     <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
-                         <div class="flex justify-between items-center mb-4">
-                            <div><h2 class="font-display text-2xl font-bold text-brand-dark">Inventario</h2></div>
+                         <div class="flex justify-between items-center mb-5">
+                            <div>
+                                <h2 class="font-display text-2xl font-bold text-brand-dark">Inventario</h2>
+                                <p class="text-xs text-slate-400 mt-1">${totalItems} discos registrados</p>
+                            </div>
                              <div class="flex gap-2">
-                                <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors">
-                                    <i class="ph-bold ph-clock-counter-clockwise text-2xl"></i>
+                                <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors" title="Historial">
+                                    <i class="ph-bold ph-clock-counter-clockwise text-lg"></i>
                                 </button>
-                                <button onclick="app.openBulkImportModal()" class="bg-emerald-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all" title="Carga Masiva CSV">
-                                    <i class="ph-bold ph-file-csv text-xl"></i>
-                                    <span class="text-sm font-bold hidden sm:inline">Importar</span>
+                                <button onclick="app.openBulkImportModal()" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-emerald-400 hover:text-emerald-600 transition-all" title="Carga Masiva CSV">
+                                    <i class="ph-bold ph-file-csv text-lg"></i>
+                                    <span class="text-xs font-bold hidden sm:inline">Importar</span>
                                 </button>
-                                <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-purple-500 text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-lg shadow-purple-500/20 hover:bg-purple-600 transition-all" title="Sincronizar con Discogs">
-                                    <i class="ph-bold ph-cloud-arrow-down text-xl"></i>
-                                    <span class="text-sm font-bold hidden sm:inline">Discogs</span>
+                                <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all" title="Sincronizar con Discogs">
+                                    <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
+                                    <span class="text-xs font-bold hidden sm:inline">Discogs</span>
                                 </button>
-                                <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
-                                    <i class="ph-bold ph-plus text-2xl"></i>
+                                <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
+                                    <i class="ph-bold ph-plus text-lg"></i>
+                                    <span class="text-xs font-bold hidden sm:inline">Nuevo</span>
                                 </button>
                             </div>
                         </div>
-                        <div class="relative group">
+
+                        <!-- Search Bar -->
+                        <div class="relative group mb-4">
                             <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-orange transition-colors text-lg"></i>
-                            <input type="text" placeholder="Buscar artista, álbum, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium">
+                            <input type="text" placeholder="Buscar artista, álbum, sello, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium shadow-sm">
                         </div>
+
+                        <!-- KPI Stats Row -->
+                        <div id="inventory-kpi-container" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+
+                        <!-- Inline Filter Chips -->
+                        <div id="inventory-filters-container" class="flex flex-wrap items-center gap-2"></div>
                     </div>
 
-                    <!--Main Grid-->
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mt-6">
-        <!-- Left Sidebar -->
-        <div class="hidden lg:block lg:col-span-1 space-y-6">
-            <div id="inventory-cart-container" class="hidden"></div>
-            <div id="inventory-filters-container"></div>
-        </div>
-        <!-- Content -->
-        <div class="lg:col-span-3">
-            <div class="flex justify-end mb-4 hidden lg:flex items-center gap-2">
-                <span class="text-xs font-bold text-slate-400 uppercase mr-2">Vista:</span>
-                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400'}"><i class="ph-bold ph-list-dashes text-lg"></i></button>
-                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400'}"><i class="ph-bold ph-squares-four text-lg"></i></button>
-            </div>
-            <div class="space-y-4 md:hidden">
-                <!-- Mobile Items (Simplified) -->
-                ${this.state.inventory.map(item => `<!-- Mobile Card Placeholder - Handled by renderInventoryContent actually? No, duplicate logic. Let's merge mobile into renderInventoryContent -->`).join('')}
-                <!-- Actually, let's let renderInventoryContent handle ALL content including mobile -->
-            </div>
-            <div id="inventory-content-container"></div>
-        </div>
-    </div>
+                    <!-- Cart (if items present) -->
+                    <div id="inventory-cart-container" class="hidden mb-4"></div>
+
+                    <!-- View Toggle + Content -->
+                    <div class="mt-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <p class="text-xs font-bold text-slate-400">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
+                            <div class="hidden lg:flex items-center gap-2">
+                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></button>
+                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></button>
+                            </div>
+                        </div>
+                        <div id="inventory-content-container"></div>
+                    </div>
                 </div>
     `;
-
-            // Render Filters (Once or Update?)
-            // Filters rely on 'selected' attributes so they might need re-render on state change.
-            // But they are less frequent. Let's render them here or in update.
         }
 
-        // 2. Dynamic Updates
-        this.renderInventoryCart();
+        // 2. Dynamic Updates — KPI Stats
+        const kpiContainer = document.getElementById('inventory-kpi-container');
+        if (kpiContainer) {
+            kpiContainer.innerHTML = `
+                <div class="kpi-card">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Discos</p>
+                    <p class="text-xl font-bold text-brand-dark font-display mt-1">${totalItems}</p>
+                </div>
+                <div class="kpi-card">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total</p>
+                    <p class="text-xl font-bold text-brand-orange font-display mt-1">${this.formatCurrency(totalValue)}</p>
+                </div>
+                <div class="kpi-card">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Stock</p>
+                    <p class="text-xl font-bold text-emerald-600 font-display mt-1">${inStock} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
+                </div>
+                <div class="kpi-card">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Discogs</p>
+                    <p class="text-xl font-bold text-purple-600 font-display mt-1">${onDiscogs} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
+                </div>
+            `;
+        }
 
-        // Filters (Re-render to update counts/selected state)
+        // 3. Dynamic Updates — Inline Filter Chips
         const filtersContainer = document.getElementById('inventory-filters-container');
         if (filtersContainer) {
             filtersContainer.innerHTML = `
-    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 sticky top-24">
-                    <h3 class="font-bold text-brand-dark mb-4 flex items-center gap-2"><i class="ph-bold ph-funnel text-slate-400"></i> Filtros</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Ordenar por</label>
-                            <select onchange="app.state.sortBy = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm font-medium outline-none focus:border-brand-orange">
-                                <option value="dateDesc" ${this.state.sortBy === 'dateDesc' ? 'selected' : ''}>Más Recientes</option>
-                                <option value="dateAsc" ${this.state.sortBy === 'dateAsc' ? 'selected' : ''}>Más Antiguos</option>
-                                <option value="priceDesc" ${this.state.sortBy === 'priceDesc' ? 'selected' : ''}>Precio: Mayor a Menor</option>
-                                <option value="priceAsc" ${this.state.sortBy === 'priceAsc' ? 'selected' : ''}>Precio: Menor a Mayor</option>
-                                <option value="stockDesc" ${this.state.sortBy === 'stockDesc' ? 'selected' : ''}>Stock: Mayor a Menor</option>
-                            </select>
-                        </div>
-                        <hr class="border-slate-50">
-                        <!-- Simplified Filters -->
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Género</label>
-                            <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
-                                <option value="all">Todos</option>
-                                ${allGenres.map(g => `<option value="${g}" ${this.state.filterGenre === g ? 'selected' : ''}>${g}</option>`).join('')}
-                            </select>
-                        </div>
-                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase mb-1 block">Label Disquería</label>
-                            <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
-                                <option value="all">Todas</option>
-                                ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
-                        </div>
-                         <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Sello (Discogs)</label>
-                            <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
-                                <option value="all">Todos</option>
-                                ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Dueño</label>
-                            <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:border-brand-orange">
-                                <option value="all">Todos</option>
-                                ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-400 uppercase mb-1 block">Publicado en Discogs</label>
-                            <select onchange="app.state.filterDiscogs = this.value; app.refreshCurrentView()" class="w-full bg-purple-50 border border-purple-200 rounded-lg p-2 text-sm outline-none focus:border-purple-500">
-                                <option value="all" ${(this.state.filterDiscogs || 'all') === 'all' ? 'selected' : ''}>Todos</option>
-                                <option value="yes" ${this.state.filterDiscogs === 'yes' ? 'selected' : ''}>✅ Sí</option>
-                                <option value="no" ${this.state.filterDiscogs === 'no' ? 'selected' : ''}>❌ No</option>
-                            </select>
-                        </div>
-                    </div>
+                <div class="filter-chip ${this.state.sortBy && this.state.sortBy !== 'dateDesc' ? 'active' : ''}">
+                    <i class="ph-bold ph-sort-ascending text-xs"></i>
+                    <select onchange="app.state.sortBy = this.value; app.refreshCurrentView()">
+                        <option value="dateDesc" ${this.state.sortBy === 'dateDesc' || !this.state.sortBy ? 'selected' : ''}>Más Recientes</option>
+                        <option value="dateAsc" ${this.state.sortBy === 'dateAsc' ? 'selected' : ''}>Más Antiguos</option>
+                        <option value="priceDesc" ${this.state.sortBy === 'priceDesc' ? 'selected' : ''}>Precio ↓</option>
+                        <option value="priceAsc" ${this.state.sortBy === 'priceAsc' ? 'selected' : ''}>Precio ↑</option>
+                        <option value="stockDesc" ${this.state.sortBy === 'stockDesc' ? 'selected' : ''}>Stock ↓</option>
+                    </select>
                 </div>
-    `;
+                <div class="filter-chip ${this.state.filterGenre !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-music-notes text-xs"></i>
+                    <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()">
+                        <option value="all">Género</option>
+                        ${allGenres.map(g => `<option value="${g}" ${this.state.filterGenre === g ? 'selected' : ''}>${g}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="filter-chip ${this.state.filterLabel !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-vinyl-record text-xs"></i>
+                    <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()">
+                        <option value="all">Sello</option>
+                        ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="filter-chip ${this.state.filterStorage !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-tag text-xs"></i>
+                    <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()">
+                        <option value="all">Disquería</option>
+                        ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="filter-chip ${this.state.filterOwner !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-user text-xs"></i>
+                    <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()">
+                        <option value="all">Dueño</option>
+                        ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="filter-chip ${this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-disc text-xs"></i>
+                    <select onchange="app.state.filterDiscogs = this.value; app.refreshCurrentView()">
+                        <option value="all" ${(this.state.filterDiscogs || 'all') === 'all' ? 'selected' : ''}>Discogs</option>
+                        <option value="yes" ${this.state.filterDiscogs === 'yes' ? 'selected' : ''}>✅ Publicado</option>
+                        <option value="no" ${this.state.filterDiscogs === 'no' ? 'selected' : ''}>❌ No pub.</option>
+                    </select>
+                </div>
+                ${activeFilters > 0 ? `
+                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
+                        <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters})
+                    </button>
+                ` : ''}
+            `;
         }
 
-        // Content (Grid/List)
+        // 4. Cart
+        this.renderInventoryCart();
+
+        // 5. Content (Grid/List)
         const contentContainer = document.getElementById('inventory-content-container');
         if (contentContainer) {
             this.renderInventoryContent(contentContainer, filteredInventory, allGenres, allOwners, allStorage);
         }
     },
+
+
 
     getStatusBadge(status) {
         const colors = {
@@ -3514,336 +3843,254 @@ const app = {
         const allGenres = [...new Set([...defaultGenres, ...(this.state.customGenres || [])])];
 
         const modalHtml = `
-    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
-            <div class="flex justify-between items-center mb-6 shrink-0">
-                <h3 class="font-display text-2xl font-bold text-brand-dark">${isEdit ? 'Editar Vinilo' : 'Agregar Nuevo Vinilo'}</h3>
-                <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
-                    <i class="ph-bold ph-x text-xl"></i>
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <style>
+            .dashboard-card { background: white; border: 1px solid #F1F5F9; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+            .dashboard-input { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 13px; font-weight: 600; padding: 10px 14px; transition: all 0.2s; }
+            .dashboard-input:focus { border-color: #FF6B00; background: white; outline: none; box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.1); }
+            
+            /* Custom Toggle Switch */
+            .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+            .switch input { opacity: 0; width: 0; height: 0; }
+            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #E2E8F0; transition: .4s; border-radius: 34px; }
+            .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+            input:checked + .slider { background-color: #FF6B00; }
+            input:checked + .slider:before { transform: translateX(14px); }
+            
+            .meta-chip { background: #F1F5F9; color: #475569; padding: 3px 8px; border-radius: 6px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+            .track-item { font-size: 10px; border-bottom: 1px solid #F8FAFC; padding: 4px 0; color: #64748b; }
+            .track-item:last-child { border: none; }
+            .profit-tag { background: #ECFDF5; color: #059669; padding: 4px 10px; border-radius: 99px; font-size: 10px; font-weight: 800; border: 1px solid #D1FAE5; }
+        </style>
+        
+        <div class="bg-white rounded-[32px] w-full max-w-4xl max-h-[90vh] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden border border-slate-200/50 animate-in zoom-in-95 duration-300">
+            <!-- Header -->
+            <div class="px-8 py-5 border-b border-slate-50 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
+                        <i class="ph-fill ph-plus-circle text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900 tracking-tight">${isEdit ? 'Edit Record' : 'Add to Inventory'}</h3>
+                </div>
+                <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-300 hover:text-slate-900">
+                    <i class="ph-bold ph-x"></i>
                 </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-8 pr-2 custom-scrollbar">
+            <form id="vinyl-form" onsubmit="app.handleAddVinyl(event, '${isEdit ? item.sku : ''}')" class="flex-1 flex flex-col overflow-hidden">
+                <div class="px-8 py-4 space-y-6 overflow-hidden">
+                    
+                    <!-- Top Grid: Identity + Pricing -->
+                    <div class="grid grid-cols-12 gap-5 shrink-0">
+                        
+                        <!-- Block A: Album Identity -->
+                        <div class="col-span-12 lg:col-span-7 dashboard-card p-5 flex gap-5">
+                            <div class="relative w-28 h-28 shrink-0 group">
+                                <div id="cover-preview" class="absolute inset-0 bg-slate-50 rounded-2xl border-2 border-slate-100 border-dashed flex items-center justify-center overflow-hidden">
+                                    <img src="${item.cover_image || ''}" class="${item.cover_image ? '' : 'hidden'} w-full h-full object-cover">
+                                    <div id="cover-placeholder" class="${item.cover_image ? 'hidden' : ''}">
+                                        <i class="ph-fill ph-vinyl-record text-4xl text-slate-100"></i>
+                                    </div>
+                                </div>
+                                <div id="discogs-results" class="hidden absolute top-full left-0 w-[400px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2 mt-2 max-h-[300px] overflow-y-auto"></div>
+                            </div>
+                            
+                            <div class="flex-1 space-y-3">
+                                <div class="relative group">
+                                    <i class="ph-bold ph-magnifying-glass absolute left-3 top-[34px] text-slate-300 group-focus-within:text-[#FF6B00] text-sm"></i>
+                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Search Discogs</label>
+                                    <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') { event.preventDefault(); app.searchDiscogs(); }" placeholder="Artist, Title, Label..." 
+                                           autocomplete="off" spellcheck="false"
+                                           class="dashboard-input w-full pl-9 h-10">
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Artist</label>
+                                        <input name="artist" value="${item.artist}" required class="dashboard-input w-full h-10">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Album</label>
+                                        <input name="album" value="${item.album}" required class="dashboard-input w-full h-10">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                <!-- Left Column: Search & Image -->
-                <div class="md:col-span-4 space-y-6">
-                    <!-- Discogs Search -->
-                    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden group">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange opacity-5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                        <!-- Block B: Pricing & Margins -->
+                        <div class="col-span-12 lg:col-span-5 dashboard-card p-5 bg-slate-50/30 border-dashed flex flex-col justify-center">
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Buy Cost</label>
+                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.calculateMargin()" class="dashboard-input w-full h-10">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Retail Price</label>
+                                    <input name="price" id="modal-price" type="number" step="0.5" value="${item.price || 0}" oninput="app.calculateProfit()" class="dashboard-input w-full h-10 border-[#FF6B00]/40 bg-white">
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center justify-between">
+                                <p id="profit-percent" class="text-lg font-black text-slate-900 leading-none">0%</p>
+                                <span id="profit-label" class="profit-tag">+$0.00</span>
+                            </div>
+                        </div>
+                    </div>
 
-                        <div class="relative z-10">
-                            <div class="flex justify-between items-center mb-3">
-                                <label class="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                                    <i class="ph-fill ph-disc"></i> Buscar en Discogs
+                    <!-- Metadata Area -->
+                    <div id="discogs-metadata-area" class="${isEdit ? '' : 'hidden'} dashboard-card overflow-hidden">
+                        <div class="bg-slate-50 border-b border-slate-100 flex items-center justify-between px-5 py-2">
+                             <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Discogs Info</h5>
+                             <a id="discogs-link" href="${item.discogsUrl || '#'}" target="_blank" class="${item.discogsUrl ? '' : 'hidden'} text-[10px] font-bold text-[#FF6B00] hover:underline flex items-center gap-1">
+                                <i class="ph-bold ph-disc"></i> View release
+                             </a>
+                        </div>
+                        <div class="px-5 py-3 grid grid-cols-12 gap-4">
+                            <div class="col-span-4">
+                                <p class="text-[8px] font-bold text-slate-400 uppercase mb-1.5">Genres & Styles</p>
+                                <div id="metadata-tags" class="flex flex-wrap gap-1 min-h-[20px]">
+                                    ${((item.genre || '') + (item.styles ? ', ' + item.styles : '')).split(',').filter(t => t.trim()).map(t => `<span class="meta-chip border border-slate-200">${t.trim()}</span>`).join('')}
+                                </div>
+                            </div>
+                            <div class="col-span-8 border-l border-slate-100 pl-4">
+                                <p class="text-[8px] font-bold text-slate-400 uppercase mb-1.5">Reference Tracklist</p>
+                                <div id="metadata-tracks" class="max-h-28 overflow-y-auto pr-2 custom-scrollbar space-y-0.5">
+                                    <p class="text-[10px] text-slate-400 italic">Select a Discogs result to load tracks...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Details & Channels -->
+                    <div class="grid grid-cols-12 gap-5 items-start">
+                        <!-- Left: Record Details -->
+                        <div class="col-span-8 space-y-4">
+                            <div class="grid grid-cols-4 gap-3">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Vinyl Grade</label>
+                                    <select name="condition" class="dashboard-input w-full h-10 bg-white">
+                                        <option value="M" ${item.condition === 'M' ? 'selected' : ''}>M (Mint)</option>
+                                        <option value="NM" ${item.condition === 'NM' || !item.condition ? 'selected' : ''}>NM (Near Mint)</option>
+                                        <option value="VG+" ${item.condition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
+                                        <option value="VG" ${item.condition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
+                                        <option value="G" ${item.condition === 'G' ? 'selected' : ''}>G (Good)</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Sleeve Grade</label>
+                                    <select name="sleeveCondition" class="dashboard-input w-full h-10 bg-white">
+                                        <option value="" ${!item.sleeveCondition ? 'selected' : ''}>—</option>
+                                        <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>M (Mint)</option>
+                                        <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>NM (Near Mint)</option>
+                                        <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
+                                        <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
+                                        <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>G (Good)</option>
+                                        <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
+                                        <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Year</label>
+                                    <input name="year" value="${item.year || ''}" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Stock</label>
+                                    <input name="stock" type="number" value="${item.stock || 1}" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 1</label>
+                                    <input name="genre" id="genre-1" value="${item.genre || ''}" placeholder="e.g. Electronic" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 2</label>
+                                    <input name="genre2" id="genre-2" value="${item.genre2 || ''}" placeholder="e.g. Techno" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 3</label>
+                                    <input name="genre3" id="genre-3" value="${item.genre3 || ''}" placeholder="e.g. Minimal" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-3">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Label / Sello</label>
+                                    <input name="label" value="${item.label || ''}" placeholder="Record label" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Owner</label>
+                                    <select name="owner" class="dashboard-input w-full h-10 bg-white">
+                                        <option value="El Cuartito" ${item.owner === 'El Cuartito' || !item.owner ? 'selected' : ''}>El Cuartito</option>
+                                        <option value="Consignment" ${item.owner === 'Consignment' ? 'selected' : ''}>Consignment</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Storage Location</label>
+                                    <input name="storageLocation" value="${item.storageLocation || ''}" placeholder="e.g. Shelf A" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Comments</label>
+                                    <input name="comments" value="${item.comments || ''}" placeholder="Optional notes" class="dashboard-input w-full h-10 bg-white">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: Channels (Compact Toggles) -->
+                        <div class="col-span-4 dashboard-card p-4 space-y-3 bg-slate-50 border-dashed">
+                             <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph-fill ph-vinyl-record text-slate-900 text-xs"></i>
+                                    <span class="text-[10px] font-bold text-slate-700">Discogs</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="publish_discogs" ${item.publish_discogs || item.discogs_listing_id ? 'checked' : ''}>
+                                    <span class="slider"></span>
                                 </label>
-                                <button onclick="app.navigate('settings'); document.getElementById('modal-overlay').remove()" class="text-xs font-bold text-brand-orange hover:underline" title="Configurar Token">
-                                    Configurar
-                                </button>
-                                ${isEdit ? '<button onclick="app.resyncMusic()" class="text-xs font-bold text-slate-400 hover:text-brand-orange ml-4 flex items-center gap-1"><i class="ph-bold ph-arrows-clockwise"></i> Resync Music</button>' : ''}
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') app.searchDiscogs()" placeholder="Catálogo, Artista o ID..." class="flex-1 bg-white border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm shadow-sm font-medium">
-                                    <button onclick="app.searchDiscogs()" class="bg-brand-dark text-white w-10 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20" title="Buscar">
-                                        <i class="ph-bold ph-magnifying-glass"></i>
-                                    </button>
-                                    <button onclick="app.fetchDiscogsById()" class="bg-indigo-500 text-white w-10 rounded-xl font-bold hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20" title="Importar por ID">
-                                        <i class="ph-bold ph-download-simple"></i>
-                                    </button>
-                            </div>
-                            <div id="discogs-results" class="mt-3 space-y-2 hidden max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl shadow-inner p-1"></div>
-                        </div>
-                    </div>
-
-                    <!-- Cover Preview (Large) -->
-                    <div class="aspect-square bg-slate-100 rounded-2xl border-2 border-slate-200 border-dashed flex items-center justify-center relative overflow-hidden group shadow-inner">
-                        <div id="cover-preview" class="${item.cover_image ? '' : 'hidden'} w-full h-full relative">
-                            <img src="${item.cover_image || ''}" class="w-full h-full object-cover">
-                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <span class="text-white text-xs font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm">Portada</span>
+                             </div>
+                             <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph-fill ph-storefront text-[#FF6B00] text-xs"></i>
+                                    <span class="text-[10px] font-bold text-slate-700">Online Web</span>
                                 </div>
-                        </div>
-                        <div class="${item.cover_image ? 'hidden' : ''} text-center p-6 text-slate-300">
-                            <i class="ph-fill ph-image text-4xl mb-2"></i>
-                            <p class="text-xs font-bold uppercase">Sin Imagen</p>
-                        </div>
-                    </div>
-
-                    <!-- Tracklist Preview (populated by Discogs selection) -->
-                    <div id="tracklist-preview" class="hidden bg-slate-50 rounded-xl border border-slate-200 p-4 max-h-48 overflow-y-auto custom-scrollbar">
-                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center justify-between">
-                            <span class="flex items-center gap-1"><i class="ph-bold ph-music-notes"></i> Tracklist (Referencia)</span>
-                            <a id="discogs-release-link" href="#" target="_blank" class="text-brand-orange hover:underline flex items-center gap-1 hidden">
-                                Ver en Discogs <i class="ph-bold ph-arrow-square-out"></i>
-                            </a>
-                        </p>
-                        <div id="tracklist-preview-content" class="space-y-1 text-xs text-slate-600"></div>
-                    </div>
-
-                    <!-- Price Suggestions (populated by selection) -->
-                    <div id="price-suggestions-preview" class="hidden bg-brand-bg/50 rounded-xl border border-brand-orange/20 p-4">
-                        <p class="text-[10px] font-bold text-brand-orange uppercase mb-2 flex items-center gap-1">
-                            <i class="ph-bold ph-tag"></i> Precios Sugeridos (Marketplace)
-                        </p>
-                        <div id="price-suggestions-content" class="grid grid-cols-2 gap-2">
+                                <label class="switch">
+                                    <input type="checkbox" name="is_online" ${item.is_online !== false ? 'checked' : ''}>
+                                    <span class="slider"></span>
+                                </label>
+                             </div>
+                             <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <i class="ph-fill ph-house text-[#10B981] text-xs"></i>
+                                    <span class="text-[10px] font-bold text-slate-700">In-Store POS</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" name="publish_local" ${item.publish_local !== false ? 'checked' : ''}>
+                                    <span class="slider"></span>
+                                </label>
+                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right Column: Form Data -->
-                <div class="md:col-span-8">
-                    <form onsubmit="app.handleAddVinyl(event, '${isEdit ? item.sku : ''}')" class="space-y-5">
+                <!-- Hidden Fields -->
+                <input type="hidden" name="cover_image" id="input-cover-image" value="${item.cover_image || ''}">
+                <input type="hidden" name="discogs_release_id" id="input-discogs-release-id" value="${item.discogs_release_id || ''}">
+                <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
+                <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
+                <input type="hidden" name="sku" value="${item.sku}">
+                <!-- label is now a visible field above -->
 
-                        <!-- Hidden Fields -->
-                        <input type="hidden" name="cover_image" id="input-cover-image" value="${item.cover_image || ''}">
-                        <input type="hidden" name="discogs_release_id" id="input-discogs-release-id" value="${item.discogs_release_id || ''}">
-                            <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
-                                <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
-                                    <!-- Fixed: Add hidden SKU input for form data -->
-                                    <input type="hidden" name="sku" value="${item.sku}">
-
-                                        <!-- Main Info Group -->
-                                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
-                                            <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
-                                                <i class="ph-fill ph-info text-brand-orange"></i> Información Principal
-                                            </h4>
-
-                                            <div class="grid grid-cols-2 gap-5">
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Artista</label>
-                                                    <input name="artist" value="${item.artist}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none font-bold text-brand-dark transition-all focus:bg-white text-sm">
-                                                </div>
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Álbum</label>
-                                                    <input name="album" value="${item.album}" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none font-bold text-brand-dark transition-all focus:bg-white text-sm">
-                                                </div>
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Sello / Label</label>
-                                                    <input name="label" id="input-label" value="${item.label || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm">
-                                                </div>
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Collection</label>
-                                                    <select name="collection" id="input-collection" onchange="app.handleCollectionChange(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">Sin Colección</option>
-                                                        <option value="Detroit Techno" ${item.collection === 'Detroit Techno' ? 'selected' : ''}>Detroit Techno</option>
-                                                        <option value="Ambient Essentials" ${item.collection === 'Ambient Essentials' ? 'selected' : ''}>Ambient Essentials</option>
-                                                        <option value="Staff Picks" ${item.collection === 'Staff Picks' ? 'selected' : ''}>Staff Picks</option>
-                                                        <option value="other" ${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? 'selected' : ''}>Otro...</option>
-                                                    </select>
-                                                    <div id="custom-collection-container" class="${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? '' : 'hidden'} mt-2">
-                                                        <input name="custom_collection" id="custom-collection-input" value="${(item.collection && !['Detroit Techno', 'Ambient Essentials', 'Staff Picks'].includes(item.collection)) ? item.collection : ''}" placeholder="Nombre de la colección" class="w-full bg-white border border-brand-orange rounded-xl p-2 text-sm focus:outline-none">
-                                                    </div>
-                                                </div>
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Principal</label>
-                                                    <select name="genre" onchange="app.checkCustomInput(this, 'custom-genre-container')" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">Seleccionar...</option>
-                                                        ${allGenres.map(g => `<option ${item.genre === g ? 'selected' : ''}>${g}</option>`).join('')}
-                                                        <option value="other">Otro...</option>
-                                                    </select>
-                                                    <div id="custom-genre-container" class="hidden mt-2">
-                                                        <input name="custom_genre" placeholder="Nuevo Género" class="w-full bg-white border border-brand-orange rounded-xl p-2 text-sm focus:outline-none">
-                                                    </div>
-                                                </div>
-
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Secundario</label>
-                                                    <select name="genre2" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">(Opcional)</option>
-                                                        ${allGenres.map(g => `<option ${item.genre2 === g ? 'selected' : ''}>${g}</option>`).join('')}
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género Terciario</label>
-                                                    <select name="genre3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">(Opcional)</option>
-                                                        ${allGenres.map(g => `<option ${item.genre3 === g ? 'selected' : ''}>${g}</option>`).join('')}
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 4</label>
-                                                    <select name="genre4" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">(Opcional)</option>
-                                                        ${allGenres.map(g => `<option ${item.genre4 === g ? 'selected' : ''}>${g}</option>`).join('')}
-                                                    </select>
-                                                </div>
-
-                                                <div class="col-span-2 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Género 5</label>
-                                                    <select name="genre5" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm appearance-none cursor-pointer">
-                                                        <option value="">(Opcional)</option>
-                                                        ${allGenres.map(g => `<option ${item.genre5 === g ? 'selected' : ''}>${g}</option>`).join('')}
-                                                    </select>
-                                                </div>
-                                                
-                                                <!-- Collection Note (conditional) -->
-                                                <div id="collection-note-container" class="col-span-2 ${item.collection ? '' : 'hidden'}">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Collection Note</label>
-                                                    <textarea name="collectionNote" id="input-collection-note" placeholder="¿Por qué elegiste este disco para esta colección?" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm resize-none">${item.collectionNote || ''}</textarea>
-                                                    <p class="text-xs text-slate-400 mt-1">Aparecerá como descripción editorial en la página de la colección</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <!-- Inventory & Pricing Group -->
-                                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
-                                            <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
-                                                <i class="ph-fill ph-currency-dollar text-green-600"></i> Inventario y Precio
-                                            </h4>
-
-                                            <div class="grid grid-cols-3 md:grid-cols-4 gap-4">
-                                                <div class="col-span-3 md:col-span-2">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Dueño</label>
-                                                    <select name="owner" id="modal-owner" onchange="app.handlePriceChange()" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none font-medium text-sm">
-                                                        <option value="El Cuartito" ${item.owner === 'El Cuartito' ? 'selected' : ''}>El Cuartito (Propio)</option>
-                                                        ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.split || c.agreementSplit || 70}" ${item.owner === c.name ? 'selected' : ''}>${c.name} (${c.split || c.agreementSplit || 70}%)</option>`).join('')}
-                                                    </select>
-                                                </div>
-                                                <div class="col-span-3 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Label Disquería</label>
-                                                    <input name="storageLocation" value="${item.storageLocation || ''}" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm" placeholder="A1">
-                                                </div>
-                                                <div class="col-span-3 md:col-span-1">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado del Vinilo</label>
-                                                    <select name="condition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option value="M" ${item.condition === 'M' ? 'selected' : ''}>Mint (M)</option>
-                                                        <option value="NM" ${item.condition === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
-                                                        <option value="VG+" ${item.condition === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
-                                                        <option value="VG" ${item.condition === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
-                                                        <option value="G+" ${item.condition === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
-                                                        <option value="G" ${item.condition === 'G' ? 'selected' : ''}>Good (G)</option>
-                                                        <option value="F" ${item.condition === 'F' ? 'selected' : ''}>Fair (F)</option>
-                                                        <option value="P" ${item.condition === 'P' ? 'selected' : ''}>Poor (P)</option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-span-3 md:col-span-2">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Condición Producto</label>
-                                                    <select name="product_condition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option value="New" ${item.product_condition === 'New' ? 'selected' : ''}>🆕 Nuevo (New)</option>
-                                                        <option value="Second-hand" ${item.product_condition === 'Second-hand' || !item.product_condition ? 'selected' : ''}>📦 Usado (Second-hand)</option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-span-3 md:col-span-2">
-                                                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Estado de la Funda</label>
-                                                    <select name="sleeveCondition" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:border-brand-orange outline-none text-sm font-bold">
-                                                        <option value="" ${!item.sleeveCondition ? 'selected' : ''}>Not Graded</option>
-                                                        <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
-                                                        <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
-                                                        <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>Mint (M)</option>
-                                                        <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>Near Mint (NM)</option>
-                                                        <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>Very Good Plus (VG+)</option>
-                                                        <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>Very Good (VG)</option>
-                                                        <option value="G+" ${item.sleeveCondition === 'G+' ? 'selected' : ''}>Good Plus (G+)</option>
-                                                        <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>Good (G)</option>
-                                                        <option value="F" ${item.sleeveCondition === 'F' ? 'selected' : ''}>Fair (F)</option>
-                                                        <option value="P" ${item.sleeveCondition === 'P' ? 'selected' : ''}>Poor (P)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div class="p-4 bg-orange-50/50 rounded-xl border border-orange-100 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Costo Adquisición</label>
-                                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost}" required oninput="app.handleCostChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-slate-600">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Ganancia %</label>
-                                                    <input name="margin" id="modal-margin" type="number" step="1" value="30" oninput="app.handleMarginChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none text-center shadow-sm text-sm font-bold text-brand-orange">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Precio Venta (Bruto)</label>
-                                                    <input name="price" id="modal-price" type="number" step="0.5" value="${item.price}" required oninput="app.handlePriceChange()" class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none font-bold text-brand-dark text-lg text-center shadow-sm">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Stock</label>
-                                                    <input name="stock" type="number" value="${item.stock}" required class="w-full bg-white border border-slate-200 rounded-xl p-2 focus:border-brand-orange outline-none font-bold text-center shadow-sm">
-                                                </div>
-                                            </div>
-                                            <div class="flex justify-between items-center px-1">
-                                                <p class="text-[10px] text-slate-400" id="cost-helper">Ingresa Costo y Margen para calcular precio.</p>
-                                                <p class="text-[10px] text-slate-400 font-mono">${item.sku}</p>
-                                            </div>
-                                        </div>
-
-                                        <!-- Comments field for Discogs -->
-                                        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-                                            <h4 class="text-sm font-bold text-brand-dark flex items-center gap-2 border-b border-slate-50 pb-2">
-                                                <i class="ph-fill ph-note text-brand-orange"></i> Comentarios (para Discogs)
-                                            </h4>
-                                            <div>
-                                                <textarea 
-                                                    name="comments" 
-                                                    rows="3" 
-                                                    maxlength="255"
-                                                    placeholder="Ej: Limited edition, colored vinyl, gatefold sleeve..." 
-                                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 focus:border-brand-orange outline-none text-sm resize-none"
-                                                >${item.comments || ''}</textarea>
-                                                <p class="text-xs text-slate-400 mt-1">Opcional. Se mostrará en la descripción de Discogs (máx 255 caracteres).</p>
-                                            </div>
-                                        </div>
-
-                                        <!-- Publishing Channels -->
-                                        <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-100 space-y-4">
-                                            <div class="flex items-center gap-2 mb-4">
-                                                <i class="ph-fill ph-broadcast text-purple-600 text-xl"></i>
-                                                <h4 class="text-sm font-bold text-purple-900 uppercase tracking-wide">Canales de Publicación</h4>
-                                            </div>
-                                            
-                                            <!-- WebShop Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-storefront text-green-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-green-900 cursor-pointer" for="channel-webshop">🌐 Publicar en WebShop</label>
-                                                        <p class="text-xs text-green-700">Visible en la tienda online</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-webshop" name="publish_webshop" ${item.publish_webshop !== false && item.is_online !== false ? 'checked' : ''} class="w-6 h-6 text-green-600 rounded border-green-300 focus:ring-green-500 cursor-pointer">
-                                            </div>
-
-                                            <!-- Discogs Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-vinyl-record text-purple-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-purple-900 cursor-pointer" for="channel-discogs">💿 Publicar en Discogs</label>
-                                                        <p class="text-xs text-purple-700">Crear listing en Discogs Marketplace</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-discogs" name="publish_discogs" ${item.publish_discogs === true || item.discogs_listing_id ? 'checked' : ''} class="w-6 h-6 text-purple-600 rounded border-purple-300 focus:ring-purple-500 cursor-pointer">
-                                            </div>
-
-                                            <!-- Local Checkbox -->
-                                            <div class="flex items-center justify-between bg-white/80 backdrop-blur rounded-xl p-4 border border-purple-100 hover:border-purple-300 transition-colors">
-                                                <div class="flex items-center gap-3">
-                                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                                        <i class="ph-fill ph-house text-blue-600 text-xl"></i>
-                                                    </div>
-                                                    <div>
-                                                        <label class="text-sm font-bold text-blue-900 cursor-pointer" for="channel-local">📍 Disponible en Local</label>
-                                                        <p class="text-xs text-blue-700">Disponible en tienda física</p>
-                                                    </div>
-                                                </div>
-                                                <input type="checkbox" id="channel-local" name="publish_local" ${item.publish_local !== false ? 'checked' : ''} class="w-6 h-6 text-blue-600 rounded border-blue-300 focus:ring-blue-500 cursor-pointer">
-                                            </div>
-                                        </div>
-
-                                        <div class="pt-2 flex gap-4">
-                                            <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">Cancelar</button>
-                                            <button type="submit" class="flex-[2] py-3 rounded-xl bg-brand-dark hover:bg-slate-800 text-white font-bold transition-all shadow-xl shadow-brand-dark/20 hover:scale-[1.02]">
-                                                <i class="ph-bold ph-floppy-disk mr-2"></i> Guardar Cambios
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
+                <!-- Footer Actions -->
+                <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: <span class="text-slate-900">${item.sku}</span></p>
+                    <div class="flex gap-4">
+                        <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</button>
+                        <button type="submit" class="bg-[#FF6B00] text-white px-10 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
+                            <i class="ph-bold ph-plus"></i>
+                            ${isEdit ? 'Update Inventory' : 'Add to Inventory'}
+                        </button>
+                    </div>
                 </div>
+            </form>
+        </div>
+    </div>
                 `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
@@ -3968,6 +4215,39 @@ const app = {
     },
 
     // --- End Product Detail View ---
+
+    calculateMargin() {
+        const costInput = document.getElementById('modal-cost');
+        const priceInput = document.getElementById('modal-price');
+        const profitPercent = document.getElementById('profit-percent');
+        const profitLabel = document.getElementById('profit-label');
+
+        if (!costInput || !priceInput || !profitPercent || !profitLabel) return;
+
+        const cost = parseFloat(costInput.value) || 0;
+        const price = parseFloat(priceInput.value) || 0;
+
+        if (price > 0) {
+            const profit = price - cost;
+            const margin = (profit / price) * 100;
+            profitPercent.innerText = `${Math.round(margin)}%`;
+            profitLabel.innerText = `${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`;
+
+            if (profit >= 0) {
+                profitLabel.className = 'profit-tag';
+            } else {
+                profitLabel.className = 'profit-tag bg-red-50 text-red-600 border-red-100';
+            }
+        } else {
+            profitPercent.innerText = '0%';
+            profitLabel.innerText = '+$0.00';
+            profitLabel.className = 'profit-tag';
+        }
+    },
+
+    calculateProfit() {
+        this.calculateMargin();
+    },
 
     handleCostChange() {
         const cost = parseFloat(document.getElementById('modal-cost').value) || 0;
@@ -5061,9 +5341,6 @@ const app = {
         const formData = new FormData(e.target);
 
         let genre = formData.get('genre');
-        if (genre === 'other') {
-            genre = formData.get('custom_genre');
-        }
 
         let collection = formData.get('collection');
         if (collection === 'other') {
@@ -7472,6 +7749,10 @@ const app = {
     },
 
     handleDiscogsSelection(release) {
+        // Hide results list
+        const resultsContainer = document.getElementById('discogs-results');
+        if (resultsContainer) resultsContainer.classList.add('hidden');
+
         const parts = release.title.split(' - ');
         const artist = parts[0] || '';
         const album = parts.slice(1).join(' - ') || release.title;
@@ -7479,187 +7760,33 @@ const app = {
         const form = document.querySelector('#modal-overlay form');
         if (!form) return;
 
-        // Set basic info immediately from search result
+        // Set basic info immediately
         if (form.artist) form.artist.value = artist;
         if (form.album) form.album.value = album;
         if (form.year && release.year) form.year.value = release.year;
 
-        // Set Label from search result
-        if (form.label && release.label && release.label.length > 0) {
-            form.label.value = release.label[0];
-        }
-
-        // Set Image from search result
+        // Set Image
         if (release.thumb || release.cover_image) {
             const imgUrl = release.cover_image || release.thumb;
             const input = document.getElementById('input-cover-image');
             const preview = document.getElementById('cover-preview');
             if (input) input.value = imgUrl;
             if (preview) {
-                preview.querySelector('img').src = imgUrl;
-                preview.classList.remove('hidden');
-            }
-        }
-
-        // Save Discogs Release ID
-        const releaseIdInput = document.getElementById('input-discogs-release-id');
-        if (releaseIdInput && release.id) {
-            releaseIdInput.value = release.id;
-        }
-
-        // Fetch FULL release details to get all genres/styles
-        if (release.id) {
-            this.showToast('⏳ Cargando géneros...', 'info');
-            fetch(`${BASE_API_URL}/discogs/release/${release.id}`)
-                .then(res => res.json())
-                .then(fullRelease => {
-                    console.log("Full Discogs Release:", fullRelease);
-
-                    // Get all styles and genres from full release
-                    const rawGenres = [...(fullRelease.styles || []), ...(fullRelease.genres || [])];
-                    console.log("ALL Genres/Styles from full release:", rawGenres);
-                    const uniqueGenres = [...new Set(rawGenres)];
-
-                    if (uniqueGenres.length > 0) {
-                        const select1 = form.querySelector('select[name="genre"]');
-                        const select2 = form.querySelector('select[name="genre2"]');
-                        const select3 = form.querySelector('select[name="genre3"]');
-                        const select4 = form.querySelector('select[name="genre4"]');
-                        const select5 = form.querySelector('select[name="genre5"]');
-                        const selects = [select1, select2, select3, select4, select5];
-
-                        uniqueGenres.slice(0, 5).forEach((g, i) => {
-                            if (selects[i]) {
-                                // Check if option exists, if not add it
-                                let found = false;
-                                for (let opt of selects[i].options) {
-                                    if (opt.value === g) {
-                                        selects[i].value = g;
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if (!found) {
-                                    const opt = document.createElement('option');
-                                    opt.value = g;
-                                    opt.text = g;
-                                    opt.selected = true;
-                                    selects[i].add(opt);
-                                }
-                            }
-                        });
-                        this.showToast(`✅ ${uniqueGenres.length} géneros cargados`, 'success');
-                    }
-
-                    // Update image with higher quality version if available
-                    if (fullRelease.images && fullRelease.images.length > 0) {
-                        const bestImage = fullRelease.images[0].uri;
-                        const input = document.getElementById('input-cover-image');
-                        const preview = document.getElementById('cover-preview');
-                        if (input) input.value = bestImage;
-                        if (preview) {
-                            preview.querySelector('img').src = bestImage;
-                        }
-                    }
-
-                    // Populate tracklist preview (display only, not saved)
-                    const tracklistPreview = document.getElementById('tracklist-preview');
-                    const tracklistContent = document.getElementById('tracklist-preview-content');
-                    if (tracklistPreview && tracklistContent && fullRelease.tracklist && fullRelease.tracklist.length > 0) {
-                        tracklistContent.innerHTML = fullRelease.tracklist.map(track => `
-                            <div class="flex items-center gap-2 py-1 border-b border-slate-100 last:border-0">
-                                <span class="text-[10px] font-mono text-slate-400 w-6">${track.position || ''}</span>
-                                <span class="flex-1">${track.title}</span>
-                                <span class="text-[10px] text-slate-400">${track.duration || ''}</span>
-                            </div>
-                        `).join('');
-                        tracklistPreview.classList.remove('hidden');
-                    }
-
-                    // NEW: Fetch Price Suggestions & Link
-                    const pricePreview = document.getElementById('price-suggestions-preview');
-                    const priceContent = document.getElementById('price-suggestions-content');
-                    const releaseLink = document.getElementById('discogs-release-link');
-
-                    if (releaseLink && fullRelease.uri) {
-                        const discogsUrl = fullRelease.uri.startsWith('http') ? fullRelease.uri : 'https://www.discogs.com' + fullRelease.uri;
-                        releaseLink.href = discogsUrl;
-                        releaseLink.classList.remove('hidden');
-                    }
-
-                    if (pricePreview && priceContent) {
-                        priceContent.innerHTML = '<div class="col-span-2 text-[10px] text-slate-400 animate-pulse">Consultando mercado...</div>';
-                        pricePreview.classList.remove('hidden');
-
-                        const backendUrl = BASE_API_URL;
-
-                        fetch(`${backendUrl}/discogs/price-suggestions/${release.id}`)
-                            .then(res => res.json())
-                            .then(data => {
-                                if (data.success && data.suggestions) {
-                                    const s = data.suggestions;
-                                    const currency = s.currency === 'DKK' ? ' kr.' : (s.currency === 'USD' ? ' $' : ' ' + s.currency);
-
-                                    const renderPrice = (label, key) => {
-                                        const val = s[key];
-                                        return `
-                                            <div class="bg-white p-2 rounded-lg border border-brand-orange/10">
-                                                <span class="text-[9px] text-slate-400 block leading-none mb-1">${label}</span>
-                                                <span class="font-bold text-brand-dark">${val ? val.value.toFixed(0) + currency : 'N/A'}</span>
-                                            </div>
-                                        `;
-                                    };
-
-                                    priceContent.innerHTML = `
-                                        ${renderPrice('Mint (M)', 'Mint (M)')}
-                                        ${renderPrice('Near Mint (NM)', 'Near Mint (NM or M-)')}
-                                        ${renderPrice('Very Good Plus (VG+)', 'Very Good Plus (VG+)')}
-                                        ${renderPrice('Very Good (VG)', 'Very Good (VG)')}
-                                    `;
-                                } else {
-                                    priceContent.innerHTML = '<div class="col-span-2 text-[10px] text-slate-400">Precios no disponibles para este release</div>';
-                                }
-                            })
-                            .catch(err => {
-                                console.error('Price suggestion error:', err);
-                                priceContent.innerHTML = '<div class="col-span-2 text-[10px] text-red-400 italic">Error al consultar precios</div>';
-                            });
-                    }
-                })
-                .catch(err => {
-                    console.error('Error fetching full release:', err);
-                    this.showToast('⚠️ No se pudieron cargar todos los géneros', 'warning');
-                });
-        } else {
-            // Fallback: use search result data (limited - usually only 1 genre)
-            const rawGenres = [...(release.style || []), ...(release.genre || [])];
-            console.log("Fallback Genres (limited, no token):", rawGenres);
-            const uniqueGenres = [...new Set(rawGenres)];
-
-            if (uniqueGenres.length > 0) {
-                const select1 = form.querySelector('select[name="genre"]');
-                if (select1) {
-                    const g = uniqueGenres[0];
-                    let found = false;
-                    for (let opt of select1.options) {
-                        if (opt.value === g) {
-                            select1.value = g;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        const opt = document.createElement('option');
-                        opt.value = g;
-                        opt.text = g;
-                        opt.selected = true;
-                        select1.add(opt);
-                    }
+                const img = preview.querySelector('img');
+                const placeholder = document.getElementById('cover-placeholder');
+                if (img) {
+                    img.src = imgUrl;
+                    img.classList.remove('hidden');
                 }
+                if (placeholder) placeholder.classList.add('hidden');
             }
         }
 
-        // Set Discogs URL
+        // Save Discogs IDs
+        const releaseIdInput = document.getElementById('input-discogs-id');
+        if (releaseIdInput && release.id) releaseIdInput.value = release.id;
+
+        // Set Discogs URL for hidden field
         if (release.uri || release.resource_url) {
             const uri = release.uri || release.resource_url;
             const fullUrl = uri.startsWith('http') ? uri : 'https://www.discogs.com' + uri;
@@ -7667,14 +7794,84 @@ const app = {
             if (urlInput) urlInput.value = fullUrl;
         }
 
-        // Set Discogs ID
+        // Fetch FULL release details
         if (release.id) {
-            const idInput = document.getElementById('input-discogs-id');
-            if (idInput) idInput.value = release.id;
-        }
+            const metadataArea = document.getElementById('discogs-metadata-area');
+            const tracksList = document.getElementById('metadata-tracks');
+            const tagsContainer = document.getElementById('metadata-tags');
+            const discogsLink = document.getElementById('discogs-link');
 
-        document.getElementById('discogs-results').classList.add('hidden');
+            console.log("Metadata Area Found:", !!metadataArea);
+
+            // SHOW METADATA AREA IMMEDIATELY
+            if (metadataArea) {
+                metadataArea.classList.remove('hidden');
+                metadataArea.style.display = 'grid'; // Force display
+            }
+
+            if (tracksList) tracksList.innerHTML = '<p class="text-[10px] text-slate-400 animate-pulse">Loading tracks...</p>';
+
+            this.showToast('⏳ Cargando detalles...', 'info');
+            fetch(`${BASE_API_URL}/discogs/release/${release.id}`)
+                .then(res => res.json())
+                .then(data => {
+                    const fullRelease = data.release || data;
+                    console.log("Full Release Data:", fullRelease);
+
+                    // Force show again in case it was hidden
+                    if (metadataArea) {
+                        metadataArea.classList.remove('hidden');
+                        metadataArea.style.display = 'grid';
+                    }
+
+                    // Set Discogs Link UI
+                    if (discogsLink && fullRelease.uri) {
+                        const fullUrl = fullRelease.uri.startsWith('http') ? fullRelease.uri : 'https://www.discogs.com' + fullRelease.uri;
+                        discogsLink.href = fullUrl;
+                        discogsLink.classList.remove('hidden');
+                        discogsLink.style.display = 'flex'; // Force display
+                    }
+
+                    // Render Genres/Styles
+                    const rawGenres = [...(fullRelease.genres || []), ...(fullRelease.styles || [])];
+                    const uniqueGenres = [...new Set(rawGenres)];
+                    if (tagsContainer) {
+                        tagsContainer.innerHTML = uniqueGenres.map(g => `<span class="meta-chip border border-slate-200">${g}</span>`).join('');
+                    }
+
+                    // Auto-populate genre input fields from Discogs (up to 3)
+                    for (let gi = 0; gi < Math.min(uniqueGenres.length, 3); gi++) {
+                        const genreInput = document.getElementById(`genre-${gi + 1}`);
+                        if (genreInput) genreInput.value = uniqueGenres[gi];
+                    }
+
+                    // Render Tracklist
+                    if (tracksList) {
+                        if (fullRelease.tracklist && fullRelease.tracklist.length > 0) {
+                            tracksList.innerHTML = fullRelease.tracklist.map(t => `
+                                <div class="track-item flex justify-between gap-4 py-1 border-b border-slate-50 last:border-0">
+                                    <span class="font-bold w-6 opacity-40 shrink-0 capitalize text-[9px]">${t.position || '•'}</span>
+                                    <span class="flex-1 truncate font-medium text-slate-600 text-[10px]">${t.title}</span>
+                                    <span class="opacity-40 text-[9px] font-mono shrink-0">${t.duration || ''}</span>
+                                </div>
+                            `).join('');
+                        } else {
+                            tracksList.innerHTML = '<p class="text-[10px] text-slate-400 italic">No tracks found.</p>';
+                        }
+                    }
+
+                    // Populate label for record
+                    if (form.label && fullRelease.labels && fullRelease.labels.length > 0) {
+                        form.label.value = fullRelease.labels[0].name;
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching full release:", err);
+                    if (tracksList) tracksList.innerHTML = '<p class="text-[10px] text-red-400">Error loading tracklist.</p>';
+                });
+        }
     },
+
 
     openTracklistModal(sku) {
         const item = this.state.inventory.find(i => i.sku === sku);
@@ -7704,7 +7901,9 @@ const app = {
                     if (!res.ok) throw new Error('Release not found');
                     return res.json();
                 })
-                .then(data => {
+                .then(response => {
+                    // Backend wraps response in { success, release }, unwrap it
+                    const data = response.release || response;
                     const tracks = data.tracklist || [];
                     const trackHtml = tracks.map(t => `
                                                                 <div class="flex items-center justify-between py-3 border-b border-slate-50 hover:bg-slate-50 px-2 transition-colors rounded-lg group">
@@ -9591,7 +9790,9 @@ const app = {
                 if (!res.ok) throw new Error(`Error ${res.status}`);
                 return res.json();
             })
-            .then(data => {
+            .then(response => {
+                // Backend wraps response in { success, release }, unwrap it
+                const data = response.release || response;
                 // Normalize data structure for handleDiscogsSelection
                 const normalized = {
                     id: data.id,

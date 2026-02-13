@@ -4,6 +4,7 @@ import config from '../config/env';
 import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import { sendOrderConfirmationEmail } from '../services/mailService';
+import { generateInvoice, buildInvoiceFromWebshopSale } from '../services/invoiceService';
 
 // Initialize Stripe only if key exists
 const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test_mock'
@@ -154,6 +155,14 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                                 console.error('Error in background email sending:', e)
                             );
                         }, 1);
+
+                        // Generate invoice in background
+                        setTimeout(() => {
+                            const invoiceData = buildInvoiceFromWebshopSale(saleId, finalOrderData);
+                            generateInvoice(invoiceData).catch(e =>
+                                console.error('⚠️ Invoice generation failed for webshop sale:', e.message)
+                            );
+                        }, 100);
                     } else {
                         console.log('Sale not found or already processed:', saleId);
                     }

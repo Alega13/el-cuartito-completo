@@ -56,6 +56,16 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- JSZip for Receipt ZIP Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- Fuse.js for Fuzzy Search -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+
     <!-- Firebase SDK (Compatibility version for easier integration with existing code) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
@@ -118,6 +128,289 @@
 
         .hover-card:active {
             transform: scale(0.98);
+        }
+
+        /* ===== REDESIGNED INVENTORY STYLES ===== */
+
+        /* Filter Chips */
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1.5px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+
+        .filter-chip:hover {
+            border-color: #F05A28;
+            color: #F05A28;
+            background: #fff7ed;
+        }
+
+        .filter-chip.active {
+            border-color: #F05A28;
+            background: #F05A28;
+            color: white;
+        }
+
+        .filter-chip select {
+            appearance: none;
+            background: transparent;
+            border: none;
+            font-size: 12px;
+            font-weight: 600;
+            color: inherit;
+            cursor: pointer;
+            outline: none;
+            padding-right: 12px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0 center;
+        }
+
+        /* Enhanced Table Row */
+        .inv-row {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .inv-row:hover {
+            background: linear-gradient(90deg, #fff7ed 0%, #ffffff 100%) !important;
+            box-shadow: 0 2px 12px rgba(240, 90, 40, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .inv-row:hover .inv-actions {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .inv-actions {
+            opacity: 0;
+            transform: translateX(4px);
+            transition: all 0.2s ease;
+        }
+
+        /* Condition Pill Buttons */
+        .cond-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 2px solid #e2e8f0;
+            background: white;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            min-width: 48px;
+        }
+
+        .cond-pill:hover {
+            border-color: #F05A28;
+            color: #F05A28;
+            transform: scale(1.05);
+        }
+
+        .cond-pill.selected {
+            border-color: #F05A28;
+            background: #F05A28;
+            color: white;
+            box-shadow: 0 2px 8px rgba(240, 90, 40, 0.3);
+        }
+
+        /* Genre Tag Chips */
+        .genre-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: 1.5px solid transparent;
+        }
+
+        .genre-tag:hover {
+            background: #fff7ed;
+            border-color: #F05A28;
+            color: #F05A28;
+        }
+
+        .genre-tag.selected {
+            background: linear-gradient(135deg, #F05A28 0%, #ea580c 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 2px 6px rgba(240, 90, 40, 0.25);
+        }
+
+        .genre-tag .remove-btn {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            margin-left: 2px;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #cbd5e1;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toggle-switch.active {
+            background: #F05A28;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+
+        .toggle-switch.active-green {
+            background: #22c55e;
+        }
+
+        .toggle-switch.active-purple {
+            background: #8b5cf6;
+        }
+
+        .toggle-switch.active-blue {
+            background: #3b82f6;
+        }
+
+        /* KPI Card */
+        .kpi-card {
+            background: white;
+            border: 1.5px solid #f1f5f9;
+            border-radius: 16px;
+            padding: 16px 20px;
+            transition: all 0.2s ease;
+        }
+
+        .kpi-card:hover {
+            border-color: #F05A28;
+            box-shadow: 0 4px 12px rgba(240, 90, 40, 0.08);
+        }
+
+        /* Pricing Calculator Card */
+        .price-calc {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+        }
+
+        .price-calc input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: white;
+            font-weight: 700;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .price-calc input:focus {
+            border-color: #F05A28;
+        }
+
+        .price-calc input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Slide up animation */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.3s ease-out forwards;
+        }
+
+        /* Modal sections stagger animation */
+        .modal-section {
+            opacity: 0;
+            animation: slideUp 0.35s ease-out forwards;
+        }
+
+        .modal-section:nth-child(1) {
+            animation-delay: 0.05s;
+        }
+
+        .modal-section:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .modal-section:nth-child(3) {
+            animation-delay: 0.15s;
+        }
+
+        .modal-section:nth-child(4) {
+            animation-delay: 0.2s;
+        }
+
+        .modal-section:nth-child(5) {
+            animation-delay: 0.25s;
+        }
+
+        /* Cover image card */
+        .cover-card {
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .cover-card:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -266,6 +559,11 @@
                     <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
                     <span>📊 Reporte VAT</span>
                 </button>
+                <button onclick="app.navigate('contabilidad')" id="nav-d-contabilidad"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>📑 Contabilidad</span>
+                </button>
 
                 <button onclick="app.navigate('backup')" id="nav-d-backup"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
@@ -378,6 +676,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-info text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Legal</span>
+            </button>
+            <button onclick="app.navigate('contabilidad'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-receipt text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Facturas</span>
             </button>
         </div>
     </div>

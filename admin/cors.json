@@ -1,0 +1,24 @@
+[
+    {
+        "origin": [
+            "http://localhost:5174",
+            "http://localhost:3000",
+            "https://el-cuartito-app.web.app",
+            "https://el-cuartito-shop.vercel.app"
+        ],
+        "method": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "OPTIONS"
+        ],
+        "maxAgeSeconds": 3600,
+        "responseHeader": [
+            "Content-Type",
+            "Authorization",
+            "Content-Length",
+            "X-Requested-With"
+        ]
+    }
+]
