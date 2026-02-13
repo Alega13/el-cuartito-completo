@@ -120,7 +120,7 @@ function formatChannel(channel: string): string {
 
 // ─── Core: Generate PDF ──────────────────────────────────────────────
 
-function generatePDFBuffer(
+export function generatePDFBuffer(
     invoiceNumber: string,
     sale: SaleInvoiceData
 ): Promise<Buffer> {
@@ -247,8 +247,13 @@ function generatePDFBuffer(
 
         doc.fontSize(12).fillColor('#1E293B').font('Helvetica-Bold');
         doc.text('TOTAL:', 350, yPos, { width: 105, align: 'right' });
+
+        // CRITICAL FIX: Ensure total is strictly Sum(Items) + Shipping to show Gross Amount (Customer Pay)
+        // This avoids issues where sale.totalAmount might be Net (after fees).
+        const calculatedTotal = sale.items.reduce((sum, item) => sum + item.total, 0) + (sale.shippingCost || 0);
+
         doc.fillColor(BRAND_ORANGE);
-        doc.text(`${sale.totalAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        doc.text(`${calculatedTotal.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
 
         // ── Brugtmoms legal notice ──
         yPos += 50;
@@ -296,7 +301,7 @@ function generatePDFBuffer(
 
 // ─── Core: Upload to Firebase Storage ────────────────────────────────
 
-async function uploadToStorage(
+export async function uploadToStorage(
     pdfBuffer: Buffer,
     storagePath: string
 ): Promise<string> {
@@ -598,7 +603,7 @@ export async function getQuarterInvoices(
  * Builds SaleInvoiceData from a raw Firestore sale document.
  * Handles all 3 sale formats (POS/local, online, discogs).
  */
-function buildInvoiceFromSaleDoc(saleId: string, data: any): SaleInvoiceData {
+export function buildInvoiceFromSaleDoc(saleId: string, data: any): SaleInvoiceData {
     const channel = data.channel || 'local';
 
     // Determine date — different fields depending on channel
@@ -612,7 +617,15 @@ function buildInvoiceFromSaleDoc(saleId: string, data: any): SaleInvoiceData {
     }
 
     // Determine total amount
-    const totalAmount = data.total_amount || data.total || data.originalTotal || 0;
+    let totalAmount = data.total_amount || data.total || data.originalTotal || 0;
+
+    // CRITICAL: For Discogs, data.total is often Net Payout. We need Gross.
+    if (channel === 'Discogs' || data.discogs_order_id) {
+        // If we have originalTotal (Items Subtotal) and shipping, use that sum for Gross.
+        if (data.originalTotal !== undefined && data.shipping !== undefined) {
+            totalAmount = Number(data.originalTotal) + Number(data.shipping);
+        }
+    }
 
     // Determine payment method
     const paymentMethod = data.paymentMethod || data.payment_method || 'Unknown';
