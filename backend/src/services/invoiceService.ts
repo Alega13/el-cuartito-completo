@@ -493,8 +493,9 @@ export async function listInvoices(
     quarter?: number
 ): Promise<any[]> {
     const db = getDb();
-    let query: admin.firestore.Query = db.collection('invoices')
-        .orderBy('createdAt', 'desc');
+    // OPTIMIZATION: Removed .orderBy('createdAt') to avoid needing a composite index for every variation of filters.
+    // We will sort in memory since the result set (per quarter) is small.
+    let query: admin.firestore.Query = db.collection('invoices');
 
     if (year) {
         query = query.where('year', '==', year);
@@ -503,11 +504,25 @@ export async function listInvoices(
         query = query.where('quarter', '==', quarter);
     }
 
-    const snapshot = await query.get();
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-    }));
+    try {
+        const snapshot = await query.get();
+        const invoices = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+        }));
+
+        // Sort in memory by invoiceNumber descending (e.g. 2026-0005, 2026-0004...)
+        invoices.sort((a: any, b: any) => {
+            const numA = a.invoiceNumber || '';
+            const numB = b.invoiceNumber || '';
+            return numB.localeCompare(numA);
+        });
+
+        return invoices;
+    } catch (error: any) {
+        console.error('Error listing invoices:', error);
+        throw new Error('Database error: ' + error.message);
+    }
 }
 
 // ─── API: Get download URL for a specific invoice ────────────────────
@@ -546,7 +561,6 @@ export async function getQuarterInvoices(
     const snapshot = await db.collection('invoices')
         .where('year', '==', year)
         .where('quarter', '==', quarter)
-        .orderBy('invoiceNumber', 'asc')
         .get();
 
     const bucket = admin.storage().bucket();
@@ -571,6 +585,9 @@ export async function getQuarterInvoices(
             downloadUrl: signedUrl,
         });
     }
+
+    // Sort by invoiceNumber in memory
+    results.sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber));
 
     return results;
 }
