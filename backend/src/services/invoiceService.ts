@@ -656,34 +656,34 @@ export async function backfillInvoices(limit: number = 20): Promise<{
 }> {
     const db = getDb();
 
-    // 1. Fetch all existing invoices to know which sales already have one
-    // Optimization: In a real large-scale system, we should query sales where 'invoice_status' is missing,
-    // but for this migration, fetching all invoice IDs is acceptable (assuming < 10k invoices).
+    console.log('🔄 Backfill: Step 1 - Fetching existing invoice mappings...');
     const invoicesSnapshot = await db.collection('invoices').select('saleId').get();
     const invoicedSaleIds = new Set<string>();
     invoicesSnapshot.docs.forEach(doc => {
         const saleId = doc.data().saleId;
         if (saleId) invoicedSaleIds.add(saleId);
     });
+    console.log(`ℹ️ Found ${invoicedSaleIds.size} existing invoices.`);
 
-    // 2. Fetch all sales (we have to fetch all to sort them chronologically for correct numbering)
-    // Optimization: We could use a cursor, but we need global sorting by date for the numbering to be correct.
-    const salesSnapshot = await db.collection('sales').select('date', 'timestamp', 'status', 'channel', 'items', 'total_amount', 'total', 'originalTotal', 'paymentMethod', 'customerName', 'customer', 'shippingAddress', 'shipping_cost', 'shipping').get();
+    console.log('🔄 Backfill: Step 2 - Scanning sales (lightweight)...');
+    // Fetch only necessary fields for filtering and sorting
+    // We fetch ALL sales to ensure chronological ordering, but lightweight docs.
+    const salesSnapshot = await db.collection('sales')
+        .select('date', 'timestamp', 'status')
+        .get();
 
-    // 3. Filter to sales that need invoices, skip PENDING/cancelled
-    const salesToProcess: Array<{ id: string; data: any; date: string }> = [];
+    console.log(`ℹ️ Scanned ${salesSnapshot.size} total sales.`);
+
+    // 3. Filter to sales that need invoices
+    const salesToProcess: Array<{ id: string; date: string }> = [];
 
     for (const doc of salesSnapshot.docs) {
-        // Skip if already has invoice
         if (invoicedSaleIds.has(doc.id)) continue;
 
         const data = doc.data();
-
-        // Skip pending / cancelled sales
         const status = (data.status || '').toLowerCase();
         if (status === 'pending' || status === 'cancelled' || status === 'failed') continue;
 
-        // Determine date for sorting
         let date: string;
         if (data.date) {
             date = data.date;
@@ -693,15 +693,14 @@ export async function backfillInvoices(limit: number = 20): Promise<{
             date = '2026-01-01'; // fallback
         }
 
-        salesToProcess.push({ id: doc.id, data, date });
+        salesToProcess.push({ id: doc.id, date });
     }
 
-    // 4. Sort by date (chronological) to ensure numbering is in order
+    // 4. Sort by date
     salesToProcess.sort((a, b) => a.date.localeCompare(b.date));
 
     console.log(`🔧 Backfill: ${salesToProcess.length} sales need invoices. Processing batch of ${limit}.`);
 
-    // 5. Generate invoices sequentially (one at a time for numbering integrity)
     const result = {
         total: salesSnapshot.size,
         generated: 0,
@@ -710,32 +709,38 @@ export async function backfillInvoices(limit: number = 20): Promise<{
         remaining: Math.max(0, salesToProcess.length - limit)
     };
 
-    // Process only up to the limit to avoid timeout
+    // 5. Fetch FULL data only for the batch
     const batch = salesToProcess.slice(0, limit);
 
-    for (const sale of batch) {
+    for (const item of batch) {
         try {
-            const invoiceData = buildInvoiceFromSaleDoc(sale.id, sale.data);
+            console.log(`🔄 Backfill: Fetching full data for sale ${item.id}...`);
+            const saleDoc = await db.collection('sales').doc(item.id).get();
+            if (!saleDoc.exists) {
+                console.warn(`⚠️ Sale ${item.id} not found when fetching full data.`);
+                continue;
+            }
 
-            // Skip sales with no items or zero total
+            const saleData = saleDoc.data();
+            const invoiceData = buildInvoiceFromSaleDoc(item.id, saleData);
+
+            // Skip invalid
             if (invoiceData.items.length === 0 && invoiceData.totalAmount === 0) {
-                console.log(`⏭️ Skipping sale ${sale.id}: no items and zero total`);
+                console.log(`⏭️ Skipping sale ${item.id}: no items and zero total`);
                 result.skipped++;
                 continue;
             }
 
             await generateInvoice(invoiceData);
             result.generated++;
-            console.log(`✅ Backfill: Generated invoice for sale ${sale.id} (${sale.date})`);
+            console.log(`✅ Backfill: Generated invoice for sale ${item.id} (${item.date})`);
+
         } catch (error: any) {
-            console.error(`❌ Backfill: Failed for sale ${sale.id}:`, error.message);
-            result.errors.push({ saleId: sale.id, error: error.message });
+            console.error(`❌ Backfill: Failed for sale ${item.id}:`, error.message);
+            result.errors.push({ saleId: item.id, error: error.message });
         }
     }
 
-    console.log(`🏁 Batch complete: ${result.generated} generated, ${result.errors.length} errors. Remaining: ${salesToProcess.length - batch.length}`);
-    return {
-        ...result,
-        remaining: salesToProcess.length - batch.length
-    };
+    console.log(`🏁 Batch complete: ${result.generated} generated, ${result.errors.length} errors. Remaining: ${result.remaining}`);
+    return result;
 }

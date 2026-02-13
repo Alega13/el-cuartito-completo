@@ -12,7 +12,7 @@
         "monit": "pm2 monit",
         "status": "pm2 status",
         "clean": "rm -rf dist",
-        "build": "npm run clean && tsc"
+        "build": "npm run clean && tsc && cp -r src/assets dist/"
     },
     "keywords": [],
     "author": "",
