@@ -644,37 +644,40 @@ function buildInvoiceFromSaleDoc(saleId: string, data: any): SaleInvoiceData {
 /**
  * Backfills invoices for all existing sales that don't have one yet.
  * Processes sales sorted by date (chronological) to ensure sequential numbering.
+ * Supports batch processing to avoid timeouts.
  * Returns a summary of what was processed.
  */
-export async function backfillInvoices(): Promise<{
+export async function backfillInvoices(limit: number = 20): Promise<{
     total: number;
     generated: number;
     skipped: number;
     errors: Array<{ saleId: string; error: string }>;
+    remaining: number;
 }> {
     const db = getDb();
 
-    // 1. Fetch all existing sales
-    const salesSnapshot = await db.collection('sales').get();
-    console.log(`📊 Backfill: Found ${salesSnapshot.size} total sales`);
-
-    // 2. Fetch all existing invoices to know which sales already have one
-    const invoicesSnapshot = await db.collection('invoices').get();
+    // 1. Fetch all existing invoices to know which sales already have one
+    // Optimization: In a real large-scale system, we should query sales where 'invoice_status' is missing,
+    // but for this migration, fetching all invoice IDs is acceptable (assuming < 10k invoices).
+    const invoicesSnapshot = await db.collection('invoices').select('saleId').get();
     const invoicedSaleIds = new Set<string>();
     invoicesSnapshot.docs.forEach(doc => {
         const saleId = doc.data().saleId;
         if (saleId) invoicedSaleIds.add(saleId);
     });
-    console.log(`📄 Backfill: ${invoicedSaleIds.size} sales already have invoices`);
+
+    // 2. Fetch all sales (we have to fetch all to sort them chronologically for correct numbering)
+    // Optimization: We could use a cursor, but we need global sorting by date for the numbering to be correct.
+    const salesSnapshot = await db.collection('sales').select('date', 'timestamp', 'status', 'channel', 'items', 'total_amount', 'total', 'originalTotal', 'paymentMethod', 'customerName', 'customer', 'shippingAddress', 'shipping_cost', 'shipping').get();
 
     // 3. Filter to sales that need invoices, skip PENDING/cancelled
     const salesToProcess: Array<{ id: string; data: any; date: string }> = [];
 
     for (const doc of salesSnapshot.docs) {
-        const data = doc.data();
-
         // Skip if already has invoice
         if (invoicedSaleIds.has(doc.id)) continue;
+
+        const data = doc.data();
 
         // Skip pending / cancelled sales
         const status = (data.status || '').toLowerCase();
@@ -696,7 +699,7 @@ export async function backfillInvoices(): Promise<{
     // 4. Sort by date (chronological) to ensure numbering is in order
     salesToProcess.sort((a, b) => a.date.localeCompare(b.date));
 
-    console.log(`🔧 Backfill: ${salesToProcess.length} sales need invoices`);
+    console.log(`🔧 Backfill: ${salesToProcess.length} sales need invoices. Processing batch of ${limit}.`);
 
     // 5. Generate invoices sequentially (one at a time for numbering integrity)
     const result = {
@@ -704,9 +707,13 @@ export async function backfillInvoices(): Promise<{
         generated: 0,
         skipped: invoicedSaleIds.size,
         errors: [] as Array<{ saleId: string; error: string }>,
+        remaining: Math.max(0, salesToProcess.length - limit)
     };
 
-    for (const sale of salesToProcess) {
+    // Process only up to the limit to avoid timeout
+    const batch = salesToProcess.slice(0, limit);
+
+    for (const sale of batch) {
         try {
             const invoiceData = buildInvoiceFromSaleDoc(sale.id, sale.data);
 
@@ -726,6 +733,9 @@ export async function backfillInvoices(): Promise<{
         }
     }
 
-    console.log(`🏁 Backfill complete: ${result.generated} generated, ${result.skipped} skipped, ${result.errors.length} errors`);
-    return result;
+    console.log(`🏁 Batch complete: ${result.generated} generated, ${result.errors.length} errors. Remaining: ${salesToProcess.length - batch.length}`);
+    return {
+        ...result,
+        remaining: salesToProcess.length - batch.length
+    };
 }

@@ -83,8 +83,9 @@ router.get('/quarter-download', isAdmin, async (req: Request, res: Response) => 
  */
 router.post('/backfill', isAdmin, async (req: Request, res: Response) => {
     try {
-        console.log('🔄 Starting invoice backfill...');
-        const result = await backfillInvoices();
+        const limit = req.body.limit ? parseInt(req.body.limit) : 20;
+        console.log(`🔄 Starting invoice backfill (limit: ${limit})...`);
+        const result = await backfillInvoices(limit);
         res.json({ success: true, ...result });
     } catch (error: any) {
         console.error('Error during backfill:', error);
