@@ -787,7 +787,7 @@ const app = {
             const year = this.state.contabilidadYear;
             const quarter = this.state.contabilidadQuarter;
             const token = await auth.currentUser.getIdToken();
-            const resp = await fetch(`${this.API_BASE}/invoices?year=${year}&quarter=${quarter}`, {
+            const resp = await fetch(`${BASE_API_URL}/invoices?year=${year}&quarter=${quarter}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -807,7 +807,7 @@ const app = {
     async downloadInvoicePdf(invoiceId) {
         try {
             const token = await auth.currentUser.getIdToken();
-            const resp = await fetch(`${this.API_BASE}/invoices/${invoiceId}/download`, {
+            const resp = await fetch(`${BASE_API_URL}/invoices/${invoiceId}/download`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -831,7 +831,7 @@ const app = {
 
             this.showToast(`Preparando descarga Q${quarter} ${year}...`);
 
-            const resp = await fetch(`${this.API_BASE}/invoices/quarter-download?year=${year}&quarter=${quarter}`, {
+            const resp = await fetch(`${BASE_API_URL}/invoices/quarter-download?year=${year}&quarter=${quarter}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -867,22 +867,48 @@ const app = {
     },
 
     async backfillInvoices() {
-        if (!confirm('¿Generar facturas PDF para todas las ventas anteriores que no tienen factura?\n\nEsto puede tardar unos minutos.')) return;
+        if (!confirm('¿Generar facturas PDF para todas las ventas anteriores que no tienen factura?\n\nEsto se hará por lotes para evitar errores.')) return;
 
         try {
-            this.showToast('🔄 Generando facturas para ventas anteriores... esto puede tardar unos minutos');
+            this.showToast('🔄 Iniciando backfill...');
             const token = await auth.currentUser.getIdToken();
+            let totalGenerated = 0;
+            let totalSkipped = 0;
+            let totalErrors = 0;
+            let remaining = 1; // start > 0 to enter loop
+            const batchSize = 10; // Conservative batch size
 
-            const resp = await fetch(`${this.API_BASE}/invoices/backfill`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            while (remaining > 0) {
+                const resp = await fetch(`${BASE_API_URL}/invoices/backfill`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ limit: batchSize })
+                });
 
-            if (!resp.ok) throw new Error('Error en backfill');
-            const data = await resp.json();
+                if (!resp.ok) throw new Error('Error en backfill batch');
+                const data = await resp.json();
 
-            const msg = `✅ Backfill completado: ${data.generated} facturas generadas, ${data.skipped} ya existentes` +
-                (data.errors?.length ? `, ${data.errors.length} errores` : '');
+                totalGenerated += data.generated;
+                totalSkipped += data.skipped; // This is cumulative in backend, but let's just show progress
+
+                // If backend returns cumulative skipped, just use it. 
+                // Wait, my backend logic for skipped is cumulative over the whole collection scan.
+                // So I should probably just rely on 'remaining' from backend.
+
+                remaining = data.remaining;
+
+                if (data.errors) totalErrors += data.errors.length;
+
+                this.showToast(`✅ Lote procesado: +${data.generated} facturas. Restantes: ${remaining}`);
+
+                // Small delay to be nice to the server
+                if (remaining > 0) await new Promise(r => setTimeout(r, 1000));
+            }
+
+            const msg = `✅ Backfill completado! Total generadas: ${totalGenerated}. Errores: ${totalErrors}`;
             this.showToast(msg);
 
             // Refresh the invoice list

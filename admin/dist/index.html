@@ -413,7 +413,7 @@
             transform: translateY(-2px);
         }
     </style>
-  <script type="module" crossorigin src="/assets/index-BWY-tIgh.js"></script>
+  <script type="module" crossorigin src="/assets/index-BxEQb-9J.js"></script>
 </head>
 
 <body class="h-screen overflow-hidden selection:bg-brand-orange selection:text-white bg-brand-bg">
@@ -560,6 +560,11 @@
                     <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
                     <span>📊 Reporte VAT</span>
                 </button>
+                <button onclick="app.navigate('contabilidad')" id="nav-d-contabilidad"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>📑 Contabilidad</span>
+                </button>
 
                 <button onclick="app.navigate('backup')" id="nav-d-backup"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
@@ -672,6 +677,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-info text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Legal</span>
+            </button>
+            <button onclick="app.navigate('contabilidad'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-receipt text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Facturas</span>
             </button>
         </div>
     </div>
