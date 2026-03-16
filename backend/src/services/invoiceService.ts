@@ -491,6 +491,232 @@ export function buildInvoiceFromDiscogsSale(
     };
 }
 
+// ─── Manual Invoice Types ────────────────────────────────────────────
+
+export interface ManualInvoiceData {
+    customerName: string;
+    customerVAT?: string;
+    customerAddress?: string;
+    description: string;
+    amount: number;
+    vatAmount?: number;
+    date: string;                    // YYYY-MM-DD
+    paymentMethod?: string;
+}
+
+// ─── Core: Generate Manual Invoice PDF ───────────────────────────────
+
+export function generateManualInvoicePDFBuffer(
+    invoiceNumber: string,
+    data: ManualInvoiceData
+): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const doc = new PDFDocument({
+            size: 'A4',
+            margins: { top: 50, bottom: 30, left: 50, right: 50 },
+            info: {
+                Title: `Faktura ${invoiceNumber}`,
+                Author: BUSINESS.name,
+            }
+        });
+
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+
+        const pageWidth = doc.page.width - 100; // 50 margin each side
+
+        // ── Logo ──
+        const logoPath = path.resolve(__dirname, '../assets/logo.png');
+        if (fs.existsSync(logoPath)) {
+            doc.image(logoPath, 50, 40, { width: 80 });
+        }
+
+        // ── Header: Business info (right aligned) ──
+        doc.fontSize(9).fillColor('#666666');
+        doc.text(BUSINESS.name, 300, 45, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.address, 300, 57, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.city, 300, 69, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.country, 300, 81, { align: 'right', width: pageWidth - 250 });
+        doc.fontSize(9).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
+        doc.text(BUSINESS.cvr, 300, 96, { align: 'right', width: pageWidth - 250 });
+
+        // ── Divider ──
+        doc.moveTo(50, 120).lineTo(50 + pageWidth, 120).strokeColor('#E2E8F0').lineWidth(1).stroke();
+
+        // ── Invoice title ──
+        doc.fontSize(22).fillColor('#1E293B').font('Helvetica-Bold');
+        doc.text('FAKTURA', 50, 140);
+        doc.fontSize(10).fillColor('#94A3B8').font('Helvetica');
+        doc.text('Invoice', 50, 168);
+
+        // ── Invoice metadata (right side) ──
+        const metaX = 350;
+        const metaLabelW = 100;
+        const metaValueW = 100;
+
+        doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
+        doc.text('Faktura Nr.:', metaX, 140, { width: metaLabelW });
+        doc.text('Dato:', metaX, 156, { width: metaLabelW });
+        doc.text('Betaling:', metaX, 172, { width: metaLabelW });
+
+        doc.font('Helvetica').fillColor('#1E293B');
+        doc.text(invoiceNumber, metaX + metaLabelW, 140, { width: metaValueW });
+        doc.text(data.date, metaX + metaLabelW, 156, { width: metaValueW });
+        doc.text(formatPaymentMethod(data.paymentMethod || 'Transfer'), metaX + metaLabelW, 172, { width: metaValueW });
+
+        // ── Customer info ──
+        let yPos = 210;
+        doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
+        doc.text('Faktureres til / Bill to:', 50, yPos);
+        yPos += 16;
+        doc.font('Helvetica').fillColor('#1E293B');
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text(data.customerName, 50, yPos);
+        yPos += 14;
+        doc.fontSize(9).font('Helvetica').fillColor('#334155');
+        if (data.customerVAT) {
+            doc.text(`VAT/CVR: ${data.customerVAT}`, 50, yPos);
+            yPos += 14;
+        }
+        if (data.customerAddress) {
+            doc.text(data.customerAddress, 50, yPos);
+            yPos += 14;
+        }
+
+        // ── Items table ──
+        yPos += 20;
+
+        // Table header
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
+        yPos += 8;
+
+        doc.fontSize(8).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
+        doc.text('#', 50, yPos, { width: 25 });
+        doc.text('Beskrivelse / Description', 75, yPos, { width: 350 });
+        doc.text('Total', 460, yPos, { width: 85, align: 'right' });
+
+        yPos += 18;
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+        yPos += 8;
+
+        // Single description row
+        doc.font('Helvetica').fillColor('#334155').fontSize(9);
+        const descHeight = doc.heightOfString(data.description, { width: 350 });
+        const rowHeight = Math.max(20, descHeight + 10);
+        doc.text('1', 50, yPos, { width: 25 });
+        doc.text(data.description, 75, yPos, { width: 350 });
+        doc.text(`${data.amount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        yPos += rowHeight;
+
+        // ── Total ──
+        yPos += 5;
+        doc.moveTo(350, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
+        yPos += 10;
+
+        doc.fontSize(12).fillColor('#1E293B').font('Helvetica-Bold');
+        doc.text('TOTAL (inkl. moms):', 300, yPos, { width: 155, align: 'right' });
+        doc.fillColor(BRAND_ORANGE);
+        doc.text(`${data.amount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+
+        if (data.vatAmount && data.vatAmount > 0) {
+            yPos += 14;
+            doc.fontSize(9).fillColor('#64748B').font('Helvetica');
+            doc.text('Heraf moms / VAT (25%):', 300, yPos, { width: 155, align: 'right' });
+            doc.text(`${data.vatAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        }
+
+        // ── Payment Details ──
+        yPos += 20;
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+        yPos += 15;
+
+        const boxY = yPos;
+        const boxHeight = 35;
+        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+            .fillColor('#F8FAFC')
+            .fill();
+        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+            .strokeColor('#E2E8F0')
+            .lineWidth(1)
+            .stroke();
+
+        doc.fontSize(7).fillColor('#475569').font('Helvetica-Bold');
+        doc.text('BETALINGSOPLYSNINGER / PAYMENT DETAILS', 62, boxY + 8, { width: pageWidth - 24 });
+        doc.fontSize(8).fillColor('#334155').font('Helvetica');
+        doc.text('Bank Transfer: Lunar Bank — Account: 6695-2002804460', 62, boxY + 20, { width: pageWidth - 24 });
+
+        // ── Footer ──
+        const footerY = doc.page.height - 80;
+        doc.fontSize(7).fillColor('#CBD5E1').font('Helvetica');
+        doc.text(
+            `${BUSINESS.name} · ${BUSINESS.address}, ${BUSINESS.city} · ${BUSINESS.cvr}`,
+            50, footerY,
+            { align: 'center', width: pageWidth }
+        );
+        doc.text(
+            `Faktura ${invoiceNumber} · Generated ${new Date().toISOString().split('T')[0]}`,
+            50, footerY + 12,
+            { align: 'center', width: pageWidth }
+        );
+
+        doc.end();
+    });
+}
+
+// ─── Main: Generate Manual Invoice ──────────────────────────────────
+
+export async function generateManualInvoice(data: ManualInvoiceData): Promise<InvoiceResult> {
+    const year = new Date(data.date).getFullYear();
+    const quarter = getQuarter(data.date);
+
+    // 1. Get sequential invoice number (shared counter with sale invoices)
+    const invoiceNumber = await getNextInvoiceNumber(year);
+
+    // 2. Generate PDF
+    const pdfBuffer = await generateManualInvoicePDFBuffer(invoiceNumber, data);
+
+    // 3. Build storage path
+    const customerSlug = sanitizeFilename(data.customerName);
+    const totalStr = Math.round(data.amount);
+    const fileName = `${data.date}_${invoiceNumber}_MANUAL_${customerSlug}_${totalStr}DKK.pdf`;
+    const storagePath = `Contabilidad_ElCuartito_${year}/Facturas_Manuales_Q${quarter}/${fileName}`;
+
+    // 4. Upload to Firebase Storage
+    const downloadUrl = await uploadToStorage(pdfBuffer, storagePath);
+
+    // 5. Save metadata to Firestore
+    const db = getDb();
+    const docRef = await db.collection('invoices').add({
+        invoiceNumber,
+        saleId: `manual_${Date.now()}`,
+        date: data.date,
+        year,
+        quarter,
+        channel: 'manual',
+        paymentMethod: data.paymentMethod || 'Transfer',
+        customerName: data.customerName,
+        customerVAT: data.customerVAT || null,
+        customerAddress: data.customerAddress || null,
+        totalAmount: data.amount,
+        itemsSummary: data.description,
+        storagePath,
+        downloadUrl,
+        isManual: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(`📄 Factura manual ${invoiceNumber} generada para ${data.customerName}. ${totalStr} DKK`);
+
+    return {
+        invoiceNumber,
+        storagePath,
+        downloadUrl,
+        firestoreId: docRef.id,
+    };
+}
+
 // ─── API: List invoices ──────────────────────────────────────────────
 
 export async function listInvoices(

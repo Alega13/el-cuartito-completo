@@ -82,7 +82,8 @@ function App() {
           year: product.year || '2024',
           label: product.label || 'El Cuartito',
           status: product.condition || 'VG',
-          discogsId: product.discogsId || null
+          discogsId: product.discogsId || null,
+          tags: product.tags || []
         }));
 
         // Save to cache
@@ -119,8 +120,8 @@ function App() {
   };
 
 
-  // Find products marked as "header" in storageLocation field
-  const headerProducts = products.filter(p => p.storageLocation === 'header').slice(0, 3);
+  // Find products marked as "Hero" (previously "header")
+  const headerProducts = products.filter(p => p.tags && p.tags.includes('hero'));
 
   // Determine if we're on product page (full mode) or elsewhere (mini mode)
   // Check if pathname starts with /product/

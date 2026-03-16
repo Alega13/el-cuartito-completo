@@ -8,30 +8,40 @@ const Collections = ({ products, isFullPage = false }) => {
     const navigate = useNavigate();
     const [hoveredProduct, setHoveredProduct] = useState(null);
 
-    const collections = [
-        {
-            name: "Detroit Techno",
+    const knownCollections = {
+        "Detroit Techno": {
             code: "DET.01",
             description: "Curated selections from the birthplace of techno.",
             year: "1988—",
         },
-        {
-            name: "Ambient Essentials",
+        "Ambient Essentials": {
             code: "AMB.02",
             description: "A journey through texture and space.",
             year: "1978—",
         },
-        {
-            name: "Staff Picks",
+        "Staff Picks": {
             code: "STF.03",
             description: "Personal favorites from El Cuartito.",
             year: "2024",
         }
-    ];
+    };
+
+    // Extract unique tags (excluding 'hero') from products
+    const uniqueTags = [...new Set(products.flatMap(p => p.tags || []).filter(t => t !== 'hero'))].sort();
+
+    const collections = uniqueTags.map((tag, idx) => {
+        const meta = knownCollections[tag] || {};
+        return {
+            name: tag,
+            code: meta.code || `${tag.substring(0, 3).toUpperCase()}.${String(idx + 1).padStart(2, '0')}`,
+            description: meta.description || `Curated selection: ${tag}`,
+            year: meta.year || '2024',
+        };
+    });
 
     const getCollectionProducts = (collectionName) => {
         return products.filter(p =>
-            p.collection && p.collection.toLowerCase().includes(collectionName.toLowerCase())
+            p.tags && p.tags.includes(collectionName)
         );
     };
 

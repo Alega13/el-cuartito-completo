@@ -51,13 +51,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.generatePDFBuffer = generatePDFBuffer;
+exports.uploadToStorage = uploadToStorage;
 exports.generateInvoice = generateInvoice;
 exports.buildInvoiceFromPOSSale = buildInvoiceFromPOSSale;
 exports.buildInvoiceFromWebshopSale = buildInvoiceFromWebshopSale;
 exports.buildInvoiceFromDiscogsSale = buildInvoiceFromDiscogsSale;
+exports.generateManualInvoicePDFBuffer = generateManualInvoicePDFBuffer;
+exports.generateManualInvoice = generateManualInvoice;
 exports.listInvoices = listInvoices;
 exports.getInvoiceDownloadUrl = getInvoiceDownloadUrl;
 exports.getQuarterInvoices = getQuarterInvoices;
+exports.buildInvoiceFromSaleDoc = buildInvoiceFromSaleDoc;
 exports.backfillInvoices = backfillInvoices;
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const admin = __importStar(require("firebase-admin"));
@@ -230,8 +235,11 @@ function generatePDFBuffer(invoiceNumber, sale) {
         yPos += 10;
         doc.fontSize(12).fillColor('#1E293B').font('Helvetica-Bold');
         doc.text('TOTAL:', 350, yPos, { width: 105, align: 'right' });
+        // CRITICAL FIX: Ensure total is strictly Sum(Items) + Shipping to show Gross Amount (Customer Pay)
+        // This avoids issues where sale.totalAmount might be Net (after fees).
+        const calculatedTotal = sale.items.reduce((sum, item) => sum + item.total, 0) + (sale.shippingCost || 0);
         doc.fillColor(BRAND_ORANGE);
-        doc.text(`${sale.totalAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        doc.text(`${calculatedTotal.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
         // ── Brugtmoms legal notice ──
         yPos += 50;
         doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
@@ -407,20 +415,204 @@ function buildInvoiceFromDiscogsSale(saleId, orderData, items, totalAmount, ship
         shippingCost,
     };
 }
+// ─── Core: Generate Manual Invoice PDF ───────────────────────────────
+function generateManualInvoicePDFBuffer(invoiceNumber, data) {
+    return new Promise((resolve, reject) => {
+        const doc = new pdfkit_1.default({
+            size: 'A4',
+            margins: { top: 50, bottom: 30, left: 50, right: 50 },
+            info: {
+                Title: `Faktura ${invoiceNumber}`,
+                Author: BUSINESS.name,
+            }
+        });
+        const chunks = [];
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+        const pageWidth = doc.page.width - 100; // 50 margin each side
+        // ── Logo ──
+        const logoPath = path_1.default.resolve(__dirname, '../assets/logo.png');
+        if (fs_1.default.existsSync(logoPath)) {
+            doc.image(logoPath, 50, 40, { width: 80 });
+        }
+        // ── Header: Business info (right aligned) ──
+        doc.fontSize(9).fillColor('#666666');
+        doc.text(BUSINESS.name, 300, 45, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.address, 300, 57, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.city, 300, 69, { align: 'right', width: pageWidth - 250 });
+        doc.text(BUSINESS.country, 300, 81, { align: 'right', width: pageWidth - 250 });
+        doc.fontSize(9).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
+        doc.text(BUSINESS.cvr, 300, 96, { align: 'right', width: pageWidth - 250 });
+        // ── Divider ──
+        doc.moveTo(50, 120).lineTo(50 + pageWidth, 120).strokeColor('#E2E8F0').lineWidth(1).stroke();
+        // ── Invoice title ──
+        doc.fontSize(22).fillColor('#1E293B').font('Helvetica-Bold');
+        doc.text('FAKTURA', 50, 140);
+        doc.fontSize(10).fillColor('#94A3B8').font('Helvetica');
+        doc.text('Invoice', 50, 168);
+        // ── Invoice metadata (right side) ──
+        const metaX = 350;
+        const metaLabelW = 100;
+        const metaValueW = 100;
+        doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
+        doc.text('Faktura Nr.:', metaX, 140, { width: metaLabelW });
+        doc.text('Dato:', metaX, 156, { width: metaLabelW });
+        doc.text('Betaling:', metaX, 172, { width: metaLabelW });
+        doc.font('Helvetica').fillColor('#1E293B');
+        doc.text(invoiceNumber, metaX + metaLabelW, 140, { width: metaValueW });
+        doc.text(data.date, metaX + metaLabelW, 156, { width: metaValueW });
+        doc.text(formatPaymentMethod(data.paymentMethod || 'Transfer'), metaX + metaLabelW, 172, { width: metaValueW });
+        // ── Customer info ──
+        let yPos = 210;
+        doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
+        doc.text('Faktureres til / Bill to:', 50, yPos);
+        yPos += 16;
+        doc.font('Helvetica').fillColor('#1E293B');
+        doc.fontSize(10).font('Helvetica-Bold');
+        doc.text(data.customerName, 50, yPos);
+        yPos += 14;
+        doc.fontSize(9).font('Helvetica').fillColor('#334155');
+        if (data.customerVAT) {
+            doc.text(`VAT/CVR: ${data.customerVAT}`, 50, yPos);
+            yPos += 14;
+        }
+        if (data.customerAddress) {
+            doc.text(data.customerAddress, 50, yPos);
+            yPos += 14;
+        }
+        // ── Items table ──
+        yPos += 20;
+        // Table header
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
+        yPos += 8;
+        doc.fontSize(8).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
+        doc.text('#', 50, yPos, { width: 25 });
+        doc.text('Beskrivelse / Description', 75, yPos, { width: 350 });
+        doc.text('Total', 460, yPos, { width: 85, align: 'right' });
+        yPos += 18;
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+        yPos += 8;
+        // Single description row
+        doc.font('Helvetica').fillColor('#334155').fontSize(9);
+        const descHeight = doc.heightOfString(data.description, { width: 350 });
+        const rowHeight = Math.max(20, descHeight + 10);
+        doc.text('1', 50, yPos, { width: 25 });
+        doc.text(data.description, 75, yPos, { width: 350 });
+        doc.text(`${data.amount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        yPos += rowHeight;
+        // ── Total ──
+        yPos += 5;
+        doc.moveTo(350, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
+        yPos += 10;
+        doc.fontSize(12).fillColor('#1E293B').font('Helvetica-Bold');
+        doc.text('TOTAL (inkl. moms):', 300, yPos, { width: 155, align: 'right' });
+        doc.fillColor(BRAND_ORANGE);
+        doc.text(`${data.amount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        if (data.vatAmount && data.vatAmount > 0) {
+            yPos += 14;
+            doc.fontSize(9).fillColor('#64748B').font('Helvetica');
+            doc.text('Heraf moms / VAT (25%):', 300, yPos, { width: 155, align: 'right' });
+            doc.text(`${data.vatAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        }
+        // ── Payment Details ──
+        yPos += 20;
+        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+        yPos += 15;
+        const boxY = yPos;
+        const boxHeight = 35;
+        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+            .fillColor('#F8FAFC')
+            .fill();
+        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+            .strokeColor('#E2E8F0')
+            .lineWidth(1)
+            .stroke();
+        doc.fontSize(7).fillColor('#475569').font('Helvetica-Bold');
+        doc.text('BETALINGSOPLYSNINGER / PAYMENT DETAILS', 62, boxY + 8, { width: pageWidth - 24 });
+        doc.fontSize(8).fillColor('#334155').font('Helvetica');
+        doc.text('Bank Transfer: Lunar Bank — Account: 6695-2002804460', 62, boxY + 20, { width: pageWidth - 24 });
+        // ── Footer ──
+        const footerY = doc.page.height - 80;
+        doc.fontSize(7).fillColor('#CBD5E1').font('Helvetica');
+        doc.text(`${BUSINESS.name} · ${BUSINESS.address}, ${BUSINESS.city} · ${BUSINESS.cvr}`, 50, footerY, { align: 'center', width: pageWidth });
+        doc.text(`Faktura ${invoiceNumber} · Generated ${new Date().toISOString().split('T')[0]}`, 50, footerY + 12, { align: 'center', width: pageWidth });
+        doc.end();
+    });
+}
+// ─── Main: Generate Manual Invoice ──────────────────────────────────
+function generateManualInvoice(data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const year = new Date(data.date).getFullYear();
+        const quarter = getQuarter(data.date);
+        // 1. Get sequential invoice number (shared counter with sale invoices)
+        const invoiceNumber = yield getNextInvoiceNumber(year);
+        // 2. Generate PDF
+        const pdfBuffer = yield generateManualInvoicePDFBuffer(invoiceNumber, data);
+        // 3. Build storage path
+        const customerSlug = sanitizeFilename(data.customerName);
+        const totalStr = Math.round(data.amount);
+        const fileName = `${data.date}_${invoiceNumber}_MANUAL_${customerSlug}_${totalStr}DKK.pdf`;
+        const storagePath = `Contabilidad_ElCuartito_${year}/Facturas_Manuales_Q${quarter}/${fileName}`;
+        // 4. Upload to Firebase Storage
+        const downloadUrl = yield uploadToStorage(pdfBuffer, storagePath);
+        // 5. Save metadata to Firestore
+        const db = (0, firebaseAdmin_1.getDb)();
+        const docRef = yield db.collection('invoices').add({
+            invoiceNumber,
+            saleId: `manual_${Date.now()}`,
+            date: data.date,
+            year,
+            quarter,
+            channel: 'manual',
+            paymentMethod: data.paymentMethod || 'Transfer',
+            customerName: data.customerName,
+            customerVAT: data.customerVAT || null,
+            customerAddress: data.customerAddress || null,
+            totalAmount: data.amount,
+            itemsSummary: data.description,
+            storagePath,
+            downloadUrl,
+            isManual: true,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`📄 Factura manual ${invoiceNumber} generada para ${data.customerName}. ${totalStr} DKK`);
+        return {
+            invoiceNumber,
+            storagePath,
+            downloadUrl,
+            firestoreId: docRef.id,
+        };
+    });
+}
 // ─── API: List invoices ──────────────────────────────────────────────
 function listInvoices(year, quarter) {
     return __awaiter(this, void 0, void 0, function* () {
         const db = (0, firebaseAdmin_1.getDb)();
-        let query = db.collection('invoices')
-            .orderBy('createdAt', 'desc');
+        // OPTIMIZATION: Removed .orderBy('createdAt') to avoid needing a composite index for every variation of filters.
+        // We will sort in memory since the result set (per quarter) is small.
+        let query = db.collection('invoices');
         if (year) {
             query = query.where('year', '==', year);
         }
         if (quarter) {
             query = query.where('quarter', '==', quarter);
         }
-        const snapshot = yield query.get();
-        return snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
+        try {
+            const snapshot = yield query.get();
+            const invoices = snapshot.docs.map(doc => (Object.assign({ id: doc.id }, doc.data())));
+            // Sort in memory by invoiceNumber descending (e.g. 2026-0005, 2026-0004...)
+            invoices.sort((a, b) => {
+                const numA = a.invoiceNumber || '';
+                const numB = b.invoiceNumber || '';
+                return numB.localeCompare(numA);
+            });
+            return invoices;
+        }
+        catch (error) {
+            console.error('Error listing invoices:', error);
+            throw new Error('Database error: ' + error.message);
+        }
     });
 }
 // ─── API: Get download URL for a specific invoice ────────────────────
@@ -453,7 +645,6 @@ function getQuarterInvoices(year, quarter) {
         const snapshot = yield db.collection('invoices')
             .where('year', '==', year)
             .where('quarter', '==', quarter)
-            .orderBy('invoiceNumber', 'asc')
             .get();
         const bucket = admin.storage().bucket();
         const results = [];
@@ -475,6 +666,8 @@ function getQuarterInvoices(year, quarter) {
                 downloadUrl: signedUrl,
             });
         }
+        // Sort by invoiceNumber in memory
+        results.sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber));
         return results;
     });
 }
@@ -498,7 +691,14 @@ function buildInvoiceFromSaleDoc(saleId, data) {
         date = new Date().toISOString().split('T')[0];
     }
     // Determine total amount
-    const totalAmount = data.total_amount || data.total || data.originalTotal || 0;
+    let totalAmount = data.total_amount || data.total || data.originalTotal || 0;
+    // CRITICAL: For Discogs, data.total is often Net Payout. We need Gross.
+    if (channel === 'Discogs' || data.discogs_order_id) {
+        // If we have originalTotal (Items Subtotal) and shipping, use that sum for Gross.
+        if (data.originalTotal !== undefined && data.shipping !== undefined) {
+            totalAmount = Number(data.originalTotal) + Number(data.shipping);
+        }
+    }
     // Determine payment method
     const paymentMethod = data.paymentMethod || data.payment_method || 'Unknown';
     // Customer name
@@ -548,9 +748,7 @@ function buildInvoiceFromSaleDoc(saleId, data) {
 function backfillInvoices() {
     return __awaiter(this, arguments, void 0, function* (limit = 20) {
         const db = (0, firebaseAdmin_1.getDb)();
-        // 1. Fetch all existing invoices to know which sales already have one
-        // Optimization: In a real large-scale system, we should query sales where 'invoice_status' is missing,
-        // but for this migration, fetching all invoice IDs is acceptable (assuming < 10k invoices).
+        console.log('🔄 Backfill: Step 1 - Fetching existing invoice mappings...');
         const invoicesSnapshot = yield db.collection('invoices').select('saleId').get();
         const invoicedSaleIds = new Set();
         invoicesSnapshot.docs.forEach(doc => {
@@ -558,21 +756,23 @@ function backfillInvoices() {
             if (saleId)
                 invoicedSaleIds.add(saleId);
         });
-        // 2. Fetch all sales (we have to fetch all to sort them chronologically for correct numbering)
-        // Optimization: We could use a cursor, but we need global sorting by date for the numbering to be correct.
-        const salesSnapshot = yield db.collection('sales').select('date', 'timestamp', 'status', 'channel', 'items', 'total_amount', 'total', 'originalTotal', 'paymentMethod', 'customerName', 'customer', 'shippingAddress', 'shipping_cost', 'shipping').get();
-        // 3. Filter to sales that need invoices, skip PENDING/cancelled
+        console.log(`ℹ️ Found ${invoicedSaleIds.size} existing invoices.`);
+        console.log('🔄 Backfill: Step 2 - Scanning sales (lightweight)...');
+        // Fetch only necessary fields for filtering and sorting
+        // We fetch ALL sales to ensure chronological ordering, but lightweight docs.
+        const salesSnapshot = yield db.collection('sales')
+            .select('date', 'timestamp', 'status')
+            .get();
+        console.log(`ℹ️ Scanned ${salesSnapshot.size} total sales.`);
+        // 3. Filter to sales that need invoices
         const salesToProcess = [];
         for (const doc of salesSnapshot.docs) {
-            // Skip if already has invoice
             if (invoicedSaleIds.has(doc.id))
                 continue;
             const data = doc.data();
-            // Skip pending / cancelled sales
             const status = (data.status || '').toLowerCase();
             if (status === 'pending' || status === 'cancelled' || status === 'failed')
                 continue;
-            // Determine date for sorting
             let date;
             if (data.date) {
                 date = data.date;
@@ -583,12 +783,11 @@ function backfillInvoices() {
             else {
                 date = '2026-01-01'; // fallback
             }
-            salesToProcess.push({ id: doc.id, data, date });
+            salesToProcess.push({ id: doc.id, date });
         }
-        // 4. Sort by date (chronological) to ensure numbering is in order
+        // 4. Sort by date
         salesToProcess.sort((a, b) => a.date.localeCompare(b.date));
         console.log(`🔧 Backfill: ${salesToProcess.length} sales need invoices. Processing batch of ${limit}.`);
-        // 5. Generate invoices sequentially (one at a time for numbering integrity)
         const result = {
             total: salesSnapshot.size,
             generated: 0,
@@ -596,27 +795,34 @@ function backfillInvoices() {
             errors: [],
             remaining: Math.max(0, salesToProcess.length - limit)
         };
-        // Process only up to the limit to avoid timeout
+        // 5. Fetch FULL data only for the batch
         const batch = salesToProcess.slice(0, limit);
-        for (const sale of batch) {
+        for (const item of batch) {
             try {
-                const invoiceData = buildInvoiceFromSaleDoc(sale.id, sale.data);
-                // Skip sales with no items or zero total
+                console.log(`🔄 Backfill: Fetching full data for sale ${item.id}...`);
+                const saleDoc = yield db.collection('sales').doc(item.id).get();
+                if (!saleDoc.exists) {
+                    console.warn(`⚠️ Sale ${item.id} not found when fetching full data.`);
+                    continue;
+                }
+                const saleData = saleDoc.data();
+                const invoiceData = buildInvoiceFromSaleDoc(item.id, saleData);
+                // Skip invalid
                 if (invoiceData.items.length === 0 && invoiceData.totalAmount === 0) {
-                    console.log(`⏭️ Skipping sale ${sale.id}: no items and zero total`);
+                    console.log(`⏭️ Skipping sale ${item.id}: no items and zero total`);
                     result.skipped++;
                     continue;
                 }
                 yield generateInvoice(invoiceData);
                 result.generated++;
-                console.log(`✅ Backfill: Generated invoice for sale ${sale.id} (${sale.date})`);
+                console.log(`✅ Backfill: Generated invoice for sale ${item.id} (${item.date})`);
             }
             catch (error) {
-                console.error(`❌ Backfill: Failed for sale ${sale.id}:`, error.message);
-                result.errors.push({ saleId: sale.id, error: error.message });
+                console.error(`❌ Backfill: Failed for sale ${item.id}:`, error.message);
+                result.errors.push({ saleId: item.id, error: error.message });
             }
         }
-        console.log(`🏁 Batch complete: ${result.generated} generated, ${result.errors.length} errors. Remaining: ${salesToProcess.length - batch.length}`);
-        return Object.assign(Object.assign({}, result), { remaining: salesToProcess.length - batch.length });
+        console.log(`🏁 Batch complete: ${result.generated} generated, ${result.errors.length} errors. Remaining: ${result.remaining}`);
+        return result;
     });
 }

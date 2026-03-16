@@ -203,7 +203,12 @@ const app = {
         manualSaleSearch: '',
         posCondition: 'Used',
         posSelectedItemSku: null,
-        orderFeedFilter: 'all'
+        orderFeedFilter: 'all',
+        filterGenre: 'all',
+        filterOwner: 'all',
+        filterLabel: 'all',
+        filterStorage: 'all',
+        filterDiscogs: 'all'
     },
 
     async init() {
@@ -225,6 +230,9 @@ const app = {
                     // Poll for updates every 60 seconds (throttled)
                     if (this._pollInterval) clearInterval(this._pollInterval);
                     this._pollInterval = setInterval(() => this.loadData(), 60000);
+                    
+                    // Set up real-time inventory listeners
+                    this.setupListeners();
 
                     this.setupMobileMenu();
                     this.setupNavigation();
@@ -377,18 +385,42 @@ const app = {
 
 
     setupListeners() {
-        // No more real-time listeners. Using polling in init().
+        // Real-time inventory listener to instantly reflect backend stock drops
+        if (this._unsubscribeProducts) {
+            this._unsubscribeProducts();
+        }
+        this._unsubscribeProducts = db.collection('products').onSnapshot(snapshot => {
+            this.state.inventory = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    condition: data.condition || 'VG',
+                    owner: data.owner || 'El Cuartito',
+                    label: data.label || 'Desconocido',
+                    storageLocation: data.storageLocation || 'Tienda',
+                    cover_image: data.cover_image || data.coverImage || null
+                };
+            });
+            // Re-render UI if we are on a tab that shows inventory
+            if (this.state.currentTab === 'inventory' || this.state.currentTab === 'dashboard') {
+                this.renderCurrentTab();
+            }
+        }, err => {
+            console.error("Inventory listener error:", err);
+        });
     },
 
     async loadData() {
         try {
             // Load data directly from Firestore (no Railway needed)
-            const [inventorySnap, salesSnap, expensesSnap, eventsSnap, consignorsSnap] = await Promise.all([
+            const [inventorySnap, salesSnap, expensesSnap, eventsSnap, consignorsSnap, extraIncomeSnap] = await Promise.all([
                 db.collection('products').get(),
                 db.collection('sales').get(), // ✅ Removed orderBy to avoid filtering out documents
                 db.collection('expenses').get(), // ✅ Removed orderBy to avoid filtering out new docs
                 db.collection('events').orderBy('date', 'desc').get(),
-                db.collection('consignors').get()
+                db.collection('consignors').get(),
+                db.collection('extra_income').get()
             ]);
 
             this.state.inventory = inventorySnap.docs.map(doc => {
@@ -481,6 +513,12 @@ const app = {
             // Load investments
             await this.loadInvestments();
 
+            // Load extra income
+            this.state.extraIncome = extraIncomeSnap.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })).sort((a, b) => new Date(b.date) - new Date(a.date));
+
             // Initialize/Update Fuse.js for fuzzy search
             this.initFuse();
 
@@ -513,6 +551,8 @@ const app = {
             case 'vatReport': this.renderVATReport(container); break;
             case 'datosLegales': this.renderDatosLegales(container); break;
             case 'contabilidad': this.renderContabilidad(container); break;
+            case 'facturasManual': this.renderFacturasManual(container); break;
+            case 'extraIncome': this.renderExtraIncome(container); break;
         }
     },
 
@@ -796,7 +836,8 @@ const app = {
             this.state.contabilidadInvoices = data.invoices || [];
         } catch (err) {
             console.error('Error loading invoices:', err);
-            this.showToast('Error cargando facturas: ' + err.message, 'error');
+            alert('Error cargando facturas: ' + err.message);
+            this.showToast('Error cargando facturas', 'error');
             this.state.contabilidadInvoices = [];
         }
 
@@ -819,7 +860,8 @@ const app = {
             }
         } catch (err) {
             console.error('Error downloading invoice:', err);
-            this.showToast('Error descargando factura: ' + err.message, 'error');
+            alert('Error descargando factura: ' + err.message);
+            this.showToast('Error descargando factura', 'error');
         }
     },
 
@@ -862,7 +904,8 @@ const app = {
             this.showToast(`✅ ${data.invoices.length} facturas descargadas`);
         } catch (err) {
             console.error('Error downloading quarter:', err);
-            this.showToast('Error descargando trimestre: ' + err.message, 'error');
+            alert('Error descargando trimestre: ' + err.message);
+            this.showToast('Error descargando trimestre', 'error');
         }
     },
 
@@ -870,13 +913,27 @@ const app = {
         if (!confirm('¿Generar facturas PDF para todas las ventas anteriores que no tienen factura?\n\nEsto se hará por lotes para evitar errores.')) return;
 
         try {
-            this.showToast('🔄 Iniciando backfill...');
+            this.showToast('🔄 Verificando conexión...');
             const token = await auth.currentUser.getIdToken();
+
+            // 1. Connection Check (Pre-flight)
+            try {
+                const health = await fetch(`${BASE_API_URL}/api/health`);
+                if (!health.ok) throw new Error('Servidor responde con error');
+            } catch (e) {
+                console.error('Health check failed:', e);
+                // We let it slide if health check fails? No, better to warn.
+                // But maybe /api/health is not open to CORS? (It should be)
+                // Let's just proceed but warn console.
+            }
+
+            this.showToast('🔄 Iniciando backfill (Modo Seguro)...');
+
             let totalGenerated = 0;
             let totalSkipped = 0;
             let totalErrors = 0;
-            let remaining = 1; // start > 0 to enter loop
-            const batchSize = 10; // Conservative batch size
+            let remaining = 1;
+            const batchSize = 1; // ⚠️ SAFE MODE: 1 at a time
 
             while (remaining > 0) {
                 const resp = await fetch(`${BASE_API_URL}/invoices/backfill`, {
@@ -888,16 +945,24 @@ const app = {
                     body: JSON.stringify({ limit: batchSize })
                 });
 
-                if (!resp.ok) throw new Error('Error en backfill batch');
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    try {
+                        const errData = JSON.parse(text);
+                        throw new Error(errData.error || `Error ${resp.status}: ${resp.statusText}`);
+                    } catch (e) {
+                        throw new Error(`Error ${resp.status}: ${text.slice(0, 100)}`);
+                    }
+                }
+
                 const data = await resp.json();
 
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error from backend');
+                }
+
                 totalGenerated += data.generated;
-                totalSkipped += data.skipped; // This is cumulative in backend, but let's just show progress
-
-                // If backend returns cumulative skipped, just use it. 
-                // Wait, my backend logic for skipped is cumulative over the whole collection scan.
-                // So I should probably just rely on 'remaining' from backend.
-
+                totalSkipped += data.skipped;
                 remaining = data.remaining;
 
                 if (data.errors) totalErrors += data.errors.length;
@@ -908,14 +973,452 @@ const app = {
                 if (remaining > 0) await new Promise(r => setTimeout(r, 1000));
             }
 
-            const msg = `✅ Backfill completado! Total generadas: ${totalGenerated}. Errores: ${totalErrors}`;
-            this.showToast(msg);
+            const msg = `✅ Backfill completado!\nGeneradas: ${totalGenerated}\nErrores: ${totalErrors}\nOmitidas: ${totalSkipped}`;
+            alert(msg);
+            this.showToast('Backfill completado');
 
             // Refresh the invoice list
             await this.loadInvoices();
         } catch (err) {
             console.error('Error in backfill:', err);
-            this.showToast('Error en backfill: ' + err.message, 'error');
+            alert(`❌ Error en backfill:\n\n${err.message}`);
+            this.showToast('Error en backfill', 'error');
+        }
+    },
+
+    // ── Facturas Manuales (Manual Invoice Generator) ─────────────────
+
+    renderFacturasManual(container) {
+        // Load existing manual invoices from state
+        const manualInvoices = (this.state.contabilidadInvoices || []).filter(i => i.channel === 'manual' || i.isManual);
+
+        const html = `
+            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <!-- Header -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">🧾 <span class="text-brand-orange">Generar Factura</span></h1>
+                        <p class="text-slate-500 font-medium">Facturas manuales para eventos, servicios y otros</p>
+                    </div>
+                </div>
+
+                <!-- Invoice Form -->
+                <form id="manual-invoice-form" onsubmit="app.submitManualInvoice(event)" class="bg-white rounded-3xl shadow-sm border border-orange-100 p-8 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <!-- Customer Name -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Nombre del Cliente *</label>
+                            <input type="text" name="customerName" required placeholder="Ej: København Festival A/S" 
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                        </div>
+
+                        <!-- Customer VAT -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">VAT / CVR del Cliente</label>
+                            <input type="text" name="customerVAT" placeholder="Ej: DK12345678"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                        </div>
+
+                        <!-- Customer Address -->
+                        <div class="md:col-span-2">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Dirección del Cliente</label>
+                            <input type="text" name="customerAddress" placeholder="Ej: Vesterbrogade 100, 1620 København V, Denmark"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                        </div>
+
+                        <!-- Description -->
+                        <div class="md:col-span-2">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Descripción del Servicio *</label>
+                            <textarea name="description" required rows="3" placeholder="Ej: DJ Set para evento privado — 4 horas, incluyendo equipo de sonido"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark resize-none"></textarea>
+                        </div>
+
+                        <!-- Amount -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Precio Total (DKK) *</label>
+                            <div class="relative">
+                                <input type="number" name="amount" required step="0.01" min="0" placeholder="5000"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-bold text-xl text-brand-dark">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
+                            </div>
+                        </div>
+
+                        <!-- VAT Amount -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Heraf Moms / VAT (DKK)</label>
+                            <div class="relative">
+                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="1000"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Opcional. Cantidad de IVA incluida en el total.</p>
+                        </div>
+
+                        <!-- Date -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Fecha de Factura *</label>
+                            <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                        </div>
+
+                        <!-- Payment Method -->
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Método de Pago</label>
+                            <select name="paymentMethod" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                                <option value="Transfer">Transferencia Bancaria</option>
+                                <option value="MobilePay">MobilePay</option>
+                                <option value="CASH">Efectivo / Cash</option>
+                                <option value="CARD">Tarjeta / Card</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <p class="text-xs text-slate-400">La factura se generará en PDF y se guardará automáticamente</p>
+                        <button type="submit" id="manual-invoice-btn"
+                            class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
+                            <i class="ph-bold ph-file-pdf"></i> Generar Factura PDF
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Result area (shown after generation) -->
+                <div id="manual-invoice-result" class="hidden mb-8">
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                <i class="ph-bold ph-check-circle text-xl text-emerald-600"></i>
+                            </div>
+                            <div>
+                                <p class="font-bold text-emerald-800" id="result-invoice-number"></p>
+                                <p class="text-sm text-emerald-600">Factura generada correctamente</p>
+                            </div>
+                        </div>
+                        <a id="result-download-link" href="#" target="_blank"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors">
+                            <i class="ph-bold ph-download-simple"></i> Descargar PDF
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Recent Manual Invoices -->
+                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-orange-100 bg-orange-50/30">
+                        <h3 class="font-bold text-brand-dark">Facturas Manuales Recientes</h3>
+                    </div>
+                    ${manualInvoices.length === 0 ? `
+                        <div class="py-16 text-center">
+                            <i class="ph-duotone ph-note-blank text-5xl text-slate-300 mb-3 block"></i>
+                            <p class="text-slate-400 font-medium">No hay facturas manuales aún</p>
+                            <p class="text-slate-300 text-sm mt-1">Las facturas generadas aparecerán aquí</p>
+                        </div>
+                    ` : `
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-orange-100">
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">#</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Fecha</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Cliente</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Descripción</th>
+                                        <th class="text-right px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Total</th>
+                                        <th class="text-center px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">PDF</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${manualInvoices.map((inv, idx) => `
+                                        <tr class="inv-row border-b border-slate-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}">
+                                            <td class="px-5 py-3 text-sm font-mono font-bold text-brand-dark">${inv.invoiceNumber || '-'}</td>
+                                            <td class="px-5 py-3 text-sm text-slate-600">${inv.date || '-'}</td>
+                                            <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || '-'}</td>
+                                            <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
+                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${(inv.totalAmount || 0).toFixed(0)} DKK</td>
+                                            <td class="px-5 py-3 text-center">
+                                                <button onclick="app.downloadInvoicePdf('${inv.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
+                                                    <i class="ph-bold ph-file-pdf"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+
+        // Auto-load manual invoices
+        if (!this.state.manualInvoicesLoaded) {
+            this.loadManualInvoices();
+        }
+    },
+
+    async loadManualInvoices() {
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const resp = await fetch(`${BASE_API_URL}/invoices?year=${new Date().getFullYear()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!resp.ok) throw new Error('Error cargando facturas');
+            const data = await resp.json();
+            this.state.contabilidadInvoices = data.invoices || [];
+            this.state.manualInvoicesLoaded = true;
+            if (this.state.currentView === 'facturasManual') this.refreshCurrentView();
+        } catch (err) {
+            console.error('Error loading manual invoices:', err);
+        }
+    },
+
+    async submitManualInvoice(event) {
+        event.preventDefault();
+        const form = document.getElementById('manual-invoice-form');
+        const btn = document.getElementById('manual-invoice-btn');
+        const formData = new FormData(form);
+
+        const data = {
+            customerName: formData.get('customerName'),
+            customerVAT: formData.get('customerVAT') || undefined,
+            customerAddress: formData.get('customerAddress') || undefined,
+            description: formData.get('description'),
+            amount: parseFloat(formData.get('amount')),
+            vatAmount: formData.get('vatAmount') ? parseFloat(formData.get('vatAmount')) : undefined,
+            date: formData.get('date'),
+            paymentMethod: formData.get('paymentMethod'),
+        };
+
+        if (!data.customerName || !data.description || !data.amount || !data.date) {
+            this.showToast('Completa todos los campos obligatorios', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Generando...';
+
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const resp = await fetch(`${BASE_API_URL}/invoices/manual`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json();
+                throw new Error(errData.error || 'Error generando factura');
+            }
+
+            const result = await resp.json();
+
+            // Show success result
+            const resultDiv = document.getElementById('manual-invoice-result');
+            document.getElementById('result-invoice-number').textContent = `Factura ${result.invoiceNumber} generada`;
+            document.getElementById('result-download-link').href = result.downloadUrl;
+            resultDiv.classList.remove('hidden');
+
+            this.showToast(`✅ Factura ${result.invoiceNumber} generada correctamente`);
+
+            // Reset form
+            form.reset();
+            document.querySelector('[name="date"]').value = new Date().toISOString().split('T')[0];
+
+            // Reload manual invoices list
+            this.state.manualInvoicesLoaded = false;
+            this.loadManualInvoices();
+
+        } catch (err) {
+            console.error('Error generating manual invoice:', err);
+            this.showToast('❌ Error: ' + err.message, 'error');
+            alert('Error generando factura: ' + err.message);
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph-bold ph-file-pdf"></i> Generar Factura PDF';
+    },
+
+    // ── Ingresos Extra (Extra Income) ─────────────────────────────────
+
+    renderExtraIncome(container) {
+        const extraIncomeList = this.state.extraIncome || [];
+        const totalAmount = extraIncomeList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+        const totalVat = extraIncomeList.reduce((sum, e) => sum + (Number(e.vatAmount) || 0), 0);
+
+        const categoryLabel = (cat) => {
+            const map = { event: '🎵 Evento', service: '🔧 Servicio', other: '📦 Otro' };
+            return map[cat] || cat;
+        };
+
+        const rows = extraIncomeList.map(e => `
+            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                <td class="py-3 px-4 text-sm text-slate-600">${e.date || '-'}</td>
+                <td class="py-3 px-4 text-sm font-medium text-brand-dark">${e.description || '-'}</td>
+                <td class="py-3 px-4"><span class="text-xs font-bold px-2 py-1 rounded-full bg-orange-100 text-orange-700">${categoryLabel(e.category)}</span></td>
+                <td class="py-3 px-4 text-sm font-bold text-brand-dark text-right">${Number(e.amount).toFixed(2)} DKK</td>
+                <td class="py-3 px-4 text-sm text-slate-500 text-right">${Number(e.vatAmount || 0).toFixed(2)} DKK</td>
+                <td class="py-3 px-4 text-sm text-slate-400">${e.paymentMethod || 'Transfer'}</td>
+                <td class="py-3 px-4 text-center">
+                    <button onclick="app.deleteExtraIncome('${e.id}')" class="text-red-400 hover:text-red-600 transition-colors" title="Eliminar">
+                        <i class="ph-bold ph-trash text-lg"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+        container.innerHTML = `
+            <div class="max-w-5xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="text-2xl font-black text-brand-dark">💰 Ingresos Extra</h1>
+                        <p class="text-sm text-slate-400 mt-1">Registra ingresos por eventos, servicios y otros conceptos no relacionados con ventas de discos.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl px-5 py-3 text-center">
+                            <p class="text-[10px] font-bold text-green-600 uppercase tracking-wider">Total Ingresos</p>
+                            <p class="text-xl font-black text-green-700">${totalAmount.toFixed(2)} DKK</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl px-5 py-3 text-center">
+                            <p class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Total VAT</p>
+                            <p class="text-xl font-black text-blue-700">${totalVat.toFixed(2)} DKK</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Form -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+                    <h2 class="text-lg font-bold text-brand-dark mb-4">Registrar Nuevo Ingreso</h2>
+                    <form onsubmit="app.addExtraIncome(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Descripción *</label>
+                            <input type="text" name="description" required placeholder="DJ Event - Venue X"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Categoría *</label>
+                            <select name="category" required
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                                <option value="event">🎵 Evento</option>
+                                <option value="service">🔧 Servicio</option>
+                                <option value="other">📦 Otro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Monto Total (DKK) *</label>
+                            <div class="relative">
+                                <input type="number" name="amount" required step="0.01" min="0" placeholder="3750"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-bold text-lg text-brand-dark">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Monto VAT (DKK)</label>
+                            <div class="relative">
+                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="750"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">Opcional. Cantidad de IVA incluida en el total.</p>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Fecha *</label>
+                            <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Método de Pago</label>
+                            <select name="paymentMethod"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                                <option value="Transfer">Transferencia</option>
+                                <option value="MobilePay">MobilePay</option>
+                                <option value="Cash">Efectivo</option>
+                                <option value="Card">Tarjeta</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-3 flex justify-end">
+                            <button type="submit"
+                                class="bg-gradient-to-r from-brand-orange to-orange-500 text-white font-bold py-3 px-8 rounded-xl hover:shadow-lg hover:shadow-orange-200 transition-all">
+                                <i class="ph-bold ph-plus-circle"></i> Registrar Ingreso
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- List -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100">
+                        <h2 class="text-lg font-bold text-brand-dark">Historial de Ingresos Extra</h2>
+                    </div>
+                    ${extraIncomeList.length === 0 ? `
+                        <div class="p-12 text-center text-slate-400">
+                            <i class="ph-duotone ph-coins text-5xl mb-3"></i>
+                            <p class="font-medium">No hay ingresos extra registrados</p>
+                            <p class="text-sm mt-1">Usa el formulario de arriba para agregar uno.</p>
+                        </div>
+                    ` : `
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="bg-slate-50">
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha</th>
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Descripción</th>
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Categoría</th>
+                                        <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto</th>
+                                        <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT</th>
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pago</th>
+                                        <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
+
+    async addExtraIncome(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const data = {
+            description: formData.get('description'),
+            category: formData.get('category'),
+            amount: parseFloat(formData.get('amount')),
+            vatAmount: formData.get('vatAmount') ? parseFloat(formData.get('vatAmount')) : 0,
+            date: formData.get('date'),
+            paymentMethod: formData.get('paymentMethod') || 'Transfer',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            await db.collection('extra_income').add(data);
+            this.showToast('✅ Ingreso extra registrado correctamente');
+            // Reload and re-render
+            const snap = await db.collection('extra_income').get();
+            this.state.extraIncome = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.date) - new Date(a.date));
+            this.renderExtraIncome(document.getElementById('app-content'));
+        } catch (err) {
+            console.error('Error adding extra income:', err);
+            this.showToast('❌ Error: ' + err.message, 'error');
+        }
+    },
+
+    async deleteExtraIncome(id) {
+        if (!confirm('¿Eliminar este ingreso extra?')) return;
+        try {
+            await db.collection('extra_income').doc(id).delete();
+            this.state.extraIncome = this.state.extraIncome.filter(e => e.id !== id);
+            this.showToast('🗑️ Ingreso eliminado');
+            this.renderExtraIncome(document.getElementById('app-content'));
+        } catch (err) {
+            console.error('Error deleting extra income:', err);
+            this.showToast('❌ Error: ' + err.message, 'error');
         }
     },
 
@@ -1499,6 +2002,7 @@ const app = {
                     'Discogs Listing ID': item.discogs_listing_id || '',
                     'Discogs Release ID': item.discogs_release_id || item.discogsId || '',
                     'Consignatario': item.consignor || '',
+                    'Label Disquería': item.storageLocation || '',
                     'Ubicación': item.location || '',
                     'Notas': item.notes || '',
                     'Fecha Creación': item.createdAt ? new Date(item.createdAt).toLocaleDateString('es-ES') : '',
@@ -1529,6 +2033,7 @@ const app = {
                 { wch: 15 },  // Discogs Listing ID
                 { wch: 15 },  // Discogs Release ID
                 { wch: 15 },  // Consignatario
+                { wch: 15 },  // Label Disquería
                 { wch: 12 },  // Ubicación
                 { wch: 30 },  // Notas
                 { wch: 12 },  // Fecha Creación
@@ -1977,11 +2482,15 @@ const app = {
 
             const curMonthSalesTotal = this.state.sales
                 .filter(s => { const d = new Date(s.date); return d.getMonth() === curM && d.getFullYear() === curY; })
-                .reduce((sum, s) => sum + (Number(s.originalTotal || s.total_amount || s.total) || 0), 0);
+                .reduce((sum, s) => sum + (Number(s.originalTotal || s.total_amount || s.total) || 0), 0)
+                + (this.state.extraIncome || []).filter(e => { const d = new Date(e.date); return d.getMonth() === curM && d.getFullYear() === curY; })
+                    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
             const prevMonthSalesTotal = this.state.sales
                 .filter(s => { const d = new Date(s.date); return d.getMonth() === prevM && d.getFullYear() === prevY; })
-                .reduce((sum, s) => sum + (Number(s.originalTotal || s.total_amount || s.total) || 0), 0);
+                .reduce((sum, s) => sum + (Number(s.originalTotal || s.total_amount || s.total) || 0), 0)
+                + (this.state.extraIncome || []).filter(e => { const d = new Date(e.date); return d.getMonth() === prevM && d.getFullYear() === prevY; })
+                    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
             const growth = prevMonthSalesTotal > 0 ? ((curMonthSalesTotal - prevMonthSalesTotal) / prevMonthSalesTotal) * 100 : 0;
             const growthText = `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}% vs ${this.getMonthName(prevM)}`;
@@ -2066,6 +2575,19 @@ const app = {
                 }
 
                 totalNetProfit += (saleProfit - platformFee);
+            });
+
+            // ── Add Extra Income to totals ──
+            const filteredExtraIncome = (this.state.extraIncome || []).filter(e => {
+                const eDate = new Date(e.date);
+                return eDate.getFullYear() === currentYear && selectedMonths.includes(eDate.getMonth());
+            });
+            filteredExtraIncome.forEach(e => {
+                const amt = Number(e.amount) || 0;
+                const vat = Number(e.vatAmount) || 0;
+                totalRevenue += amt;
+                totalNetProfit += amt;
+                totalStandardVat += vat;
             });
 
             // Calculate deductible input VAT using EXACT SAME filter as renderVATReport
@@ -2630,7 +3152,7 @@ const app = {
 
         // KPI calculations
         const totalItems = this.state.inventory.length;
-        const totalValue = this.state.inventory.reduce((sum, i) => sum + (parseFloat(i.price) || 0), 0);
+        const totalValue = this.state.inventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) > 0 ? (parseFloat(i.price) || 0) : 0), 0);
         const inStock = this.state.inventory.filter(i => (i.stock || 0) > 0).length;
         const onDiscogs = this.state.inventory.filter(i => i.discogs_listing_id).length;
 
@@ -2641,6 +3163,7 @@ const app = {
             this.state.filterLabel !== 'all' ? 1 : 0,
             this.state.filterStorage !== 'all' ? 1 : 0,
             this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 1 : 0,
+            this.state.filterHero && this.state.filterHero !== 'all' ? 1 : 0,
         ].reduce((a, b) => a + b, 0);
 
         // 1. Static Layout Init
@@ -2777,8 +3300,16 @@ const app = {
                         <option value="no" ${this.state.filterDiscogs === 'no' ? 'selected' : ''}>❌ No pub.</option>
                     </select>
                 </div>
+                <div class="filter-chip ${this.state.filterHero && this.state.filterHero !== 'all' ? 'active' : ''}">
+                    <i class="ph-bold ph-star text-xs"></i>
+                    <select onchange="app.state.filterHero = this.value; app.refreshCurrentView()">
+                        <option value="all" ${(this.state.filterHero || 'all') === 'all' ? 'selected' : ''}>Héroe</option>
+                        <option value="yes" ${this.state.filterHero === 'yes' ? 'selected' : ''}>🌟 Destacado</option>
+                        <option value="no" ${this.state.filterHero === 'no' ? 'selected' : ''}>➖ Normal</option>
+                    </select>
+                </div>
                 ${activeFilters > 0 ? `
-                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
+                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
                         <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters})
                     </button>
                 ` : ''}
@@ -3979,7 +4510,13 @@ const app = {
                             <div class="col-span-8 border-l border-slate-100 pl-4">
                                 <p class="text-[8px] font-bold text-slate-400 uppercase mb-1.5">Reference Tracklist</p>
                                 <div id="metadata-tracks" class="max-h-28 overflow-y-auto pr-2 custom-scrollbar space-y-0.5">
-                                    <p class="text-[10px] text-slate-400 italic">Select a Discogs result to load tracks...</p>
+                                    ${item.tracks && item.tracks.length > 0
+                ? item.tracks.map(t => `<div class="track-item flex justify-between gap-4 py-1 border-b border-slate-50 last:border-0">
+                                            <span class="font-bold w-6 opacity-40 shrink-0 capitalize text-[9px]">${t.position || '•'}</span>
+                                            <span class="flex-1 truncate font-medium text-slate-600 text-[10px]">${t.title}</span>
+                                            <span class="opacity-40 text-[9px] font-mono shrink-0">${t.duration || ''}</span>
+                                        </div>`).join('')
+                : '<p class="text-[10px] text-slate-400 italic">Select a Discogs result to load tracks...</p>'}
                                 </div>
                             </div>
                         </div>
@@ -4059,38 +4596,73 @@ const app = {
                             </div>
                         </div>
 
-                        <!-- Right: Channels (Compact Toggles) -->
-                        <div class="col-span-4 dashboard-card p-4 space-y-3 bg-slate-50 border-dashed">
-                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <i class="ph-fill ph-vinyl-record text-slate-900 text-xs"></i>
-                                    <span class="text-[10px] font-bold text-slate-700">Discogs</span>
+                        <!-- Right Column: Channels & Shop Visibility -->
+                        <div class="col-span-4 space-y-4">
+                            
+                            <!-- Channels (Compact Toggles) -->
+                            <div class="dashboard-card p-4 space-y-3 bg-slate-50 border-dashed">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph-fill ph-vinyl-record text-slate-900 text-xs"></i>
+                                        <span class="text-[10px] font-bold text-slate-700">Discogs</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="publish_discogs" ${item.publish_discogs || item.discogs_listing_id ? 'checked' : ''}>
+                                        <span class="slider"></span>
+                                    </label>
                                 </div>
-                                <label class="switch">
-                                    <input type="checkbox" name="publish_discogs" ${item.publish_discogs || item.discogs_listing_id ? 'checked' : ''}>
-                                    <span class="slider"></span>
-                                </label>
-                             </div>
-                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <i class="ph-fill ph-storefront text-[#FF6B00] text-xs"></i>
-                                    <span class="text-[10px] font-bold text-slate-700">Online Web</span>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph-fill ph-storefront text-[#FF6B00] text-xs"></i>
+                                        <span class="text-[10px] font-bold text-slate-700">Online Web</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="is_online" ${item.is_online !== false ? 'checked' : ''}>
+                                        <span class="slider"></span>
+                                    </label>
                                 </div>
-                                <label class="switch">
-                                    <input type="checkbox" name="is_online" ${item.is_online !== false ? 'checked' : ''}>
-                                    <span class="slider"></span>
-                                </label>
-                             </div>
-                             <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <i class="ph-fill ph-house text-[#10B981] text-xs"></i>
-                                    <span class="text-[10px] font-bold text-slate-700">In-Store POS</span>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph-fill ph-storefront text-[#10B981] text-xs"></i>
+                                        <span class="text-[10px] font-bold text-slate-700">In-Store POS</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" name="publish_local" ${item.publish_local !== false ? 'checked' : ''}>
+                                        <span class="slider"></span>
+                                    </label>
                                 </div>
-                                <label class="switch">
-                                    <input type="checkbox" name="publish_local" ${item.publish_local !== false ? 'checked' : ''}>
-                                    <span class="slider"></span>
-                                </label>
-                             </div>
+                            </div>
+
+                            <!-- Shop Visibility (Tags) -->
+                            <div class="dashboard-card p-4 bg-orange-50/30 border-orange-100">
+                                <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Shop Visibility</h5>
+                                <div class="space-y-3">
+                                    
+                                    <!-- Hero Toggle -->
+                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
+                                        <div class="relative flex items-center">
+                                            <input type="checkbox" name="tag_hero" value="hero" ${item.tags && item.tags.includes('hero') ? 'checked' : ''} class="peer h-4 w-4 text-[#FF6B00] border-slate-300 rounded focus:ring-[#FF6B00]">
+                                        </div>
+                                        <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">Hero / Destacado</span>
+                                    </label>
+
+                                    <div class="h-px bg-slate-100 my-2"></div>
+                                    <p class="text-[8px] font-bold text-slate-400 uppercase mb-2">Collection / Agrupación</p>
+
+                                    <div class="relative">
+                                        <input name="collection_tag" list="collections-list" 
+                                            value="${(item.tags || []).find(t => t !== 'hero') || ''}" 
+                                            placeholder="Escribe para crear o buscar..." 
+                                            class="dashboard-input w-full h-10 bg-white border-orange-200 focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-xs">
+                                        <datalist id="collections-list">
+                                            ${[...new Set(this.state.inventory.flatMap(i => i.tags || []).filter(t => t !== 'hero'))].map(tag => `<option value="${tag}">`).join('')}
+                                        </datalist>
+                                        <i class="ph-bold ph-magnifying-glass absolute right-3 top-3 text-slate-400 pointer-events-none text-xs"></i>
+                                    </div>
+                                    <p class="text-[9px] text-slate-400 mt-1 italic">Si escribes un nombre nuevo, se creará una nueva colección.</p>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -4101,6 +4673,8 @@ const app = {
                 <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
                 <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
                 <input type="hidden" name="sku" value="${item.sku}">
+                <!-- New Hidden Input for Tracks (JSON) -->
+                <input type="hidden" name="tracks" id="input-tracks" value='${item.tracks ? JSON.stringify(item.tracks).replace(/'/g, "&#39;") : ""}'>
                 <!-- label is now a visible field above -->
 
                 <!-- Footer Actions -->
@@ -5216,6 +5790,7 @@ const app = {
         const currentLabelFilter = this.state.filterLabel || 'all';
         const currentStorageFilter = this.state.filterStorage || 'all';
         const currentDiscogsFilter = this.state.filterDiscogs || 'all';
+        const currentHeroFilter = this.state.filterHero || 'all';
 
         let results = this.state.inventory;
 
@@ -5251,7 +5826,12 @@ const app = {
                 (currentDiscogsFilter === 'yes' && hasDiscogs) ||
                 (currentDiscogsFilter === 'no' && !hasDiscogs);
 
-            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs;
+            const isHero = item.tags && (Array.isArray(item.tags) ? item.tags.includes('hero') : item.tags.includes('hero'));
+            const matchesHero = currentHeroFilter === 'all' ||
+                (currentHeroFilter === 'yes' && isHero) ||
+                (currentHeroFilter === 'no' && !isHero);
+
+            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero;
         });
     },
     toggleSelectAll() {
@@ -5376,7 +5956,7 @@ const app = {
         const sku = formData.get('sku');
 
         // Get publishing flags
-        const publishWebshop = formData.get('publish_webshop') === 'on';
+        const publishWebshop = formData.get('is_online') === 'on';
         const publishDiscogs = formData.get('publish_discogs') === 'on';
         const publishLocal = formData.get('publish_local') === 'on';
 
@@ -5406,7 +5986,22 @@ const app = {
             publish_discogs: publishDiscogs,
             publish_local: publishLocal,
             cover_image: formData.get('cover_image') || null,
-            created_at: firebase.firestore.FieldValue.serverTimestamp()
+            created_at: firebase.firestore.FieldValue.serverTimestamp(),
+            // Shop Tags
+            // Shop Tags
+            tags: [
+                formData.get('tag_hero') ? 'hero' : null,
+                formData.get('collection_tag') ? formData.get('collection_tag').trim() : null
+            ].filter(Boolean),
+            // Persistence Fields
+            discogsUrl: formData.get('discogsUrl'),
+            discogsId: formData.get('discogsId'),
+            discogs_release_id: formData.get('discogs_release_id') || formData.get('discogsId'),
+            tracks: (() => {
+                try {
+                    return JSON.parse(formData.get('tracks') || '[]');
+                } catch (e) { return []; }
+            })()
         };
 
         try {
@@ -5433,7 +6028,8 @@ const app = {
 
             // Handle Discogs publishing
             if (publishDiscogs) {
-                const releaseId = formData.get('discogs_release_id');
+                // Fallback to discogsId if discogs_release_id is missing
+                const releaseId = formData.get('discogs_release_id') || formData.get('discogsId');
 
                 // Check if we need to create or update Discogs listing
                 if (existingProduct && existingProduct.discogs_listing_id) {
@@ -7786,6 +8382,11 @@ const app = {
         const form = document.querySelector('#modal-overlay form');
         if (!form) return;
 
+        // Auto-check Discogs publishing toggle if present
+        if (form.publish_discogs && !form.publish_discogs.checked) {
+            form.publish_discogs.checked = true;
+        }
+
         // Set basic info immediately
         if (form.artist) form.artist.value = artist;
         if (form.album) form.album.value = album;
@@ -7874,6 +8475,10 @@ const app = {
                     // Render Tracklist
                     if (tracksList) {
                         if (fullRelease.tracklist && fullRelease.tracklist.length > 0) {
+                            // Populate Hidden Input
+                            const tracksInput = document.getElementById('input-tracks');
+                            if (tracksInput) tracksInput.value = JSON.stringify(fullRelease.tracklist);
+
                             tracksList.innerHTML = fullRelease.tracklist.map(t => `
                                 <div class="track-item flex justify-between gap-4 py-1 border-b border-slate-50 last:border-0">
                                     <span class="font-bold w-6 opacity-40 shrink-0 capitalize text-[9px]">${t.position || '•'}</span>
@@ -8641,6 +9246,25 @@ const app = {
                     vat: vat
                 });
             }
+        });
+
+        // ── Add Extra Income to VAT Report ──
+        const filteredExtraIncome = (this.state.extraIncome || []).filter(e => {
+            const eDate = new Date(e.date);
+            return eDate >= startDate && eDate <= endDate;
+        });
+        filteredExtraIncome.forEach(e => {
+            const amt = Number(e.amount) || 0;
+            const vat = Number(e.vatAmount) || 0;
+            totalStandardVat += vat;
+            totalNetSales += (amt - vat);
+            standardVatItems.push({
+                date: new Date(e.date),
+                productId: 'EXTRA',
+                album: `💰 ${e.description || 'Ingreso Extra'} (${e.category || 'other'})`,
+                salePrice: amt,
+                vat: vat
+            });
         });
 
         const totalVatToPaySalida = totalStandardVat + totalMarginVat + totalShippingVat;

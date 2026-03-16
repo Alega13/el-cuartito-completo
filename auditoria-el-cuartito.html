@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditoría General — El Cuartito Records</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --surface-2: #1c1c1f;
+      --surface-3: #242428;
+      --border: #2a2a2f;
+      --text: #e8e8ed;
+      --text-muted: #8e8e93;
+      --text-dim: #636366;
+      --accent: #ff6b2b;
+      --accent-soft: rgba(255, 107, 43, 0.12);
+      --green: #30d158;
+      --green-soft: rgba(48, 209, 88, 0.12);
+      --red: #ff453a;
+      --red-soft: rgba(255, 69, 58, 0.12);
+      --yellow: #ffd60a;
+      --yellow-soft: rgba(255, 214, 10, 0.12);
+      --blue: #0a84ff;
+      --blue-soft: rgba(10, 132, 255, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle animated gradient bg */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: radial-gradient(ellipse at 20% 0%, rgba(255,107,43,0.04) 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 100%, rgba(10,132,255,0.03) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px 120px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 80px 0 60px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 60px;
+    }
+    .header .label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(36px, 6vw, 56px);
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .header .subtitle {
+      font-size: 17px;
+      color: var(--text-muted);
+      max-width: 500px;
+      margin: 0 auto;
+      font-weight: 400;
+    }
+    .header .date {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 24px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* TOC */
+    .toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 60px;
+    }
+    .toc h3 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+    .toc a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      transition: color 0.2s;
+      border-bottom: 1px solid var(--border);
+    }
+    .toc a:last-child { border-bottom: none; }
+    .toc a:hover { color: var(--accent); }
+    .toc .num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-dim);
+      min-width: 24px;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 72px;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 700;
+      margin-bottom: 24px;
+      letter-spacing: -0.5px;
+    }
+    .section h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 32px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section p {
+      color: var(--text-muted);
+      font-size: 15px;
+      margin-bottom: 16px;
+    }
+
+    /* Executive Summary Card */
+    .exec-summary {
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 32px;
+    }
+    .exec-summary p {
+      font-size: 16px;
+      line-height: 1.8;
+      color: var(--text);
+    }
+    .exec-summary em {
+      color: var(--accent);
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    /* Alert boxes */
+    .alert {
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 20px 0;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .alert .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .alert-red { background: var(--red-soft); border: 1px solid rgba(255,69,58,0.2); color: #ff6b63; }
+    .alert-yellow { background: var(--yellow-soft); border: 1px solid rgba(255,214,10,0.2); color: #ffe066; }
+    .alert-green { background: var(--green-soft); border: 1px solid rgba(48,209,88,0.2); color: #5edd7f; }
+    .alert-blue { background: var(--blue-soft); border: 1px solid rgba(10,132,255,0.2); color: #4da3ff; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 14px 16px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.01); }
+
+    /* Tag/Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green { background: var(--green-soft); color: var(--green); }
+    .badge-red { background: var(--red-soft); color: var(--red); }
+    .badge-yellow { background: var(--yellow-soft); color: var(--yellow); }
+    .badge-accent { background: var(--accent-soft); color: var(--accent); }
+
+    /* Screenshots */
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      margin: 24px 0;
+    }
+    .screenshot-card {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .screenshot-card img {
+      width: 100%;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+    .screenshot-card:hover img {
+      transform: scale(1.01);
+    }
+    .screenshot-card .caption {
+      padding: 16px 20px;
+      font-size: 13px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .screenshot-grid-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* Positioning Chart */
+    .chart-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      margin: 24px 0;
+      display: flex;
+      justify-content: center;
+    }
+    .position-chart {
+      position: relative;
+      width: 400px;
+      height: 400px;
+    }
+    .chart-axis-v {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+    .chart-axis-h {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--border);
+    }
+    .chart-label {
+      position: absolute;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .chart-label.top { top: -8px; left: 50%; transform: translateX(-50%); }
+    .chart-label.bottom { bottom: -8px; left: 50%; transform: translateX(-50%); }
+    .chart-label.left { left: -8px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+    .chart-label.right { right: -8px; top: 50%; transform: translateY(-50%) rotate(90deg); }
+
+    .chart-dot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .chart-dot .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid;
+    }
+    .chart-dot .name {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Action Plan List */
+    .action-list {
+      list-style: none;
+      margin: 16px 0;
+    }
+    .action-list li {
+      padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      transition: border-color 0.2s;
+    }
+    .action-list li:hover {
+      border-color: var(--accent);
+    }
+    .action-num {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .action-content strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .action-content .desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Priority labels */
+    .priority-section {
+      margin: 32px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .priority-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .priority-section h4 {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    /* Metric cards */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      text-align: center;
+    }
+    .metric-card .value {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -1px;
+    }
+    .metric-card .value .unit {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .metric-card .label {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    /* Conclusion */
+    .conclusion {
+      background: linear-gradient(135deg, rgba(255,107,43,0.06) 0%, rgba(10,132,255,0.04) 100%);
+      border: 1px solid rgba(255,107,43,0.15);
+      border-radius: 20px;
+      padding: 48px 40px;
+      text-align: center;
+    }
+    .conclusion h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+    .conclusion p {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto 12px;
+      line-height: 1.8;
+    }
+    .conclusion .highlight {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 18px;
+      margin-top: 24px;
+    }
+
+    /* Separator */
+    .sep {
+      height: 1px;
+      background: var(--border);
+      margin: 60px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .container { padding: 20px 16px 80px; }
+      .header { padding: 40px 0 40px; }
+      .exec-summary { padding: 24px; }
+      .screenshot-grid-2 { grid-template-columns: 1fr; }
+      .chart-container { padding: 20px; }
+      .position-chart { width: 300px; height: 300px; }
+      .conclusion { padding: 32px 24px; }
+    }
+
+    /* Smooth scroll */
+    html { scroll-behavior: smooth; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="label">🎵 Auditoría General</div>
+    <h1>El Cuartito Records</h1>
+    <p class="subtitle">Análisis completo de website, Instagram, competencia y posicionamiento de mercado en Copenhagen</p>
+    <p class="date">14 de Marzo, 2026</p>
+  </div>
+
+  <!-- TOC -->
+  <nav class="toc">
+    <h3>Contenido</h3>
+    <a href="#resumen"><span class="num">01</span> Resumen Ejecutivo</a>
+    <a href="#website"><span class="num">02</span> Auditoría del Website</a>
+    <a href="#instagram"><span class="num">03</span> Auditoría de Instagram</a>
+    <a href="#competencia"><span class="num">04</span> Análisis de Competencia</a>
+    <a href="#mercado"><span class="num">05</span> Posicionamiento de Mercado</a>
+    <a href="#plan"><span class="num">06</span> Plan de Acción Priorizado</a>
+    <a href="#conclusion"><span class="num">07</span> Conclusión</a>
+  </nav>
+
+  <!-- 1. RESUMEN EJECUTIVO -->
+  <div class="section" id="resumen">
+    <div class="section-label">Sección 01</div>
+    <h2>Resumen Ejecutivo</h2>
+    <div class="exec-summary">
+      <p>
+        El Cuartito Records se posiciona como una <em>boutique de vinilos electrónicos</em> en Vesterbro, Copenhagen. La marca tiene una identidad visual premium y una propuesta de valor diferenciada: <em>curaduría + comunidad + espacio íntimo</em>.
+      </p>
+      <br>
+      <p>
+        Sin embargo, hay brechas significativas entre el potencial de la marca y su ejecución actual, especialmente en <em>contenido digital</em>, <em>conversión web</em> y <em>estrategia de crecimiento</em>.
+      </p>
+    </div>
+
+    <div class="alert alert-red">
+      <span class="icon">⚠️</span>
+      <span>Con solo <strong>5 posts en Instagram</strong> y <strong>502 seguidores</strong>, la presencia digital no acompaña la calidad de la marca. Este es el área de mayor urgencia.</span>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 2. WEBSITE -->
+  <div class="section" id="website">
+    <div class="section-label">Sección 02</div>
+    <h2>Auditoría del Website</h2>
+
+    <h3>✅ Lo que funciona bien</h3>
+
+    <table>
+      <thead>
+        <tr><th>Área</th><th>Evaluación</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Diseño visual</strong></td><td>Premium, minimalista, estética "paper-like" con tipografía editorial. <span class="badge badge-green">Superior a la competencia</span></td></tr>
+        <tr><td><strong>Branding</strong></td><td>Logo naranja distintivo, consistente en todas las páginas. Reconocible</td></tr>
+        <tr><td><strong>SEO básico</strong></td><td>Title tags, meta descriptions, Open Graph, canonical URL — todo implementado</td></tr>
+        <tr><td><strong>Catálogo</strong></td><td>433 ítems, filtros por género, búsqueda, botones de escucha y carrito</td></tr>
+        <tr><td><strong>"Our Choice of the Week"</strong></td><td>Toque personal y experto. Diferencia de retailers genéricos. Genera curiosidad</td></tr>
+        <tr><td><strong>About Us</strong></td><td>Narrativa clara sobre identidad de marca. Foto real de la tienda. Autenticidad</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Screenshots -->
+    <div class="screenshot-grid">
+      <div class="screenshot-card">
+        <img src="audit-screenshots/homepage.png" alt="Homepage">
+        <div class="caption">Homepage — Hero section con "Our Choice of the Week" y diseño editorial premium</div>
+      </div>
+    </div>
+    <div class="screenshot-grid screenshot-grid-2">
+      <div class="screenshot-card">
+        <img src="audit-screenshots/catalog.png" alt="Catalog">
+        <div class="caption">Catálogo — 433 ítems con filtros por género</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="audit-screenshots/about.png" alt="About Us">
+        <div class="caption">About Us — Narrativa de marca auténtica</div>
+      </div>
+    </div>
+
+    <h3>❌ Problemas Detectados</h3>
+
+    <div class="alert alert-red">
+      <span class="icon">🔴</span>
+      <div>
+        <strong>CRÍTICO: Página "Collections" completamente rota.</strong><br>
+        La página está vacía/negra. Un usuario que hace clic en "Collections" ve una pantalla oscura sin contenido. Genera desconfianza y abandono inmediato.
+      </div>
+    </div>
+
+    <div class="screenshot-grid">
+      <div class="screenshot-card">
+        <img src="audit-screenshots/collections.png" alt="Collections page broken">
+        <div class="caption">⚠️ Página Collections — completamente vacía, pantalla negra</div>
+      </div>
+    </div>
+
+    <div class="alert alert-yellow">
+      <span class="icon">🟡</span>
+      <div>
+        <strong>Elementos mejorables:</strong>
+        <ul style="margin-top: 8px; padding-left: 16px; list-style: disc;">
+          <li>Sin "Listening Room" claramente visible — no queda claro qué hace</li>
+          <li>Sin footer informativo (dirección, horarios, redes, Discogs)</li>
+          <li>Sin testimonios ni social proof (reviews, badges de confianza)</li>
+          <li>Sin newsletter / email capture</li>
+          <li>Idioma solo inglés — considerar danés para público local</li>
+          <li>Sin política de envío ni devoluciones visible</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 3. INSTAGRAM -->
+  <div class="section" id="instagram">
+    <div class="section-label">Sección 03</div>
+    <h2>Auditoría de Instagram</h2>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="value">502</div>
+        <div class="label">Seguidores</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">5</div>
+        <div class="label">Posts totales</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">~39</div>
+        <div class="label">Likes promedio</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">7.8<span class="unit">%</span></div>
+        <div class="label">Engagement rate</div>
+      </div>
+    </div>
+
+    <div class="screenshot-grid screenshot-grid-2">
+      <div class="screenshot-card">
+        <img src="audit-screenshots/instagram.png" alt="Instagram feed">
+        <div class="caption">Perfil — Bio clara con dirección y horarios</div>
+      </div>
+      <div class="screenshot-card">
+        <img src="audit-screenshots/instagram2.png" alt="Instagram profile">
+        <div class="caption">Feed — Diseño vinculado a eventos "Capsula Sessions"</div>
+      </div>
+    </div>
+
+    <h3>✅ Lo positivo</h3>
+    <table>
+      <tbody>
+        <tr><td><strong>Branding consistente</strong></td><td>Logo naranja, estética cálida/grain — alineado con el website</td></tr>
+        <tr><td><strong>"Capsula Sessions"</strong></td><td>Contenido de comunidad que construye engagement real</td></tr>
+        <tr><td><strong>Colaboraciones</strong></td><td>Eventos con craft beer bars — expande la audiencia</td></tr>
+        <tr><td><strong>Engagement rate</strong></td><td>7.8% es excelente (el promedio en IG es ~1-3%)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>❌ Problemas y Oportunidades</h3>
+
+    <div class="alert alert-red">
+      <span class="icon">📱</span>
+      <div>
+        <strong>Solo 5 posts.</strong> Para una tienda que vende producto visual (vinilos), 5 posts es absolutamente insuficiente. Mínimo: 3-4 posts semanales.
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Problema</th><th>Impacto</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Sin Reels</td><td>Los Reels son el formato de <strong>mayor alcance orgánico</strong>. Oportunidad masiva perdida</td></tr>
+        <tr><td>Sin Stories Highlights</td><td>No hay categorías guardadas (Nuevas llegadas, Eventos, La tienda)</td></tr>
+        <tr><td>Sin link directo a tienda</td><td>Cada visitante del perfil es un potencial comprador perdido</td></tr>
+        <tr><td>Sin contenido educativo</td><td>"¿Qué es un VG+?", "Historia del deep house" — atrae seguidores orgánicos</td></tr>
+        <tr><td>Sin UGC</td><td>No se ven fotos de clientes, unboxings, reviews</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 4. COMPETENCIA -->
+  <div class="section" id="competencia">
+    <div class="section-label">Sección 04</div>
+    <h2>Análisis de Competencia</h2>
+
+    <h3>🏪 Competidores Directos en Copenhagen</h3>
+
+    <table>
+      <thead>
+        <tr><th>Tienda</th><th>Foco</th><th>Tamaño</th><th>Ventaja</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Sound Station</strong></td>
+          <td>Generalista (200k títulos)</td>
+          <td>Grande</td>
+          <td>Catálogo masivo, 30+ años</td>
+        </tr>
+        <tr>
+          <td><strong>Accord</strong></td>
+          <td>Secondhand generalista</td>
+          <td>Grande (3 tiendas)</td>
+          <td>Ubicuidad, precios bajos</td>
+        </tr>
+        <tr>
+          <td><strong>Dorma 21</strong></td>
+          <td>Electrónica (Techno, House)</td>
+          <td>Pequeña</td>
+          <td>Nicho idéntico al tuyo</td>
+        </tr>
+        <tr>
+          <td><strong>CAN Records</strong></td>
+          <td>Ecléctico / raro</td>
+          <td>Mediana</td>
+          <td>"Goldmine" de rarezas</td>
+        </tr>
+        <tr>
+          <td><strong>313 Vinyl Collective</strong></td>
+          <td>Electrónica</td>
+          <td>Pequeña</td>
+          <td><span class="badge badge-accent">⚡ Cerrando fin 2025</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-green">
+      <span class="icon">⚡</span>
+      <div>
+        <strong>Oportunidad clave:</strong> 313 Vinyl Collective está en tu misma dirección (Dybbølsgade 14) y está <strong>cerrando a finales de 2025</strong>. Esto representa una oportunidad directa de capturar sus clientes y posición en el mercado de electrónica en Vesterbro.
+      </div>
+    </div>
+
+    <h3>🏆 Ventaja Competitiva de El Cuartito</h3>
+    <table>
+      <tbody>
+        <tr><td style="width:50%"><strong>1. Web superior</strong></td><td>Significativamente más moderna y premium que cualquier competidor en CPH</td></tr>
+        <tr><td><strong>2. Nicho definido</strong></td><td>"Electronic Vinyl Boutique" — no intenta ser generalista</td></tr>
+        <tr><td><strong>3. Marca con personalidad</strong></td><td>Nombre en español, identidad visual, concepto de "the little room"</td></tr>
+        <tr><td><strong>4. Físico + online</strong></td><td>Combina tienda física con ecommerce funcional</td></tr>
+        <tr><td><strong>5. Curaduría experta</strong></td><td>"Our Choice of the Week" posiciona como autoridad</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 5. MERCADO -->
+  <div class="section" id="mercado">
+    <div class="section-label">Sección 05</div>
+    <h2>Posicionamiento de Mercado</h2>
+
+    <h3>📊 Contexto del Mercado Danés de Vinilos</h3>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="value">69<span class="unit">M DKK</span></div>
+        <div class="label">Mercado vinilos DK (2024)</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">+9.5<span class="unit">%</span></div>
+        <div class="label">Crecimiento mercado DK</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">~9.4<span class="unit">%</span></div>
+        <div class="label">CAGR europeo (2025-33)</div>
+      </div>
+      <div class="metric-card">
+        <div class="value">+51<span class="unit">%</span></div>
+        <div class="label">Ventas Discogs (2020-23)</div>
+      </div>
+    </div>
+
+    <h3>🗺️ Mapa de Posicionamiento</h3>
+
+    <div class="chart-container">
+      <div class="position-chart">
+        <div class="chart-axis-v"></div>
+        <div class="chart-axis-h"></div>
+        <span class="chart-label top">PREMIUM</span>
+        <span class="chart-label bottom">BUDGET</span>
+        <span class="chart-label left">NICHO</span>
+        <span class="chart-label right">GENERALISTA</span>
+
+        <!-- El Cuartito -->
+        <div class="chart-dot" style="left: 28%; top: 22%;">
+          <div class="dot" style="border-color: var(--accent); background: var(--accent);"></div>
+          <span class="name" style="color: var(--accent);">El Cuartito</span>
+        </div>
+        <!-- Dorma 21 -->
+        <div class="chart-dot" style="left: 30%; top: 60%;">
+          <div class="dot" style="border-color: var(--text-dim); background: transparent;"></div>
+          <span class="name" style="color: var(--text-dim);">Dorma 21</span>
+        </div>
+        <!-- Sound Station -->
+        <div class="chart-dot" style="left: 72%; top: 38%;">
+          <div class="dot" style="border-color: var(--text-dim); background: transparent;"></div>
+          <span class="name" style="color: var(--text-dim);">Sound Station</span>
+        </div>
+        <!-- Accord -->
+        <div class="chart-dot" style="left: 75%; top: 62%;">
+          <div class="dot" style="border-color: var(--text-dim); background: transparent;"></div>
+          <span class="name" style="color: var(--text-dim);">Accord</span>
+        </div>
+        <!-- CAN Records -->
+        <div class="chart-dot" style="left: 42%; top: 42%;">
+          <div class="dot" style="border-color: var(--text-dim); background: transparent;"></div>
+          <span class="name" style="color: var(--text-dim);">CAN Records</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-blue">
+      <span class="icon">📍</span>
+      <div>
+        <strong>El Cuartito ocupa el cuadrante Premium + Nicho</strong> — exactamente donde la tendencia del mercado indica mayor crecimiento (curaduría > volumen). Es el mejor cuadrante para una boutique.
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 6. PLAN DE ACCIÓN -->
+  <div class="section" id="plan">
+    <div class="section-label">Sección 06</div>
+    <h2>Plan de Acción Priorizado</h2>
+
+    <!-- Alta -->
+    <div class="priority-section">
+      <div class="priority-dot" style="background: var(--red);"></div>
+      <h4 style="color: var(--red);">Prioridad Alta — Esta Semana</h4>
+    </div>
+    <ul class="action-list">
+      <li>
+        <div class="action-num">1</div>
+        <div class="action-content">
+          <strong>Arreglar la página Collections</strong>
+          <div class="desc">Está rota y genera desconfianza. Cada visitante que la ve pierde confianza en la tienda.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">2</div>
+        <div class="action-content">
+          <strong>Agregar link directo a la tienda en bio de Instagram</strong>
+          <div class="desc">Cada visitante del perfil es un potencial comprador perdido sin un link claro.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">3</div>
+        <div class="action-content">
+          <strong>Crear Stories Highlights: "Shop", "Events", "New Arrivals"</strong>
+          <div class="desc">Organiza el contenido y mejora la primera impresión del perfil.</div>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Media -->
+    <div class="priority-section">
+      <div class="priority-dot" style="background: var(--yellow);"></div>
+      <h4 style="color: var(--yellow);">Prioridad Media — Este Mes</h4>
+    </div>
+    <ul class="action-list">
+      <li>
+        <div class="action-num">4</div>
+        <div class="action-content">
+          <strong>Calendario de contenido Instagram (3-4 posts/semana)</strong>
+          <div class="desc">Lun: "New in" · Mié: "Crate Digging" (Reel) · Vie: "Weekend Pick" · Sáb: Stories del local</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">5</div>
+        <div class="action-content">
+          <strong>Empezar con Reels</strong>
+          <div class="desc">Unboxings, poner un disco en el plato, "60 seconds of..." — contenido con alto alcance orgánico.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">6</div>
+        <div class="action-content">
+          <strong>Newsletter signup en la web</strong>
+          <div class="desc">Capturar emails para nuevas llegadas, eventos y drops exclusivos.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">7</div>
+        <div class="action-content">
+          <strong>Footer completo en la web</strong>
+          <div class="desc">Dirección, horarios, Instagram, Discogs, email de contacto.</div>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Estratégica -->
+    <div class="priority-section">
+      <div class="priority-dot" style="background: var(--green);"></div>
+      <h4 style="color: var(--green);">Prioridad Estratégica — Próximos 3 Meses</h4>
+    </div>
+    <ul class="action-list">
+      <li>
+        <div class="action-num">8</div>
+        <div class="action-content">
+          <strong>Integración Discogs</strong>
+          <div class="desc">Sincronizar catálogo para capturar mercado internacional.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">9</div>
+        <div class="action-content">
+          <strong>SEO de nicho</strong>
+          <div class="desc">Crear landing pages por género (ej: "Buy Deep House Vinyl Copenhagen").</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">10</div>
+        <div class="action-content">
+          <strong>Programa de fidelidad</strong>
+          <div class="desc">Loyalty card / puntos / descuento por recompra — retener clientes.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">11</div>
+        <div class="action-content">
+          <strong>Expandir colaboraciones locales</strong>
+          <div class="desc">DJs, venues, bares — ya hicieron con craft beer bar, escalar esta estrategia.</div>
+        </div>
+      </li>
+      <li>
+        <div class="action-num">12</div>
+        <div class="action-content">
+          <strong>Capsula Sessions como marca propia</strong>
+          <div class="desc">Grabar sesiones, subir clips, crear playlist en Spotify/SoundCloud que linkee a los vinilos.</div>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- 7. CONCLUSIÓN -->
+  <div class="section" id="conclusion">
+    <div class="section-label">Sección 07</div>
+    <div class="conclusion">
+      <h2>Conclusión</h2>
+      <p>
+        El Cuartito Records tiene una <strong>base sólida</strong>: marca premium, web superior a la competencia, nicho definido, y ubicación estratégica en Vesterbro.
+      </p>
+      <p>
+        El cierre inminente de 313 Vinyl Collective abre una <strong>ventana de oportunidad concreta</strong> para capturar clientes del segmento electrónico.
+      </p>
+      <p>
+        El mayor gap es la <strong>presencia digital</strong>: 5 posts en Instagram es insuficiente para sostener una marca en 2026. La web tiene un bug crítico y carece de elementos de conversión.
+      </p>
+      <p class="highlight">
+        Con consistencia en contenido y las correcciones técnicas,<br>
+        El Cuartito tiene el potencial de convertirse en la referencia #1<br>de vinilos electrónicos en Copenhagen.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

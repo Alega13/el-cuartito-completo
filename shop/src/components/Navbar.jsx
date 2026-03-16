@@ -12,6 +12,7 @@ const Navbar = ({ setSearchQuery }) => {
     const inputRef = useRef(null);
     const [isCartOpen, setIsCartOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [hasScrolled, setHasScrolled] = useState(false);
     const { totalItems } = useCart();
     const { totalItems: _unused, selectionCount } = useSelections();
 
@@ -23,6 +24,16 @@ const Navbar = ({ setSearchQuery }) => {
     const isListeningMode = location.pathname === '/listening';
     const isCollections = location.pathname === '/collections' || location.pathname.startsWith('/collection/');
     const isHome = location.pathname === '/';
+
+    // Track scroll to show/hide mobile navbar
+    useEffect(() => {
+        const handleScroll = () => {
+            setHasScrolled(window.scrollY > 80);
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll(); // check initial state
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     useEffect(() => {
         if (isSearchOpen && inputRef.current) {
@@ -208,102 +219,135 @@ const Navbar = ({ setSearchQuery }) => {
 
     return (
         <>
-            <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-fit px-6">
+            {/* Mobile-only: Standalone logo centered at top of page */}
+            <AnimatePresence>
+                {!hasScrolled && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.25 }}
+                        className="md:hidden fixed top-4 left-0 right-0 z-40 flex justify-center pointer-events-none"
+                    >
+                        <Link to="/" className="pointer-events-auto">
+                            <img src={logo} alt="El Cuartito" className="h-12 w-auto object-contain" />
+                        </Link>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Mobile: Scroll-triggered compact navbar pill */}
+            <AnimatePresence>
+                {hasScrolled && (
+                    <motion.nav
+                        initial={{ y: -60, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -60, opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        className="md:hidden fixed top-4 left-0 right-0 z-50 px-4"
+                    >
+                        <div className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/90 text-black border-white/50'} backdrop-blur-md px-5 py-2.5 rounded-full shadow-2xl border flex items-center gap-4 w-full`}>
+                            {!isHome && (
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="p-1 hover:bg-black/5 rounded-full transition-colors flex-shrink-0"
+                                >
+                                    <ArrowLeft size={18} />
+                                </button>
+                            )}
+                            <Link to="/" className="flex-shrink-0">
+                                <img src={logo} alt="El Cuartito" className="h-7 w-auto object-contain" />
+                            </Link>
+                            <div className="flex items-center gap-3 ml-auto flex-shrink-0">
+                                <button
+                                    onClick={() => setIsCartOpen(true)}
+                                    className="relative p-1.5 hover:bg-black/5 rounded-full transition-colors"
+                                >
+                                    <ShoppingBag size={18} strokeWidth={2.5} />
+                                    {totalItems > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-accent text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                                            {totalItems}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                    className="p-1.5 hover:bg-black/5 rounded-full transition-colors"
+                                >
+                                    <Menu size={18} strokeWidth={2.5} />
+                                </button>
+                            </div>
+                        </div>
+                    </motion.nav>
+                )}
+            </AnimatePresence>
+
+            {/* Mobile: Always-visible bottom action bar when NOT scrolled (cart + hamburger) */}
+
+            {/* Desktop: Full navbar pill (always visible) */}
+            <nav className="hidden md:block fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-fit px-6">
                 <motion.div
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     layout
-                    className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-5 md:px-8 py-3 rounded-full shadow-2xl border flex items-center gap-3 md:gap-6 overflow-hidden max-w-[95vw]`}
+                    className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-8 py-3 rounded-full shadow-2xl border flex items-center gap-6 overflow-hidden`}
                 >
-                    <AnimatePresence mode="wait">
-                        {isSearchOpen ? (
-                            <motion.div
-                                key="search-bar"
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: 'auto' }}
-                                exit={{ opacity: 0, width: 0 }}
-                                className="flex items-center gap-2 w-full md:w-[400px]"
+                    <motion.div className="flex items-center gap-4 mr-6">
+                        {!isHome && (
+                            <motion.button
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                onClick={() => navigate('/')}
+                                className="p-1 hover:bg-black/5 rounded-full transition-colors"
                             >
-                                <Search size={18} className="text-black/40 flex-shrink-0" />
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    placeholder="Search artist, album..."
-                                    className={`bg-transparent border-none outline-none text-sm font-medium w-full ${isCollections ? 'placeholder:text-[#ff5e00]/30 text-[#ff5e00]' : 'placeholder:text-black/30 text-black'}`}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                                <button onClick={handleCloseSearch} className="p-1 hover:bg-black/5 rounded-full transition-colors">
-                                    <X size={16} />
-                                </button>
-                            </motion.div>
-                        ) : (
-                            <>
-                                <motion.div className="flex items-center gap-2 md:gap-4 mr-2 md:mr-6">
-                                    {!isHome && (
-                                        <motion.button
-                                            initial={{ opacity: 0, x: -10 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: -10 }}
-                                            onClick={() => navigate('/')}
-                                            className="p-1 hover:bg-black/5 rounded-full transition-colors"
-                                        >
-                                            <ArrowLeft size={18} />
-                                        </motion.button>
-                                    )}
-
-                                    <motion.div
-                                        key="logo"
-                                        layout="position"
-                                        whileTap={{ scale: 0.95 }}
-                                        className="flex items-center"
-                                    >
-                                        <Link to="/">
-                                            <img src={logo} alt="El Cuartito" className="h-8 md:h-10 w-auto object-contain cursor-pointer" />
-                                        </Link>
-                                    </motion.div>
-                                </motion.div>
-
-                                <motion.div
-                                    key="menu"
-                                    layout="position"
-                                    className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
-                                >
-                                    <Link to="/listening" ref={navTargetRef} className="hover:opacity-40 transition-opacity flex items-center gap-1.5">
-                                        Listening Room
-                                        {selectionCount > 0 && (
-                                            <span className="bg-black text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] flex items-center justify-center">
-                                                {selectionCount}
-                                            </span>
-                                        )}
-                                    </Link>
-                                    <Link to="/catalog" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Catalog</Link>
-                                    <Link to="/collections" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Collections</Link>
-                                </motion.div>
-
-                                <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
-                                    {/* Cart */}
-                                    <button
-                                        onClick={() => setIsCartOpen(true)}
-                                        className="relative p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
-                                    >
-                                        <ShoppingBag size={18} strokeWidth={2.5} />
-                                        {totalItems > 0 && (
-                                            <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                                                {totalItems}
-                                            </span>
-                                        )}
-                                    </button>
-
-                                    <button
-                                        onClick={() => setIsMobileMenuOpen(true)}
-                                        className="md:hidden p-2 hover:bg-black/5 rounded-full transition-colors"
-                                    >
-                                        <Menu size={18} strokeWidth={2.5} />
-                                    </button>
-                                </motion.div>
-                            </>
+                                <ArrowLeft size={18} />
+                            </motion.button>
                         )}
-                    </AnimatePresence>
+
+                        <motion.div
+                            key="logo"
+                            layout="position"
+                            whileTap={{ scale: 0.95 }}
+                            className="flex items-center"
+                        >
+                            <Link to="/">
+                                <img src={logo} alt="El Cuartito" className="h-14 w-auto object-contain cursor-pointer flex-shrink-0" />
+                            </Link>
+                        </motion.div>
+                    </motion.div>
+
+                    <motion.div
+                        key="menu"
+                        layout="position"
+                        className="flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest flex-shrink-0"
+                    >
+                        <Link to="/listening" ref={navTargetRef} className="hover:opacity-40 transition-opacity flex items-center gap-1.5">
+                            Listening Room
+                            {selectionCount > 0 && (
+                                <span className="bg-black text-white text-[9px] px-1.5 py-0.5 rounded-full min-w-[16px] flex items-center justify-center">
+                                    {selectionCount}
+                                </span>
+                            )}
+                        </Link>
+                        <Link to="/catalog" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Catalog</Link>
+                        <Link to="/collections" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Collections</Link>
+                    </motion.div>
+
+                    <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
+                        {/* Cart */}
+                        <button
+                            onClick={() => setIsCartOpen(true)}
+                            className="relative p-2 hover:bg-black/5 rounded-full transition-colors font-bold"
+                        >
+                            <ShoppingBag size={18} strokeWidth={2.5} />
+                            {totalItems > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-accent text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                    {totalItems}
+                                </span>
+                            )}
+                        </button>
+                    </motion.div>
                 </motion.div>
             </nav>
 

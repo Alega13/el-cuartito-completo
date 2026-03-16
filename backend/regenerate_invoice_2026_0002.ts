@@ -28,6 +28,10 @@ async function regenerate() {
         return;
     }
     const saleData = saleDoc.data();
+    if (!saleData) {
+        console.error('❌ Sale data is undefined.');
+        return;
+    }
     console.log(`✅ Found Sale: ${saleData.orderNumber || invoiceData.saleId}`);
 
     // 3. Re-build Invoice Data (using updated logic in invoiceService)

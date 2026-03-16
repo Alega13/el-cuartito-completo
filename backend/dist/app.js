@@ -31,14 +31,7 @@ const allowedOrigins = [
     'https://elcuartito.dk'
 ];
 app.use((0, cors_1.default)({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        }
-        else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: true,
     credentials: true
 }));
 // Webhook endpoint - must use express.raw to preserve signature

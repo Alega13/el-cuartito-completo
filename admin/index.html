@@ -564,6 +564,16 @@
                     <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
                     <span>📑 Contabilidad</span>
                 </button>
+                <button onclick="app.navigate('facturasManual')" id="nav-d-facturasManual"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-note-pencil text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>🧾 Generar Factura</span>
+                </button>
+                <button onclick="app.navigate('extraIncome')" id="nav-d-extraIncome"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-coins text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>💰 Ingresos Extra</span>
+                </button>
 
                 <button onclick="app.navigate('backup')" id="nav-d-backup"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
@@ -681,6 +691,16 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-receipt text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Facturas</span>
+            </button>
+            <button onclick="app.navigate('facturasManual'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-note-pencil text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Generar</span>
+            </button>
+            <button onclick="app.navigate('extraIncome'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-coins text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Extras</span>
             </button>
         </div>
     </div>

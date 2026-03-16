@@ -12,7 +12,7 @@ const AboutPage = () => {
                 url="/about"
             />
 
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-[1200px] mx-auto w-full">
                 {/* Back Link */}
                 <Link
                     to="/"
@@ -22,30 +22,47 @@ const AboutPage = () => {
                     Back to Store
                 </Link>
 
-                <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-12">
-                    ABOUT US...
-                </h1>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
 
-                <div className="space-y-8 text-lg leading-relaxed text-black/80">
-                    <p>
-                        <strong>El Cuartito Records</strong> is a record store and creative space based in Copenhagen — a small room built around sound, culture, and connection.
-                    </p>
+                    {/* Image Column */}
+                    <div className="lg:col-span-5 w-full">
+                        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-sm bg-black/5">
+                            <img
+                                src="/frontstore.webp"
+                                alt="El Cuartito physical store entrance"
+                                className="object-cover w-full h-full"
+                            />
+                        </div>
+                    </div>
 
-                    <p>
-                        We curate sounds, gatherings, and experiences that blend underground culture, design, and community. Our aim is simple: to create a room where music feels alive — raw, human, and timeless.
-                    </p>
+                    {/* Text Column */}
+                    <div className="lg:col-span-6 lg:col-start-7 flex flex-col pt-8 lg:pt-12">
+                        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-12">
+                            ABOUT US...
+                        </h1>
 
-                    <p>
-                        More than a store, it's a meeting point — a place to listen, talk, and be part of a community that values the beauty of analog and the ritual of playing vinyl.
-                    </p>
+                        <div className="space-y-8 text-lg leading-relaxed text-black/80">
+                            <p>
+                                <strong>El Cuartito Records</strong> is a record store and creative space based in Copenhagen — a small room built around sound, culture, and connection.
+                            </p>
 
-                    <p>
-                        <em>"El Cuartito"</em> (Spanish for "the little room") reflects what we believe in: intimacy, warmth, and authenticity.
-                    </p>
+                            <p>
+                                We curate sounds, gatherings, and experiences that blend underground culture, design, and community. Our aim is simple: to create a room where music feels alive — raw, human, and timeless.
+                            </p>
 
-                    <p className="text-xl font-medium text-black">
-                        Come by, have a chat, dig through the crates, and be part of the room.
-                    </p>
+                            <p>
+                                More than a store, it's a meeting point — a place to listen, talk, and be part of a community that values the beauty of analog and the ritual of playing vinyl.
+                            </p>
+
+                            <p>
+                                <em>"El Cuartito"</em> (Spanish for "the little room") reflects what we believe in: intimacy, warmth, and authenticity.
+                            </p>
+
+                            <p className="text-xl font-medium text-black">
+                                Come by, have a chat, dig through the crates, and be part of the room.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Contact Info */}
