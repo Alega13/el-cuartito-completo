@@ -473,8 +473,9 @@ export const readyForPickup = async (req: Request, res: Response) => {
         }
 
         const saleData = saleDoc.data() as any;
+        const customerEmail = saleData?.customer?.email || saleData?.customerEmail;
 
-        console.log(`🚀 [PICKUP-READY] Marking order ${orderId} as ready for pickup`);
+        console.log(`🚀 [PICKUP-READY] Marking order ${orderId} as ready for pickup. Email: ${customerEmail || 'NONE'}`);
 
         await saleRef.update({
             status: 'ready_for_pickup',
@@ -482,12 +483,24 @@ export const readyForPickup = async (req: Request, res: Response) => {
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Send Email via Resend
-        await sendPickupReadyEmail(saleData);
+        let emailSent = false;
+        if (customerEmail) {
+            try {
+                // Send Email via Resend
+                await sendPickupReadyEmail(saleData);
+                emailSent = true;
+                console.log(`📧 [PICKUP-READY] Email sent to ${customerEmail}`);
+            } catch (emailError: any) {
+                console.error(`❌ [PICKUP-READY] Email failed but status updated:`, emailError.message);
+            }
+        } else {
+            console.warn(`⚠️ [PICKUP-READY] No email found for order ${orderId}, skipping notification.`);
+        }
 
         res.json({
             success: true,
-            message: 'Order marked as ready for pickup successfully'
+            message: emailSent ? 'Pedido listo y cliente notificado' : 'Pedido listo (email no enviado)',
+            emailSent
         });
 
     } catch (error: any) {

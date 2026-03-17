@@ -2389,47 +2389,7 @@ const app = {
         this.refreshCurrentView();
     },
 
-    async setReadyForPickup(saleId) {
-        try {
-            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
 
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Guardando...';
-            }
-
-            const response = await fetch(`${BASE_API_URL}/api/ready-for-pickup`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ orderId: saleId })
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                this.showToast('✅ Pedido listo para retiro');
-                this.showToast('📧 Cliente notificado por email');
-
-                // Refresh data and reopen modal
-                await this.loadData();
-                const modal = document.getElementById('sale-detail-modal');
-                if (modal) {
-                    modal.remove();
-                    this.openUnifiedOrderDetailModal(saleId);
-                }
-            } else {
-                throw new Error(result.error || result.message || 'Error desconocido');
-            }
-        } catch (error) {
-            console.error("Error setting ready for pickup:", error);
-            this.showToast("❌ Error: " + (error.message || 'No se pudo procesar el estado'), 'error');
-            const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
-            btn.disabled = false;
-            btn.innerHTML = '<i class="ph-bold ph-storefront"></i> Listo para Retiro';
-        }
-    },
 
     renderDashboard(container) {
         try {
@@ -5373,7 +5333,7 @@ const app = {
                                         <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'preparing' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                             <i class="ph ph-package"></i> Preparación
                                         </button>
-                                        <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'ready_for_pickup')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'ready_for_pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
+                                        <button onclick="app.setReadyForPickup('${sale.id}', event)" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'ready_for_pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                             <i class="ph ph-storefront"></i> Listo para Retiro
                                         </button>
                                         <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'shipped' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
@@ -8992,7 +8952,7 @@ const app = {
                                         <td class="p-4 text-xs text-slate-500">${s.items?.length || 0} items</td>
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
-                                            <button onclick="app.setReadyForPickup('${s.id}')" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
+                                            <button onclick="app.setReadyForPickup('${s.id}', event)" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
                                                 <i class="ph-bold ph-bell"></i> Notificar Listo
                                             </button>
                                         </td>
@@ -9031,7 +8991,7 @@ const app = {
                                         <td class="p-4 text-sm font-bold text-brand-dark">${s.customer?.name || s.customerName || 'Cliente'}</td>
                                         <td class="p-4 text-xs text-slate-500 font-medium">${this.formatDate(s.updated_at?.toDate ? s.updated_at.toDate() : s.updated_at || s.date)}</td>
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
-                                            <button onclick="app.markAsDelivered('${s.id}')" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
+                                            <button onclick="app.markAsDelivered('${s.id}', event)" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
                                                 <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
                                             </button>
                                         </td>
@@ -9068,32 +9028,55 @@ const app = {
         container.innerHTML = html;
     },
 
-    async setReadyForPickup(id) {
+    async setReadyForPickup(id, event) {
         try {
-            const btn = event?.target?.closest('button');
-            if (btn) btn.disabled = true;
+            const currentEvent = event || window.event;
+            const btn = currentEvent?.target?.closest('button');
+            if (btn) {
+                btn.disabled = true;
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Notificando...';
+            }
 
-            const response = await fetch(`${BASE_API_URL}/shipping/ready-for-pickup`, {
+            const response = await fetch(`${BASE_API_URL}/api/ready-for-pickup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: id })
             });
 
-            if (response.ok) {
+            const result = await response.json();
+
+            if (response.ok && result.success) {
                 this.showToast('✅ Cliente notificado - El pedido está listo para retiro');
                 await this.loadData();
-                this.refreshCurrentView();
+                
+                // If we are in the detail modal, refresh it
+                const unifiedModal = document.getElementById('unified-modal');
+                if (unifiedModal) {
+                    unifiedModal.remove();
+                    this.openUnifiedOrderDetailModal(id);
+                } else {
+                    this.refreshCurrentView();
+                }
             } else {
-                throw new Error('Error al notificar');
+                throw new Error(result.error || result.message || 'Error al notificar');
             }
         } catch (error) {
-            this.showToast('❌ error: ' + error.message, 'error');
+            console.error("Error in setReadyForPickup:", error);
+            this.showToast('❌ Error: ' + error.message, 'error');
+            const currentEvent = event || window.event;
+            const btn = currentEvent?.target?.closest('button');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-bell"></i> Notificar Listo';
+            }
         }
     },
 
-    async markAsDelivered(id) {
+    async markAsDelivered(id, event) {
         try {
-            const btn = event?.target?.closest('button');
+            const currentEvent = event || window.event;
+            const btn = currentEvent?.target?.closest('button');
             if (btn) btn.disabled = true;
 
             await db.collection('sales').doc(id).update({
