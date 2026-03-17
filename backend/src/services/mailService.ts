@@ -411,8 +411,7 @@ export const sendPickupReadyEmail = async (orderData: any) => {
                     <div style="margin-bottom: 30px;">
                         <h3 style="color: #999; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Opening Hours</h3>
                         <p style="font-size: 14px; color: #444; line-height: 1.6;">
-                            Monday to Friday: 11:00 - 18:00<br>
-                            Saturday: 11:00 - 16:00
+                            Tuesday to Saturday: 11:00 - 17:00
                         </p>
                     </div>
 
