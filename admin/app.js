@@ -208,7 +208,8 @@ const app = {
         filterOwner: 'all',
         filterLabel: 'all',
         filterStorage: 'all',
-        filterDiscogs: 'all'
+        filterDiscogs: 'all',
+        filterStockTime: []
     },
 
     async init() {
@@ -2969,8 +2970,9 @@ const app = {
                                             <i class="ph-bold ph-printer text-lg"></i>
                                          </button>
                                      </div>
-                                     <div class="absolute top-2 right-2">
+                                     <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                          ${this.getStatusBadge(item.condition)}
+                                         ${this.getTimeInStockBadge(this.getTimeInStockCategory(item.created_at))}
                                      </div>
                                 </div>
                                 <div class="flex-1 flex flex-col">
@@ -3036,11 +3038,16 @@ const app = {
                                     </td>
                                     <td class="p-3">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-md border border-slate-100">
-                                                ${item.cover_image
-                            ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
-                            : `<i class="ph-fill ph-disc text-xl"></i>`
-                        }
+                                            <div class="relative">
+                                                <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-md border border-slate-100">
+                                                    ${item.cover_image
+                                ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
+                                : `<i class="ph-fill ph-disc text-xl"></i>`
+                            }
+                                                </div>
+                                                <div class="absolute -top-1 -right-1 border-2 border-white rounded-full">
+                                                    ${this.getTimeInStockBadge(this.getTimeInStockCategory(item.created_at))}
+                                                </div>
                                             </div>
                                             <div class="min-w-0">
                                                 <div class="font-bold text-brand-dark text-sm truncate max-w-[220px]" title="${item.album}">${item.album}</div>
@@ -3252,6 +3259,23 @@ const app = {
                         ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
                     </select>
                 </div>
+
+                <!-- Stock Time Filter -->
+                <div class="flex items-center gap-1.5 ml-2 border-l border-slate-200 pl-4 py-1">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase mr-1">Antigüedad:</span>
+                    <button onclick="app.toggleStockTimeFilter('green')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('green') ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-emerald-200 bg-white text-emerald-500'} hover:scale-110 transition-all" title="0-2 meses">
+                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('green') ? 'bg-white' : 'bg-emerald-500'}"></span>
+                    </button>
+                    <button onclick="app.toggleStockTimeFilter('orange')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('orange') ? 'border-orange-500 bg-orange-500 text-white' : 'border-orange-200 bg-white text-orange-500'} hover:scale-110 transition-all" title="2-4 meses">
+                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('orange') ? 'bg-white' : 'bg-orange-500'}"></span>
+                    </button>
+                    <button onclick="app.toggleStockTimeFilter('red')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('red') ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 bg-white text-red-500'} hover:scale-110 transition-all" title="4-6 meses">
+                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('red') ? 'bg-white' : 'bg-red-500'}"></span>
+                    </button>
+                    <button onclick="app.toggleStockTimeFilter('purple')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('purple') ? 'border-purple-500 bg-purple-500 text-white' : 'border-purple-200 bg-white text-purple-500'} hover:scale-110 transition-all" title="+6 meses">
+                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('purple') ? 'bg-white' : 'bg-purple-500'}"></span>
+                    </button>
+                </div>
                 <div class="filter-chip ${this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 'active' : ''}">
                     <i class="ph-bold ph-disc text-xs"></i>
                     <select onchange="app.state.filterDiscogs = this.value; app.refreshCurrentView()">
@@ -3268,9 +3292,9 @@ const app = {
                         <option value="no" ${this.state.filterHero === 'no' ? 'selected' : ''}>➖ Normal</option>
                     </select>
                 </div>
-                ${activeFilters > 0 ? `
-                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
-                        <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters})
+                ${activeFilters > 0 || this.state.filterStockTime.length > 0 ? `
+                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.state.filterStockTime=[]; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
+                        <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters + this.state.filterStockTime.length})
                     </button>
                 ` : ''}
             `;
@@ -3287,6 +3311,42 @@ const app = {
     },
 
 
+
+    getTimeInStockCategory(createdAt) {
+        if (!createdAt) return 'unknown';
+        const date = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
+        if (isNaN(date.getTime())) return 'unknown';
+
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const months = diffDays / 30.44;
+
+        if (months <= 2) return 'green';
+        if (months <= 4) return 'orange';
+        if (months <= 6) return 'red';
+        return 'purple';
+    },
+
+    getTimeInStockBadge(category) {
+        switch(category) {
+            case 'green': return '<span class="w-3 h-3 block rounded-full bg-emerald-500 shadow-sm" title="Antigüedad: 0 a 2 meses"></span>';
+            case 'orange': return '<span class="w-3 h-3 block rounded-full bg-orange-500 shadow-sm" title="Antigüedad: 2 a 4 meses"></span>';
+            case 'red': return '<span class="w-3 h-3 block rounded-full bg-red-500 shadow-sm" title="Antigüedad: 4 a 6 meses"></span>';
+            case 'purple': return '<span class="w-3 h-3 block rounded-full bg-purple-500 shadow-sm" title="Antigüedad: Más de 6 meses"></span>';
+            default: return '<span class="w-3 h-3 block rounded-full bg-slate-300 shadow-sm" title="Antigüedad: Desconocida"></span>';
+        }
+    },
+
+    toggleStockTimeFilter(category) {
+        const index = this.state.filterStockTime.indexOf(category);
+        if (index === -1) {
+            this.state.filterStockTime.push(category);
+        } else {
+            this.state.filterStockTime.splice(index, 1);
+        }
+        this.refreshCurrentView();
+    },
 
     getStatusBadge(status) {
         const colors = {
@@ -5791,7 +5851,10 @@ const app = {
                 (currentHeroFilter === 'yes' && isHero) ||
                 (currentHeroFilter === 'no' && !isHero);
 
-            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero;
+            const stockAge = this.getTimeInStockCategory(item.created_at || null);
+            const matchesStockTime = this.state.filterStockTime.length === 0 || this.state.filterStockTime.includes(stockAge);
+
+            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero && matchesStockTime;
         });
     },
     toggleSelectAll() {
