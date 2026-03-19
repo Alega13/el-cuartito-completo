@@ -446,6 +446,7 @@ exports.manualShipOrder = manualShipOrder;
  * Receives { orderId } in body
  */
 const readyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { orderId } = req.body;
         if (!orderId) {
@@ -458,17 +459,32 @@ const readyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, function*
             return res.status(404).json({ error: 'Order not found' });
         }
         const saleData = saleDoc.data();
-        console.log(`🚀 [PICKUP-READY] Marking order ${orderId} as ready for pickup`);
+        const customerEmail = ((_a = saleData === null || saleData === void 0 ? void 0 : saleData.customer) === null || _a === void 0 ? void 0 : _a.email) || (saleData === null || saleData === void 0 ? void 0 : saleData.customerEmail);
+        console.log(`🚀 [PICKUP-READY] Marking order ${orderId} as ready for pickup. Email: ${customerEmail || 'NONE'}`);
         yield saleRef.update({
             status: 'ready_for_pickup',
             fulfillment_status: 'ready_for_pickup',
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
-        // Send Email via Resend
-        yield (0, mailService_1.sendPickupReadyEmail)(saleData);
+        let emailSent = false;
+        if (customerEmail) {
+            try {
+                // Send Email via Resend
+                yield (0, mailService_1.sendPickupReadyEmail)(saleData);
+                emailSent = true;
+                console.log(`📧 [PICKUP-READY] Email sent to ${customerEmail}`);
+            }
+            catch (emailError) {
+                console.error(`❌ [PICKUP-READY] Email failed but status updated:`, emailError.message);
+            }
+        }
+        else {
+            console.warn(`⚠️ [PICKUP-READY] No email found for order ${orderId}, skipping notification.`);
+        }
         res.json({
             success: true,
-            message: 'Order marked as ready for pickup successfully'
+            message: emailSent ? 'Pedido listo y cliente notificado' : 'Pedido listo (email no enviado)',
+            emailSent
         });
     }
     catch (error) {

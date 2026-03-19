@@ -10,6 +10,7 @@ import {
     getInvoiceDownloadUrl,
     getQuarterInvoices,
     backfillInvoices,
+    generateManualInvoice,
 } from '../services/invoiceService';
 
 const router = Router();
@@ -89,6 +90,26 @@ router.post('/backfill', isAdmin, async (req: Request, res: Response) => {
         res.json({ success: true, ...result });
     } catch (error: any) {
         console.error('Error during backfill:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /invoices/manual
+ * Generate a manual invoice from provided data.
+ */
+router.post('/manual', isAdmin, async (req: Request, res: Response) => {
+    try {
+        const invoiceData = req.body;
+        
+        if (!invoiceData.customerName || !invoiceData.description || !invoiceData.amount || !invoiceData.date) {
+            return res.status(400).json({ error: 'Missing required manual invoice fields' });
+        }
+
+        const result = await generateManualInvoice(invoiceData);
+        res.json({ success: true, ...result });
+    } catch (error: any) {
+        console.error('Error generating manual invoice:', error);
         res.status(500).json({ error: error.message });
     }
 });
