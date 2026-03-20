@@ -3,6 +3,7 @@ import { DiscogsService } from '../services/discogsService';
 import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import { generateInvoice, buildInvoiceFromDiscogsSale } from '../services/invoiceService';
+import { sendSaleNotificationEmail } from '../services/mailService';
 
 interface SyncResult {
     success: boolean;
@@ -291,6 +292,17 @@ export const syncOrders = async (req: Request, res: Response) => {
                     generateInvoice(invoiceData).catch(e =>
                         console.error(`⚠️ Invoice generation failed for Discogs order ${order.id}:`, e.message)
                     );
+
+                    // Send sale notification email to owner
+                    sendSaleNotificationEmail({
+                        channel: 'discogs',
+                        items,
+                        totalAmount: netAmount,
+                        paymentMethod: 'Discogs Payout',
+                        customerName: order.buyer?.username || undefined,
+                        saleId,
+                        date: orderDate.toISOString().split('T')[0],
+                    }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
                 }
 
                 // Update stock for matching products

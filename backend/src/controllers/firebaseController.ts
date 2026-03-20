@@ -3,6 +3,7 @@ import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import { calculateSaleVATLiability } from '../services/vatCalculator';
 import { generateInvoice, buildInvoiceFromPOSSale } from '../services/invoiceService';
+import { sendSaleNotificationEmail } from '../services/mailService';
 
 // Types for clarity
 interface ProductData {
@@ -273,6 +274,18 @@ export const createSale = async (req: Request, res: Response) => {
                 console.error('⚠️ Invoice generation failed for POS sale:', e.message)
             );
         }, 1);
+
+        // Send sale notification email to owner (non-blocking)
+        setTimeout(() => {
+            sendSaleNotificationEmail({
+                channel: channel || 'local',
+                items: normalizedItems,
+                totalAmount: finalTotal,
+                paymentMethod: paymentMethod || 'CASH',
+                customerName: customerName || undefined,
+                saleId,
+            }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
+        }, 50);
     } catch (error: any) {
         res.status(400).json({ error: error.message });
     }

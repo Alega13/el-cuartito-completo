@@ -5,6 +5,7 @@ import { getDb } from '../config/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import { sendOrderConfirmationEmail } from '../services/mailService';
 import { generateInvoice, buildInvoiceFromWebshopSale } from '../services/invoiceService';
+import { sendSaleNotificationEmail } from '../services/mailService';
 
 // Initialize Stripe only if key exists
 const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test_mock'
@@ -163,6 +164,18 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                                 console.error('⚠️ Invoice generation failed for webshop sale:', e.message)
                             );
                         }, 100);
+
+                        // Send sale notification email to owner
+                        setTimeout(() => {
+                            sendSaleNotificationEmail({
+                                channel: 'online',
+                                items: saleData.items || [],
+                                totalAmount: saleData.total_amount || 0,
+                                paymentMethod: paymentIntent.payment_method_types?.[0] || 'card',
+                                customerName: stripeCustomer.name || undefined,
+                                saleId,
+                            }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
+                        }, 200);
                     } else {
                         console.log('Sale not found or already processed:', saleId);
                     }
