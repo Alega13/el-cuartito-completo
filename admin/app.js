@@ -6009,7 +6009,7 @@ const app = {
             publish_discogs: publishDiscogs,
             publish_local: publishLocal,
             cover_image: formData.get('cover_image') || null,
-            created_at: firebase.firestore.FieldValue.serverTimestamp(),
+            updated_at: firebase.firestore.FieldValue.serverTimestamp(),
             // Shop Tags
             // Shop Tags
             tags: [
@@ -6044,6 +6044,7 @@ const app = {
                 this.showToast('✅ Disco actualizado');
             } else {
                 // Create new with auto-generated ID
+                recordData.created_at = firebase.firestore.FieldValue.serverTimestamp();
                 const docRef = await db.collection('products').add(recordData);
                 productId = docRef.id;
                 this.showToast('✅ Disco agregado al inventario');
