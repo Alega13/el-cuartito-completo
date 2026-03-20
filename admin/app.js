@@ -10043,7 +10043,7 @@ const app = {
 
         // Helper to check if order is active (not closed)
         // Closed states: 'shipped', 'picked_up'
-        const isActive = (s) => !['shipped', 'picked_up'].includes(s.fulfillment_status);
+        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'in_transit', 'fulfilled'].includes(s.fulfillment_status);
 
         // Filter Sales
         // 1. Active Pickups (Online + Discogs)

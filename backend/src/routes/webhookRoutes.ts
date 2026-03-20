@@ -120,9 +120,8 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             } : null)
                         };
 
-                        const updatedSaleData = {
+                        const updatedSaleData: any = {
                             status: 'completed',
-                            fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
                             stripePaymentIntentId: paymentIntent.id, // NEW: For idempotency
                             paymentId: paymentIntent.id,
@@ -135,6 +134,13 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()
                         };
+
+                        // Only set fulfillment_status to 'pending' if not already progressed
+                        const currentFulfillment = saleData?.fulfillment_status;
+                        const progressedStatuses = ['preparing', 'ready_for_pickup', 'in_transit', 'shipped', 'picked_up', 'delivered', 'fulfilled'];
+                        if (!currentFulfillment || !progressedStatuses.includes(currentFulfillment)) {
+                            updatedSaleData.fulfillment_status = 'pending';
+                        }
 
                         transaction.update(saleRef, updatedSaleData);
 
