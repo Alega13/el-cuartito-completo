@@ -1,5 +1,7 @@
 // Firebase Firestore reference (initialized in index.html)
 const db = firebase.firestore();
+const APP_VERSION = '2026.03.20.1';
+console.log('🚀 El Cuartito Admin v' + APP_VERSION + ' loaded');
 
 const auth = window.auth;
 
@@ -6026,6 +6028,8 @@ const app = {
                 } catch (e) { return []; }
             })()
         };
+
+        console.log(`[handleAddVinyl] editSku: ${editSku}, recordData:`, recordData);
 
         try {
             let productId = null;
