@@ -101,6 +101,20 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             }
                         }
 
+                        // Lock coupon usage if a coupon was applied
+                        if (saleData.coupon_code && saleData.customer?.email) {
+                            const codeUpper = saleData.coupon_code.trim().toUpperCase();
+                            const usedId = `${saleData.customer.email.trim()}_${codeUpper}`;
+                            const usedRef = db.collection('used_coupons').doc(usedId);
+                            transaction.set(usedRef, {
+                                email: saleData.customer.email.trim(),
+                                coupon_code: codeUpper,
+                                used_at: admin.firestore.FieldValue.serverTimestamp(),
+                                sale_id: saleId
+                            });
+                            console.log(`🎟️ Marked coupon ${codeUpper} as used by ${saleData.customer.email}`);
+                        }
+
                         // Update sale status (preserving existing customer data, but enriching with Stripe info)
                         const stripeCustomer = {
                             name: paymentIntent.shipping?.name || paymentIntent.receipt_email || saleData.customer?.name || (saleData.customer?.firstName ? `${saleData.customer.firstName} ${saleData.customer.lastName}` : '') || 'Customer',

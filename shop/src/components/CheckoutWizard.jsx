@@ -131,6 +131,12 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
     const [clientSecret, setClientSecret] = useState(null);
     const [saleId, setSaleId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    
+    // Coupon state
+    const [couponCode, setCouponCode] = useState('');
+    const [discountPercentage, setDiscountPercentage] = useState(0);
+    const [isCouponValid, setIsCouponValid] = useState(false);
+
     const [addressData, setAddressData] = useState({
         street: '',
         city: '',
@@ -180,10 +186,16 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
                 country: data.address.country
             };
 
-            // Start checkout with shipping method
-            const result = await startCheckout(items, fullCustomerData, data.shippingMethod);
+            // Start checkout with shipping method and coupon if valid
+            const result = await startCheckout(
+                items, 
+                fullCustomerData, 
+                data.shippingMethod, 
+                isCouponValid ? couponCode : null
+            );
 
             setClientSecret(result.clientSecret);
+
             setSaleId(result.saleId);
             setCurrentStep(3);
         } catch (error) {
@@ -248,6 +260,13 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
                         cart={cart}
                         shippingCost={shippingData?.shippingMethod?.price || 0}
                         showShipping={currentStep >= 2 && !!shippingData}
+                        customerEmail={customerData?.email}
+                        couponCode={couponCode}
+                        setCouponCode={setCouponCode}
+                        discountPercentage={discountPercentage}
+                        setDiscountPercentage={setDiscountPercentage}
+                        isCouponValid={isCouponValid}
+                        setIsCouponValid={setIsCouponValid}
                     />
                 </div>
             </div>

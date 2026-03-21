@@ -66,13 +66,28 @@ export const calculateShipping = async (country, postalCode, city, orderTotal, i
     }
 };
 
-export const startCheckout = async (items, customerData, shippingMethod) => {
+export const validateCoupon = async (code, email) => {
     try {
-        const response = await api.post('/checkout/start', {
+        const response = await api.post('/checkout/validate-coupon', { code, email });
+        return response.data;
+    } catch (error) {
+        console.error("Error validating coupon:", error);
+        throw error;
+    }
+};
+
+export const startCheckout = async (items, customerData, shippingMethod, couponCode = null) => {
+    try {
+        const payload = {
             items,
             customerData,
             shippingMethod
-        });
+        };
+        if (couponCode) {
+            payload.couponCode = couponCode;
+        }
+        
+        const response = await api.post('/checkout/start', payload);
         return response.data;
     } catch (error) {
         console.error("Error starting checkout:", error);
