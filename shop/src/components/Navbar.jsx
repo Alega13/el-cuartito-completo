@@ -246,7 +246,7 @@ const Navbar = ({ setSearchQuery }) => {
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                         className="md:hidden fixed top-4 left-0 right-0 z-50 px-4"
                     >
-                        <div className={`${isAbout ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/90 text-black border-white/50'} backdrop-blur-md px-5 py-2.5 rounded-full shadow-2xl border flex items-center gap-4 w-full`}>
+                        <div className="bg-white/90 text-black border-white/50 backdrop-blur-md px-5 py-2.5 rounded-full shadow-2xl border flex items-center gap-4 w-full">
                             {!isHome && (
                                 <button
                                     onClick={() => navigate('/')}
@@ -290,7 +290,7 @@ const Navbar = ({ setSearchQuery }) => {
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     layout
-                    className={`${isAbout ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-8 py-3 rounded-full shadow-2xl border flex items-center gap-6 overflow-hidden`}
+                    className="bg-white/80 text-black border-white/50 backdrop-blur-md px-8 py-3 rounded-full shadow-2xl border flex items-center gap-6 overflow-hidden"
                 >
                     <motion.div className="flex items-center gap-4 mr-6">
                         {!isHome && (
