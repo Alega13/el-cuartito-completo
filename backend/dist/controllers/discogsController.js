@@ -114,8 +114,11 @@ const syncInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     if (newStock < oldStock) {
                         const quantitySold = oldStock - newStock;
                         console.log(`🔔 Sale detected! ${product.artist} - ${product.album}: ${quantitySold} sold`);
+                        // Use a batch to atomically create sale + movement + update product
+                        const batch = db.batch();
                         // Create sale record
-                        yield db.collection('sales').add({
+                        const saleRef = db.collection('sales').doc();
+                        batch.set(saleRef, {
                             items: [{
                                     productId: docId,
                                     album: product.album,
@@ -134,7 +137,8 @@ const syncInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                             discogs_listing_id: product.discogs_listing_id
                         });
                         // Create inventory movement log
-                        yield db.collection('inventory_movements').add({
+                        const movementRef = db.collection('inventory_movements').doc();
+                        batch.set(movementRef, {
                             product_id: docId,
                             album: product.album,
                             change: -quantitySold,
@@ -142,9 +146,16 @@ const syncInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                             channel: 'discogs',
                             timestamp: admin.firestore.FieldValue.serverTimestamp()
                         });
+                        // Update product with new data from Discogs (stock already reflects the sale)
+                        const productRef = db.collection('products').doc(docId);
+                        batch.update(productRef, productData);
+                        yield batch.commit();
                         result.salesDetected++;
                     }
-                    yield db.collection('products').doc(docId).update(productData);
+                    else {
+                        // No sale detected, just update product data
+                        yield db.collection('products').doc(docId).update(productData);
+                    }
                     result.updated++;
                     console.log(`Updated: ${product.artist} - ${product.album}`);
                 }
@@ -198,7 +209,7 @@ exports.getSyncStatus = getSyncStatus;
  * Sync orders from Discogs - creates sales for orders that haven't been synced yet
  */
 const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d;
     try {
         const username = process.env.DISCOGS_USERNAME;
         const token = process.env.DISCOGS_TOKEN;
@@ -251,8 +262,11 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                         costAtSale: 0
                     });
                 });
+                // Use a batch to atomically create sale + deduct stock + log movements
+                const batch = db.batch();
                 // Create sale record
-                yield db.collection('sales').add({
+                const saleRef = db.collection('sales').doc();
+                batch.set(saleRef, {
                     discogs_order_id: order.id,
                     channel: 'discogs',
                     status: 'pending_review',
@@ -262,7 +276,7 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                     paypalFee: 0,
                     totalFees: 0,
                     shipping: shipping,
-                    shipping_income: shipping, // Map to new field for VAT reporting
+                    shipping_income: shipping,
                     date: orderDate.toISOString().split('T')[0],
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
                     customerName: ((_c = order.buyer) === null || _c === void 0 ? void 0 : _c.username) || 'Discogs Buyer',
@@ -273,30 +287,7 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                     orderStatus: order.status,
                     needsReview: true
                 });
-                console.log(`✅ Created sale for Discogs order ${order.id}: ${items.map((i) => i.album).join(', ')}`);
-                result.salesCreated++;
-                result.ordersProcessed++;
-                // Generate invoice in background
-                const saleDocRef = yield db.collection('sales')
-                    .where('discogs_order_id', '==', order.id)
-                    .limit(1)
-                    .get();
-                if (!saleDocRef.empty) {
-                    const saleId = saleDocRef.docs[0].id;
-                    const invoiceData = (0, invoiceService_1.buildInvoiceFromDiscogsSale)(saleId, { date: orderDate.toISOString().split('T')[0], customerName: (_e = order.buyer) === null || _e === void 0 ? void 0 : _e.username, shippingAddress: order.shipping_address }, items, netAmount, shipping);
-                    (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error(`⚠️ Invoice generation failed for Discogs order ${order.id}:`, e.message));
-                    // Send sale notification email to owner
-                    (0, mailService_1.sendSaleNotificationEmail)({
-                        channel: 'discogs',
-                        items,
-                        totalAmount: netAmount,
-                        paymentMethod: 'Discogs Payout',
-                        customerName: ((_f = order.buyer) === null || _f === void 0 ? void 0 : _f.username) || undefined,
-                        saleId,
-                        date: orderDate.toISOString().split('T')[0],
-                    }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
-                }
-                // Update stock for matching products
+                // Deduct stock atomically for each item
                 for (const item of items) {
                     const productQuery = yield db.collection('products')
                         .where('discogs_listing_id', '==', item.discogs_listing_id)
@@ -304,13 +295,52 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                         .get();
                     if (!productQuery.empty) {
                         const productDoc = productQuery.docs[0];
-                        const currentStock = productDoc.data().stock || 0;
-                        yield productDoc.ref.update({
-                            stock: Math.max(0, currentStock - 1)
+                        // Use FieldValue.increment for atomic stock deduction
+                        batch.update(productDoc.ref, {
+                            stock: admin.firestore.FieldValue.increment(-1),
+                            updated_at: admin.firestore.FieldValue.serverTimestamp()
                         });
-                        console.log(`  📦 Updated stock for ${item.album}`);
+                        // Record inventory movement
+                        const movementRef = db.collection('inventory_movements').doc();
+                        batch.set(movementRef, {
+                            product_id: productDoc.id,
+                            album: item.album,
+                            change: -1,
+                            reason: 'sale',
+                            channel: 'discogs',
+                            discogs_order_id: order.id,
+                            timestamp: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                        // Store productId for invoice
+                        item.productId = productDoc.id;
+                        console.log(`  📦 Queued stock deduction for ${item.album}`);
                     }
                 }
+                // Commit all writes atomically
+                yield batch.commit();
+                const saleId = saleRef.id;
+                console.log(`✅ Created sale for Discogs order ${order.id}: ${items.map((i) => i.album).join(', ')}`);
+                result.salesCreated++;
+                result.ordersProcessed++;
+                // Generate invoice in background (non-blocking)
+                setTimeout(() => {
+                    var _a;
+                    const invoiceData = (0, invoiceService_1.buildInvoiceFromDiscogsSale)(saleId, { date: orderDate.toISOString().split('T')[0], customerName: (_a = order.buyer) === null || _a === void 0 ? void 0 : _a.username, shippingAddress: order.shipping_address }, items, netAmount, shipping);
+                    (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error(`⚠️ Invoice generation failed for Discogs order ${order.id}:`, e.message));
+                }, 1);
+                // Send sale notification email to owner (non-blocking)
+                setTimeout(() => {
+                    var _a;
+                    (0, mailService_1.sendSaleNotificationEmail)({
+                        channel: 'discogs',
+                        items,
+                        totalAmount: netAmount,
+                        paymentMethod: 'Discogs Payout',
+                        customerName: ((_a = order.buyer) === null || _a === void 0 ? void 0 : _a.username) || undefined,
+                        saleId,
+                        date: orderDate.toISOString().split('T')[0],
+                    }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
+                }, 50);
             }
             catch (orderError) {
                 result.errors.push(`Order ${order.id}: ${orderError.message}`);

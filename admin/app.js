@@ -69,7 +69,7 @@ const api = {
 
             for (const item of itemsWithData) {
                 transaction.update(item.ref, {
-                    stock: item.data.stock - item.quantity
+                    stock: firebase.firestore.FieldValue.increment(-item.quantity)
                 });
 
                 const logRef = db.collection('inventory_logs').doc();
