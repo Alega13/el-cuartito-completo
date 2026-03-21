@@ -37,5 +37,6 @@ const express_1 = require("express");
 const checkoutController = __importStar(require("../controllers/checkoutController"));
 const router = (0, express_1.Router)();
 router.post('/start', checkoutController.startCheckout);
+router.post('/validate-coupon', checkoutController.validateCoupon);
 router.post('/confirm', checkoutController.confirmCheckout);
 exports.default = router;

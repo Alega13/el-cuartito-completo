@@ -47,6 +47,7 @@ const discogsService_1 = require("../services/discogsService");
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const invoiceService_1 = require("../services/invoiceService");
+const mailService_1 = require("../services/mailService");
 /**
  * Sync inventory from Discogs to Firebase
  */
@@ -197,7 +198,7 @@ exports.getSyncStatus = getSyncStatus;
  * Sync orders from Discogs - creates sales for orders that haven't been synced yet
  */
 const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     try {
         const username = process.env.DISCOGS_USERNAME;
         const token = process.env.DISCOGS_TOKEN;
@@ -284,6 +285,16 @@ const syncOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                     const saleId = saleDocRef.docs[0].id;
                     const invoiceData = (0, invoiceService_1.buildInvoiceFromDiscogsSale)(saleId, { date: orderDate.toISOString().split('T')[0], customerName: (_e = order.buyer) === null || _e === void 0 ? void 0 : _e.username, shippingAddress: order.shipping_address }, items, netAmount, shipping);
                     (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error(`⚠️ Invoice generation failed for Discogs order ${order.id}:`, e.message));
+                    // Send sale notification email to owner
+                    (0, mailService_1.sendSaleNotificationEmail)({
+                        channel: 'discogs',
+                        items,
+                        totalAmount: netAmount,
+                        paymentMethod: 'Discogs Payout',
+                        customerName: ((_f = order.buyer) === null || _f === void 0 ? void 0 : _f.username) || undefined,
+                        saleId,
+                        date: orderDate.toISOString().split('T')[0],
+                    }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
                 }
                 // Update stock for matching products
                 for (const item of items) {

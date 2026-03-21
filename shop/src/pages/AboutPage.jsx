@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, MapPin, Mail, Instagram, Facebook } from 'lucide-react';
+import { ArrowLeft, MapPin, Mail, Instagram, Facebook, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 
@@ -108,6 +108,20 @@ const AboutPage = () => {
                                 </a>
                                 <p className="text-sm text-black/40 mt-2">
                                     We usually respond within 24 hours
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Opening Hours */}
+                        <div className="flex gap-4">
+                            <div className="w-12 h-12 bg-black rounded-sm flex items-center justify-center flex-shrink-0">
+                                <Clock size={20} className="text-white" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold uppercase tracking-tight mb-1">Opening Hours</h3>
+                                <p className="text-black/60">
+                                    Tuesday to Saturday<br />
+                                    from 11:00 to 17:00
                                 </p>
                             </div>
                         </div>

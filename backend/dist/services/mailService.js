@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendDiscogsShippingNotificationEmail = exports.sendDiscogsOrderPreparingEmail = exports.sendPickupReadyEmail = exports.sendShipOrderEmail = exports.sendShippingNotificationEmail = exports.sendOrderConfirmationEmail = void 0;
+exports.sendDiscogsShippingNotificationEmail = exports.sendSaleNotificationEmail = exports.sendDiscogsOrderPreparingEmail = exports.sendPickupReadyEmail = exports.sendShipOrderEmail = exports.sendShippingNotificationEmail = exports.sendOrderConfirmationEmail = void 0;
 const resend_1 = require("resend");
 const env_1 = __importDefault(require("../config/env"));
 const resend = new resend_1.Resend(env_1.default.RESEND_API_KEY);
@@ -404,8 +404,7 @@ const sendPickupReadyEmail = (orderData) => __awaiter(void 0, void 0, void 0, fu
                     <div style="margin-bottom: 30px;">
                         <h3 style="color: #999; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Opening Hours</h3>
                         <p style="font-size: 14px; color: #444; line-height: 1.6;">
-                            Monday to Friday: 11:00 - 18:00<br>
-                            Saturday: 11:00 - 16:00
+                            Tuesday to Saturday: 11:00 - 17:00
                         </p>
                     </div>
 
@@ -491,6 +490,119 @@ const sendDiscogsOrderPreparingEmail = (orderData) => __awaiter(void 0, void 0, 
     }
 });
 exports.sendDiscogsOrderPreparingEmail = sendDiscogsOrderPreparingEmail;
+/**
+ * Send sale notification email to the store owner.
+ * Triggered after every confirmed sale (POS, Webshop, Discogs).
+ */
+const sendSaleNotificationEmail = (saleData) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        if (!env_1.default.RESEND_API_KEY || env_1.default.RESEND_API_KEY === 're_placeholder' || env_1.default.RESEND_API_KEY === 're_your_api_key_here') {
+            console.warn('⚠️  [MAIL-SERVICE] RESEND_API_KEY not configured. Skipping sale notification.');
+            return { success: false, error: 'Resend API Key missing' };
+        }
+        const OWNER_EMAIL = 'el.cuartito.cph@gmail.com';
+        const now = new Date();
+        const saleDate = saleData.date || now.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const saleTime = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const totalItems = saleData.items.reduce((sum, item) => sum + (item.qty || item.quantity || 1), 0);
+        const channelLabels = {
+            'local': '🏪 Tienda (POS)',
+            'online': '🌐 Webshop',
+            'discogs': '📀 Discogs',
+        };
+        const channelLabel = channelLabels[saleData.channel] || saleData.channel;
+        const itemsRowsHtml = saleData.items.map((item) => {
+            const price = item.priceAtSale || item.price || item.unitPrice || 0;
+            const qty = item.qty || item.quantity || 1;
+            const lineTotal = price * qty;
+            return `
+                <tr>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #eee; color: #333;">
+                        <strong>${item.album || 'Unknown'}</strong><br>
+                        <span style="font-size: 12px; color: #888;">${item.artist || ''}</span>
+                    </td>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: center; color: #333;">${qty}</td>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right; color: #333;">DKK ${price.toFixed(2)}</td>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #eee; text-align: right; font-weight: bold; color: #333;">DKK ${lineTotal.toFixed(2)}</td>
+                </tr>`;
+        }).join('');
+        const { data, error } = yield resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [OWNER_EMAIL],
+            subject: `Nueva venta registrada - ${saleDate}`,
+            html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px 20px; color: #333; background-color: #ffffff;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <img src="${LOGO_URL}" alt="El Cuartito Records" style="width: 80px; height: 80px; border-radius: 40px; margin-bottom: 10px;">
+                        <h1 style="font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin: 0; color: #333;">NUEVA VENTA 🎉</h1>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 12px; padding: 20px; margin-bottom: 25px; color: white; text-align: center;">
+                        <div style="font-size: 32px; font-weight: 900;">DKK ${saleData.totalAmount.toFixed(2)}</div>
+                        <div style="font-size: 13px; margin-top: 5px; opacity: 0.9;">${channelLabel}</div>
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 6px 0; color: #888;">📅 Fecha</td>
+                                <td style="padding: 6px 0; text-align: right; font-weight: bold;">${saleDate} - ${saleTime}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; color: #888;">💳 Método de pago</td>
+                                <td style="padding: 6px 0; text-align: right; font-weight: bold;">${saleData.paymentMethod}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; color: #888;">📦 Artículos</td>
+                                <td style="padding: 6px 0; text-align: right; font-weight: bold;">${totalItems}</td>
+                            </tr>
+                            ${saleData.customerName ? `
+                            <tr>
+                                <td style="padding: 6px 0; color: #888;">👤 Cliente</td>
+                                <td style="padding: 6px 0; text-align: right; font-weight: bold;">${saleData.customerName}</td>
+                            </tr>` : ''}
+                        </table>
+                    </div>
+
+                    <div style="background-color: #f9f9f9; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <h3 style="font-size: 13px; font-weight: 900; text-transform: uppercase; color: #999; margin: 0 0 15px 0; letter-spacing: 1px;">Discos vendidos</h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align: left; padding-bottom: 8px; font-size: 11px; color: #999; text-transform: uppercase; border-bottom: 2px solid #eee;">Disco</th>
+                                    <th style="text-align: center; padding-bottom: 8px; font-size: 11px; color: #999; text-transform: uppercase; border-bottom: 2px solid #eee;">Cant.</th>
+                                    <th style="text-align: right; padding-bottom: 8px; font-size: 11px; color: #999; text-transform: uppercase; border-bottom: 2px solid #eee;">P. Unit.</th>
+                                    <th style="text-align: right; padding-bottom: 8px; font-size: 11px; color: #999; text-transform: uppercase; border-bottom: 2px solid #eee;">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsRowsHtml}
+                            </tbody>
+                        </table>
+                        <div style="margin-top: 15px; padding-top: 12px; border-top: 2px solid #eee; text-align: right; font-size: 18px; font-weight: 900; color: #f97316;">
+                            Total: DKK ${saleData.totalAmount.toFixed(2)}
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; padding-top: 20px; color: #ccc; font-size: 11px;">
+                        <p>Notificación automática de El Cuartito Records</p>
+                    </div>
+                </div>
+            `
+        });
+        if (error) {
+            console.error('❌ Resend Error (Sale Notification):', JSON.stringify(error, null, 2));
+            return { success: false, error };
+        }
+        console.log('✅ Sale notification email sent to owner:', data === null || data === void 0 ? void 0 : data.id);
+        return { success: true, id: data === null || data === void 0 ? void 0 : data.id };
+    }
+    catch (error) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendSaleNotificationEmail:', error);
+        return { success: false, error: error.message };
+    }
+});
+exports.sendSaleNotificationEmail = sendSaleNotificationEmail;
 const sendDiscogsShippingNotificationEmail = (orderData, trackingNumber) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         if (!env_1.default.RESEND_API_KEY || env_1.default.RESEND_API_KEY === 're_placeholder') {

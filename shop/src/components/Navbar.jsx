@@ -22,7 +22,7 @@ const Navbar = ({ setSearchQuery }) => {
 
     // Check if we're in listening room mode
     const isListeningMode = location.pathname === '/listening';
-    const isCollections = location.pathname === '/collections' || location.pathname.startsWith('/collection/');
+    const isAbout = location.pathname === '/about';
     const isHome = location.pathname === '/';
 
     // Track scroll to show/hide mobile navbar
@@ -171,7 +171,7 @@ const Navbar = ({ setSearchQuery }) => {
                             Catalog
                         </Link>
                         <Link
-                            to="/collections"
+                            to="/about"
                             style={{
                                 background: 'none',
                                 border: 'none',
@@ -188,7 +188,7 @@ const Navbar = ({ setSearchQuery }) => {
                             onMouseEnter={(e) => e.target.style.color = '#fff'}
                             onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.7)'}
                         >
-                            Collections
+                            About
                         </Link>
                     </div>
                 </motion.div>
@@ -246,7 +246,7 @@ const Navbar = ({ setSearchQuery }) => {
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
                         className="md:hidden fixed top-4 left-0 right-0 z-50 px-4"
                     >
-                        <div className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/90 text-black border-white/50'} backdrop-blur-md px-5 py-2.5 rounded-full shadow-2xl border flex items-center gap-4 w-full`}>
+                        <div className={`${isAbout ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/90 text-black border-white/50'} backdrop-blur-md px-5 py-2.5 rounded-full shadow-2xl border flex items-center gap-4 w-full`}>
                             {!isHome && (
                                 <button
                                     onClick={() => navigate('/')}
@@ -290,7 +290,7 @@ const Navbar = ({ setSearchQuery }) => {
                     initial={{ y: -20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     layout
-                    className={`${isCollections ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-8 py-3 rounded-full shadow-2xl border flex items-center gap-6 overflow-hidden`}
+                    className={`${isAbout ? 'bg-black/40 text-[#ff5e00] border-[#ff5e00]/20' : 'bg-white/80 text-black border-white/50'} backdrop-blur-md px-8 py-3 rounded-full shadow-2xl border flex items-center gap-6 overflow-hidden`}
                 >
                     <motion.div className="flex items-center gap-4 mr-6">
                         {!isHome && (
@@ -330,8 +330,8 @@ const Navbar = ({ setSearchQuery }) => {
                                 </span>
                             )}
                         </Link>
-                        <Link to="/catalog" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Catalog</Link>
-                        <Link to="/collections" className={`hover:opacity-40 transition-opacity ${isCollections ? 'text-[#ff5e00]' : 'text-black'}`}>Collections</Link>
+                        <Link to="/catalog" className={`hover:opacity-40 transition-opacity ${isAbout ? 'text-[#ff5e00]' : 'text-black'}`}>Catalog</Link>
+                        <Link to="/about" className={`hover:opacity-40 transition-opacity ${isAbout ? 'text-[#ff5e00]' : 'text-black'}`}>About</Link>
                     </motion.div>
 
                     <motion.div key="actions" layout="position" className="flex items-center gap-4 flex-shrink-0 ml-auto">
@@ -380,7 +380,7 @@ const Navbar = ({ setSearchQuery }) => {
                                 )}
                             </Link>
                             <Link to="/catalog" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Catalog</Link>
-                            <Link to="/collections" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">Collections</Link>
+                            <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="text-left hover:text-accent transition-colors">About</Link>
                         </div>
 
                         <div className="mt-auto text-sm font-medium text-black/40">

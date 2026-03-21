@@ -47,6 +47,7 @@ const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const vatCalculator_1 = require("../services/vatCalculator");
 const invoiceService_1 = require("../services/invoiceService");
+const mailService_1 = require("../services/mailService");
 const normalizeProduct = (data, id) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     return Object.assign(Object.assign({}, data), { id, 
@@ -257,6 +258,17 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             const invoiceData = (0, invoiceService_1.buildInvoiceFromPOSSale)(saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName);
             (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error('⚠️ Invoice generation failed for POS sale:', e.message));
         }, 1);
+        // Send sale notification email to owner (non-blocking)
+        setTimeout(() => {
+            (0, mailService_1.sendSaleNotificationEmail)({
+                channel: channel || 'local',
+                items: normalizedItems,
+                totalAmount: finalTotal,
+                paymentMethod: paymentMethod || 'CASH',
+                customerName: customerName || undefined,
+                saleId,
+            }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
+        }, 50);
     }
     catch (error) {
         res.status(400).json({ error: error.message });
@@ -308,7 +320,7 @@ exports.getSaleById = getSaleById;
  * Trigger confirmation flow manually for local development
  * (Since Stripe webhooks don't reach localhost)
  */
-const mailService_1 = require("../services/mailService");
+const mailService_2 = require("../services/mailService");
 const confirmLocalPayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -332,12 +344,12 @@ const confirmLocalPayment = (req, res) => __awaiter(void 0, void 0, void 0, func
                 updated_at: admin.firestore.FieldValue.serverTimestamp()
             });
             // Trigger email
-            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
+            yield (0, mailService_2.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
         }
         else {
             console.log(`📡 [LOCAL CONFIRM] Sale ${id} already completed.`);
             // SEND EMAIL ANYWAY FOR DEBUGGING if requested? Let's just do it to be sure.
-            yield (0, mailService_1.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
+            yield (0, mailService_2.sendOrderConfirmationEmail)(Object.assign(Object.assign({}, saleData), { status: 'completed' }));
         }
         res.json({ success: true, message: 'Local confirmation processed' });
     }
@@ -402,7 +414,7 @@ const updateSaleValue = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.updateSaleValue = updateSaleValue;
-const mailService_2 = require("../services/mailService");
+const mailService_3 = require("../services/mailService");
 const notifyPreparing = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -424,7 +436,7 @@ const notifyPreparing = (req, res) => __awaiter(void 0, void 0, void 0, function
             })
         });
         // Send email
-        const mailResult = yield (0, mailService_2.sendDiscogsOrderPreparingEmail)(saleData);
+        const mailResult = yield (0, mailService_3.sendDiscogsOrderPreparingEmail)(saleData);
         res.json({ success: true, mailResult });
     }
     catch (error) {
@@ -485,7 +497,7 @@ const notifyShipped = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         // Update status in Firestore
         yield saleRef.update(updateData);
         // Send email
-        const mailResult = yield (0, mailService_2.sendDiscogsShippingNotificationEmail)(saleData, finalTrackingNumber);
+        const mailResult = yield (0, mailService_3.sendDiscogsShippingNotificationEmail)(saleData, finalTrackingNumber);
         res.json({ success: true, mailResult });
     }
     catch (error) {
@@ -531,7 +543,7 @@ const notifyReadyForPickup = (req, res) => __awaiter(void 0, void 0, void 0, fun
                 note: 'Ready for pickup. Notification sent.'
             })
         });
-        const mailResult = yield (0, mailService_2.sendPickupReadyEmail)(saleData);
+        const mailResult = yield (0, mailService_3.sendPickupReadyEmail)(saleData);
         res.json({ success: true, mailResult });
     }
     catch (error) {

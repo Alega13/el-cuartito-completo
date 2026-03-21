@@ -5,7 +5,7 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
-import CollectionPage from './pages/CollectionPage';
+
 import CatalogPage from './pages/CatalogPage';
 import ListeningRoomPage from './pages/ListeningRoomPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -19,7 +19,7 @@ import AboutPage from './pages/AboutPage';
 import VinylSidePlayer from './components/VinylSidePlayer';
 import FlyAnimation from './components/FlyAnimation';
 import Toast from './components/Toast';
-import Collections from './components/Collections';
+
 import Footer from './components/Footer';
 import GlobalPlayer from './components/GlobalPlayer';
 import { usePlayer } from './context/PlayerContext';
@@ -127,7 +127,7 @@ function App() {
   // Check if pathname starts with /product/
   const isOnProductPage = location.pathname.startsWith('/product/');
   const isListeningPage = location.pathname === '/listening';
-  const isCollections = location.pathname === '/collections';
+  const isAbout = location.pathname === '/about';
 
   return (
     <div className="min-h-screen bg-background text-black selection:bg-accent selection:text-white">
@@ -158,14 +158,6 @@ function App() {
 
           <Route path="/catalog" element={
             <CatalogPage products={products} />
-          } />
-
-          <Route path="/collections" element={
-            <Collections products={products} isFullPage={true} />
-          } />
-
-          <Route path="/collection/:collectionName" element={
-            <CollectionPage products={products} />
           } />
 
           <Route path="/product/:productId" element={
@@ -230,7 +222,7 @@ function App() {
         onComplete={() => setShowToast(false)}
       />
 
-      {!isCollections && !isListeningPage && <Footer />}
+      {!isAbout && !isListeningPage && <Footer />}
       {!isListeningPage && <GlobalPlayer />}
     </div>
   );

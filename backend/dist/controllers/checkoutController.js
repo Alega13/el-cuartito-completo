@@ -45,7 +45,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.confirmCheckout = exports.startCheckout = void 0;
+exports.confirmCheckout = exports.startCheckout = exports.validateCoupon = void 0;
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -53,17 +53,55 @@ const env_1 = __importDefault(require("../config/env"));
 const stripe = env_1.default.STRIPE_SECRET_KEY && env_1.default.STRIPE_SECRET_KEY !== 'sk_test_mock'
     ? new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
     : null;
+const validateCoupon = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { code, email } = req.body;
+        if (!code || !email) {
+            return res.status(400).json({ error: "Code and email are required" });
+        }
+        const db = (0, firebaseAdmin_1.getDb)();
+        const codeUpper = code.trim().toUpperCase();
+        // Check if coupon exists and is active
+        const couponDoc = yield db.collection('coupons').doc(codeUpper).get();
+        if (!couponDoc.exists) {
+            return res.status(404).json({ error: "Cupón inválido" });
+        }
+        const couponData = couponDoc.data();
+        if (!(couponData === null || couponData === void 0 ? void 0 : couponData.active)) {
+            return res.status(400).json({ error: "El cupón ya no está activo" });
+        }
+        // Check if user already used it
+        const usedId = `${email}_${codeUpper}`;
+        const usedDoc = yield db.collection('used_coupons').doc(usedId).get();
+        if (usedDoc.exists) {
+            return res.status(400).json({ error: "Este cupón ya fue utilizado" });
+        }
+        res.json({
+            valid: true,
+            code: codeUpper,
+            discount_percentage: couponData.discount_percentage
+        });
+    }
+    catch (error) {
+        console.error("Coupon validation error:", error);
+        res.status(500).json({ error: "Error al validar el cupón" });
+    }
+});
+exports.validateCoupon = validateCoupon;
 const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     try {
         if (!stripe) {
             console.error("Stripe key missing or using mock");
             return res.status(500).json({ error: "Payment system not configured" });
         }
-        const { items, customerData, shippingMethod } = req.body; // Added shippingMethod
+        const { items, customerData, shippingMethod, couponCode } = req.body; // Added couponCode
         const db = (0, firebaseAdmin_1.getDb)();
         console.log('🚀 [START-CHECKOUT] Initiating checkout...');
         console.log('📦 [START-CHECKOUT] Shipping Method:', JSON.stringify(shippingMethod, null, 2));
         console.log('👤 [START-CHECKOUT] Customer:', JSON.stringify(customerData, null, 2));
+        if (couponCode)
+            console.log(`🎟️ [START-CHECKOUT] Coupon Code: ${couponCode}`);
         let itemsTotal = 0;
         const validatedItems = [];
         // Check availability in Firestore
@@ -88,9 +126,28 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 cost: data.cost || 0
             });
         }
+        // Validate and apply coupon if present
+        let discountAmount = 0;
+        let appliedCoupon = null;
+        if (couponCode && (customerData === null || customerData === void 0 ? void 0 : customerData.email)) {
+            const codeUpper = couponCode.trim().toUpperCase();
+            const couponDoc = yield db.collection('coupons').doc(codeUpper).get();
+            const usedId = `${customerData.email}_${codeUpper}`;
+            const usedDoc = yield db.collection('used_coupons').doc(usedId).get();
+            if (couponDoc.exists && ((_a = couponDoc.data()) === null || _a === void 0 ? void 0 : _a.active) && !usedDoc.exists) {
+                const percentage = ((_b = couponDoc.data()) === null || _b === void 0 ? void 0 : _b.discount_percentage) || 0;
+                discountAmount = (itemsTotal * percentage) / 100;
+                appliedCoupon = codeUpper;
+            }
+            else {
+                return res.status(400).json({ error: "Cupón inválido o ya utilizado" });
+            }
+        }
         // Calculate shipping cost
         const shippingCost = (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.price) || 0;
-        const total = itemsTotal + shippingCost;
+        let total = itemsTotal - discountAmount + shippingCost;
+        if (total < 0)
+            total = 0;
         if (total < 2.50) {
             return res.status(400).json({ error: `Total amount (${total} DKK) is too low. Minimum for online payment is 2.50 DKK.` });
         }
@@ -106,6 +163,8 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             orderNumber,
             date: dateForAdmin,
             items_total: itemsTotal,
+            discount_amount: discountAmount || 0,
+            coupon_code: appliedCoupon || null,
             shipping_cost: shippingCost || 0,
             shipping_income: shippingCost || 0,
             total_amount: total,
@@ -124,7 +183,7 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             created_at: admin.firestore.FieldValue.serverTimestamp()
         });
-        // Create Stripe PaymentIntent with TOTAL (items + shipping)
+        // Create Stripe PaymentIntent with TOTAL (items + shipping - discount)
         const paymentIntent = yield stripe.paymentIntents.create({
             amount: Math.round(total * 100),
             currency: 'dkk',
@@ -133,6 +192,8 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 saleId: saleRef.id,
                 shipping_method: (shippingMethod === null || shippingMethod === void 0 ? void 0 : shippingMethod.method) || 'TBD',
                 shipping_cost: shippingCost.toString(),
+                discount_amount: discountAmount.toString(),
+                coupon_code: appliedCoupon || 'None',
                 customer_name: (customerData === null || customerData === void 0 ? void 0 : customerData.name) || (customerData === null || customerData === void 0 ? void 0 : customerData.firstName) || 'Guest'
             },
             automatic_payment_methods: {
@@ -142,6 +203,8 @@ const startCheckout = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.json({
             saleId: saleRef.id,
             itemsTotal,
+            discountAmount,
+            appliedCoupon,
             shippingCost,
             total,
             items: validatedItems,

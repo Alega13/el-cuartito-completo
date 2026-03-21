@@ -93,4 +93,22 @@ router.post('/backfill', auth_1.isAdmin, (req, res) => __awaiter(void 0, void 0,
         res.status(500).json({ error: error.message });
     }
 }));
+/**
+ * POST /invoices/manual
+ * Generate a manual invoice from provided data.
+ */
+router.post('/manual', auth_1.isAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const invoiceData = req.body;
+        if (!invoiceData.customerName || !invoiceData.description || !invoiceData.amount || !invoiceData.date) {
+            return res.status(400).json({ error: 'Missing required manual invoice fields' });
+        }
+        const result = yield (0, invoiceService_1.generateManualInvoice)(invoiceData);
+        res.json(Object.assign({ success: true }, result));
+    }
+    catch (error) {
+        console.error('Error generating manual invoice:', error);
+        res.status(500).json({ error: error.message });
+    }
+}));
 exports.default = router;

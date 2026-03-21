@@ -52,6 +52,7 @@ const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const mailService_1 = require("../services/mailService");
 const invoiceService_1 = require("../services/invoiceService");
+const mailService_2 = require("../services/mailService");
 // Initialize Stripe only if key exists
 const stripe = env_1.default.STRIPE_SECRET_KEY && env_1.default.STRIPE_SECRET_KEY !== 'sk_test_mock'
     ? new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
@@ -84,7 +85,7 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                 const db = (0, firebaseAdmin_1.getDb)();
                 // Confirm sale and deduct stock in transaction
                 yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
-                    var _a, _b, _c, _d, _e, _f;
+                    var _a, _b, _c, _d, _e, _f, _g;
                     const saleRef = db.collection('sales').doc(saleId);
                     const saleDoc = yield transaction.get(saleRef);
                     if (!saleDoc.exists)
@@ -126,18 +127,31 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                                 });
                             }
                         }
+                        // Lock coupon usage if a coupon was applied
+                        if (saleData.coupon_code && ((_a = saleData.customer) === null || _a === void 0 ? void 0 : _a.email)) {
+                            const codeUpper = saleData.coupon_code.trim().toUpperCase();
+                            const usedId = `${saleData.customer.email.trim()}_${codeUpper}`;
+                            const usedRef = db.collection('used_coupons').doc(usedId);
+                            transaction.set(usedRef, {
+                                email: saleData.customer.email.trim(),
+                                coupon_code: codeUpper,
+                                used_at: admin.firestore.FieldValue.serverTimestamp(),
+                                sale_id: saleId
+                            });
+                            console.log(`🎟️ Marked coupon ${codeUpper} as used by ${saleData.customer.email}`);
+                        }
                         // Update sale status (preserving existing customer data, but enriching with Stripe info)
                         const stripeCustomer = {
-                            name: ((_a = paymentIntent.shipping) === null || _a === void 0 ? void 0 : _a.name) || paymentIntent.receipt_email || ((_b = saleData.customer) === null || _b === void 0 ? void 0 : _b.name) || (((_c = saleData.customer) === null || _c === void 0 ? void 0 : _c.firstName) ? `${saleData.customer.firstName} ${saleData.customer.lastName}` : '') || 'Customer',
-                            email: paymentIntent.receipt_email || ((_d = saleData.customer) === null || _d === void 0 ? void 0 : _d.email) || '',
-                            shipping: ((_e = paymentIntent.shipping) === null || _e === void 0 ? void 0 : _e.address) ? {
+                            name: ((_b = paymentIntent.shipping) === null || _b === void 0 ? void 0 : _b.name) || paymentIntent.receipt_email || ((_c = saleData.customer) === null || _c === void 0 ? void 0 : _c.name) || (((_d = saleData.customer) === null || _d === void 0 ? void 0 : _d.firstName) ? `${saleData.customer.firstName} ${saleData.customer.lastName}` : '') || 'Customer',
+                            email: paymentIntent.receipt_email || ((_e = saleData.customer) === null || _e === void 0 ? void 0 : _e.email) || '',
+                            shipping: ((_f = paymentIntent.shipping) === null || _f === void 0 ? void 0 : _f.address) ? {
                                 line1: paymentIntent.shipping.address.line1,
                                 line2: paymentIntent.shipping.address.line2,
                                 city: paymentIntent.shipping.address.city,
                                 state: paymentIntent.shipping.address.state,
                                 postal_code: paymentIntent.shipping.address.postal_code,
                                 country: paymentIntent.shipping.address.country,
-                            } : (((_f = saleData.customer) === null || _f === void 0 ? void 0 : _f.address) ? {
+                            } : (((_g = saleData.customer) === null || _g === void 0 ? void 0 : _g.address) ? {
                                 line1: saleData.customer.address,
                                 city: saleData.customer.city,
                                 postal_code: saleData.customer.postalCode,
@@ -146,7 +160,6 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                         };
                         const updatedSaleData = {
                             status: 'completed',
-                            fulfillment_status: 'pending', // Initialize fulfillment status
                             orderNumber: orderNumber,
                             stripePaymentIntentId: paymentIntent.id, // NEW: For idempotency
                             paymentId: paymentIntent.id,
@@ -156,6 +169,12 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                             completed_at: admin.firestore.FieldValue.serverTimestamp(),
                             updated_at: admin.firestore.FieldValue.serverTimestamp()
                         };
+                        // Only set fulfillment_status to 'pending' if not already progressed
+                        const currentFulfillment = saleData === null || saleData === void 0 ? void 0 : saleData.fulfillment_status;
+                        const progressedStatuses = ['preparing', 'ready_for_pickup', 'in_transit', 'shipped', 'picked_up', 'delivered', 'fulfilled'];
+                        if (!currentFulfillment || !progressedStatuses.includes(currentFulfillment)) {
+                            updatedSaleData.fulfillment_status = 'pending';
+                        }
                         transaction.update(saleRef, updatedSaleData);
                         console.log(`✅ Payment confirmed and stock updated for sale ${saleId}, order ${orderNumber}`);
                         // Send confirmation email asynchronously after transaction
@@ -171,6 +190,18 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                             const invoiceData = (0, invoiceService_1.buildInvoiceFromWebshopSale)(saleId, finalOrderData);
                             (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error('⚠️ Invoice generation failed for webshop sale:', e.message));
                         }, 100);
+                        // Send sale notification email to owner
+                        setTimeout(() => {
+                            var _a;
+                            (0, mailService_2.sendSaleNotificationEmail)({
+                                channel: 'online',
+                                items: saleData.items || [],
+                                totalAmount: saleData.total_amount || 0,
+                                paymentMethod: ((_a = paymentIntent.payment_method_types) === null || _a === void 0 ? void 0 : _a[0]) || 'card',
+                                customerName: stripeCustomer.name || undefined,
+                                saleId,
+                            }).catch(e => console.error('⚠️ Sale notification email failed:', e.message));
+                        }, 200);
                     }
                     else {
                         console.log('Sale not found or already processed:', saleId);
