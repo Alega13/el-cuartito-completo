@@ -9,6 +9,7 @@ import {
     listInvoices,
     getInvoiceDownloadUrl,
     getQuarterInvoices,
+    getInvoiceFile,
     backfillInvoices,
     generateManualInvoice,
 } from '../services/invoiceService';
@@ -46,6 +47,26 @@ router.get('/:id/download', isAdmin, async (req: Request, res: Response) => {
         res.json({ success: true, downloadUrl });
     } catch (error: any) {
         console.error('Error getting invoice download URL:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /invoices/:id/file
+ * Proxy the file content to avoid CORS issues in frontend ZIP generation.
+ */
+router.get('/:id/file', isAdmin, async (req: Request, res: Response) => {
+    try {
+        const fileData = await getInvoiceFile(req.params.id);
+        if (!fileData) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        res.setHeader('Content-Type', fileData.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
+        fileData.stream.pipe(res);
+    } catch (error: any) {
+        console.error('Error streaming invoice file:', error);
         res.status(500).json({ error: error.message });
     }
 });

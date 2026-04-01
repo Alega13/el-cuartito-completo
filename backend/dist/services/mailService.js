@@ -51,29 +51,43 @@ const sendOrderConfirmationEmail = (orderData) => __awaiter(void 0, void 0, void
             return;
         }
         // Separate items by product condition for VAT display
-        const newItems = items.filter((item) => item.productCondition === 'New');
-        const usedItems = items.filter((item) => item.productCondition !== 'New');
-        // Calculate VAT totals
-        let totalNewItemsPrice = 0;
+        const newItemsList = items.filter((item) => item.productCondition === 'New');
+        const usedItemsList = items.filter((item) => item.productCondition && item.productCondition !== 'New');
+        const hasNew = newItemsList.length > 0;
+        const hasUsed = usedItemsList.length > 0;
+        const isMixed = hasNew && hasUsed;
+        // Calculate VAT totals (Only for 'New' items as per requirement)
         let totalNewItemsVAT = 0;
-        let totalUsedItemsPrice = 0;
-        // Generate HTML for New items (with VAT breakdown)
-        const newItemsHtml = newItems.map((item) => {
+        // Items HTML generation
+        const itemsHtml = items.map((item) => {
             const price = item.unitPrice || item.priceAtSale || 0;
             const qty = item.quantity || item.qty || 1;
+            const isItemNew = item.productCondition === 'New';
             const lineTotal = price * qty;
-            const lineVAT = lineTotal * 0.20; // 25% VAT extracted
-            totalNewItemsPrice += lineTotal;
-            totalNewItemsVAT += lineVAT;
+            let vatInfoHtml = '';
+            let asterisk = '';
+            if (isItemNew) {
+                const lineVAT = lineTotal * 0.20; // 25% VAT extracted
+                totalNewItemsVAT += lineVAT;
+                if (!hasUsed) {
+                    // Scenario A: All new - show VAT per line too (optional but helpful)
+                    vatInfoHtml = `<div style="font-size: 11px; color: #2563eb; margin-top: 4px;">✓ Moms (25%): DKK ${lineVAT.toFixed(2)}</div>`;
+                }
+            }
+            else {
+                if (isMixed) {
+                    asterisk = ' *';
+                }
+            }
             return `
             <tr>
                 <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
                     <img src="${item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
                 </td>
                 <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
-                    <div style="font-weight: bold; color: #333;">${item.album}</div>
+                    <div style="font-weight: bold; color: #333;">${item.album}${asterisk}</div>
                     <div style="font-size: 12px; color: #666; text-transform: uppercase;">${item.artist}</div>
-                    <div style="font-size: 11px; color: #2563eb; margin-top: 4px;">✓ Moms (25%): DKK ${lineVAT.toFixed(2)}</div>
+                    ${vatInfoHtml}
                 </td>
                 <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eeeeee; color: #666;">
                     ${qty}
@@ -83,64 +97,50 @@ const sendOrderConfirmationEmail = (orderData) => __awaiter(void 0, void 0, void
                 </td>
             </tr>`;
         }).join('');
-        // Generate HTML for Used items (with Brugtmoms text)
-        const usedItemsHtml = usedItems.map((item) => {
-            const price = item.unitPrice || item.priceAtSale || 0;
-            const qty = item.quantity || item.qty || 1;
-            totalUsedItemsPrice += price * qty;
-            return `
-            <tr>
-                <td style="padding: 12px 0; border-bottom: 1px solid #eeeeee; width: 60px;">
-                    <img src="${item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png'}" alt="${item.album}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
-                </td>
-                <td style="padding: 12px 0 12px 12px; border-bottom: 1px solid #eeeeee;">
-                    <div style="font-weight: bold; color: #333;">${item.album}</div>
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase;">${item.artist}</div>
-                    <div style="font-size: 10px; color: #d97706; margin-top: 4px; font-style: italic;">Brugtmoms - Køber har ikke fradrag for momsen</div>
-                </td>
-                <td style="padding: 12px 0; text-align: center; border-bottom: 1px solid #eeeeee; color: #666;">
-                    ${qty}
-                </td>
-                <td style="padding: 12px 0; text-align: right; border-bottom: 1px solid #eeeeee; font-weight: bold; color: #333;">
-                    DKK ${price.toFixed(2)}
-                </td>
-            </tr>`;
-        }).join('');
-        // Build combined items HTML with section headers for mixed orders
-        let itemsHtml = '';
-        if (newItems.length > 0 && usedItems.length > 0) {
-            // Mixed order - show sections
-            itemsHtml = `
-                <tr><td colspan="4" style="padding: 15px 0 8px 0; font-size: 12px; font-weight: bold; color: #2563eb; text-transform: uppercase; letter-spacing: 1px;">🆕 New Products (VAT Included)</td></tr>
-                ${newItemsHtml}
-                <tr><td colspan="4" style="padding: 20px 0 8px 0; font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase; letter-spacing: 1px;">📦 Used Products (Brugtmoms Scheme)</td></tr>
-                ${usedItemsHtml}
+        // Build totals section with VAT breakdown
+        let vatBreakdownHtml = '';
+        if (hasNew) {
+            let finalVatAmount = totalNewItemsVAT;
+            if (!hasUsed && shipping_cost > 0) {
+                // Scenario A: Include shipping VAT in the total breakdown
+                finalVatAmount += shipping_cost * 0.20;
+            }
+            vatBreakdownHtml = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #2563eb; font-size: 13px;">
+                    <span style="flex: 1;">   ↳ Heraf moms (25%):</span>
+                    <span>DKK ${finalVatAmount.toFixed(2)}</span>
+                </div>
             `;
         }
-        else {
-            itemsHtml = newItemsHtml + usedItemsHtml;
+        // Legends
+        let legendHtml = '';
+        if (hasUsed) {
+            const legendText = isMixed
+                ? "* Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen for disse varer."
+                : "Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen.";
+            legendHtml = `
+                <div style="margin-top: 20px; padding: 15px; background-color: #fffaf0; border: 1px solid #fbd38d; border-radius: 8px; font-size: 12px; color: #7b341e;">
+                    <strong>BRUGTMOMS / MARGIN SCHEME</strong><br>
+                    <p style="margin: 5px 0 0 0;">${legendText}</p>
+                </div>
+            `;
         }
-        // Build totals section with VAT breakdown
         const totalsHtml = `
             <div style="margin-top: 20px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #666; font-size: 14px;">
                     <span style="flex: 1;">Subtotal:</span>
                     <span>DKK ${items_total.toFixed(2)}</span>
                 </div>
-                ${totalNewItemsVAT > 0 ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #2563eb; font-size: 13px;">
-                    <span style="flex: 1;">   ↳ Heraf moms (25%):</span>
-                    <span>DKK ${totalNewItemsVAT.toFixed(2)}</span>
-                </div>
-                ` : ''}
+                ${vatBreakdownHtml}
                 <div style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #666; font-size: 14px;">
                     <span style="flex: 1;">Shipping:</span>
                     <span>DKK ${shipping_cost.toFixed(2)}</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; padding-top: 15px; border-top: 2px solid #eeeeee; font-weight: 900; font-size: 18px; color: #f97316;">
-                    <span style="flex: 1;">Total:</span>
+                    <span style="flex: 1;">${(!hasNew && hasUsed) ? 'Total inkl. moms:' : 'Total:'}</span>
                     <span>DKK ${total_amount.toFixed(2)}</span>
                 </div>
+                ${legendHtml}
             </div>
         `;
         const { data, error } = yield resend.emails.send({

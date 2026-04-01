@@ -39,7 +39,8 @@ const api = {
                     data: productData,
                     quantity: item.quantity,
                     price: productData.price,
-                    cost: productData.cost || 0
+                    cost: productData.cost || 0,
+                    productCondition: item.productCondition || item.condition || productData.product_condition || productData.condition || 'Used'
                 });
             }
 
@@ -63,7 +64,8 @@ const api = {
                     sku: item.data.sku,
                     unitPrice: item.price,
                     costAtSale: item.cost,
-                    qty: item.quantity
+                    qty: item.quantity,
+                    productCondition: item.productCondition || 'Used'
                 }))
             });
 
@@ -211,7 +213,8 @@ const app = {
         filterLabel: 'all',
         filterStorage: 'all',
         filterDiscogs: 'all',
-        filterStockTime: []
+        filterStockTime: [],
+        privacyMode: false
     },
 
     async init() {
@@ -718,15 +721,15 @@ const app = {
 
                         <button onclick="app.loadInvoices()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-sm text-slate-600 transition-colors">
                             <i class="ph-bold ph-arrows-clockwise"></i> Actualizar
-                        </button>
+                        </a>
 
                         <button onclick="app.backfillInvoices()" class="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl font-semibold text-sm text-emerald-700 transition-colors">
                             <i class="ph-bold ph-database"></i> Generar facturas anteriores
-                        </button>
+                        </a>
 
                         <button onclick="app.downloadQuarterInvoices()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
                             <i class="ph-bold ph-download-simple"></i> Descargar Trimestre Q${quarter}
-                        </button>
+                        </a>
                     </div>
                 </div>
 
@@ -738,7 +741,7 @@ const app = {
                     </div>
                     <div class="kpi-card">
                         <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Ventas Totales</div>
-                        <div class="text-2xl font-bold text-brand-orange">${invoices.reduce((s, i) => s + (i.totalAmount || 0), 0).toFixed(0)} DKK</div>
+                        <div class="text-2xl font-bold text-brand-orange">${this.formatCurrency(invoices.reduce((s, i) => s + (i.totalAmount || 0), 0))}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tienda</div>
@@ -787,11 +790,11 @@ const app = {
                                             <td class="px-5 py-3">${channelBadge(inv.channel)}</td>
                                             <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || 'Butikskunde'}</td>
                                             <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
-                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${(inv.totalAmount || 0).toFixed(0)} DKK</td>
+                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${this.formatCurrency(inv.totalAmount || 0)}</td>
                                             <td class="px-5 py-3 text-center">
-                                                <button onclick="app.downloadInvoicePdf('${inv.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
+                                                <a href="${inv.downloadUrl || '#'}" target="_blank" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
                                                     <i class="ph-bold ph-file-pdf"></i>
-                                                </button>
+                                                </a>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -894,7 +897,13 @@ const app = {
 
             for (const inv of data.invoices) {
                 try {
-                    const pdfResp = await fetch(inv.downloadUrl);
+                    // Use backend proxy to avoid CORS issues
+                    const pdfResp = await fetch(`${BASE_API_URL}/invoices/${inv.id}/file`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (!pdfResp.ok) throw new Error(`Fetch failed for ${inv.invoiceNumber}`);
+                    
                     const blob = await pdfResp.blob();
                     folder.file(inv.fileName, blob);
                 } catch (e) {
@@ -1082,7 +1091,7 @@ const app = {
                         <button type="submit" id="manual-invoice-btn"
                             class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
                             <i class="ph-bold ph-file-pdf"></i> Generar Factura PDF
-                        </button>
+                        </a>
                     </div>
                 </form>
 
@@ -1136,11 +1145,11 @@ const app = {
                                             <td class="px-5 py-3 text-sm text-slate-600">${inv.date || '-'}</td>
                                             <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || '-'}</td>
                                             <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
-                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${(inv.totalAmount || 0).toFixed(0)} DKK</td>
+                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${this.formatCurrency(inv.totalAmount || 0)}</td>
                                             <td class="px-5 py-3 text-center">
-                                                <button onclick="app.downloadInvoicePdf('${inv.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
+                                                <a href="${inv.downloadUrl || '#'}" target="_blank" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
                                                     <i class="ph-bold ph-file-pdf"></i>
-                                                </button>
+                                                </a>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -1267,7 +1276,7 @@ const app = {
                 <td class="py-3 px-4 text-center">
                     <button onclick="app.deleteExtraIncome('${e.id}')" class="text-red-400 hover:text-red-600 transition-colors" title="Eliminar">
                         <i class="ph-bold ph-trash text-lg"></i>
-                    </button>
+                    </a>
                 </td>
             </tr>
         `).join('');
@@ -1345,7 +1354,7 @@ const app = {
                             <button type="submit"
                                 class="bg-gradient-to-r from-brand-orange to-orange-500 text-white font-bold py-3 px-8 rounded-xl hover:shadow-lg hover:shadow-orange-200 transition-all">
                                 <i class="ph-bold ph-plus-circle"></i> Registrar Ingreso
-                            </button>
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -1488,10 +1497,10 @@ const app = {
                             <div class="flex gap-2">
                                 <button onclick="app.changeCalendarMonth(-1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
                                     <i class="ph-bold ph-caret-left"></i>
-                                </button>
+                                </a>
                                 <button onclick="app.changeCalendarMonth(1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
                                     <i class="ph-bold ph-caret-right"></i>
-                                </button>
+                                </a>
                             </div>
                         </div>
 
@@ -1521,7 +1530,7 @@ const app = {
                                             ${activity.hasExpenses ? '<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>' : ''}
                                             ${activity.hasEvents ? '<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>' : ''}
                                         </div>
-                                    </button>
+                                    </a>
                                 `;
         }).join('')}
                         </div>
@@ -1570,7 +1579,7 @@ const app = {
                 </div>
                 <button onclick="app.openAddEventModal('${dateStr}')" class="text-brand-orange hover:bg-orange-50 p-2 rounded-lg transition-colors" title="Agregar Evento">
                     <i class="ph-bold ph-plus"></i>
-                </button>
+                </a>
             </div>
 
             <div class="space-y-6 overflow-y-auto pr-2 custom-scrollbar flex-1">
@@ -1597,14 +1606,14 @@ const app = {
                                     ${e.description ? `<p class="text-xs text-slate-500 mt-1">${e.description}</p>` : ''}
                                     <button onclick="app.deleteEvent('${e.id}')" class="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600">
                                         <i class="ph-bold ph-trash"></i>
-                                    </button>
+                                    </a>
                                 </div>
                             `).join('')}
                         </div>
                     ` : `
                         <div class="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                             <p class="text-xs text-slate-400">No hay eventos registrados</p>
-                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar nota</button>
+                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar nota</a>
                         </div>
                     `}
                 </div>
@@ -1668,7 +1677,7 @@ const app = {
                         <h3 class="font-display text-xl font-bold text-brand-dark">Nuevo Evento</h3>
                         <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-brand-dark transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
-                        </button>
+                        </a>
                     </div>
 
                     <form onsubmit="app.handleAddEvent(event)" class="space-y-4">
@@ -1686,7 +1695,7 @@ const app = {
 
                         <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
                             Guardar Evento
-                        </button>
+                        </a>
                     </form>
                 </div>
             </div>
@@ -1742,14 +1751,14 @@ const app = {
                         </div>
                         <button onclick="app.exportData()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
                             <i class="ph-bold ph-download"></i> Descargar Copia de Seguridad
-                        </button>
+                        </a>
                         
                         <div class="flex-1 relative">
                             <input type="file" id="import-file" accept=".json" class="hidden" onchange="app.importData(this)">
                             <button onclick="document.getElementById('import-file').click()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
                                 <i class="ph-fill ph-upload-simple text-xl"></i>
                                 Importar Backup
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -1762,11 +1771,11 @@ const app = {
                         <button type="button" onclick="app.resetSales()" class="w-full bg-white border-2 border-orange-200 text-orange-600 py-3 rounded-xl font-bold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2">
                             <i class="ph-fill ph-receipt-x text-xl"></i>
                             Borrar Todas las Ventas
-                        </button>
+                        </a>
                         <button type="button" onclick="app.resetApplication()" class="w-full bg-white border-2 border-red-200 text-red-600 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
                             <i class="ph-fill ph-trash text-xl"></i>
                             Restablecer de Fábrica
-                        </button>
+                        </a>
                     </div>
                 </div>
                 </div>
@@ -1791,7 +1800,7 @@ const app = {
                         </div>
                         <button type="submit" class="bg-brand-dark text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors">
                             Guardar Configuración
-                        </button>
+                        </a>
                     </form>
                 </div>
 
@@ -1808,7 +1817,7 @@ const app = {
                     </div>
                     <button onclick="app.exportInventoryToExcel()" class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
                         <i class="ph-bold ph-file-xls"></i> Descargar Excel Completo
-                    </button>
+                    </a>
                 </div>
 
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
@@ -1821,7 +1830,7 @@ const app = {
                             </div>
                             <button onclick="app.migrateProductCondition()" class="bg-amber-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-700 transition-colors text-sm">
                                 <i class="ph-bold ph-database mr-1"></i> Migrar
-                            </button>
+                            </a>
                         </div>
                         <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-200">
                             <div>
@@ -1830,7 +1839,7 @@ const app = {
                             </div>
                             <button onclick="app.migrateSalesData()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm">
                                 <i class="ph-bold ph-receipt mr-1"></i> Migrar
-                            </button>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -2217,7 +2226,7 @@ const app = {
                             </h3>
                             <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                                 <i class="ph-bold ph-x text-xl"></i>
-                            </button>
+                            </a>
                         </div>
 
                         <div class="flex-1 overflow-y-auto custom-scrollbar rounded-xl border border-slate-100">
@@ -2318,8 +2327,9 @@ const app = {
     },
 
     // --- UTILS ---
-    formatCurrency(amount) {
-        return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(amount);
+    formatCurrency(amount, isPrivate = true) {
+        const formatted = new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(amount);
+        return isPrivate ? `<span class="blur-money">${formatted}</span>` : `<span>${formatted}</span>`;
     },
 
     formatDate(dateString) {
@@ -2339,7 +2349,7 @@ const app = {
 
     showToast(message) {
         const toast = document.getElementById('toast');
-        document.getElementById('toast-message').innerText = message;
+        document.getElementById('toast-message').innerHTML = message;
         toast.classList.remove('opacity-0', '-translate-y-20', 'md:translate-y-20');
         setTimeout(() => {
             toast.classList.add('opacity-0', '-translate-y-20', 'md:translate-y-20');
@@ -2353,6 +2363,28 @@ const app = {
 
     setupMobileMenu() {
         // Mobile menu setup
+    },
+
+    togglePrivacyMode() {
+        this.state.privacyMode = !this.state.privacyMode;
+
+        // Toggle CSS class on body
+        if (this.state.privacyMode) {
+            document.body.classList.add('privacy-active');
+        } else {
+            document.body.classList.remove('privacy-active');
+        }
+
+        // Update icons
+        const iconClass = this.state.privacyMode ? 'ph-bold ph-eye-slash' : 'ph-bold ph-eye';
+        const desktopIcon = document.querySelector('#privacy-toggle-desktop i');
+        const mobileIcon = document.querySelector('#privacy-toggle-mobile i');
+
+        if (desktopIcon) desktopIcon.className = iconClass;
+        if (mobileIcon) mobileIcon.className = iconClass;
+
+        // Visual feedback
+        this.showToast(this.state.privacyMode ? '🔒 Modo Privacidad Activado' : '👁️ Modo Privacidad Desactivado');
     },
 
     toggleMobileMenu() {
@@ -2488,11 +2520,11 @@ const app = {
                         const qty = Number(item.qty || item.quantity) || 1;
                         let itemCost = Number(item.costAtSale || item.cost) || 0;
                         const owner = (item.owner || '').toLowerCase();
-                        const condition = item.productCondition || item.condition || 'Used'; // Default to Margin Scheme
+                        let condition = item.productCondition || item.condition;
                         const totalPrice = price * qty;
 
-                        // If cost is 0, try to find it from the inventory (MATCH VAT REPORT LOGIC)
-                        if (itemCost === 0) {
+                        // If cost is 0 or condition is missing, try to find it from the inventory (MATCH VAT REPORT LOGIC)
+                        if (itemCost === 0 || !condition) {
                             const productId = item.productId || item.recordId;
                             const albumName = item.album;
                             const inventoryProduct = this.state.inventory.find(p =>
@@ -2500,9 +2532,11 @@ const app = {
                                 (albumName && p.album === albumName)
                             );
                             if (inventoryProduct) {
-                                itemCost = inventoryProduct.cost || 0;
+                                if (itemCost === 0) itemCost = inventoryProduct.cost || 0;
+                                if (!condition) condition = inventoryProduct.product_condition || inventoryProduct.condition || 'Used';
                             }
                         }
+                        if (!condition) condition = 'Used'; // Default to Margin Scheme
 
                         // Calculate VAT based on MOMS TILSVAR logic
                         if (condition === 'New') {
@@ -2561,7 +2595,30 @@ const app = {
             });
 
             const totalInputVat = deductibleExpenses.reduce((sum, e) => sum + (parseFloat(e.monto_iva) || 0), 0);
-            const momsTilsvar = (totalStandardVat + totalMarginVat + totalShippingVat) - totalInputVat;
+
+            // Micro-IVA: EU B2B Reverse Charge (both sides, net 0) + DK B2B (pure deduction)
+            const dashboardPhantomVat = (this.state.inventory || [])
+                .filter(p => {
+                    if (!p.item_phantom_vat || p.item_phantom_vat <= 0 || p.provider_origin !== 'EU_B2B') return false;
+                    const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
+                    if (!acqDate) return false;
+                    return acqDate.getFullYear() === currentYear && selectedMonths.includes(acqDate.getMonth());
+                })
+                .reduce((sum, p) => sum + (p.item_phantom_vat || 0), 0);
+
+            const dashboardDkB2bVat = (this.state.inventory || [])
+                .filter(p => {
+                    if (!p.item_real_vat || p.item_real_vat <= 0 || p.provider_origin !== 'DK_B2B') return false;
+                    const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
+                    if (!acqDate) return false;
+                    return acqDate.getFullYear() === currentYear && selectedMonths.includes(acqDate.getMonth());
+                })
+                .reduce((sum, p) => sum + (p.item_real_vat || 0), 0);
+
+            // Reverse Charge: phantomVat on both sides cancels out. DK B2B is pure deduction.
+            const totalLiability = (totalStandardVat + totalMarginVat + totalShippingVat) + dashboardPhantomVat;
+            const totalDeductions = totalInputVat + dashboardPhantomVat + dashboardDkB2bVat;
+            const momsTilsvar = totalLiability - totalDeductions;
 
             const taxAmount = momsTilsvar;
 
@@ -2824,7 +2881,7 @@ const app = {
             container.innerHTML = `<div class="p-12 text-center text-red-500 font-bold bg-red-50 rounded-3xl m-8 border border-red-100">
                 <i class="ph-bold ph-warning-circle text-4xl mb-4"></i>
                 <p>Error al cargar el dashboard: ${error.message}</p>
-                <button onclick="app.loadData()" class="mt-4 px-4 py-2 bg-red-500 text-white rounded-xl">Intentar de nuevo</button>
+                <button onclick="app.loadData()" class="mt-4 px-4 py-2 bg-red-500 text-white rounded-xl">Intentar de nuevo</a>
             </div>`;
         }
     },
@@ -2843,11 +2900,11 @@ const app = {
     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                 <div class="truncate pr-2">
                     <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
-                    <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(item.price)}</p>
+                    <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(item.price, false)}</p>
                 </div>
                 <button onclick="app.removeFromCart(${index})" class="text-red-400 hover:text-red-600">
                     <i class="ph-bold ph-x"></i>
-                </button>
+                </a>
             </div>
     `).join('');
 
@@ -2858,7 +2915,7 @@ const app = {
                         <i class="ph-fill ph-shopping-cart text-brand-orange"></i> Carrito 
                         <span class="bg-brand-orange text-white text-xs px-1.5 py-0.5 rounded-full">${this.state.cart.length}</span>
                     </h3>
-                    <button onclick="app.clearCart()" class="text-xs text-red-500 font-bold hover:underline">Vaciar</button>
+                    <button onclick="app.clearCart()" class="text-xs text-red-500 font-bold hover:underline">Vaciar</a>
                 </div>
                 <div class="space-y-2 mb-4 max-h-40 overflow-y-auto text-sm custom-scrollbar">
                     ${itemsHtml}
@@ -2869,7 +2926,7 @@ const app = {
                 </div>
                 <button onclick="app.openCheckoutModal()" class="w-full py-2 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
                     Finalizar Venta
-                </button>
+                </a>
             </div>
     `;
     },
@@ -2964,13 +3021,13 @@ const app = {
                                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
                                          <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-shopping-cart text-lg"></i>
-                                         </button>
+                                         </a>
                                          <button onclick="event.stopPropagation(); app.openProductModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-eye text-lg"></i>
-                                         </button>
+                                         </a>
                                          <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-printer text-lg"></i>
-                                         </button>
+                                         </a>
                                      </div>
                                      <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                          ${this.getStatusBadge(item.condition)}
@@ -2981,7 +3038,7 @@ const app = {
                                     <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${item.album}">${item.album}</h3>
                                     <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${item.artist}</p>
                                     <div class="mt-auto flex justify-between items-center pt-3 border-t border-slate-50">
-                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(item.price)}</span>
+                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(item.price, false)}</span>
                                         <span class="text-xs font-bold ${item.stock > 0 ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'} px-2 py-1 rounded-md">
                                             Stock: ${item.stock}
                                         </span>
@@ -2999,15 +3056,15 @@ const app = {
                         <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-slide-up">
                             <div class="flex items-center gap-3">
                                 <span class="font-bold text-sm bg-white/10 px-3 py-1 rounded-lg">${this.state.selectedItems.size} seleccionados</span>
-                                <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</button>
+                                <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</a>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick="app.addSelectionToCart()" class="bg-brand-orange text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
                                     <i class="ph-bold ph-shopping-cart"></i> Agregar al Carrito
-                                </button>
+                                </a>
                                 <button onclick="app.deleteSelection()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-red-600 transition-colors flex items-center gap-2">
                                     <i class="ph-bold ph-trash"></i> Eliminar
-                                </button>
+                                </a>
                             </div>
                         </div>
                     ` : ''}
@@ -3024,6 +3081,8 @@ const app = {
                                 <th class="p-3 hidden md:table-cell">Sello</th>
                                 <th class="p-3 text-center w-16 hidden sm:table-cell">Estado</th>
                                 <th class="p-3 text-right w-24">Precio</th>
+                                <th class="p-3 text-center w-12 hidden sm:table-cell" title="Héroe / Destacado"><i class="ph-bold ph-star text-amber-400"></i></th>
+                                <th class="p-3 text-center w-12 hidden sm:table-cell" title="New Arrival / Novedad"><i class="ph-bold ph-sketch-logo text-blue-400"></i></th>
                                 <th class="p-3 text-center w-16 hidden sm:table-cell">Stock</th>
                                 <th class="p-3 text-center w-12 hidden md:table-cell" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-400"></i></th>
                                 <th class="p-3 text-right w-28">Acciones</th>
@@ -3061,7 +3120,21 @@ const app = {
                                     <td class="p-3 text-xs text-slate-500 font-medium max-w-[100px] truncate hidden md:table-cell">${item.label || '-'}</td>
                                     <td class="p-3 text-center hidden sm:table-cell">${this.getStatusBadge(item.condition)}</td>
                                     <td class="p-3 text-right">
-                                        <span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price)}</span>
+                                        <span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price, false)}</span>
+                                    </td>
+                                    <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
+                                        <button onclick="app.toggleProductTag('${item.sku.replace(/'/g, "\\\\'")}', 'hero')" 
+                                            class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.tags && item.tags.includes('hero') ? 'bg-amber-50 text-amber-500 shadow-sm border border-amber-100' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
+                                            title="Marcar como Destacado">
+                                            <i class="ph-fill ph-star text-sm"></i>
+                                        </button>
+                                    </td>
+                                    <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
+                                        <button onclick="app.toggleProductTag('${item.sku.replace(/'/g, "\\\\'")}', 'new_arrival')" 
+                                            class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.tags && item.tags.includes('new_arrival') ? 'bg-blue-50 text-blue-500 shadow-sm border border-blue-100' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
+                                            title="Marcar como Novedad">
+                                            <i class="ph-fill ph-sketch-logo text-sm"></i>
+                                        </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell">
                                         <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-1 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}">
@@ -3078,13 +3151,13 @@ const app = {
                                         <div class="flex justify-end gap-1">
                                             <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
-                                            </button>
+                                            </a>
                                             <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
-                                            </button>
+                                            </a>
                                             <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center" title="Eliminar">
                                                 <i class="ph-bold ph-trash text-sm"></i>
-                                            </button>
+                                            </a>
                                         </div>
                                     </td>
                                 </tr>
@@ -3149,19 +3222,19 @@ const app = {
                              <div class="flex gap-2">
                                 <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors" title="Historial">
                                     <i class="ph-bold ph-clock-counter-clockwise text-lg"></i>
-                                </button>
+                                </a>
                                 <button onclick="app.openBulkImportModal()" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-emerald-400 hover:text-emerald-600 transition-all" title="Carga Masiva CSV">
                                     <i class="ph-bold ph-file-csv text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Importar</span>
-                                </button>
+                                </a>
                                 <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all" title="Sincronizar con Discogs">
                                     <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Discogs</span>
-                                </button>
+                                </a>
                                 <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
                                     <i class="ph-bold ph-plus text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Nuevo</span>
-                                </button>
+                                </a>
                             </div>
                         </div>
 
@@ -3186,8 +3259,8 @@ const app = {
                         <div class="flex justify-between items-center mb-3">
                             <p class="text-xs font-bold text-slate-400">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
                             <div class="hidden lg:flex items-center gap-2">
-                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></button>
-                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></button>
+                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></a>
+                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></a>
                             </div>
                         </div>
                         <div id="inventory-content-container"></div>
@@ -3267,16 +3340,16 @@ const app = {
                     <span class="text-[10px] font-bold text-slate-400 uppercase mr-1">Antigüedad:</span>
                     <button onclick="app.toggleStockTimeFilter('green')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('green') ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-emerald-200 bg-white text-emerald-500'} hover:scale-110 transition-all" title="0-2 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('green') ? 'bg-white' : 'bg-emerald-500'}"></span>
-                    </button>
+                    </a>
                     <button onclick="app.toggleStockTimeFilter('orange')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('orange') ? 'border-orange-500 bg-orange-500 text-white' : 'border-orange-200 bg-white text-orange-500'} hover:scale-110 transition-all" title="2-4 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('orange') ? 'bg-white' : 'bg-orange-500'}"></span>
-                    </button>
+                    </a>
                     <button onclick="app.toggleStockTimeFilter('red')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('red') ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 bg-white text-red-500'} hover:scale-110 transition-all" title="4-6 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('red') ? 'bg-white' : 'bg-red-500'}"></span>
-                    </button>
+                    </a>
                     <button onclick="app.toggleStockTimeFilter('purple')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('purple') ? 'border-purple-500 bg-purple-500 text-white' : 'border-purple-200 bg-white text-purple-500'} hover:scale-110 transition-all" title="+6 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('purple') ? 'bg-white' : 'bg-purple-500'}"></span>
-                    </button>
+                    </a>
                 </div>
                 <div class="filter-chip ${this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 'active' : ''}">
                     <i class="ph-bold ph-disc text-xs"></i>
@@ -3297,7 +3370,7 @@ const app = {
                 ${activeFilters > 0 || this.state.filterStockTime.length > 0 ? `
                     <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.state.filterStockTime=[]; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
                         <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters + this.state.filterStockTime.length})
-                    </button>
+                    </a>
                 ` : ''}
             `;
         }
@@ -3656,14 +3729,17 @@ const app = {
             let searchMatch = true;
             if (searchTerms.length > 0) {
                 searchMatch = searchTerms.every(term => {
-                    const matchesItems = s.items && s.items.some(item => {
-                        return (item.album || '').toLowerCase().includes(term) ||
-                            (item.artist || '').toLowerCase().includes(term) ||
-                            (item.label || '').toLowerCase().includes(term) ||
-                            (item.sku || '').toLowerCase().includes(term);
+                    const matchesItems = Array.isArray(s.items) && s.items.some(item => {
+                        const album = (item.album || item.record?.album || '').toLowerCase();
+                        const artist = (item.artist || item.record?.artist || '').toLowerCase();
+                        const label = (item.label || item.record?.label || '').toLowerCase();
+                        const sku = (item.sku || item.record?.sku || '').toLowerCase();
+                        return album.includes(term) || artist.includes(term) || label.includes(term) || sku.includes(term);
                     });
                     const matchesSale = (s.album || '').toLowerCase().includes(term) ||
-                        (s.sku || '').toLowerCase().includes(term);
+                        (s.sku || '').toLowerCase().includes(term) ||
+                        (s.customerName || '').toLowerCase().includes(term) ||
+                        (s.orderNumber || '').toLowerCase().includes(term);
                     return matchesItems || matchesSale;
                 });
             }
@@ -3760,7 +3836,7 @@ const app = {
                 </div>
 
                 <!-- Main Layout: 2 Columns (Prompt 1) -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
                     
                     <!-- LEFT COLUMN: POS / Sales Entry -->
                     <div class="space-y-6">
@@ -3818,6 +3894,7 @@ const app = {
                             <div class="relative flex-1">
                                 <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                                 <input type="text" 
+                                    id="sales-history-search"
                                     value="${this.state.salesHistorySearch}"
                                     oninput="app.state.salesHistorySearch = this.value; app.renderSales(document.getElementById('app-content'))"
                                     placeholder="Buscar por album, artista o SKU..." 
@@ -3832,7 +3909,7 @@ const app = {
                         </div>
 
                         <!-- Feed List -->
-                        <div class="space-y-3 max-h-[1200px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div class="space-y-3 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar pb-10">
                             ${filteredSales.map(s => {
                 const isShipped = s.status === 'shipped';
                 const isPaid = s.status === 'paid' || s.source === 'STORE' || s.paymentMethod !== 'Pending';
@@ -3879,26 +3956,26 @@ const app = {
                                     </div>
 
                                     <!-- Quick Action -->
-                                    <div class="relative ml-2">
-                                        <button onclick="event.stopPropagation(); app.toggleOrderActionMenu('${s.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-50 text-slate-300 hover:text-brand-dark transition-colors flex items-center justify-center">
+                                    <div class="relative ml-2" onclick="event.stopPropagation()">
+                                        <button onclick="app.toggleOrderActionMenu('${s.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-50 text-slate-300 hover:text-brand-dark transition-colors flex items-center justify-center">
                                             <i class="ph-bold ph-dots-three-vertical text-xl"></i>
                                         </button>
                                         
                                         <!-- Dropdown (Hidden by default) -->
-                                        <div id="action-menu-${s.id}" class="hidden absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2 space-y-1 py-2">
-                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                        <div id="action-menu-${s.id}" class="hidden absolute right-0 top-full mt-1 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 z-[100] p-2 space-y-1">
+                                            <button onclick="app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                 <i class="ph ph-file-text text-blue-500"></i> Ver Factura
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                            <button onclick="app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                 <i class="ph ph-printer text-indigo-500"></i> Imprimir Etiqueta
                                             </button>
                                             ${!isShipped ? `
-                                                <button onclick="event.stopPropagation(); app.markOrderAsShipped('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                                                <button onclick="app.markOrderAsShipped('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                                                     <i class="ph ph-truck text-emerald-500"></i> Marcar Enviado
                                                 </button>
                                             ` : ''}
-                                            <div class="h-px bg-slate-50 mx-2 my-1"></div>
-                                            <button onclick="event.stopPropagation(); app.deleteSale('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors">
+                                            <div class="h-px bg-slate-100 mx-2 my-1"></div>
+                                            <button onclick="app.deleteSale('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors">
                                                 <i class="ph ph-trash"></i> Eliminar
                                             </button>
                                         </div>
@@ -3917,6 +3994,18 @@ const app = {
             </div>
         `;
         container.innerHTML = html;
+        
+        // Restore focus to search input if active
+        if (this.state.salesHistorySearch) {
+            const searchInput = document.getElementById('sales-history-search');
+            if (searchInput) {
+                searchInput.focus();
+                // Cursor at the end
+                const val = searchInput.value;
+                searchInput.value = '';
+                searchInput.value = val;
+            }
+        }
     },
 
     // Helper to render the cart widget in sales view
@@ -3940,7 +4029,7 @@ const app = {
                                 <p class="text-[10px] text-slate-400 truncate uppercase tracking-tighter font-bold">${item.artist}</p>
                             </div>
                             <div class="flex items-center gap-3">
-                                <span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price)}</span>
+                                <span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price, false)}</span>
                                 <button onclick="app.removeFromCart(${index}); app.renderSales(document.getElementById('app-content'))" class="w-8 h-8 rounded-lg bg-white shadow-sm text-slate-300 hover:text-red-500 border border-slate-100 transition-colors flex items-center justify-center">
                                     <i class="ph-bold ph-trash"></i>
                                 </button>
@@ -4185,7 +4274,8 @@ const app = {
                     costAtSale: cost,
                     artist: artist || 'Desconocido',
                     album: album || this.state.manualSaleSearch || 'Venta Manual',
-                    sku: sku || 'N/A'
+                    sku: sku || 'N/A',
+                    productCondition: record?.product_condition || this.state.posCondition || 'New'
                 }],
                 paymentMethod: paymentMethod,
                 customerName: 'Venta Mostrador',
@@ -4251,8 +4341,8 @@ const app = {
                     <div class="bold">${item.artist}</div>
                     <div>${item.album}</div>
                     <div class="flex" style="margin-top: 5px;">
-                        <span>1 x ${this.formatCurrency(item.unitPrice)}</span>
-                        <span class="bold">${this.formatCurrency(item.unitPrice)}</span>
+                        <span>1 x ${this.formatCurrency(item.unitPrice, false)}</span>
+                        <span class="bold">${this.formatCurrency(item.unitPrice, false)}</span>
                     </div>
                     <div class="divider"></div>
                     <div class="flex bold" style="font-size: 14px;">
@@ -4330,7 +4420,7 @@ const app = {
                         <p class="text-xs text-slate-500">${item.artist}</p>
                     </div>
                     <div class="text-right">
-                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(item.price)}</p>
+                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(item.price, false)}</p>
                         <p class="text-xs ${item.stock > 0 ? 'text-green-500' : 'text-red-500'}">Stock: ${item.stock}</p>
                     </div>
                 </div>
@@ -4393,7 +4483,7 @@ const app = {
 
 
     openAddVinylModal(editSku = null) {
-        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'Local_Used', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
         let isEdit = false;
 
         if (editSku) {
@@ -4453,7 +4543,7 @@ const app = {
                 </div>
                 <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-300 hover:text-slate-900">
                     <i class="ph-bold ph-x"></i>
-                </button>
+                </a>
             </div>
 
             <form id="vinyl-form" onsubmit="app.handleAddVinyl(event, '${isEdit ? item.sku : ''}')" class="flex-1 flex flex-col overflow-hidden">
@@ -4500,7 +4590,7 @@ const app = {
                             <div class="grid grid-cols-2 gap-4 mb-3">
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-bold text-slate-400 uppercase block">Buy Cost</label>
-                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.calculateMargin()" class="dashboard-input w-full h-10">
+                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.calculateMargin(); app.updatePhantomVatPreview()" class="dashboard-input w-full h-10">
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-bold text-slate-400 uppercase block">Retail Price</label>
@@ -4510,6 +4600,38 @@ const app = {
                             <div class="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center justify-between">
                                 <p id="profit-percent" class="text-lg font-black text-slate-900 leading-none">0%</p>
                                 <span id="profit-label" class="profit-tag">+$0.00</span>
+                            </div>
+
+                            <!-- Provider Origin & Phantom VAT -->
+                            <div class="mt-3 space-y-2">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Provider Origin</label>
+                                        <select name="provider_origin" id="modal-provider-origin" onchange="app.onProviderOriginChange()" class="dashboard-input w-full h-10 bg-white">
+                                            <option value="Local_Used" ${item.provider_origin === 'Local_Used' || !item.provider_origin ? 'selected' : ''}>🏪 Local / Usado</option>
+                                            <option value="EU_B2B" ${item.provider_origin === 'EU_B2B' ? 'selected' : ''}>🇪🇺 EU B2B (Factura)</option>
+                                            <option value="DK_B2B" ${item.provider_origin === 'DK_B2B' ? 'selected' : ''}>🇩🇰 DK B2B (Factura)</option>
+                                        </select>
+                                    </div>
+                                    <div id="acquisition-date-container" class="space-y-1 ${item.provider_origin === 'EU_B2B' || item.provider_origin === 'DK_B2B' ? '' : 'hidden'}">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Fecha Factura</label>
+                                        <input name="acquisition_date" id="modal-acquisition-date" type="date" value="${item.acquisition_date || new Date().toISOString().split('T')[0]}" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                </div>
+                                <div id="phantom-vat-preview" class="${item.provider_origin === 'EU_B2B' ? '' : 'hidden'} bg-blue-50 rounded-lg px-3 py-2 border border-blue-100 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph-bold ph-receipt text-blue-500 text-sm"></i>
+                                        <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">EU Reverse Charge (25%)</span>
+                                    </div>
+                                    <span id="phantom-vat-amount" class="text-sm font-black text-blue-700">${item.item_phantom_vat ? item.item_phantom_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</span>
+                                </div>
+                                <div id="real-vat-preview" class="${item.provider_origin === 'DK_B2B' ? '' : 'hidden'} bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-100 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph-bold ph-receipt text-emerald-500 text-sm"></i>
+                                        <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">IVA Factura DK (25%)</span>
+                                    </div>
+                                    <span id="real-vat-amount" class="text-sm font-black text-emerald-700">${item.item_real_vat ? item.item_real_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4548,7 +4670,7 @@ const app = {
                     <div class="grid grid-cols-12 gap-5 items-start">
                         <!-- Left: Record Details -->
                         <div class="col-span-8 space-y-4">
-                            <div class="grid grid-cols-4 gap-3">
+                            <div class="grid grid-cols-5 gap-3">
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Vinyl Grade</label>
                                     <select name="condition" class="dashboard-input w-full h-10 bg-white">
@@ -4570,6 +4692,13 @@ const app = {
                                         <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>G (Good)</option>
                                         <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
                                         <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Condición Prod.</label>
+                                    <select name="product_condition" class="dashboard-input w-full h-10 bg-white">
+                                        <option value="Second-hand" ${item.product_condition === 'Second-hand' || !item.product_condition ? 'selected' : ''}>Usado (Second-hand)</option>
+                                        <option value="New" ${item.product_condition === 'New' ? 'selected' : ''}>Nuevo (New)</option>
                                     </select>
                                 </div>
                                 <div class="space-y-1">
@@ -4668,16 +4797,24 @@ const app = {
                                         <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">Hero / Destacado</span>
                                     </label>
 
+                                    <!-- New Arrival Toggle -->
+                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
+                                        <div class="relative flex items-center">
+                                            <input type="checkbox" name="tag_new" value="new_arrival" ${item.tags && item.tags.includes('new_arrival') ? 'checked' : ''} class="peer h-4 w-4 text-[#FF6B00] border-slate-300 rounded focus:ring-[#FF6B00]">
+                                        </div>
+                                        <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">💥 New Arrival / Novedad</span>
+                                    </label>
+
                                     <div class="h-px bg-slate-100 my-2"></div>
                                     <p class="text-[8px] font-bold text-slate-400 uppercase mb-2">Collection / Agrupación</p>
 
                                     <div class="relative">
                                         <input name="collection_tag" list="collections-list" 
-                                            value="${(item.tags || []).find(t => t !== 'hero') || ''}" 
+                                            value="${(item.tags || []).find(t => t !== 'hero' && t !== 'new_arrival') || ''}" 
                                             placeholder="Escribe para crear o buscar..." 
                                             class="dashboard-input w-full h-10 bg-white border-orange-200 focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-xs">
                                         <datalist id="collections-list">
-                                            ${[...new Set(this.state.inventory.flatMap(i => i.tags || []).filter(t => t !== 'hero'))].map(tag => `<option value="${tag}">`).join('')}
+                                            ${[...new Set(this.state.inventory.flatMap(i => i.tags || []).filter(t => t !== 'hero' && t !== 'new_arrival'))].map(tag => `<option value="${tag}">`).join('')}
                                         </datalist>
                                         <i class="ph-bold ph-magnifying-glass absolute right-3 top-3 text-slate-400 pointer-events-none text-xs"></i>
                                     </div>
@@ -4703,11 +4840,11 @@ const app = {
                 <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: <span class="text-slate-900">${item.sku}</span></p>
                     <div class="flex gap-4">
-                        <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</button>
+                        <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</a>
                         <button type="submit" class="bg-[#FF6B00] text-white px-10 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
                             <i class="ph-bold ph-plus"></i>
                             ${isEdit ? 'Update Inventory' : 'Add to Inventory'}
-                        </button>
+                        </a>
                     </div>
                 </div>
             </form>
@@ -4746,7 +4883,7 @@ const app = {
 
                             <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm">
                                 <i class="ph-bold ph-x text-xl"></i>
-                            </button>
+                            </a>
 
                             <div class="absolute bottom-0 left-0 w-full p-6 text-white">
                                 <div class="flex items-center gap-2 mb-2">
@@ -4763,7 +4900,7 @@ const app = {
                             <div class="grid grid-cols-2 gap-6">
                                 <div>
                                     <p class="text-xs text-slate-400 font-bold uppercase mb-1">Precio</p>
-                                    <p class="text-3xl font-bold text-brand-dark">${this.formatCurrency(item.price)}</p>
+                                    <p class="text-3xl font-bold text-brand-dark">${this.formatCurrency(item.price, false)}</p>
                                 </div>
                                 <div>
                                     <p class="text-xs text-slate-400 font-bold uppercase mb-1">Stock</p>
@@ -4775,6 +4912,10 @@ const app = {
                             </div>
 
                             <div class="space-y-3 pt-4 border-t border-slate-100">
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                    <span class="text-sm text-slate-500 font-medium">Fecha de Carga</span>
+                                    <span class="text-sm font-bold text-brand-dark">${item.created_at ? new Date(item.created_at.seconds ? item.created_at.seconds * 1000 : item.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Desconocida'}</span>
+                                </div>
                                 <div class="flex justify-between items-center py-2 border-b border-slate-50">
                                     <span class="text-sm text-slate-500 font-medium">Género</span>
                                     <span class="text-sm font-bold text-brand-dark">${item.genre}</span>
@@ -4791,19 +4932,39 @@ const app = {
                                     <span class="text-sm text-slate-500 font-medium">Ubicación / Storage</span>
                                     <span class="text-sm font-bold text-brand-dark">${item.storageLocation || '-'}</span>
                                 </div>
+                                ${item.provider_origin ? `
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                    <span class="text-sm text-slate-500 font-medium">Origen Proveedor</span>
+                                    <span class="text-sm font-bold ${item.provider_origin === 'EU_B2B' ? 'text-blue-600' : item.provider_origin === 'DK_B2B' ? 'text-emerald-600' : 'text-brand-dark'}">${item.provider_origin === 'EU_B2B' ? '🇪🇺 EU B2B' : item.provider_origin === 'DK_B2B' ? '🇩🇰 DK B2B' : '🏪 Local / Usado'}</span>
+                                </div>` : ''}
+                                ${item.item_phantom_vat ? `
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50 bg-blue-50/50 -mx-5 px-5 rounded">
+                                    <span class="text-sm text-blue-600 font-medium">EU Reverse Charge (25%)</span>
+                                    <span class="text-sm font-bold text-blue-700">${item.item_phantom_vat.toFixed(2)} DKK</span>
+                                </div>` : ''}
+                                ${item.item_real_vat ? `
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50 bg-emerald-50/50 -mx-5 px-5 rounded">
+                                    <span class="text-sm text-emerald-600 font-medium">IVA Factura DK (25%)</span>
+                                    <span class="text-sm font-bold text-emerald-700">${item.item_real_vat.toFixed(2)} DKK</span>
+                                </div>` : ''}
+                                ${item.acquisition_date ? `
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                    <span class="text-sm text-slate-500 font-medium">Fecha Factura (SKAT)</span>
+                                    <span class="text-sm font-bold text-brand-dark">${new Date(item.acquisition_date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                </div>` : ''}
                             </div>
 
                             <div class="pt-4 flex flex-wrap gap-3">
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.sku}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                     Editar
-                                </button>
+                                </a>
                                 <button id="refresh-metadata-btn" onclick="app.refreshProductMetadata('${item.id || item.sku}')" 
                                     class="flex-1 min-w-[120px] bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100 text-sm"
                                     title="Actualizar datos desde Discogs">
                                     <i class="ph-bold ph-arrows-clockwise"></i>
                                     Re-sync
-                                </button>
+                                </a>
                                 ${item.discogsUrl
                     ? `<a href="${item.discogsUrl}" target="_blank" class="flex-1 min-w-[120px] bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-disc"></i> Discogs
@@ -4814,14 +4975,14 @@ const app = {
                 }
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
                                     <i class="ph-bold ph-list-numbers"></i> Tracks
-                                </button>
+                                </a>
                                 <button onclick="app.addToCart('${item.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
                                     <i class="ph-bold ph-shopping-cart"></i>
                                     Vender
-                                </button>
+                                </a>
                                 <button onclick="app.deleteVinyl('${item.sku}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
                                     <i class="ph-bold ph-trash text-xl"></i>
-                                </button>
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -4869,6 +5030,48 @@ const app = {
 
     calculateProfit() {
         this.calculateMargin();
+    },
+
+    // Micro-IVA: Toggle fields based on provider origin
+    onProviderOriginChange() {
+        const origin = document.getElementById('modal-provider-origin')?.value;
+        const dateContainer = document.getElementById('acquisition-date-container');
+        const phantomPreview = document.getElementById('phantom-vat-preview');
+        const realVatPreview = document.getElementById('real-vat-preview');
+        const conditionSelect = document.querySelector('[name="product_condition"]');
+
+        if (origin === 'EU_B2B') {
+            dateContainer?.classList.remove('hidden');
+            phantomPreview?.classList.remove('hidden');
+            realVatPreview?.classList.add('hidden');
+            if (conditionSelect) conditionSelect.value = 'New';
+            this.updatePhantomVatPreview();
+        } else if (origin === 'DK_B2B') {
+            dateContainer?.classList.remove('hidden');
+            phantomPreview?.classList.add('hidden');
+            realVatPreview?.classList.remove('hidden');
+            if (conditionSelect) conditionSelect.value = 'New';
+            this.updatePhantomVatPreview();
+        } else {
+            dateContainer?.classList.add('hidden');
+            phantomPreview?.classList.add('hidden');
+            realVatPreview?.classList.add('hidden');
+        }
+    },
+
+    // Micro-IVA: Calculate and display VAT preview in real-time
+    updatePhantomVatPreview() {
+        const cost = parseFloat(document.getElementById('modal-cost')?.value) || 0;
+        const origin = document.getElementById('modal-provider-origin')?.value;
+        const vat25 = Math.round((cost * 0.25) * 100) / 100;
+
+        if (origin === 'EU_B2B') {
+            const phantomEl = document.getElementById('phantom-vat-amount');
+            if (phantomEl) phantomEl.textContent = vat25.toFixed(2) + ' DKK';
+        } else if (origin === 'DK_B2B') {
+            const realEl = document.getElementById('real-vat-amount');
+            if (realEl) realEl.textContent = vat25.toFixed(2) + ' DKK';
+        }
     },
 
     handleCostChange() {
@@ -4989,7 +5192,7 @@ const app = {
                 <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
                     <div class="min-w-0 pr-2">
                         <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
-                        <p class="text-[10px] text-slate-500">${this.formatCurrency(item.price)}</p>
+                        <p class="text-[10px] text-slate-500">${this.formatCurrency(item.price, false)}</p>
                     </div>
                 </div>`).join('')
             : '<p class="text-sm text-slate-400 italic text-center py-4">El carrito está vacío</p>';
@@ -5001,7 +5204,7 @@ const app = {
                             <h3 class="font-display text-2xl font-bold text-brand-dark">Nueva Venta</h3>
                             <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                                 <i class="ph-bold ph-x text-xl"></i>
-                            </button>
+                            </a>
                         </div>
 
                         <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 gap-8 pr-2 custom-scrollbar">
@@ -5023,7 +5226,7 @@ const app = {
                                 </div>
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
                                     <i class="ph-bold ph-check-circle"></i> Finalizar Compra Carrito
-                                </button>
+                                </a>
                             ` : ''}
                                 </div>
                             </div>
@@ -5132,7 +5335,7 @@ const app = {
                                                                 <button type="submit" id="btn-submit-sale-modal" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
                                                                     <i class="ph-bold ph-check"></i>
                                                                     Registrar Venta
-                                                                </button>
+                                                                </a>
                                                             </form>
                                                         </div>
                                                     </div>
@@ -5236,10 +5439,10 @@ const app = {
                     <div class="flex items-center gap-3">
                         <button onclick="window.print()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-printer text-xl"></i>
-                        </button>
+                        </a>
                         <button onclick="document.getElementById('unified-modal').remove()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
-                        </button>
+                        </a>
                     </div>
                 </div>
 
@@ -5394,13 +5597,13 @@ const app = {
                                     <div class="flex flex-col gap-2">
                                         <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'preparing' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                             <i class="ph ph-package"></i> Preparación
-                                        </button>
+                                        </a>
                                         <button onclick="app.setReadyForPickup('${sale.id}', event)" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'ready_for_pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                             <i class="ph ph-storefront"></i> Listo para Retiro
-                                        </button>
+                                        </a>
                                         <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'shipped' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                             <i class="ph ph-paper-plane-tilt"></i> Enviado / Despachado
-                                        </button>
+                                        </a>
                                     </div>
                                 </div>
                             ` : ''}
@@ -5440,7 +5643,7 @@ const app = {
                 <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
                     <button onclick="document.getElementById('unified-modal').remove()" class="flex-1 bg-brand-dark text-white py-3.5 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20">
                         Cerrar Detalle
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -5540,10 +5743,10 @@ const app = {
                         <div class="flex items-center gap-2">
                             <button onclick="app.printInvoice()" class="bg-blue-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-600 transition-colors text-sm flex items-center gap-2">
                                 <i class="ph-bold ph-printer"></i> Print
-                            </button>
+                            </a>
                             <button onclick="document.getElementById('invoice-modal').remove()" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-300 transition-colors text-sm">
                                 Close
-                            </button>
+                            </a>
                         </div>
                     </div>
                     <div class="overflow-auto p-6" id="invoice-content">
@@ -5674,7 +5877,7 @@ const app = {
                                                                 </div>
                                                                 <button onclick="document.getElementById('print-label-modal').remove()" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
                                                                     <i class="ph-bold ph-x"></i>
-                                                                </button>
+                                                                </a>
                                                             </div>
 
                                                             <!-- Body -->
@@ -5698,7 +5901,7 @@ const app = {
                                                                         <button onclick="window.print()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
                                                                             <i class="ph-bold ph-printer"></i>
                                                                             Imprimir
-                                                                        </button>
+                                                                        </a>
                                                                     </div>
 
                                                                     <!-- Preview Container -->
@@ -5923,7 +6126,7 @@ const app = {
                 <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
                 <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
                     <i class="ph-bold ph-x text-xl"></i>
-                </button>
+                </a>
             </div>
             <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
                 <input type="hidden" name="id" id="expense-id">
@@ -5959,7 +6162,7 @@ const app = {
 
                     <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
                         Guardar Gasto
-                    </button>
+                    </a>
             </form>
         </div>
                                                     </div>
@@ -5999,6 +6202,7 @@ const app = {
             collectionNote: formData.get('collectionNote') || null,
             condition: formData.get('condition'),
             product_condition: formData.get('product_condition') || 'Second-hand',
+            provider_origin: formData.get('provider_origin') || 'Local_Used',
             sleeveCondition: formData.get('sleeveCondition') || '',
             comments: formData.get('comments') || '',
             price: parseFloat(formData.get('price')),
@@ -6016,6 +6220,7 @@ const app = {
             // Shop Tags
             tags: [
                 formData.get('tag_hero') ? 'hero' : null,
+                formData.get('tag_new') ? 'new_arrival' : null,
                 formData.get('collection_tag') ? formData.get('collection_tag').trim() : null
             ].filter(Boolean),
             // Persistence Fields
@@ -6028,6 +6233,23 @@ const app = {
                 } catch (e) { return []; }
             })()
         };
+
+        // Micro-IVA: Calculate VAT fields based on provider origin
+        if (recordData.provider_origin === 'EU_B2B') {
+            recordData.product_condition = 'New';
+            recordData.item_phantom_vat = Math.round((recordData.cost * 0.25) * 100) / 100;
+            recordData.item_real_vat = 0;
+            recordData.acquisition_date = formData.get('acquisition_date') || new Date().toISOString().split('T')[0];
+        } else if (recordData.provider_origin === 'DK_B2B') {
+            recordData.product_condition = 'New';
+            recordData.item_phantom_vat = 0;
+            recordData.item_real_vat = Math.round((recordData.cost * 0.25) * 100) / 100;
+            recordData.acquisition_date = formData.get('acquisition_date') || new Date().toISOString().split('T')[0];
+        } else {
+            recordData.item_phantom_vat = 0;
+            recordData.item_real_vat = 0;
+            recordData.acquisition_date = null;
+        }
 
         console.log(`[handleAddVinyl] editSku: ${editSku}, recordData:`, recordData);
 
@@ -6119,6 +6341,45 @@ const app = {
         }
     },
 
+    async toggleProductTag(sku, tag) {
+        try {
+            const product = this.state.inventory.find(i => i.sku === sku);
+            if (!product) {
+                this.showToast('❌ Producto no encontrado', 'error');
+                return;
+            }
+
+            let tags = product.tags || [];
+            if (tags.includes(tag)) {
+                tags = tags.filter(t => t !== tag);
+            } else {
+                tags.push(tag);
+            }
+
+            // Find doc in Firestore
+            const snapshot = await db.collection('products').where('sku', '==', sku).limit(1).get();
+            if (snapshot.empty) {
+                this.showToast('❌ Error: Documento no encontrado', 'error');
+                return;
+            }
+
+            const docRef = snapshot.docs[0].ref;
+            await docRef.update({ 
+                tags: tags,
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            this.showToast(`✅ ${tag === 'hero' ? 'Héroe' : 'Novedad'} actualizado`);
+            
+            // Sync local state
+            product.tags = tags;
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error("Error toggling product tag:", error);
+            this.showToast("❌ Error al actualizar tag", "error");
+        }
+    },
+
     deleteVinyl(sku) {
         const item = this.state.inventory.find(i => i.sku === sku);
         if (!item) {
@@ -6147,10 +6408,10 @@ const app = {
                                                             <div class="flex gap-3">
                                                                 <button onclick="document.getElementById('delete-confirm-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                                                     Cancelar
-                                                                </button>
+                                                                </a>
                                                                 <button onclick="app.confirmDelete('${item.sku}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
                                                                     Eliminar
-                                                                </button>
+                                                                </a>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -6519,7 +6780,7 @@ const app = {
                                             <td class="px-6 py-4 text-center" onclick="event.stopPropagation()">
                                                 <button onclick="app.deleteSale('${sale.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Pedido">
                                                     <i class="ph-fill ph-trash"></i>
-                                                </button>
+                                                </a>
                                             </td>
                                         </tr>
                                     `;
@@ -6569,7 +6830,7 @@ const app = {
                     </div>
                     <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                         <i class="ph-bold ph-x text-xl"></i>
-                    </button>
+                    </a>
                 </div>
 
                 <!-- Content -->
@@ -6602,13 +6863,13 @@ const app = {
                         <div class="flex flex-wrap gap-2">
                             <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'preparing' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-package"></i> Preparación
-                            </button>
+                            </a>
                             <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'shipped' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-paper-plane-tilt"></i> Enviado
-                            </button>
+                            </a>
                             <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'delivered')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
                                 <i class="ph ph-check-circle"></i> Entregado
-                            </button>
+                            </a>
                         </div>
                     </div>
 
@@ -6728,10 +6989,10 @@ const app = {
                 <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
                     <button onclick="window.print()" class="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
                         <i class="ph-bold ph-printer"></i> Imprimir Packing Slip
-                    </button>
+                    </a>
                     <button onclick="document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
                         Cerrar
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -6766,7 +7027,7 @@ const app = {
                                                                     </div>
                                                                     <button onclick="app.removeFromCart(${index})" class="text-red-400 hover:text-red-600">
                                                                         <i class="ph-bold ph-x"></i>
-                                                                    </button>
+                                                                    </a>
                                                                 </div>
                                                                 `).join('');
     },
@@ -6786,14 +7047,14 @@ const app = {
                         </div>
                         <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
-                        </button>
+                        </a>
                     </div>
 
                     <div class="bg-slate-50/50 rounded-2xl p-5 mb-8 border border-slate-100 max-h-40 overflow-y-auto custom-scrollbar">
                         ${this.state.cart.map(item => `
                             <div class="flex justify-between py-2 border-b border-slate-100 last:border-0 text-sm">
                                 <span class="truncate pr-4 font-bold text-slate-700">${item.album}</span>
-                                <span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(item.price)}</span>
+                                <span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(item.price, false)}</span>
                             </div>
                         `).join('')}
                     </div>
@@ -6871,7 +7132,7 @@ const app = {
                         <button type="submit" class="w-full py-5 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3 text-lg hover:scale-[1.01] active:scale-[0.99]">
                             <i class="ph-bold ph-check-circle"></i>
                             Confirmar Registro
-                        </button>
+                        </a>
                     </form>
                 </div>
             </div>
@@ -6896,7 +7157,7 @@ const app = {
             // Show fee section if there's a difference
             if (fee > 0) {
                 feeSection.classList.remove('hidden');
-                feeValue.innerText = `- kr.${fee.toFixed(0)} `;
+                feeValue.innerHTML = `- ${this.formatCurrency(fee)}`;
             } else {
                 feeSection.classList.add('hidden');
             }
@@ -7181,7 +7442,7 @@ const app = {
                                         <button type="button" onclick="event.stopPropagation(); app.clearReceiptUpload()" 
                                             class="mt-2 text-xs text-red-500 hover:text-red-600 font-medium">
                                             <i class="ph-bold ph-x"></i> Quitar
-                                        </button>
+                                        </a>
                                     </div>
                                 </div>
                                 <input type="hidden" id="receipt-url" name="receiptUrl">
@@ -7249,6 +7510,20 @@ const app = {
                                     </p>
                                 </div>
 
+                                <!-- Inventory Invoice Toggle (Micro-IVA sync bypass) -->
+                                <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-start gap-3 mt-2">
+                                    <input type="checkbox" name="is_inventory_invoice" id="expense-inventory-invoice"
+                                        class="mt-1 w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 cursor-pointer"
+                                        onchange="app.handleInventoryInvoiceToggle(this)">
+                                    <div>
+                                        <label for="expense-inventory-invoice" class="text-sm font-bold text-blue-800 cursor-pointer">Factura de Inventario B2B</label>
+                                        <p class="text-[10px] text-blue-600 leading-tight mt-1">
+                                            Marca esto si los vinilos de esta factura ya manejan su propio Micro-IVA. 
+                                            Registraremos el gasto para balances, pero lo <strong class="uppercase">ignoraremos fiscalmente</strong> para evitar doble contabilización.
+                                        </p>
+                                    </div>
+                                </div>
+
                                 <!-- Description (Optional) -->
                                 <div>
                                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
@@ -7264,12 +7539,12 @@ const app = {
                                     <button type="submit" id="expense-submit-btn" 
                                         class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
                                         <i class="ph-bold ph-floppy-disk"></i>
-                                        Guardar
-                                    </button>
+                                        Guardar Gasto
+                                    </a>
                                     <button type="button" id="expense-cancel-btn" onclick="app.resetExpenseForm()" 
                                         class="hidden px-4 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                         Cancelar
-                                    </button>
+                                    </a>
                                 </div>
                             </form>
                         </div>
@@ -7322,7 +7597,7 @@ const app = {
                                                         <button onclick="app.openInventoryIngest('${e.id}')" 
                                                             class="ml-2 text-[10px] bg-brand-orange text-white px-2 py-0.5 rounded hover:bg-orange-600 transition-colors">
                                                             Ingresar Stock
-                                                        </button>
+                                                        </a>
                                                     ` : ''}
                                                 </td>
                                                 <td class="p-4 text-right font-bold text-brand-dark">
@@ -7367,12 +7642,12 @@ const app = {
                                                             class="text-slate-400 hover:text-brand-orange p-2 rounded-lg hover:bg-orange-50 transition-all" 
                                                             title="Editar">
                                                             <i class="ph-fill ph-pencil-simple"></i>
-                                                        </button>
+                                                        </a>
                                                         <button onclick="app.deleteExpense('${e.id}')" 
                                                             class="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all" 
                                                             title="Eliminar">
                                                             <i class="ph-fill ph-trash"></i>
-                                                        </button>
+                                                        </a>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -7412,7 +7687,7 @@ const app = {
                                         class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
                                         <i class="ph-bold ph-file-zip"></i>
                                         Descargar Comprobantes del Mes (ZIP)
-                                    </button>
+                                    </a>
                                 </div>
                             ` : ''}
                         </div>
@@ -7438,11 +7713,22 @@ const app = {
         document.getElementById('expense-categoria').value = expense.categoria || expense.category || 'Otros';
         document.getElementById('expense-descripcion').value = expense.descripcion || '';
 
+        // Restoring Inventory Invoice toggle
+        const invToggle = document.getElementById('expense-inventory-invoice');
+        if (invToggle) {
+            invToggle.checked = !!expense.is_inventory_invoice;
+        }
+
         // Trigger category change logic to set IVA field state (disabled if stock_usado)
         const catSelect = document.getElementById('expense-categoria');
         if (catSelect) {
             catSelect.value = expense.categoria || expense.category || '';
-            this.handleExpenseCategoryChange(catSelect);
+            // If it's an inventory invoice, toggle handles the disabled state, otherwise category handles it
+            if (invToggle && invToggle.checked) {
+                this.handleInventoryInvoiceToggle(invToggle);
+            } else {
+                this.handleExpenseCategoryChange(catSelect);
+            }
         }
 
         // Handle receipt preview if exists
@@ -7467,8 +7753,10 @@ const app = {
         document.getElementById('expense-id').value = '';
         document.getElementById('expense-fecha').value = new Date().toISOString().split('T')[0];
         document.getElementById('expense-iva').value = '0';
+        document.getElementById('expense-iva').disabled = false;
+        document.getElementById('expense-iva').classList.remove('bg-slate-100', 'cursor-not-allowed');
         document.getElementById('expense-form-title').innerHTML = '<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra';
-        document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Guardar';
+        document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Guardar Gasto';
         document.getElementById('expense-cancel-btn').classList.add('hidden');
 
         // Reset file upload
@@ -7486,6 +7774,7 @@ const app = {
 
         const catValue = formData.get('categoria');
         const cat = (window.expenseCategories || []).find(c => c.value === catValue);
+        const isInventoryInvoice = formData.get('is_inventory_invoice') === 'on';
 
         const expenseData = {
             proveedor: formData.get('proveedor'),
@@ -7497,10 +7786,19 @@ const app = {
             categoria_label: cat?.label || catValue,
             categoria_tipo: cat?.type || 'operativo',
             is_vat_deductible: cat?.type === 'operativo' || cat?.type === 'stock_nuevo',
+            is_inventory_invoice: isInventoryInvoice,
             descripcion: formData.get('descripcion') || '',
             receiptUrl: document.getElementById('receipt-url').value || '',
             timestamp: new Date().toISOString()
         };
+
+        // If it's a global B2B inventory invoice, neutralise its VAT and ensure it bypasses the VAT reports
+        // since the VAT and deductions are already handled at the item-level Micro-IVA
+        if (isInventoryInvoice) {
+            expenseData.monto_iva = 0;
+            expenseData.is_vat_deductible = false;
+            expenseData.categoria_tipo = 'stock_factura_global';
+        }
 
         const id = formData.get('id');
         if (id) {
@@ -7522,11 +7820,33 @@ const app = {
         this.resetExpenseForm();
     },
 
+    handleInventoryInvoiceToggle(checkbox) {
+        const ivaInput = document.getElementById('expense-iva');
+        if (checkbox.checked) {
+            ivaInput.value = '0';
+            ivaInput.disabled = true;
+            ivaInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+        } else {
+            // Restore previous state by triggering category change logic again
+            const select = document.getElementById('expense-categoria');
+            this.handleExpenseCategoryChange(select);
+        }
+    },
+
     handleExpenseCategoryChange(select) {
         const value = select.value;
         const cat = (window.expenseCategories || []).find(c => c.value === value);
         const ivaInput = document.getElementById('expense-iva');
         const warning = document.getElementById('category-warning');
+        const invToggle = document.getElementById('expense-inventory-invoice');
+
+        // If inventory invoice is toggled, ignore category rules changing VAT
+        if (invToggle && invToggle.checked) {
+            ivaInput.value = '0';
+            ivaInput.disabled = true;
+            ivaInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+            return;
+        }
 
         if (cat?.type === 'stock_usado') {
             ivaInput.value = '0';
@@ -9022,7 +9342,7 @@ const app = {
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.setReadyForPickup('${s.id}', event)" class="bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 mx-auto">
                                                 <i class="ph-bold ph-bell"></i> Notificar Listo
-                                            </button>
+                                            </a>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -9061,7 +9381,7 @@ const app = {
                                         <td class="p-4 text-center" onclick="event.stopPropagation()">
                                             <button onclick="app.markAsDelivered('${s.id}', event)" class="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto">
                                                 <i class="ph-bold ph-hand-tap"></i> Ya lo Retiró
-                                            </button>
+                                            </a>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -9203,13 +9523,19 @@ const app = {
         const now = new Date();
         const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
         const currentYear = now.getFullYear();
-        const selectedQuarter = this.state.vatReportQuarter || currentQuarter;
+        const selectedQuarter = this.state.vatReportQuarter !== undefined ? this.state.vatReportQuarter : currentQuarter;
         const selectedYear = this.state.vatReportYear || currentYear;
 
-        // Calculate quarter date range
-        const quarterStartMonth = (selectedQuarter - 1) * 3;
-        const startDate = new Date(selectedYear, quarterStartMonth, 1);
-        const endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+        // Calculate date range (quarter=0 means full year)
+        let startDate, endDate;
+        if (selectedQuarter === 0) {
+            startDate = new Date(selectedYear, 0, 1);
+            endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
+        } else {
+            const quarterStartMonth = (selectedQuarter - 1) * 3;
+            startDate = new Date(selectedYear, quarterStartMonth, 1);
+            endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
+        }
 
         // Filter sales by date range
         const filteredSales = this.state.sales.filter(sale => {
@@ -9238,18 +9564,21 @@ const app = {
                 const productId = item.productId || item.recordId;
                 const albumName = item.album;
 
-                // If cost is 0, try to find it from the inventory
-                if (cost === 0) {
+                let condition = item.productCondition || item.condition;
+
+                // If cost is 0 or condition missing, try to find it from the inventory
+                if (cost === 0 || !condition) {
                     const inventoryProduct = this.state.inventory.find(p =>
                         (productId && (p.id === productId || p.sku === productId)) ||
                         (albumName && p.album === albumName)
                     );
                     if (inventoryProduct) {
-                        cost = inventoryProduct.cost || 0;
+                        if (cost === 0) cost = inventoryProduct.cost || 0;
+                        if (!condition) condition = inventoryProduct.product_condition || inventoryProduct.condition || 'Second-hand';
                     }
                 }
+                if (!condition) condition = 'Second-hand'; // fallback
                 const qty = item.qty || item.quantity || 1;
-                const condition = item.productCondition || 'Second-hand';
                 const totalPrice = price * qty;
                 const totalCost = cost * qty;
 
@@ -9335,24 +9664,57 @@ const app = {
         const totalShippingExpenseVat = shippingExpenses.reduce((sum, e) => sum + (parseFloat(e.monto_iva) || 0), 0);
         const totalShippingExpenseGross = shippingExpenses.reduce((sum, e) => sum + (parseFloat(e.monto_total) || 0), 0);
 
-        const totalInputVat = totalGeneralInputVat + totalShippingExpenseVat;
-        const totalVatToPayFinal = totalVatToPaySalida - totalInputVat;
+        // ── Micro-IVA: Calculate Phantom VAT from EU B2B acquisitions (REVERSE CHARGE) ──
+        // Uses acquisition_date (invoice date) for quarterly SKAT assignment
+        // IMPORTANT: Reverse Charge means phantom VAT goes on BOTH sides:
+        //   - Liability: Rubrik A (Moms af varekøb i udlandet)
+        //   - Deduction: Købsmoms
+        //   Net effect on Moms Tilsvar = 0
+        const phantomVatItems = (this.state.inventory || []).filter(p => {
+            if (!p.item_phantom_vat || p.item_phantom_vat <= 0 || p.provider_origin !== 'EU_B2B') return false;
+            const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
+            if (!acqDate) return false;
+            return acqDate >= startDate && acqDate <= endDate;
+        });
+        const totalPhantomVat = phantomVatItems.reduce((sum, p) => sum + (p.item_phantom_vat || 0), 0);
+
+        // ── Micro-IVA: Calculate Real VAT from DK B2B acquisitions ──
+        // DK invoices carry actual 25% VAT → goes ONLY to Købsmoms (pure deduction)
+        const dkB2bVatItems = (this.state.inventory || []).filter(p => {
+            if (!p.item_real_vat || p.item_real_vat <= 0 || p.provider_origin !== 'DK_B2B') return false;
+            const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
+            if (!acqDate) return false;
+            return acqDate >= startDate && acqDate <= endDate;
+        });
+        const totalDkB2bVat = dkB2bVatItems.reduce((sum, p) => sum + (p.item_real_vat || 0), 0);
+
+        // Liability side: Sales VAT + EU Reverse Charge (Rubrik A)
+        const totalVatLiability = totalVatToPaySalida + totalPhantomVat;
+
+        // Deduction side: Expenses + EU Reverse Charge + DK B2B real VAT
+        const totalInputVat = totalGeneralInputVat + totalShippingExpenseVat + totalPhantomVat + totalDkB2bVat;
+
+        // Final Moms Tilsvar = Liability - Deductions
+        // EU phantom VAT cancels out (appears on both sides). DK_B2B is pure deduction.
+        const totalVatToPayFinal = totalVatLiability - totalInputVat;
 
         // Logistics Net Logic
         const netoEnvios = totalShippingIncome - totalShippingExpenseGross;
 
         // Calculate Payment Deadline (Danish Quarterly Rules)
         const deadlines = {
+            0: `Resumen anual ${selectedYear}`,
             1: `1 de junio, ${selectedYear}`,
             2: `1 de septiembre, ${selectedYear}`,
             3: `1 de diciembre, ${selectedYear}`,
             4: `1 de marzo, ${selectedYear + 1}`
         };
         const paymentDeadline = deadlines[selectedQuarter];
+        const periodLabel = selectedQuarter === 0 ? `Año ${selectedYear}` : `Q${selectedQuarter} ${selectedYear}`;
 
         // Status Logic (Defaulting to "Pendiente" as we don't store declared status yet)
-        const statusLabel = "Pendiente";
-        const statusColor = "bg-slate-100 text-slate-500";
+        const statusLabel = selectedQuarter === 0 ? 'Anual' : 'Pendiente';
+        const statusColor = selectedQuarter === 0 ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500';
 
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
@@ -9372,19 +9734,23 @@ const app = {
                     </div>
                     
                     <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <div class="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
+                        <div class="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
+                            <select id="vat-year-select" onchange="app.updateVATQuarter()" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
+                                ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('')}
+                            </select>
                             <select id="vat-quarter-select" onchange="app.updateVATQuarter()" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
-                                <option value="1" ${selectedQuarter === 1 ? 'selected' : ''}>Q1 ${selectedYear}</option>
-                                <option value="2" ${selectedQuarter === 2 ? 'selected' : ''}>Q2 ${selectedYear}</option>
-                                <option value="3" ${selectedQuarter === 3 ? 'selected' : ''}>Q3 ${selectedYear}</option>
-                                <option value="4" ${selectedQuarter === 4 ? 'selected' : ''}>Q4 ${selectedYear}</option>
+                                <option value="0" ${selectedQuarter === 0 ? 'selected' : ''}>Todo el año</option>
+                                <option value="1" ${selectedQuarter === 1 ? 'selected' : ''}>Q1</option>
+                                <option value="2" ${selectedQuarter === 2 ? 'selected' : ''}>Q2</option>
+                                <option value="3" ${selectedQuarter === 3 ? 'selected' : ''}>Q3</option>
+                                <option value="4" ${selectedQuarter === 4 ? 'selected' : ''}>Q4</option>
                             </select>
                         </div>
 
                         <button onclick="app.downloadVATAuditReport()" class="flex-1 lg:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
                             <i class="ph-bold ph-file-csv"></i>
                             Exportar Auditoría
-                        </button>
+                        </a>
                     </div>
                 </div>
 
@@ -9399,14 +9765,17 @@ const app = {
                         </p>
                     </div>
 
-                    <!-- Tarjeta B: Salgsmoms (IVA Recaudado) -->
+                    <!-- Tarjeta B: Salgsmoms + Rubrik A (IVA Liability Total) -->
                     <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
                         <div class="flex justify-between items-start mb-4">
-                            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Salgsmoms</p>
+                            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Salgsmoms + Rubrik A</p>
                             <span class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-up-right"></i></span>
                         </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalVatToPaySalida)}</p>
-                        <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA generado por Ventas + Envíos Cobrados.</p>
+                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalVatLiability)}</p>
+                        <div class="mt-3 space-y-1">
+                            <p class="text-[11px] text-slate-400 font-medium">Ventas + Envíos: ${this.formatCurrency(totalVatToPaySalida)}</p>
+                            ${totalPhantomVat > 0 ? `<p class="text-[11px] text-blue-500 font-bold">Rubrik A (EU-Moms): + ${this.formatCurrency(totalPhantomVat)}</p>` : ''}
+                        </div>
                     </div>
 
                     <!-- Tarjeta C: Købsmoms (IVA Deducible) -->
@@ -9416,7 +9785,7 @@ const app = {
                             <span class="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-down-left"></i></span>
                         </div>
                         <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalInputVat)}</p>
-                        <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA soportado en Gastos, Envíos Pagados y Stock.</p>
+                        <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA soportado: Gastos, Envíos, Stock DK + EU Reverse Charge.</p>
                     </div>
                 </div>
 
@@ -9550,6 +9919,85 @@ const app = {
                                 `}
                             </div>
                         </div>
+
+                        ${totalPhantomVat > 0 ? `
+                        <div>
+                            <div class="flex items-center gap-2 mb-4">
+                                <h3 class="text-sm font-bold text-blue-500 uppercase tracking-widest">EU Reverse Charge (Rubrik A)</h3>
+                                <div class="h-px flex-1 bg-blue-100"></div>
+                            </div>
+                            <div class="bg-blue-50 rounded-3xl shadow-sm border border-blue-100 overflow-hidden">
+                                <div class="p-5 flex items-center justify-between border-b border-blue-100">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-lg">
+                                            <i class="ph-bold ph-arrows-left-right"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-blue-800">Moms af varekøb i udlandet</p>
+                                            <p class="text-[10px] text-blue-500 uppercase font-bold tracking-tighter">${phantomVatItems.length} producto${phantomVatItems.length > 1 ? 's' : ''} EU B2B · Efecto neto: 0</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xl font-bold text-blue-700">${this.formatCurrency(totalPhantomVat)}</p>
+                                        <p class="text-[10px] text-blue-500 font-bold">± Ambos lados</p>
+                                    </div>
+                                </div>
+                                <div class="px-5 py-2 bg-blue-100/40 border-b border-blue-100 flex gap-6 text-[10px] font-bold">
+                                    <span class="text-red-500">▲ Liability: +${this.formatCurrency(totalPhantomVat)}</span>
+                                    <span class="text-emerald-600">▼ Købsmoms: -${this.formatCurrency(totalPhantomVat)}</span>
+                                    <span class="text-blue-600">= Neto: ${this.formatCurrency(0)}</span>
+                                </div>
+                                <div class="divide-y divide-blue-100/50 max-h-48 overflow-y-auto">
+                                    ${phantomVatItems.map(p => `
+                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-blue-100/30 transition-colors">
+                                        <div>
+                                            <p class="text-xs font-bold text-blue-800">${p.artist || ''} — ${p.album || ''}</p>
+                                            <p class="text-[10px] text-blue-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
+                                        </div>
+                                        <span class="text-xs font-bold text-blue-700">${this.formatCurrency(p.item_phantom_vat)}</span>
+                                    </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${totalDkB2bVat > 0 ? `
+                        <div>
+                            <div class="flex items-center gap-2 mb-4">
+                                <h3 class="text-sm font-bold text-emerald-500 uppercase tracking-widest">Stock DK B2B (Købsmoms)</h3>
+                                <div class="h-px flex-1 bg-emerald-100"></div>
+                            </div>
+                            <div class="bg-emerald-50 rounded-3xl shadow-sm border border-emerald-100 overflow-hidden">
+                                <div class="p-5 flex items-center justify-between border-b border-emerald-100">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 text-lg">
+                                            <i class="ph-bold ph-receipt"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-bold text-emerald-800">IVA Facturas DK Deducible</p>
+                                            <p class="text-[10px] text-emerald-500 uppercase font-bold tracking-tighter">${dkB2bVatItems.length} producto${dkB2bVatItems.length > 1 ? 's' : ''} DK B2B</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xl font-bold text-emerald-700">${this.formatCurrency(totalDkB2bVat)}</p>
+                                        <p class="text-[10px] text-emerald-500 font-bold">Deducción pura</p>
+                                    </div>
+                                </div>
+                                <div class="divide-y divide-emerald-100/50 max-h-48 overflow-y-auto">
+                                    ${dkB2bVatItems.map(p => `
+                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-emerald-100/30 transition-colors">
+                                        <div>
+                                            <p class="text-xs font-bold text-emerald-800">${p.artist || ''} — ${p.album || ''}</p>
+                                            <p class="text-[10px] text-emerald-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
+                                        </div>
+                                        <span class="text-xs font-bold text-emerald-700">${this.formatCurrency(p.item_real_vat)}</span>
+                                    </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
 
@@ -9713,19 +10161,21 @@ const app = {
         const startDate = new Date(selectedYear, quarterStartMonth, 1);
         const endDate = new Date(selectedYear, quarterStartMonth + 3, 0, 23, 59, 59);
 
-        // Filter sales by date range
+        // ==========================================
+        // 1. SALES LEDGER (Salgsmoms)
+        // ==========================================
         const filteredSales = this.state.sales.filter(sale => {
             const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
             return saleDate >= startDate && saleDate <= endDate;
         });
 
-        // Build audit data rows
-        const auditRows = [];
-        let invoiceCounter = 1;
+        const salesRows = [];
+        let salesCounter = 1;
 
         filteredSales.forEach(sale => {
             const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.timestamp || sale.date);
             const dateStr = saleDate.toISOString().slice(0, 10).replace(/-/g, '');
+            const channel = sale.channel || 'N/A';
             const items = sale.items || [];
 
             items.forEach(item => {
@@ -9733,15 +10183,20 @@ const app = {
                 let cost = item.costAtSale || item.cost || 0;
                 const productId = item.productId || item.recordId;
                 const albumName = item.album;
+                
+                let providerOrigin = 'Local_Used';
+                let acquisitionDate = 'N/A';
 
-                // Lookup cost from inventory if not stored
-                if (cost === 0) {
-                    const inventoryProduct = this.state.inventory.find(p =>
-                        (productId && (p.id === productId || p.sku === productId)) ||
-                        (albumName && p.album === albumName)
-                    );
-                    if (inventoryProduct) {
-                        cost = inventoryProduct.cost || 0;
+                // Lookup extra data from inventory
+                const inventoryProduct = this.state.inventory.find(p =>
+                    (productId && (p.id === productId || p.sku === productId)) ||
+                    (albumName && p.album === albumName)
+                );
+                if (inventoryProduct) {
+                    cost = cost === 0 ? (inventoryProduct.cost || 0) : cost;
+                    providerOrigin = inventoryProduct.provider_origin || 'Local_Used';
+                    if (inventoryProduct.acquisition_date) {
+                        acquisitionDate = new Date(inventoryProduct.acquisition_date).toISOString().slice(0, 10);
                     }
                 }
 
@@ -9752,93 +10207,190 @@ const app = {
                 const totalCost = cost * qty;
 
                 // Calculation logic
-                let calculationBasis, outputVAT;
+                let calculationBasis, outputVAT, schemeApplied;
                 if (isNew) {
                     calculationBasis = totalPrice;
-                    outputVAT = totalPrice * 0.20; // 25% VAT extracted
+                    outputVAT = totalPrice * 0.20; // 25% of net -> 20% of gross
+                    schemeApplied = 'Standard Rate';
                 } else {
                     const margin = totalPrice - totalCost;
                     calculationBasis = margin > 0 ? margin : 0;
-                    outputVAT = margin > 0 ? margin * 0.20 : 0; // 0 if negative margin
+                    outputVAT = margin > 0 ? margin * 0.20 : 0; 
+                    schemeApplied = 'Margin Scheme';
                 }
 
-                // Generate unique transaction ID
-                const transactionId = `ECR-${dateStr}-${String(invoiceCounter).padStart(4, '0')}`;
-                invoiceCounter++;
+                const acqDateObj = inventoryProduct && inventoryProduct.acquisition_date ? new Date(inventoryProduct.acquisition_date) : null;
+                const isAcquiredInPeriod = acqDateObj && acqDateObj >= startDate && acqDateObj <= endDate;
+                
+                const phantomVatVal = (isAcquiredInPeriod && providerOrigin === 'EU_B2B') ? (inventoryProduct.item_phantom_vat || 0) : 0;
+                const inputVatVal = isAcquiredInPeriod ? (providerOrigin === 'DK_B2B' ? (inventoryProduct.item_real_vat || 0) : phantomVatVal) : 0;
 
-                auditRows.push({
-                    transactionId,
+                salesRows.push({
+                    transactionId: `ECR-${dateStr}-${String(salesCounter).padStart(4, '0')}`,
                     date: saleDate.toISOString().slice(0, 10),
+                    channel: channel,
                     productName: `${item.album || 'N/A'} - ${item.artist || 'N/A'}`,
                     sku: item.sku || productId || 'N/A',
-                    condition: isNew ? 'New' : 'Second-hand',
+                    providerOrigin: providerOrigin,
+                    acquisitionDate: acquisitionDate,
+                    condition: condition,
                     costPrice: totalCost.toFixed(2),
                     salesPrice: totalPrice.toFixed(2),
                     calculationBasis: calculationBasis.toFixed(2),
-                    outputVAT: outputVAT.toFixed(2)
+                    schemeApplied: schemeApplied,
+                    outputVat: outputVAT.toFixed(2),
+                    euPhantomVat: phantomVatVal.toFixed(2),
+                    inputVat: inputVatVal.toFixed(2)
                 });
+                salesCounter++;
             });
 
-            // Add Shipping Income to Audit
+            // Add Shipping Income to Sales Audit
             const shippingIncome = parseFloat(sale.shipping_income || sale.shipping || sale.shipping_cost || 0);
             if (shippingIncome > 0) {
-                const transactionId = `ECR-SHIP-${dateStr}-${String(invoiceCounter).padStart(4, '0')}`;
-                invoiceCounter++;
-                auditRows.push({
-                    transactionId,
+                salesRows.push({
+                    transactionId: `ECR-SHIP-${dateStr}-${String(salesCounter).padStart(4, '0')}`,
                     date: saleDate.toISOString().slice(0, 10),
-                    productName: `Envío - Orden: ${sale.orderNumber || (sale.id && typeof sale.id === 'string' ? sale.id.slice(-8) : 'N/A')}`,
+                    channel: channel,
+                    productName: `Envío Cobrado - Orden: ${sale.orderNumber || 'N/A'}`,
                     sku: 'SHIPPING',
+                    providerOrigin: 'N/A',
+                    acquisitionDate: 'N/A',
                     condition: 'Service',
                     costPrice: '0.00',
                     salesPrice: shippingIncome.toFixed(2),
                     calculationBasis: shippingIncome.toFixed(2),
-                    outputVAT: (shippingIncome * 0.20).toFixed(2)
+                    schemeApplied: 'Standard Rate',
+                    outputVat: (shippingIncome * 0.20).toFixed(2),
+                    euPhantomVat: '0.00',
+                    inputVat: '0.00'
                 });
+                salesCounter++;
             }
         });
 
-        // Generate CSV content
-        const headers = [
-            'Transaction ID',
-            'Date',
-            'Product Name',
-            'SKU',
-            'Condition',
-            'Cost Price (DKK)',
-            'Sales Price (DKK)',
-            'Calculation Basis (DKK)',
-            'Output VAT / Salgsmoms (DKK)'
+        // ==========================================
+        // 2. PURCHASES LEDGER (Købsmoms & Rubrik A)
+        // ==========================================
+        const purchaseRows = [];
+        let purchaseCounter = 1;
+
+        // A. General Expenses (Købsmoms)
+        const deductibleExpenses = this.state.expenses.filter(e => {
+            const expDate = e.fecha_factura ? new Date(e.fecha_factura) : (e.timestamp?.toDate ? e.timestamp.toDate() : new Date(e.timestamp || e.date));
+            const isDeductible = e.categoria_tipo === 'operativo' || e.categoria_tipo === 'stock_nuevo' || e.is_vat_deductible;
+            return isDeductible && expDate >= startDate && expDate <= endDate;
+        });
+
+        deductibleExpenses.forEach(exp => {
+            const expDate = exp.fecha_factura ? new Date(exp.fecha_factura) : (exp.timestamp?.toDate ? exp.timestamp.toDate() : new Date(exp.timestamp || exp.date));
+            const dateStr = expDate.toISOString().slice(0, 10).replace(/-/g, '');
+            
+            purchaseRows.push({
+                transactionId: `ECP-EXP-${dateStr}-${String(purchaseCounter).padStart(4, '0')}`,
+                invoiceDate: expDate.toISOString().slice(0, 10),
+                category: exp.categoria === 'envios' ? 'Shipping Expense' : 'Operational Expense',
+                vendor: exp.proveedor || exp.nombre || 'N/A',
+                description: exp.descripcion || exp.categoria || 'N/A',
+                sku: 'N/A',
+                grossAmount: parseFloat(exp.monto_total || 0).toFixed(2),
+                euPhantomVat: '0.00', // Only for EU B2B
+                inputVat: parseFloat(exp.monto_iva || 0).toFixed(2)
+            });
+            purchaseCounter++;
+        });
+
+        // B. Stock Acquisitions (Micro-IVA: EU_B2B & DK_B2B)
+        const inventoryAcquisitions = (this.state.inventory || []).filter(p => {
+            const isB2b = p.provider_origin === 'EU_B2B' || p.provider_origin === 'DK_B2B';
+            if (!isB2b) return false;
+            const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
+            if (!acqDate) return false;
+            return acqDate >= startDate && acqDate <= endDate;
+        });
+
+        inventoryAcquisitions.forEach(item => {
+            const acqDate = new Date(item.acquisition_date);
+            const dateStr = acqDate.toISOString().slice(0, 10).replace(/-/g, '');
+            const cost = parseFloat(item.cost || 0);
+
+            const phantomVat = item.provider_origin === 'EU_B2B' ? (item.item_phantom_vat || 0) : 0;
+            const inputVat = item.provider_origin === 'DK_B2B' ? (item.item_real_vat || 0) : phantomVat; // In EU_B2B, input VAT equals phantom VAT
+
+            purchaseRows.push({
+                transactionId: `ECP-INV-${dateStr}-${String(purchaseCounter).padStart(4, '0')}`,
+                invoiceDate: acqDate.toISOString().slice(0, 10),
+                category: `Stock Import (${item.provider_origin})`,
+                vendor: item.provider_origin,
+                description: `${item.album || 'N/A'} - ${item.artist || 'N/A'}`,
+                sku: item.sku || 'N/A',
+                grossAmount: cost.toFixed(2),
+                euPhantomVat: phantomVat.toFixed(2), // Liability Side (Rubrik A)
+                inputVat: inputVat.toFixed(2)        // Deduction Side (Købsmoms)
+            });
+            purchaseCounter++;
+        });
+
+        // ==========================================
+        // 3. EXPORT LOGIC
+        // ==========================================
+        const BOM = '\uFEFF';
+        
+        // Helper to format rows to CSV string
+        const buildCsvString = (headers, rows) => {
+            return [
+                headers.join(','),
+                ...rows.map(row => headers.map(h => {
+                    const key = Object.keys(row)[headers.indexOf(h)];
+                    const val = String(row[key] || '');
+                    return `"${val.replace(/"/g, '""')}"`;
+                }).join(','))
+            ].join('\n');
+        };
+
+        const salesHeaders = [
+            'Transaction ID', 'Transaction Date', 'Sales Channel', 'Product Name', 
+            'SKU / Item ID', 'Provider Origin', 'Acquisition Date', 'Condition', 
+            'Cost Price (DKK)', 'Sales Price (DKK)', 'Calculation Basis (DKK)', 
+            'VAT Scheme Applied', 'Output VAT / Salgsmoms (DKK)', 
+            'EU Phantom VAT / Rubrik A (DKK)', 'Input VAT / Købsmoms (DKK)'
         ];
 
-        const csvContent = [
-            headers.join(','),
-            ...auditRows.map(row => [
-                row.transactionId,
-                row.date,
-                `"${row.productName.replace(/"/g, '""')}"`,
-                row.sku,
-                row.condition,
-                row.costPrice,
-                row.salesPrice,
-                row.calculationBasis,
-                row.outputVAT
-            ].join(','))
-        ].join('\n');
+        const purchaseHeaders = [
+            'Transaction ID', 'Invoice Date', 'Category', 'Vendor / Origin', 
+            'Description', 'SKU / Item ID', 'Gross Amount / Cost (DKK)', 
+            'EU Phantom VAT / Rubrik A (DKK)', 'Input VAT / Købsmoms (DKK)'
+        ];
 
-        // Add BOM for Excel UTF-8 compatibility
-        const BOM = '\uFEFF';
-        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `VAT_Audit_Report_Q${selectedQuarter}_${selectedYear}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        const salesCsvContent = buildCsvString(salesHeaders, salesRows);
+        const purchaseCsvContent = buildCsvString(purchaseHeaders, purchaseRows);
 
-        this.showToast(`✅ Audit report downloaded: ${auditRows.length} transactions`);
+        // Download Sales file
+        const blob1 = new Blob([BOM + salesCsvContent], { type: 'text/csv;charset=utf-8;' });
+        const link1 = document.createElement('a');
+        link1.href = URL.createObjectURL(blob1);
+        link1.download = `Sales_VAT_Ledger_Q${selectedQuarter}_${selectedYear}.csv`;
+        link1.style.display = 'none';
+        document.body.appendChild(link1);
+        link1.click();
+        
+        // Download Purchases file (with slight delay to allow browser to process both)
+        setTimeout(() => {
+            const blob2 = new Blob([BOM + purchaseCsvContent], { type: 'text/csv;charset=utf-8;' });
+            const link2 = document.createElement('a');
+            link2.href = URL.createObjectURL(blob2);
+            link2.download = `Purchases_VAT_Ledger_Q${selectedQuarter}_${selectedYear}.csv`;
+            link2.style.display = 'none';
+            document.body.appendChild(link2);
+            link2.click();
+            
+            document.body.removeChild(link1);
+            document.body.removeChild(link2);
+            URL.revokeObjectURL(link1.href);
+            URL.revokeObjectURL(link2.href);
+        }, 300);
+
+        this.showToast(`✅ Exported ${salesRows.length} sales & ${purchaseRows.length} purchase records.`);
     },
 
     // ====== INVESTMENTS MODULE ======
@@ -9865,7 +10417,7 @@ const app = {
                     </div>
                     <button onclick="app.openAddInvestmentModal()" class="bg-brand-dark text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg">
                         <i class="ph-bold ph-plus"></i> Nueva Inversión
-                    </button>
+                    </a>
                 </div>
 
                 <!-- Summary Cards -->
@@ -9932,7 +10484,7 @@ const app = {
                                             <td class="p-4 text-center">
                                                 <button onclick="app.deleteInvestment('${inv.id}')" class="text-slate-400 hover:text-red-500 transition-colors">
                                                     <i class="ph-bold ph-trash"></i>
-                                                </button>
+                                                </a>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -9984,10 +10536,10 @@ const app = {
                             <button type="button" onclick="document.getElementById('add-investment-modal').remove()" 
                                 class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                 Cancelar
-                            </button>
+                            </a>
                             <button type="submit" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
                                 <i class="ph-bold ph-plus"></i> Guardar
-                            </button>
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -10136,7 +10688,7 @@ const app = {
                                                 <button onclick="app.notifyPickupReadyDiscogs('${s.id}')" 
                                                         class="w-full bg-brand-orange hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                     <i class="ph-bold ph-bell-ringing"></i> Listo para Retirar
-                                                </button>
+                                                </a>
                                             </div>
                                         `;
             } else if (status === 'ready_for_pickup') {
@@ -10146,7 +10698,7 @@ const app = {
                                                 <button onclick="app.markPickedUpDiscogs('${s.id}')" 
                                                         class="w-full bg-brand-dark hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                     <i class="ph-bold ph-check-circle"></i> Ya Retiró
-                                                </button>
+                                                </a>
                                             </div>
                                         `;
             } else {
@@ -10155,7 +10707,7 @@ const app = {
                                             <button onclick="app.notifyPreparingDiscogs('${s.id}')" 
                                                     class="w-full bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                 <i class="ph-bold ph-package"></i> Avisar Preparando
-                                            </button>
+                                            </a>
                                         `;
             }
 
@@ -10247,7 +10799,7 @@ const app = {
                                                          <button onclick="app.notifyShippedDiscogs('${s.id}', 'tracking-${s.id}', 'tracking-link-${s.id}')" 
                                                                  class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors shrink-0" title="Enviar Tracking">
                                                              <i class="ph-bold ph-paper-plane-right"></i>
-                                                         </button>
+                                                         </a>
                                                      </div>
                                                 </div>
                                             </div>
@@ -10260,7 +10812,7 @@ const app = {
                                                 <button onclick="app.markDispatchedDiscogs('${s.id}')" 
                                                         class="w-full bg-brand-dark hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                     <i class="ph-bold ph-archive"></i> Finalizar (Despachado)
-                                                </button>
+                                                </a>
                                             </div>
                                         `;
             } else {
@@ -10269,7 +10821,7 @@ const app = {
                                             <button onclick="app.notifyPreparingDiscogs('${s.id}')" 
                                                     class="w-full bg-brand-orange hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
                                                 <i class="ph-bold ph-package"></i> Avisar Preparando
-                                            </button>
+                                            </a>
                                         `;
             }
 
@@ -10432,7 +10984,7 @@ const app = {
                     </div>
                     <button onclick="this.closest('.fixed').remove()" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors">
                         <i class="ph-bold ph-x"></i>
-                    </button>
+                    </a>
                 </div>
                 
                 <div class="p-8 max-h-[60vh] overflow-y-auto">
@@ -10528,7 +11080,7 @@ const app = {
                     </div>
                     <button onclick="document.getElementById('bulk-import-modal').remove()" class="text-white/80 hover:text-white transition-colors">
                         <i class="ph-bold ph-x text-2xl"></i>
-                    </button>
+                    </a>
                 </div>
                 <div class="p-8 space-y-6">
                     <div class="space-y-2">
@@ -10546,10 +11098,10 @@ const app = {
                     </div>
 
                     <div class="flex gap-4">
-                        <button onclick="document.getElementById('bulk-import-modal').remove()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</button>
+                        <button onclick="document.getElementById('bulk-import-modal').remove()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</a>
                         <button id="start-bulk-import-btn" onclick="app.handleBulkImportBatch()" class="flex-1 bg-emerald-500 text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
                             <i class="ph-bold ph-rocket-launch"></i> Comenzar Importación
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>

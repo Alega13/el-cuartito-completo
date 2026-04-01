@@ -52,6 +52,25 @@ router.get('/:id/download', auth_1.isAdmin, (req, res) => __awaiter(void 0, void
     }
 }));
 /**
+ * GET /invoices/:id/file
+ * Proxy the file content to avoid CORS issues in frontend ZIP generation.
+ */
+router.get('/:id/file', auth_1.isAdmin, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const fileData = yield (0, invoiceService_1.getInvoiceFile)(req.params.id);
+        if (!fileData) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        res.setHeader('Content-Type', fileData.contentType);
+        res.setHeader('Content-Disposition', `attachment; filename="${fileData.fileName}"`);
+        fileData.stream.pipe(res);
+    }
+    catch (error) {
+        console.error('Error streaming invoice file:', error);
+        res.status(500).json({ error: error.message });
+    }
+}));
+/**
  * GET /invoices/quarter-download?year=2026&quarter=1
  * Get all invoice download URLs for a specific quarter.
  */

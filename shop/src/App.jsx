@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { getOnlineRecords } from './services/api';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
+import NewArrivals from './components/NewArrivals';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 
@@ -123,6 +124,9 @@ function App() {
   // Find products marked as "Hero" (previously "header")
   const headerProducts = products.filter(p => p.tags && p.tags.includes('hero'));
 
+  // Find products marked as "New Arrival"
+  const newArrivalProducts = products.filter(p => p.tags && p.tags.includes('new_arrival'));
+
   // Determine if we're on product page (full mode) or elsewhere (mini mode)
   // Check if pathname starts with /product/
   const isOnProductPage = location.pathname.startsWith('/product/');
@@ -139,6 +143,7 @@ function App() {
           <Route path="/" element={
             <>
               <Hero products={headerProducts} />
+              {newArrivalProducts.length > 0 && <NewArrivals products={newArrivalProducts} />}
               {error && products.length === 0 ? (
                 <ErrorState
                   title="Couldn't Load Records"

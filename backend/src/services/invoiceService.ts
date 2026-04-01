@@ -19,6 +19,7 @@ export interface InvoiceItem {
     qty: number;
     unitPrice: number;
     total: number;
+    productCondition?: string;
 }
 
 export interface SaleInvoiceData {
@@ -157,13 +158,13 @@ export function generatePDFBuffer(
         doc.text(BUSINESS.cvr, 300, 96, { align: 'right', width: pageWidth - 250 });
 
         // ── Divider ──
-        doc.moveTo(50, 120).lineTo(50 + pageWidth, 120).strokeColor('#E2E8F0').lineWidth(1).stroke();
+        doc.moveTo(50, 110).lineTo(50 + pageWidth, 110).strokeColor('#E2E8F0').lineWidth(1).stroke();
 
         // ── Invoice title ──
         doc.fontSize(22).fillColor('#1E293B').font('Helvetica-Bold');
-        doc.text('KVITTERING', 50, 140); // "Receipt" in Danish
+        doc.text('KVITTERING', 50, 125); // "Receipt" in Danish
         doc.fontSize(10).fillColor('#94A3B8').font('Helvetica');
-        doc.text(`Salgsbilag / Receipt`, 50, 168);
+        doc.text(`Salgsbilag / Receipt`, 50, 150);
 
         // ── Invoice metadata (right side) ──
         const metaX = 350;
@@ -171,31 +172,31 @@ export function generatePDFBuffer(
         const metaValueW = 100;
 
         doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
-        doc.text('Faktura Nr.:', metaX, 140, { width: metaLabelW });
-        doc.text('Dato:', metaX, 156, { width: metaLabelW });
-        doc.text('Kanal:', metaX, 172, { width: metaLabelW });
-        doc.text('Betaling:', metaX, 188, { width: metaLabelW });
+        doc.text('Faktura Nr.:', metaX, 125, { width: metaLabelW });
+        doc.text('Dato:', metaX, 140, { width: metaLabelW });
+        doc.text('Kanal:', metaX, 155, { width: metaLabelW });
+        doc.text('Betaling:', metaX, 170, { width: metaLabelW });
 
         doc.font('Helvetica').fillColor('#1E293B');
-        doc.text(invoiceNumber, metaX + metaLabelW, 140, { width: metaValueW });
-        doc.text(sale.date, metaX + metaLabelW, 156, { width: metaValueW });
-        doc.text(formatChannel(sale.channel), metaX + metaLabelW, 172, { width: metaValueW });
-        doc.text(formatPaymentMethod(sale.paymentMethod), metaX + metaLabelW, 188, { width: metaValueW });
+        doc.text(invoiceNumber, metaX + metaLabelW, 125, { width: metaValueW });
+        doc.text(sale.date, metaX + metaLabelW, 140, { width: metaValueW });
+        doc.text(formatChannel(sale.channel), metaX + metaLabelW, 155, { width: metaValueW });
+        doc.text(formatPaymentMethod(sale.paymentMethod), metaX + metaLabelW, 170, { width: metaValueW });
 
         // ── Customer ──
-        let yPos = 220;
+        let yPos = 195;
         doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
         doc.text('Kunde / Customer:', 50, yPos);
         doc.font('Helvetica').fillColor('#1E293B');
         const customerDisplay = sale.customerName || 'Butikskunde (Walk-in)';
         doc.text(customerDisplay, 160, yPos);
         if (sale.customerCountry) {
-            doc.text(sale.customerCountry, 160, yPos + 14);
-            yPos += 14;
+            doc.text(sale.customerCountry, 160, yPos + 12);
+            yPos += 12;
         }
 
         // ── Items table ──
-        yPos += 30;
+        yPos += 20;
 
         // Table header
         doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
@@ -213,9 +214,21 @@ export function generatePDFBuffer(
         yPos += 8;
 
         // Table rows
-        doc.font('Helvetica').fillColor('#334155').fontSize(9);
+        doc.font('Helvetica').fillColor('#334155').fontSize(sale.items.length > 20 ? 8 : 9);
+
+        const hasNew = sale.items.some(i => i.productCondition === 'New');
+        const hasUsed = sale.items.some(i => i.productCondition && i.productCondition !== 'New');
+        const isMixed = hasNew && hasUsed;
+
+        // Adaptive row height
+        const rowHeight = sale.items.length > 15 ? 16 : 18;
+
         sale.items.forEach((item, idx) => {
-            const description = item.artist ? `${item.artist} — ${item.album}` : item.album;
+            let albumLabel = item.album;
+            if (isMixed && item.productCondition !== 'New') {
+                albumLabel += ' *';
+            }
+            const description = item.artist ? `${item.artist} — ${albumLabel}` : albumLabel;
 
             doc.text(String(idx + 1), 50, yPos, { width: 25 });
             doc.text(description, 75, yPos, { width: 250 });
@@ -223,7 +236,7 @@ export function generatePDFBuffer(
             doc.text(`${item.unitPrice.toFixed(2)} DKK`, 385, yPos, { width: 70, align: 'right' });
             doc.text(`${item.total.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
 
-            yPos += 20;
+            yPos += rowHeight;
         });
 
         // Shipping row if applicable
@@ -237,7 +250,7 @@ export function generatePDFBuffer(
             doc.text('', 335, yPos, { width: 40 });
             doc.text('', 385, yPos, { width: 70 });
             doc.text(`${sale.shippingCost.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
-            yPos += 20;
+            yPos += rowHeight;
         }
 
         // ── Total ──
@@ -246,40 +259,76 @@ export function generatePDFBuffer(
         yPos += 10;
 
         doc.fontSize(12).fillColor('#1E293B').font('Helvetica-Bold');
-        doc.text('TOTAL:', 350, yPos, { width: 105, align: 'right' });
 
-        // CRITICAL FIX: Ensure total is strictly Sum(Items) + Shipping to show Gross Amount (Customer Pay)
-        // This avoids issues where sale.totalAmount might be Net (after fees).
+        // Label logic
+        let totalLabel = 'TOTAL:';
+        if (!hasNew && hasUsed) {
+            totalLabel = 'Total inkl. moms:';
+        }
+        doc.text(totalLabel, 300, yPos, { width: 155, align: 'right' });
+
+        // Total sum
         const calculatedTotal = sale.items.reduce((sum, item) => sum + item.total, 0) + (sale.shippingCost || 0);
 
         doc.fillColor(BRAND_ORANGE);
         doc.text(`${calculatedTotal.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
 
+        // VAT Breakdown
+        if (hasNew) {
+            yPos += 14;
+            doc.fontSize(9).fillColor('#64748B').font('Helvetica');
+            
+            let vatableAmount = 0;
+            if (!hasUsed) {
+                // Scenario A: Everything is new, include shipping in VAT
+                vatableAmount = calculatedTotal;
+            } else {
+                // Scenario C: Mixed, only new items
+                vatableAmount = sale.items
+                    .filter(i => i.productCondition === 'New')
+                    .reduce((sum, i) => sum + i.total, 0);
+            }
+
+            const vatExtraction = vatableAmount * 0.20; // Extracting 20% from gross price = 25% VAT. 
+
+            doc.text('Heraf Moms (25%):', 300, yPos, { width: 155, align: 'right' });
+            doc.text(`${vatExtraction.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        }
+
         // ── Brugtmoms legal notice ──
-        yPos += 50;
-        doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
-        yPos += 15;
+        if (hasUsed) {
+            yPos += 25;
+            doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+            yPos += 10;
 
-        // Legal box
-        const boxY = yPos;
-        const boxHeight = 55;
-        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
-            .fillColor('#FFF7ED')
-            .fill();
+            // Legal box
+            const boxY = yPos;
+            const boxHeight = isMixed ? 35 : 45;
+            doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+                .fillColor('#FFF7ED')
+                .fill();
 
-        doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
-            .strokeColor('#FDBA74')
-            .lineWidth(1)
-            .stroke();
+            doc.roundedRect(50, boxY, pageWidth, boxHeight, 4)
+                .strokeColor('#FDBA74')
+                .lineWidth(1)
+                .stroke();
 
-        doc.fontSize(7).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
-        doc.text('BRUGTMOMS / SECONDHAND GOODS MARGIN SCHEME', 62, boxY + 10, { width: pageWidth - 24 });
-
-        doc.fontSize(8).fillColor('#9A3412').font('Helvetica');
-        doc.text(BRUGTMOMS_TEXT, 62, boxY + 24, { width: pageWidth - 24 });
-
-        doc.fontSize(7).fillColor('#94A3B8');
-        doc.text('(The goods are sold under the special rules for second-hand goods — the buyer has no VAT deduction.)', 62, boxY + 38, { width: pageWidth - 24 });
+            doc.fontSize(7).fillColor(BRAND_ORANGE).font('Helvetica-Bold');
+            
+            if (isMixed) {
+                // Scenario C: Mixed cart legend with *
+                doc.text('BRUGTMOMS / USED GOODS MARGIN SCHEME', 62, boxY + 10, { width: pageWidth - 24 });
+                doc.fontSize(8).fillColor('#9A3412').font('Helvetica');
+                doc.text('* Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen for disse varer.', 62, boxY + 22, { width: pageWidth - 24 });
+            } else {
+                // Scenario B: All used
+                doc.text('BRUGTMOMS / SECONDHAND GOODS MARGIN SCHEME', 62, boxY + 10, { width: pageWidth - 24 });
+                doc.fontSize(8).fillColor('#9A3412').font('Helvetica');
+                doc.text(BRUGTMOMS_TEXT, 62, boxY + 24, { width: pageWidth - 24 });
+                doc.fontSize(7).fillColor('#94A3B8');
+                doc.text('(The goods are sold under the special rules for second-hand goods — the buyer has no VAT deduction.)', 62, boxY + 38, { width: pageWidth - 24 });
+            }
+        }
 
         // ── Footer ──
         const footerY = doc.page.height - 60;
@@ -422,6 +471,7 @@ export function buildInvoiceFromPOSSale(
             qty: item.qty || item.quantity || 1,
             unitPrice: item.priceAtSale || item.price || item.unitPrice || 0,
             total: (item.priceAtSale || item.price || item.unitPrice || 0) * (item.qty || item.quantity || 1),
+            productCondition: item.productCondition || item.condition || 'Second-hand',
         })),
         totalAmount,
     };
@@ -456,6 +506,7 @@ export function buildInvoiceFromWebshopSale(
             qty: item.quantity || 1,
             unitPrice: item.unitPrice || item.priceAtSale || 0,
             total: (item.unitPrice || item.priceAtSale || 0) * (item.quantity || 1),
+            productCondition: item.productCondition || 'Second-hand',
         })),
         totalAmount: saleData.total_amount || 0,
         shippingCost: saleData.shipping_cost || 0,
@@ -485,6 +536,7 @@ export function buildInvoiceFromDiscogsSale(
             qty: item.qty || 1,
             unitPrice: item.priceAtSale || 0,
             total: (item.priceAtSale || 0) * (item.qty || 1),
+            productCondition: 'Second-hand', // Discogs items are always marked as used
         })),
         totalAmount,
         shippingCost,
@@ -543,13 +595,13 @@ export function generateManualInvoicePDFBuffer(
         doc.text(BUSINESS.cvr, 300, 96, { align: 'right', width: pageWidth - 250 });
 
         // ── Divider ──
-        doc.moveTo(50, 120).lineTo(50 + pageWidth, 120).strokeColor('#E2E8F0').lineWidth(1).stroke();
+        doc.moveTo(50, 110).lineTo(50 + pageWidth, 110).strokeColor('#E2E8F0').lineWidth(1).stroke();
 
         // ── Invoice title ──
         doc.fontSize(22).fillColor('#1E293B').font('Helvetica-Bold');
-        doc.text('FAKTURA', 50, 140);
+        doc.text('FAKTURA', 50, 125);
         doc.fontSize(10).fillColor('#94A3B8').font('Helvetica');
-        doc.text('Invoice', 50, 168);
+        doc.text('Invoice', 50, 150);
 
         // ── Invoice metadata (right side) ──
         const metaX = 350;
@@ -557,32 +609,32 @@ export function generateManualInvoicePDFBuffer(
         const metaValueW = 100;
 
         doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
-        doc.text('Faktura Nr.:', metaX, 140, { width: metaLabelW });
-        doc.text('Dato:', metaX, 156, { width: metaLabelW });
-        doc.text('Betaling:', metaX, 172, { width: metaLabelW });
+        doc.text('Faktura Nr.:', metaX, 125, { width: metaLabelW });
+        doc.text('Dato:', metaX, 140, { width: metaLabelW });
+        doc.text('Betaling:', metaX, 155, { width: metaLabelW });
 
         doc.font('Helvetica').fillColor('#1E293B');
-        doc.text(invoiceNumber, metaX + metaLabelW, 140, { width: metaValueW });
-        doc.text(data.date, metaX + metaLabelW, 156, { width: metaValueW });
-        doc.text(formatPaymentMethod(data.paymentMethod || 'Transfer'), metaX + metaLabelW, 172, { width: metaValueW });
+        doc.text(invoiceNumber, metaX + metaLabelW, 125, { width: metaValueW });
+        doc.text(data.date, metaX + metaLabelW, 140, { width: metaValueW });
+        doc.text(formatPaymentMethod(data.paymentMethod || 'Transfer'), metaX + metaLabelW, 155, { width: metaValueW });
 
         // ── Customer info ──
-        let yPos = 210;
+        let yPos = 185;
         doc.fontSize(9).fillColor('#64748B').font('Helvetica-Bold');
         doc.text('Faktureres til / Bill to:', 50, yPos);
-        yPos += 16;
+        yPos += 14;
         doc.font('Helvetica').fillColor('#1E293B');
         doc.fontSize(10).font('Helvetica-Bold');
         doc.text(data.customerName, 50, yPos);
-        yPos += 14;
+        yPos += 12;
         doc.fontSize(9).font('Helvetica').fillColor('#334155');
         if (data.customerVAT) {
             doc.text(`VAT/CVR: ${data.customerVAT}`, 50, yPos);
-            yPos += 14;
+            yPos += 12;
         }
         if (data.customerAddress) {
             doc.text(data.customerAddress, 50, yPos);
-            yPos += 14;
+            yPos += 12;
         }
 
         // ── Items table ──
@@ -604,7 +656,7 @@ export function generateManualInvoicePDFBuffer(
         // Single description row
         doc.font('Helvetica').fillColor('#334155').fontSize(9);
         const descHeight = doc.heightOfString(data.description, { width: 350 });
-        const rowHeight = Math.max(20, descHeight + 10);
+        const rowHeight = Math.max(16, descHeight + 6);
         doc.text('1', 50, yPos, { width: 25 });
         doc.text(data.description, 75, yPos, { width: 350 });
         doc.text(`${data.amount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
@@ -782,6 +834,35 @@ export async function getInvoiceDownloadUrl(invoiceId: string): Promise<string |
     return signedUrl;
 }
 
+/**
+ * Get a readable stream for a specific invoice PDF file.
+ * This is used to proxy the file through the backend and avoid CORS issues.
+ */
+export async function getInvoiceFile(invoiceId: string): Promise<{ stream: any; fileName: string; contentType: string } | null> {
+    const db = getDb();
+    const doc = await db.collection('invoices').doc(invoiceId).get();
+
+    if (!doc.exists) return null;
+
+    const data = doc.data();
+    if (!data?.storagePath) return null;
+
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(data.storagePath);
+
+    const [exists] = await file.exists();
+    if (!exists) return null;
+
+    const [metadata] = await file.getMetadata();
+
+    return {
+        stream: file.createReadStream(),
+        fileName: data.storagePath.split('/').pop() || `${data.invoiceNumber || 'invoice'}.pdf`,
+        contentType: metadata.contentType || 'application/pdf'
+    };
+}
+
+
 // ─── API: Get all PDFs for a quarter as individual URLs ──────────────
 
 export async function getQuarterInvoices(
@@ -811,6 +892,7 @@ export async function getQuarterInvoices(
         });
 
         results.push({
+            id: doc.id,
             invoiceNumber: data.invoiceNumber,
             fileName: data.storagePath.split('/').pop() || `${data.invoiceNumber}.pdf`,
             downloadUrl: signedUrl,

@@ -86,7 +86,8 @@ export const startCheckout = async (req: Request, res: Response) => {
                 album: data.album,
                 artist: data.artist,
                 cover_image: data.cover_image || null,
-                cost: data.cost || 0
+                cost: data.cost || 0,
+                productCondition: data.product_condition || 'Second-hand'
             });
         }
 
