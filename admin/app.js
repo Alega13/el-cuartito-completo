@@ -214,7 +214,14 @@ const app = {
         filterStorage: 'all',
         filterDiscogs: 'all',
         filterStockTime: [],
-        privacyMode: false
+        privacyMode: false,
+        rsdExtraDiscount: false,
+        dashboardAnalysisMode: 'genre'
+    },
+
+    // Helper: Get effective price for an item (with RSD 10% discount if applicable)
+    getEffectivePrice(item) {
+        return item.is_rsd_discount ? Math.round(item.price * 0.9) : item.price;
     },
 
     async init() {
@@ -2652,6 +2659,71 @@ const app = {
                 ? `Año ${currentYear} `
                 : `${selectedMonths.map(m => this.getMonthName(m)).join(', ')} ${currentYear} `;
 
+            // --- Sales Analysis Data Processing (Genre / Storage) ---
+            const analysisMode = this.state.dashboardAnalysisMode || 'genre';
+            const categoryUnits = {};
+            const categoryRevenue = {};
+            let totalUnitsSold = 0;
+            let newUnits = 0;
+            let usedUnits = 0;
+
+            filteredSales.forEach(sale => {
+                const items = sale.items || [];
+                let saleCategory = null;
+
+                // Resolve category from inventory (genre2/genre or storageLocation)
+                const resolveFromInventory = (productId, albumName) => {
+                    const invProduct = this.state.inventory.find(p =>
+                        (productId && (p.id === productId || p.sku === productId)) ||
+                        (albumName && p.album === albumName)
+                    );
+                    if (!invProduct) return null;
+                    if (analysisMode === 'storage') return invProduct.storageLocation || null;
+                    return invProduct.genre2 || invProduct.genre || null;
+                };
+
+                if (items.length > 0) {
+                    const firstItem = items[0];
+                    const productId = firstItem.productId || firstItem.recordId;
+                    saleCategory = resolveFromInventory(productId, firstItem.album);
+                }
+                if (!saleCategory) {
+                    saleCategory = analysisMode === 'storage' ? 'Sin ubicación' : (sale.genre || 'Otros');
+                }
+
+                if (items.length > 0) {
+                    items.forEach(item => {
+                        const qty = Number(item.qty || item.quantity) || 1;
+                        const price = Number(item.priceAtSale || item.unitPrice || item.price) || 0;
+                        categoryUnits[saleCategory] = (categoryUnits[saleCategory] || 0) + qty;
+                        categoryRevenue[saleCategory] = (categoryRevenue[saleCategory] || 0) + (price * qty);
+                        totalUnitsSold += qty;
+                        const cond = item.productCondition || item.condition || 'Used';
+                        if (cond === 'New') newUnits += qty; else usedUnits += qty;
+                    });
+                } else {
+                    const qty = Number(sale.quantity) || 1;
+                    const gross = Number(sale.originalTotal || sale.total_amount || sale.total) || 0;
+                    categoryUnits[saleCategory] = (categoryUnits[saleCategory] || 0) + qty;
+                    categoryRevenue[saleCategory] = (categoryRevenue[saleCategory] || 0) + gross;
+                    totalUnitsSold += qty;
+                    usedUnits += qty;
+                }
+            });
+
+            const sortedCategories = Object.entries(categoryUnits).sort((a, b) => b[1] - a[1]);
+            const sortedCategoriesByRevenue = Object.entries(categoryRevenue).sort((a, b) => b[1] - a[1]);
+            const topRevenueCategory = sortedCategoriesByRevenue.length > 0
+                ? { name: sortedCategoriesByRevenue[0][0], revenue: sortedCategoriesByRevenue[0][1] }
+                : { name: 'N/A', revenue: 0 };
+            const avgTicket = filteredSales.length > 0 ? totalRevenue / filteredSales.length : 0;
+            const newPercent = totalUnitsSold > 0 ? Math.round((newUnits / totalUnitsSold) * 100) : 0;
+            const usedPercent = totalUnitsSold > 0 ? Math.round((usedUnits / totalUnitsSold) * 100) : 0;
+            const genreColorPalette = ['#FF6B4A', '#F59E0B', '#14B8A6', '#8B5CF6', '#F43F5E', '#0EA5E9', '#84CC16', '#D946EF', '#64748B'];
+            const analysisTitle = analysisMode === 'storage' ? 'Análisis por Ubicación' : 'Análisis por Género Musical';
+            const analysisIcon = analysisMode === 'storage' ? 'ph-map-pin' : 'ph-music-notes-simple';
+            const topLabel = analysisMode === 'storage' ? 'Ubicación Más Rentable' : 'Género Más Rentable';
+
             const html = `
             <div class="max-w-7xl mx-auto space-y-8 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!-- Header with Navigation and Filter -->
@@ -2673,6 +2745,11 @@ const app = {
                         </select>
                         <div class="h-6 w-px bg-slate-100 mx-1"></div>
                         <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar">
+                            <button onclick="app.state.filterMonths=[0,1,2,3,4,5,6,7,8,9,10,11];app.refreshCurrentView()"
+                                class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${selectedMonths.length === 12 ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' : 'text-slate-400 hover:text-brand-dark hover:bg-slate-50'}">
+                                Todo
+                            </button>
+                            <div class="w-px bg-slate-200 mx-0.5 self-stretch"></div>
                             ${monthNames.map((m, i) => `
                                 <button onclick="app.toggleMonthFilter(${i})" 
                                     class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' : 'text-slate-400 hover:text-brand-dark hover:bg-slate-50'}">
@@ -2685,18 +2762,18 @@ const app = {
 
                 <!-- KPI Top Grid (3 Status Cards) -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Card 1: Ventas del Mes (Literal Actual) -->
+                    <!-- Card 1: Ingresos del Período -->
                     <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                         <div class="flex items-center gap-3 mb-4">
                             <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange">
                                 <i class="ph-bold ph-chart-line-up text-xl"></i>
                             </div>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Ventas del Mes</span>
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Ingresos del Período</span>
                         </div>
-                        <p class="text-4xl font-display font-bold text-brand-dark mb-2">${this.formatCurrency(curMonthSalesTotal)}</p>
+                        <p class="text-4xl font-display font-bold text-brand-dark mb-2">${this.formatCurrency(totalRevenue)}</p>
                         <div class="flex items-center gap-2">
-                             <span class="text-[10px] font-bold ${growth >= 0 ? 'text-emerald-500 bg-emerald-50' : 'text-red-500 bg-red-50'} px-2 py-0.5 rounded-full border ${growth >= 0 ? 'border-emerald-100' : 'border-red-100'}">
-                                ${growthText}
+                             <span class="text-[10px] font-bold text-brand-orange bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                                ${filteredSales.length} ventas · ${totalUnitsSold} uds
                              </span>
                         </div>
                     </div>
@@ -2727,6 +2804,101 @@ const app = {
                     : `<p class="text-3xl font-display font-bold text-green-600">Al día</p>`}
                         </div>
                         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Pedidos por despachar</p>
+                    </div>
+                </div>
+
+                <!-- Análisis por Categoría (Género / Ubicación) -->
+                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+                        <h3 class="font-bold text-lg text-brand-dark flex items-center gap-3">
+                            <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange">
+                                <i class="ph-bold ${analysisIcon} text-xl"></i>
+                            </div>
+                            ${analysisTitle}
+                        </h3>
+                        <div class="flex items-center gap-3">
+                            <select onchange="app.state.dashboardAnalysisMode = this.value; app.renderDashboard(document.getElementById('app-content'))"
+                                class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border border-slate-200 outline-none cursor-pointer hover:border-brand-orange transition-colors">
+                                <option value="genre" ${analysisMode === 'genre' ? 'selected' : ''}>🎵 Por Género</option>
+                                <option value="storage" ${analysisMode === 'storage' ? 'selected' : ''}>📍 Por Ubicación</option>
+                            </select>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                                <i class="ph-bold ph-vinyl-record mr-1"></i> ${totalUnitsSold} unidades vendidas
+                            </span>
+                        </div>
+                    </div>
+                    ${sortedCategories.length > 0 ? `
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-5">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Cuota de Mercado</p>
+                            <div class="h-80">
+                                <canvas id="genreDonutChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-7">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Ranking por Volumen</p>
+                            <div style="height: ${Math.max(280, sortedCategories.length * 40)}px">
+                                <canvas id="genreBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    ` : `
+                    <div class="text-center py-12">
+                        <i class="ph-bold ph-chart-pie-slice text-4xl text-slate-200 mb-3 block"></i>
+                        <p class="text-sm text-slate-400 font-medium">No hay ventas en el período seleccionado</p>
+                    </div>
+                    `}
+                </div>
+
+                <!-- KPIs Estratégicos -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Categoría Más Rentable -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
+                                <i class="ph-bold ph-crown text-xl"></i>
+                            </div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${topLabel}</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark mb-1">${topRevenueCategory.name}</p>
+                        <p class="text-sm font-bold text-amber-500">${this.formatCurrency(topRevenueCategory.revenue)} en ingresos</p>
+                    </div>
+
+                    <!-- Ticket Promedio -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
+                                <i class="ph-bold ph-tag text-xl"></i>
+                            </div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ticket Promedio</span>
+                        </div>
+                        <p class="text-3xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(avgTicket)}</p>
+                        <p class="text-[10px] text-slate-400 font-medium">Gasto promedio por transacción</p>
+                    </div>
+
+                    <!-- Distribución Nuevo vs. Usado -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-500">
+                                <i class="ph-bold ph-stack text-xl"></i>
+                            </div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nuevo vs. Usado</span>
+                        </div>
+                        <div class="mt-2">
+                            <div class="flex items-center gap-3">
+                                <div class="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden relative">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-500 transition-all duration-700 ease-out" style="width: ${newPercent}%"></div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between mt-2.5">
+                                <span class="text-[10px] font-bold text-teal-600 flex items-center gap-1">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-teal-500"></span> Nuevo ${newPercent}% (${newUnits})
+                                </span>
+                                <span class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-slate-300"></span> Usado ${usedPercent}% (${usedUnits})
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2876,6 +3048,131 @@ const app = {
         `;
             container.innerHTML = html;
             this.renderDashboardCharts(filteredSales, last30Days, last30DaysRevenue);
+
+            // --- Genre Analysis Charts ---
+            const donutCtx = document.getElementById('genreDonutChart')?.getContext('2d');
+            if (donutCtx && sortedCategories.length > 0) {
+                if (this.genreDonutChartInstance) this.genreDonutChartInstance.destroy();
+                const donutLabels = sortedCategories.map(g => g[0]);
+                const donutData = sortedCategories.map(g => g[1]);
+                const donutColors = sortedCategories.map((_, i) => genreColorPalette[i % genreColorPalette.length]);
+
+                this.genreDonutChartInstance = new Chart(donutCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: donutLabels,
+                        datasets: [{
+                            data: donutData,
+                            backgroundColor: donutColors,
+                            borderWidth: 0,
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '62%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 12, boxHeight: 12, borderRadius: 3,
+                                    useBorderRadius: true, padding: 14,
+                                    font: { size: 11, weight: '600', family: "'DM Sans', sans-serif" },
+                                    color: '#334155'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: '#1e293b',
+                                titleFont: { size: 11, weight: '700' },
+                                bodyFont: { size: 13, weight: '700' },
+                                padding: 14, cornerRadius: 12,
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                                        return ` ${ctx.parsed} uds \u2014 ${pct}%`;
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    plugins: [{
+                        id: 'centerText',
+                        beforeDraw(chart) {
+                            const { ctx, chartArea } = chart;
+                            if (!chartArea) return;
+                            ctx.save();
+                            const cx = (chartArea.left + chartArea.right) / 2;
+                            const cy = (chartArea.top + chartArea.bottom) / 2;
+                            const sz = Math.min(chartArea.right - chartArea.left, chartArea.bottom - chartArea.top) / 7;
+                            ctx.font = `bold ${sz}px 'DM Sans', sans-serif`;
+                            ctx.textBaseline = 'middle';
+                            ctx.textAlign = 'center';
+                            ctx.fillStyle = '#1e293b';
+                            const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                            ctx.fillText(total, cx, cy - sz * 0.35);
+                            ctx.font = `600 ${sz * 0.42}px 'DM Sans', sans-serif`;
+                            ctx.fillStyle = '#94a3b8';
+                            ctx.fillText('unidades', cx, cy + sz * 0.55);
+                            ctx.restore();
+                        }
+                    }]
+                });
+            }
+
+            const barCtx = document.getElementById('genreBarChart')?.getContext('2d');
+            if (barCtx && sortedCategories.length > 0) {
+                if (this.genreBarChartInstance) this.genreBarChartInstance.destroy();
+                const barLabels = sortedCategories.map(g => g[0]);
+                const barData = sortedCategories.map(g => g[1]);
+                const barColors = sortedCategories.map((_, i) => genreColorPalette[i % genreColorPalette.length]);
+
+                this.genreBarChartInstance = new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: barLabels,
+                        datasets: [{
+                            label: 'Unidades',
+                            data: barData,
+                            backgroundColor: barColors.map(c => c + '30'),
+                            borderColor: barColors,
+                            borderWidth: 2,
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            barThickness: 28
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#1e293b',
+                                titleFont: { size: 11, weight: '700' },
+                                bodyFont: { size: 13, weight: '700' },
+                                padding: 14, cornerRadius: 12,
+                                callbacks: {
+                                    label: (ctx) => ` ${ctx.parsed.x} unidades vendidas`
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                grid: { color: '#f1f5f9' },
+                                ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' }
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: { font: { size: 11, weight: '700', family: "'DM Sans', sans-serif" }, color: '#334155', padding: 8 }
+                            }
+                        }
+                    }
+                });
+            }
         } catch (error) {
             console.error("Dashboard render error:", error);
             container.innerHTML = `<div class="p-12 text-center text-red-500 font-bold bg-red-50 rounded-3xl m-8 border border-red-100">
@@ -2900,7 +3197,7 @@ const app = {
     <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
                 <div class="truncate pr-2">
                     <p class="font-bold text-xs text-brand-dark truncate">${item.album}</p>
-                    <p class="text-[10px] text-slate-500 truncate">${this.formatCurrency(item.price, false)}</p>
+                    <p class="text-[10px] text-slate-500 truncate">${item.is_rsd_discount ? `<span class="line-through opacity-50">${this.formatCurrency(item.price, false)}</span> <span class="text-orange-600 font-bold">${this.formatCurrency(this.getEffectivePrice(item), false)}</span>` : this.formatCurrency(item.price, false)}</p>
                 </div>
                 <button onclick="app.removeFromCart(${index})" class="text-red-400 hover:text-red-600">
                     <i class="ph-bold ph-x"></i>
@@ -2922,7 +3219,7 @@ const app = {
                 </div>
                 <div class="pt-3 border-t border-slate-50 flex justify-between items-center mb-3">
                      <span class="text-xs font-bold text-slate-500">Total</span>
-                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
+                     <span class="font-bold text-brand-dark text-lg">${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0))}</span>
                 </div>
                 <button onclick="app.openCheckoutModal()" class="w-full py-2 bg-brand-dark text-white font-bold rounded-xl shadow-lg shadow-brand-dark/20 text-sm hover:scale-[1.02] transition-transform">
                     Finalizar Venta
@@ -3083,6 +3380,7 @@ const app = {
                                 <th class="p-3 text-right w-24">Precio</th>
                                 <th class="p-3 text-center w-12 hidden sm:table-cell" title="Héroe / Destacado"><i class="ph-bold ph-star text-amber-400"></i></th>
                                 <th class="p-3 text-center w-12 hidden sm:table-cell" title="New Arrival / Novedad"><i class="ph-bold ph-sketch-logo text-blue-400"></i></th>
+                                <th class="p-3 text-center w-12 hidden sm:table-cell" title="RSD 10% Descuento"><span class="text-[9px] font-black text-orange-500">RSD</span></th>
                                 <th class="p-3 text-center w-16 hidden sm:table-cell">Stock</th>
                                 <th class="p-3 text-center w-12 hidden md:table-cell" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-400"></i></th>
                                 <th class="p-3 text-right w-28">Acciones</th>
@@ -3120,7 +3418,10 @@ const app = {
                                     <td class="p-3 text-xs text-slate-500 font-medium max-w-[100px] truncate hidden md:table-cell">${item.label || '-'}</td>
                                     <td class="p-3 text-center hidden sm:table-cell">${this.getStatusBadge(item.condition)}</td>
                                     <td class="p-3 text-right">
-                                        <span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price, false)}</span>
+                                        ${item.is_rsd_discount
+                                            ? `<div><span class="text-[10px] text-slate-400 line-through">${this.formatCurrency(item.price, false)}</span><br><span class="font-bold text-orange-600 font-display text-sm">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
+                                            : `<span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price, false)}</span>`
+                                        }
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
                                         <button onclick="app.toggleProductTag('${item.sku.replace(/'/g, "\\\\'")}', 'hero')" 
@@ -3134,6 +3435,13 @@ const app = {
                                             class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.tags && item.tags.includes('new_arrival') ? 'bg-blue-50 text-blue-500 shadow-sm border border-blue-100' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
                                             title="Marcar como Novedad">
                                             <i class="ph-fill ph-sketch-logo text-sm"></i>
+                                        </button>
+                                    </td>
+                                    <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
+                                        <button onclick="app.toggleRsdDiscount('${item.sku.replace(/'/g, "\\\\'")}')" 
+                                            class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.is_rsd_discount ? 'bg-orange-100 text-orange-600 shadow-sm border border-orange-200 ring-1 ring-orange-300' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
+                                            title="Descuento RSD 10%">
+                                            <span class="text-[9px] font-black">%</span>
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell">
@@ -3194,7 +3502,10 @@ const app = {
 
         // KPI calculations
         const totalItems = this.state.inventory.length;
-        const totalValue = this.state.inventory.reduce((sum, i) => sum + ((Number(i.stock) || 0) > 0 ? (parseFloat(i.price) || 0) : 0), 0);
+        const totalValue = this.state.inventory.reduce((sum, i) => {
+            const stock = Number(i.stock) || 0;
+            return sum + (stock > 0 ? (parseFloat(i.price) || 0) * stock : 0);
+        }, 0);
         const inStock = this.state.inventory.filter(i => (i.stock || 0) > 0).length;
         const onDiscogs = this.state.inventory.filter(i => i.discogs_listing_id).length;
 
@@ -4023,13 +4334,16 @@ const app = {
                 
                 <div class="space-y-3 mb-6 max-h-80 overflow-y-auto custom-scrollbar px-1">
                     ${this.state.cart.map((item, index) => `
-                        <div class="flex justify-between items-center bg-slate-50/50 p-3 rounded-2xl border border-slate-100 group">
+                        <div class="flex justify-between items-center ${item.is_rsd_discount ? 'bg-orange-50/50 border-orange-100' : 'bg-slate-50/50 border-slate-100'} p-3 rounded-2xl border group">
                             <div class="truncate pr-4 flex-1">
-                                <p class="font-bold text-sm text-brand-dark truncate">${item.album}</p>
+                                <p class="font-bold text-sm text-brand-dark truncate">${item.album} ${item.is_rsd_discount ? '<span class="text-[8px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-black ml-1">RSD</span>' : ''}</p>
                                 <p class="text-[10px] text-slate-400 truncate uppercase tracking-tighter font-bold">${item.artist}</p>
                             </div>
                             <div class="flex items-center gap-3">
-                                <span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price, false)}</span>
+                                ${item.is_rsd_discount
+                                    ? `<div class="text-right"><span class="text-[10px] text-slate-400 line-through block">${this.formatCurrency(item.price, false)}</span><span class="font-bold text-sm text-orange-600">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
+                                    : `<span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price, false)}</span>`
+                                }
                                 <button onclick="app.removeFromCart(${index}); app.renderSales(document.getElementById('app-content'))" class="w-8 h-8 rounded-lg bg-white shadow-sm text-slate-300 hover:text-red-500 border border-slate-100 transition-colors flex items-center justify-center">
                                     <i class="ph-bold ph-trash"></i>
                                 </button>
@@ -4041,8 +4355,34 @@ const app = {
                 <div class="bg-slate-50 rounded-2xl p-4 mb-6 space-y-4">
                     <div class="flex justify-between items-center pb-2 border-b border-white/50">
                         <span class="text-xs font-bold text-slate-400 uppercase">Subtotal</span>
-                        <span class="font-bold text-slate-600">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
+                        <span class="font-bold text-slate-600">${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0))}</span>
                     </div>
+
+                    <!-- RSD 5% Extra Discount Toggle -->
+                    <div class="flex items-center justify-between p-3 rounded-xl border ${this.state.cart.length >= 3 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100 opacity-50'}">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm">🎉</span>
+                            <div>
+                                <span class="text-[10px] font-bold ${this.state.cart.length >= 3 ? 'text-orange-700' : 'text-slate-400'} uppercase tracking-wider">Aplicar 5% extra RSD</span>
+                                ${this.state.cart.length < 3 ? '<p class="text-[9px] text-slate-400 mt-0.5">Mínimo 3 items en carrito</p>' : ''}
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="rsd-extra-toggle" ${this.state.rsdExtraDiscount ? 'checked' : ''} ${this.state.cart.length < 3 ? 'disabled' : ''}
+                                onchange="app.state.rsdExtraDiscount = this.checked; app.renderSales(document.getElementById('app-content'))">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    ${this.state.rsdExtraDiscount && this.state.cart.length >= 3 ? `
+                    <div class="flex justify-between items-center p-2 bg-orange-50 rounded-lg border border-orange-100">
+                        <span class="text-[10px] font-bold text-orange-600 uppercase">5% RSD Descuento</span>
+                        <span class="text-xs font-bold text-orange-700">- ${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * 0.05)}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-emerald-600 uppercase">Total Final</span>
+                        <span class="font-bold text-emerald-700 text-lg">${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * 0.95)}</span>
+                    </div>
+                    ` : ''}
                     
                     <div class="grid grid-cols-2 gap-3">
                         <div class="space-y-1">
@@ -4066,7 +4406,7 @@ const app = {
 
                 <button onclick="app.handleSalesViewCheckout()" class="w-full py-4 bg-brand-dark text-white font-bold rounded-2xl shadow-xl shadow-brand-dark/20 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all hover:scale-[1.01] active:scale-[0.98]">
                     <i class="ph-bold ph-check-circle text-lg"></i>
-                    Completar Venta (${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))})
+                    Completar Venta (${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * (this.state.rsdExtraDiscount && this.state.cart.length >= 3 ? 0.95 : 1))})
                 </button>
             </div>
         `;
@@ -4803,6 +5143,14 @@ const app = {
                                             <input type="checkbox" name="tag_new" value="new_arrival" ${item.tags && item.tags.includes('new_arrival') ? 'checked' : ''} class="peer h-4 w-4 text-[#FF6B00] border-slate-300 rounded focus:ring-[#FF6B00]">
                                         </div>
                                         <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">💥 New Arrival / Novedad</span>
+                                    </label>
+
+                                    <!-- RSD Discount Toggle -->
+                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
+                                        <div class="relative flex items-center">
+                                            <input type="checkbox" name="is_rsd_discount" ${item.is_rsd_discount ? 'checked' : ''} class="peer h-4 w-4 text-orange-500 border-slate-300 rounded focus:ring-orange-500">
+                                        </div>
+                                        <span class="text-xs font-bold text-slate-700 group-hover:text-orange-500 transition-colors">🎉 10% Descuento RSD</span>
                                     </label>
 
                                     <div class="h-px bg-slate-100 my-2"></div>
@@ -5991,12 +6339,13 @@ const app = {
 
         const options = {
             keys: [
-                { name: 'artist', weight: 0.4 },
-                { name: 'album', weight: 0.3 },
-                { name: 'label', weight: 0.2 },
+                { name: 'artist', weight: 0.35 },
+                { name: 'album', weight: 0.25 },
+                { name: 'label', weight: 0.15 },
+                { name: 'storageLocation', weight: 0.15 },
                 { name: 'sku', weight: 0.1 },
-                { name: 'genre', weight: 0.05 },
-                { name: 'notes', weight: 0.05 }
+                { name: 'genre', weight: 0.03 },
+                { name: 'notes', weight: 0.02 }
             ],
             threshold: 0.4, // Lower is stricter, 0.4 is a good balance for typos
             distance: 100,
@@ -6031,6 +6380,7 @@ const app = {
                         return (item.artist || '').toLowerCase().includes(term) ||
                             (item.album || '').toLowerCase().includes(term) ||
                             (item.label || '').toLowerCase().includes(term) ||
+                            (item.storageLocation || '').toLowerCase().includes(term) ||
                             (item.genre || '').toLowerCase().includes(term) ||
                             (item.notes || '').toLowerCase().includes(term) ||
                             (item.sku || '').toLowerCase().includes(term);
@@ -6223,6 +6573,7 @@ const app = {
                 formData.get('tag_new') ? 'new_arrival' : null,
                 formData.get('collection_tag') ? formData.get('collection_tag').trim() : null
             ].filter(Boolean),
+            is_rsd_discount: formData.get('is_rsd_discount') === 'on',
             // Persistence Fields
             discogsUrl: formData.get('discogsUrl'),
             discogsId: formData.get('discogsId'),
@@ -6377,6 +6728,40 @@ const app = {
         } catch (error) {
             console.error("Error toggling product tag:", error);
             this.showToast("❌ Error al actualizar tag", "error");
+        }
+    },
+
+    async toggleRsdDiscount(sku) {
+        try {
+            const product = this.state.inventory.find(i => i.sku === sku);
+            if (!product) {
+                this.showToast('❌ Producto no encontrado', 'error');
+                return;
+            }
+
+            const newValue = !product.is_rsd_discount;
+
+            // Find doc in Firestore
+            const snapshot = await db.collection('products').where('sku', '==', sku).limit(1).get();
+            if (snapshot.empty) {
+                this.showToast('❌ Error: Documento no encontrado', 'error');
+                return;
+            }
+
+            const docRef = snapshot.docs[0].ref;
+            await docRef.update({ 
+                is_rsd_discount: newValue,
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            this.showToast(`✅ RSD ${newValue ? 'activado' : 'desactivado'} — ${product.album}`);
+            
+            // Sync local state
+            product.is_rsd_discount = newValue;
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error('Error toggling RSD discount:', error);
+            this.showToast('❌ Error al actualizar RSD', 'error');
         }
     },
 
@@ -7032,10 +7417,11 @@ const app = {
                                                                 `).join('');
     },
 
-    openCheckoutModal(prefillPayment, prefillChannel) {
+    openCheckoutModal(prefillPayment, prefillChannel, rsdExtraRate = 0) {
         if (this.state.cart.length === 0) return;
 
-        const total = this.state.cart.reduce((sum, i) => sum + i.price, 0);
+        const subtotal = this.state.cart.reduce((sum, i) => sum + this.getEffectivePrice(i), 0);
+        const total = rsdExtraRate > 0 ? Math.round(subtotal * (1 - rsdExtraRate) * 100) / 100 : subtotal;
 
         const modalHtml = `
             <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -7053,8 +7439,11 @@ const app = {
                     <div class="bg-slate-50/50 rounded-2xl p-5 mb-8 border border-slate-100 max-h-40 overflow-y-auto custom-scrollbar">
                         ${this.state.cart.map(item => `
                             <div class="flex justify-between py-2 border-b border-slate-100 last:border-0 text-sm">
-                                <span class="truncate pr-4 font-bold text-slate-700">${item.album}</span>
-                                <span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(item.price, false)}</span>
+                                <span class="truncate pr-4 font-bold text-slate-700">${item.album} ${item.is_rsd_discount ? '<span class="text-[8px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-black">RSD</span>' : ''}</span>
+                                ${item.is_rsd_discount
+                                    ? `<span class="whitespace-nowrap"><span class="text-[10px] text-slate-400 line-through mr-1">${this.formatCurrency(item.price, false)}</span><span class="font-mono font-bold text-orange-600">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></span>`
+                                    : `<span class="font-mono font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(item.price, false)}</span>`
+                                }
                             </div>
                         `).join('')}
                     </div>
@@ -7178,7 +7567,7 @@ const app = {
 
         // Get the custom final price (for Discogs fees, etc.)
         const finalPrice = parseFloat(formData.get('finalPrice')) || 0;
-        const originalTotal = this.state.cart.reduce((sum, i) => sum + i.price, 0);
+        const originalTotal = this.state.cart.reduce((sum, i) => sum + this.getEffectivePrice(i), 0);
 
         // Prepare Sale Data
         const saleData = {
@@ -7222,7 +7611,9 @@ const app = {
         const prefillPayment = document.getElementById('cart-payment')?.value;
         const prefillChannel = document.getElementById('cart-channel')?.value;
 
-        this.openCheckoutModal(prefillPayment, prefillChannel);
+        // Calculate RSD 5% extra discount if applicable
+        const rsdExtra = (this.state.rsdExtraDiscount && this.state.cart.length >= 3) ? 0.05 : 0;
+        this.openCheckoutModal(prefillPayment, prefillChannel, rsdExtra);
     },
 
     async notifyPreparingDiscogs(saleId) {
@@ -8558,9 +8949,15 @@ const app = {
             updateData.payoutDate = null;
         }
 
-        // TODO: Migrate to API
-        console.warn('updateSaleStatus not yet migrated to API');
-        this.showToast('Esta función aún no está migrada al nuevo backend');
+        db.collection('sales').doc(saleId).update(updateData)
+            .then(() => {
+                this.showToast(newStatus === 'paid' ? '✅ Venta marcada como PAGADA' : '✅ Venta marcada como PENDIENTE');
+                this.loadData();
+            })
+            .catch(err => {
+                console.error(err);
+                this.showToast('❌ Error al actualizar: ' + err.message, 'error');
+            });
     },
 
     openAddConsignorModal() {
@@ -10593,14 +10990,17 @@ const app = {
         const isPickup = (s) => {
             return (s.shipping_method?.id === 'local_pickup') ||
                 (s.shipping_method && typeof s.shipping_method === 'string' && s.shipping_method.toLowerCase().includes('pickup')) ||
-                (s.shippingMethod && s.shippingMethod.toLowerCase().includes('pickup'));
+                (s.shippingMethod && s.shippingMethod.toLowerCase().includes('pickup')) ||
+                (Number(s.shipping) === 0) || 
+                (Number(s.shipping_cost) === 0) || 
+                (Number(s.shipping_income) === 0);
         };
 
         const isShippable = (s) => !isPickup(s);
 
         // Helper to check if order is active (not closed)
-        // Closed states: 'shipped', 'picked_up'
-        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'in_transit', 'fulfilled'].includes(s.fulfillment_status);
+        // Closed states: 'shipped', 'picked_up', 'delivered', 'fulfilled'
+        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'fulfilled'].includes(s.fulfillment_status);
 
         // Filter Sales
         // 1. Active Pickups (Online + Discogs)
@@ -10676,41 +11076,51 @@ const app = {
             const status = s.fulfillment_status || 'unfulfilled';
 
             // Workflow Logic
-            // 1. Preparing (Default) -> Button "Avisar Preparando"
-            // 2. Ready (ready_for_pickup) -> Button "Avisar Listo"
-            // 3. Picked Up (picked_up) -> Button "Ya Retiró"
+            // 1. Preparing (notifyPreparingDiscogs)
+            // 2. Ready (notifyPickupReadyDiscogs)
+            // 3. Picked Up (markPickedUpDiscogs)
 
-            let actionUI = '';
-            if (status === 'preparing') {
-                actionUI = `
-                                            <div class="flex flex-col gap-2 items-center">
-                                                <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">En Preparación</span>
-                                                <button onclick="app.notifyPickupReadyDiscogs('${s.id}')" 
-                                                        class="w-full bg-brand-orange hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
-                                                    <i class="ph-bold ph-bell-ringing"></i> Listo para Retirar
-                                                </a>
-                                            </div>
-                                        `;
-            } else if (status === 'ready_for_pickup') {
-                actionUI = `
-                                            <div class="flex flex-col gap-2 items-center">
-                                                <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Esperando Retiro</span>
-                                                <button onclick="app.markPickedUpDiscogs('${s.id}')" 
-                                                        class="w-full bg-brand-dark hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
-                                                    <i class="ph-bold ph-check-circle"></i> Ya Retiró
-                                                </a>
-                                            </div>
-                                        `;
-            } else {
-                // Default / Unfulfilled
-                actionUI = `
-                                            <button onclick="app.notifyPreparingDiscogs('${s.id}')" 
-                                                    class="w-full bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
-                                                <i class="ph-bold ph-package"></i> Avisar Preparando
-                                            </a>
-                                        `;
-            }
+            let btn1Click = (!status || status === 'unfulfilled') ? `onclick="app.notifyPreparingDiscogs('${s.id}')"` : 'disabled';
+            let btn1Class = (!status || status === 'unfulfilled') ? 'bg-blue-500 text-white shadow-sm hover:bg-blue-600' : (status === 'preparing' || status === 'ready_for_pickup' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-50');
 
+            let btn2Click = status === 'preparing' ? `onclick="app.notifyPickupReadyDiscogs('${s.id}')"` : 'disabled';
+            let btn2Class = status === 'preparing' ? 'bg-brand-orange text-white shadow-sm hover:bg-orange-600' : (status === 'ready_for_pickup' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50');
+
+            let btn3Click = status === 'ready_for_pickup' ? `onclick="app.markPickedUpDiscogs('${s.id}')"` : 'disabled';
+            let btn3Class = status === 'ready_for_pickup' ? 'bg-brand-dark text-white shadow-sm hover:bg-black' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
+
+            let actionUI = `
+                <div class="flex flex-col gap-2 relative pl-2">
+                    <div class="flex items-center absolute left-0 top-4 bottom-4 py-0 w-1">
+                        <div class="w-1 bg-blue-100 rounded-full h-full relative overflow-hidden">
+                            <div class="w-1 bg-blue-500 rounded-full transition-all duration-300 absolute top-0" style="height: ${status === 'ready_for_pickup' ? '100%' : (status === 'preparing' ? '50%' : '0%')}"></div>
+                        </div>
+                    </div>
+                    
+                    <button ${btn1Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn1Class}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ${(status !== 'unfulfilled' && status) ? 'ph-check-circle text-green-500' : 'ph-package'} text-sm"></i> 
+                            1. En preparación
+                        </span>
+                        ${(status !== 'unfulfilled' && status) ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
+                    </button>
+
+                    <button ${btn2Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn2Class}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ${status === 'ready_for_pickup' ? 'ph-check-circle text-green-500' : 'ph-bell-ringing'} text-sm"></i> 
+                            2. Lista para pickup
+                        </span>
+                        ${status === 'ready_for_pickup' ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
+                    </button>
+
+                    <button ${btn3Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn3Class}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ph-check-circle text-sm"></i> 
+                            3. Orden recogida
+                        </span>
+                    </button>
+                </div>
+            `;
             return `
                                     <tr class="hover:bg-blue-50/20 transition-colors">
                                         <td class="p-4 font-bold text-brand-dark">
@@ -10779,51 +11189,73 @@ const app = {
             const status = s.fulfillment_status || 'unfulfilled';
 
             // Workflow Logic
-            // 1. Preparing (Default) -> Button "Avisar Preparando"
-            // 2. In Transit -> Button "Cargar Tracking" -> Updates to in_transit
-            // 3. Shipped (Closed) -> Button "Marcar Despachado"
+            // 1. Preparing (notifyPreparingDiscogs)
+            // 2. In Transit -> Updates to in_transit
+            // 3. Shipped (Closed)
 
-            let actionUI = '';
+            let btn1Click = (!status || status === 'unfulfilled') ? `onclick="app.notifyPreparingDiscogs('${s.id}')"` : 'disabled';
+            let btn1Class = (!status || status === 'unfulfilled') ? 'bg-brand-orange text-white shadow-sm hover:bg-orange-600' : (status === 'preparing' || status === 'in_transit' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-50');
+
+            let btn3Click = status === 'in_transit' ? `onclick="app.markDispatchedDiscogs('${s.id}')"` : 'disabled';
+            let btn3Class = status === 'in_transit' ? 'bg-brand-dark text-white shadow-sm hover:bg-black' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
+
+            let midSection = '';
             if (status === 'preparing') {
-                actionUI = `
-                                            <div class="flex flex-col gap-2">
-                                                 <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 text-center">En Preparación</span>
-                                                 <div class="flex flex-col gap-1 w-full">
-                                                     <input type="text" id="tracking-${s.id}" placeholder="Tracking #" 
-                                                           value="${s.tracking_number || ''}"
-                                                           class="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:border-brand-orange outline-none font-mono">
-                                                     
-                                                     <div class="flex gap-1">
-                                                         <input type="text" id="tracking-link-${s.id}" placeholder="Link (Opcional)" 
-                                                               class="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:border-brand-orange outline-none font-mono text-slate-500">
-                                                         <button onclick="app.notifyShippedDiscogs('${s.id}', 'tracking-${s.id}', 'tracking-link-${s.id}')" 
-                                                                 class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs transition-colors shrink-0" title="Enviar Tracking">
-                                                             <i class="ph-bold ph-paper-plane-right"></i>
-                                                         </a>
-                                                     </div>
-                                                </div>
-                                            </div>
-                                        `;
-            } else if (status === 'in_transit') {
-                actionUI = `
-                                            <div class="flex flex-col gap-2 items-center">
-                                                <span class="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">En Tránsito</span>
-                                                <div class="text-[10px] font-mono text-slate-500">${s.tracking_number}</div>
-                                                <button onclick="app.markDispatchedDiscogs('${s.id}')" 
-                                                        class="w-full bg-brand-dark hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
-                                                    <i class="ph-bold ph-archive"></i> Finalizar (Despachado)
-                                                </a>
-                                            </div>
-                                        `;
+                midSection = `
+                    <div class="w-full bg-orange-50 border border-orange-100 rounded-lg p-2 flex flex-col gap-2 shadow-sm relative z-10">
+                        <div class="flex items-center gap-2 text-xs font-bold text-orange-800 px-1">
+                            <i class="ph-bold ph-truck text-sm"></i> 2. En camino
+                        </div>
+                        <input type="text" id="tracking-${s.id}" placeholder="Tracking #" 
+                            value="${s.tracking_number || ''}"
+                            class="w-full text-xs border border-orange-200 rounded px-2 py-1.5 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono">
+                        <input type="text" id="tracking-link-${s.id}" placeholder="Link (Opcional)" 
+                            class="w-full text-xs border border-orange-200 rounded px-2 py-1.5 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono text-slate-500">
+                        <button onclick="app.notifyShippedDiscogs('${s.id}', 'tracking-${s.id}', 'tracking-link-${s.id}')" 
+                                class="w-full bg-orange-600 hover:bg-orange-700 text-white px-2 py-1.5 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                            <i class="ph-bold ph-paper-plane-right text-sm"></i> Enviar Tracking al cliente
+                        </button>
+                    </div>
+                `;
             } else {
-                // Default / Unfulfilled
-                actionUI = `
-                                            <button onclick="app.notifyPreparingDiscogs('${s.id}')" 
-                                                    class="w-full bg-brand-orange hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
-                                                <i class="ph-bold ph-package"></i> Avisar Preparando
-                                            </a>
-                                        `;
+                let midClass = status === 'in_transit' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
+                midSection = `
+                    <button disabled class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${midClass}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ${status === 'in_transit' ? 'ph-check-circle text-green-500' : 'ph-truck'} text-sm"></i> 
+                            2. En camino
+                        </span>
+                        ${status === 'in_transit' ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
+                    </button>
+                `;
             }
+
+            let actionUI = `
+                <div class="flex flex-col gap-2 relative pl-2">
+                    <div class="flex items-center absolute left-0 top-4 bottom-4 py-0 w-1">
+                        <div class="w-1 bg-orange-100 rounded-full h-full relative overflow-hidden">
+                            <div class="w-1 bg-brand-orange rounded-full transition-all duration-300 absolute top-0" style="height: ${status === 'in_transit' ? '100%' : (status === 'preparing' ? '50%' : '0%')}"></div>
+                        </div>
+                    </div>
+
+                    <button ${btn1Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn1Class}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ${(status !== 'unfulfilled' && status) ? 'ph-check-circle text-green-500' : 'ph-package'} text-sm"></i> 
+                            1. En preparación
+                        </span>
+                        ${(status !== 'unfulfilled' && status) ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
+                    </button>
+
+                    ${midSection}
+
+                    <button ${btn3Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn3Class}">
+                        <span class="flex items-center gap-2">
+                            <i class="ph-bold ph-archive text-sm"></i> 
+                            3. Orden despachada
+                        </span>
+                    </button>
+                </div>
+            `;
 
             return `
                                     <tr class="hover:bg-orange-50/20 transition-colors">

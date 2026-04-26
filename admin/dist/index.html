@@ -412,8 +412,16 @@
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
             transform: translateY(-2px);
         }
+
+        /* Privacy Mode Blurring */
+        .privacy-active .blur-money {
+            filter: blur(6px);
+            user-select: none;
+            pointer-events: none;
+            transition: filter 0.3s ease;
+        }
     </style>
-  <script type="module" crossorigin src="/assets/index-3JmakNTp.js"></script>
+  <script type="module" crossorigin src="/assets/index-DZW091ZL.js"></script>
 </head>
 
 <body class="h-screen overflow-hidden selection:bg-brand-orange selection:text-white bg-brand-bg">
@@ -475,6 +483,9 @@
                     <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover">
                 </div>
                 <h1 class="font-display text-xl font-bold text-brand-dark">El Cuartito</h1>
+                <button onclick="app.togglePrivacyMode()" id="privacy-toggle-mobile" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center ml-1">
+                    <i class="ph-bold ph-eye"></i>
+                </button>
             </div>
             <div class="flex items-center gap-3">
                 <button onclick="app.logout()"
@@ -500,6 +511,9 @@
                         <h1 class="font-display text-xl font-bold text-brand-dark leading-tight">El Cuartito</h1>
                         <p class="text-xs text-slate-400 font-medium">Records Management</p>
                     </div>
+                    <button onclick="app.togglePrivacyMode()" id="privacy-toggle-desktop" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-brand-orange hover:bg-orange-50 flex items-center justify-center transition-all ml-auto" title="Modo Privacidad">
+                        <i class="ph-bold ph-eye"></i>
+                    </button>
                 </div>
             </div>
 
