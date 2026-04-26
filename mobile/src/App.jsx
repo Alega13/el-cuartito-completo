@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 
@@ -22,10 +22,11 @@ function App() {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('MobilePay');
   const [paymentChannel, setPaymentChannel] = useState('tienda');
+  const [rsdExtraDiscount, setRsdExtraDiscount] = useState(false);
 
-  // Inline Edit State
-  const [editingPriceId, setEditingPriceId] = useState(null);
-  const [tempPrice, setTempPrice] = useState('');
+  // Helper: effective price per item (10% off if RSD)
+  const getEffectivePrice = (item) => item.is_rsd_discount ? Math.round(item.price * 0.9) : (item.price || 0);
+
 
   const searchInputRef = useRef(null);
 
@@ -95,7 +96,8 @@ function App() {
         const artist = (record.artist || '').toLowerCase();
         const album = (record.album || '').toLowerCase();
         const sku = (record.sku || '').toLowerCase();
-        return artist.includes(query) || album.includes(query) || sku.includes(query);
+        const label = (record.label || record.sello || '').toLowerCase();
+        return artist.includes(query) || album.includes(query) || sku.includes(query) || label.includes(query);
       });
     }
 
@@ -137,6 +139,21 @@ function App() {
     return [...storages].sort();
   }, [records]);
 
+  // Live Cart: Maps item IDs in cart state to latest product data in records state
+  // This ensures that toggling RSD in Admin reflects immediately in the mobile cart/checkout
+  const liveCart = useMemo(() => {
+    return cart.map(cartItem => {
+      const record = records.find(r => r.id === cartItem.id);
+      return {
+        ...record,
+        ...cartItem, // keep quantity
+        // Ensure we use the latest pricing data from records
+        price: record?.price || cartItem.price,
+        is_rsd_discount: record?.is_rsd_discount || false
+      };
+    });
+  }, [cart, records]);
+
   const handleRowClick = (record) => {
     setSelectedRecord(record);
   };
@@ -175,7 +192,9 @@ function App() {
 
     setIsCheckingOut(true);
     try {
-      const totalAmount = cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+      const cartTotal = liveCart.reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0);
+      const totalItems = liveCart.reduce((sum, item) => sum + item.quantity, 0);
+      const totalAmount = (rsdExtraDiscount && totalItems >= 3) ? Math.round(cartTotal * 0.95) : cartTotal;
 
       // Get Firebase Auth token for backend authentication
       const currentUser = auth.currentUser;
@@ -185,10 +204,10 @@ function App() {
       const idToken = await currentUser.getIdToken();
 
       // Build items payload matching backend's createSale expected format
-      const items = cart.map(item => ({
+      const items = liveCart.map(item => ({
         productId: item.id,
         qty: item.quantity,
-        priceAtSale: item.price || 0,
+        priceAtSale: getEffectivePrice(item),
         album: item.album || 'Venta App',
       }));
 
@@ -217,6 +236,7 @@ function App() {
 
       // Local state update removed because onSnapshot handles real-time stock sync
       setCart([]);
+      setRsdExtraDiscount(false);
       setIsCheckoutModalOpen(false);
       showToast('✅ Venta procesada exitosamente');
       setActiveTab('search');
@@ -261,44 +281,6 @@ function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const startEditingPrice = (record, e) => {
-    e.stopPropagation();
-    setEditingPriceId(record.id);
-    setTempPrice(record.price?.toString() || '0');
-  };
-
-  const handlePriceSave = async (record, e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    setEditingPriceId(null);
-    const newPrice = parseFloat(tempPrice);
-
-    if (isNaN(newPrice) || newPrice === record.price) return;
-
-    try {
-      const productRef = doc(db, 'products', record.id);
-      await updateDoc(productRef, { price: newPrice });
-
-      setRecords(prevRecords =>
-        prevRecords.map(r =>
-          r.id === record.id ? { ...r, price: newPrice } : r
-        )
-      );
-      showToast('✅ Precio actualizado');
-    } catch (error) {
-      console.error("Error updating price:", error);
-      showToast('❌ Error al actualizar precio', 'error');
-    }
-  };
-
-  const handlePriceKeyDown = (record, e) => {
-    if (e.key === 'Enter') {
-      handlePriceSave(record, e);
-    } else if (e.key === 'Escape') {
-      setEditingPriceId(null);
-    }
-  };
 
   return (
     <div className="flex flex-col min-h-[100dvh] h-[100dvh] max-w-md mx-auto bg-white text-brand-dark overscroll-none shadow-2xl overflow-hidden font-sans relative">
@@ -326,7 +308,7 @@ function App() {
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Buscar por artista, álbum o sku..."
+                    placeholder="Buscar por artista, álbum, sello o SKU..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-transparent text-gray-900 pl-9 pr-9 py-0 outline-none placeholder:text-gray-400 font-medium text-[15px]"
@@ -467,23 +449,18 @@ function App() {
 
                       {/* Price & Stock info in List */}
                       <div className="flex flex-col items-end flex-shrink-0 pl-3">
-                        {editingPriceId === record.id ? (
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            autoFocus
-                            className="w-20 px-1 py-0.5 bg-gray-100 rounded text-[16px] font-semibold text-gray-900 text-right focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                            value={tempPrice}
-                            onChange={(e) => setTempPrice(e.target.value)}
-                            onBlur={(e) => handlePriceSave(record, e)}
-                            onKeyDown={(e) => handlePriceKeyDown(record, e)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                        {record.is_rsd_discount ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <div className="text-[11px] text-gray-400 line-through leading-none">
+                              {record.price || 0} DKK
+                            </div>
+                            <div className="text-[16px] font-semibold text-orange-500 tracking-tight leading-none">
+                              {getEffectivePrice(record)} DKK
+                            </div>
+                            <div className="bg-orange-500 text-white text-[8px] font-black px-1 rounded-full mt-0.5 uppercase">RSD</div>
+                          </div>
                         ) : (
-                          <div
-                            className="text-[16px] font-semibold text-brand-orange tracking-tight hover:bg-orange-50 px-1 rounded cursor-text transition-colors"
-                            onClick={(e) => startEditingPrice(record, e)}
-                          >
+                          <div className="text-[16px] font-semibold text-brand-orange tracking-tight px-1">
                             {record.price || 0} DKK
                           </div>
                         )}
@@ -679,8 +656,8 @@ function App() {
                     {/* Items List - Inset Grouped */}
                     <div className="bg-white rounded-[20px] shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-gray-100 overflow-hidden break-inside-avoid">
                       <ul className="flex flex-col">
-                        {cart.map((item, index) => (
-                          <li key={item.id} className={`flex items-center gap-3.5 p-3 px-4 bg-white ${index !== cart.length - 1 ? 'border-b border-gray-100/80' : ''}`}>
+                        {liveCart.map((item, index) => (
+                          <li key={item.id} className={`flex items-center gap-3.5 p-3 px-4 bg-white ${index !== liveCart.length - 1 ? 'border-b border-gray-100/80' : ''}`}>
                             <div className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.06)] overflow-hidden">
                               {item.cover_image ? (
                                 <img src={item.cover_image} alt={item.album} className="w-full h-full object-cover" />
@@ -694,7 +671,15 @@ function App() {
                               <h3 className="text-[15px] font-semibold text-gray-900 truncate leading-tight tracking-tight">{item.album || 'Sin Título'}</h3>
                               <p className="text-[13px] text-gray-500 truncate font-medium mt-0.5">{item.artist || 'Artista Desconocido'}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[14px] font-semibold text-brand-orange">{item.price || 0} DKK</span>
+                                {item.is_rsd_discount ? (
+                                  <>
+                                    <span className="text-[12px] text-gray-400 line-through">{item.price || 0} DKK</span>
+                                    <span className="text-[14px] font-semibold text-orange-500">{getEffectivePrice(item)} DKK</span>
+                                    <span className="text-[9px] bg-orange-500 text-white font-black px-1.5 py-0.5 rounded-full">RSD</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[14px] font-semibold text-brand-orange">{item.price || 0} DKK</span>
+                                )}
                                 <span className="text-[11px] font-semibold text-gray-400">x{item.quantity}</span>
                               </div>
                             </div>
@@ -713,7 +698,7 @@ function App() {
                     <div className="bg-white rounded-[20px] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col gap-4">
                       <div className="flex justify-between items-center text-[17px]">
                         <span className="font-semibold text-gray-800">Total</span>
-                        <span className="text-[22px] font-semibold text-gray-900">{cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)} <span className="text-[13px] text-gray-400 font-semibold ml-0.5">DKK</span></span>
+                        <span className="text-[22px] font-semibold text-gray-900">{liveCart.reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0)} <span className="text-[13px] text-gray-400 font-semibold ml-0.5">DKK</span></span>
                       </div>
                       <button
                         onClick={() => setIsCheckoutModalOpen(true)}
@@ -756,9 +741,9 @@ function App() {
           onClick={() => setActiveTab('cart')}
           className={`relative flex flex-col items-center gap-1 min-w-[4rem] transition-colors ${activeTab === 'cart' ? 'text-brand-orange' : 'text-gray-400'}`}
         >
-          {cart.length > 0 && (
+          {liveCart.length > 0 && (
             <div className="absolute -top-1 right-2.5 bg-brand-orange text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] px-1 flex items-center justify-center ring-2 ring-white shadow-sm">
-              {cart.reduce((sum, item) => sum + item.quantity, 0)}
+              {liveCart.reduce((sum, item) => sum + item.quantity, 0)}
             </div>
           )}
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill={activeTab === 'cart' ? 'currentColor' : 'none'} stroke={activeTab === 'cart' ? 'none' : 'currentColor'} strokeWidth={1.5} className="w-6 h-6">
@@ -797,12 +782,25 @@ function App() {
               </div>
 
               {/* Total Pricing Box */}
-              <div className="bg-gray-50/80 rounded-[20px] p-6 flex flex-col gap-1 items-center justify-center">
-                <span className="text-[12px] font-semibold text-gray-400 uppercase tracking-widest">Total a Cobrar</span>
-                <div className="text-[40px] font-bold text-gray-900 tracking-tight leading-none mt-1">
-                  {cart.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0)} <span className="text-[20px] text-gray-400 font-semibold">DKK</span>
-                </div>
-              </div>
+              {(() => {
+                const cartTotal = liveCart.reduce((sum, item) => sum + getEffectivePrice(item) * item.quantity, 0);
+                const totalItems = liveCart.reduce((sum, item) => sum + item.quantity, 0);
+                const finalTotal = (rsdExtraDiscount && totalItems >= 3) ? Math.round(cartTotal * 0.95) : cartTotal;
+                return (
+                  <div className="bg-gray-50/80 rounded-[20px] p-6 flex flex-col gap-2 items-center justify-center">
+                    <span className="text-[12px] font-semibold text-gray-400 uppercase tracking-widest">Total a Cobrar</span>
+                    {rsdExtraDiscount && totalItems >= 3 && (
+                      <span className="text-[13px] text-gray-400 line-through">{cartTotal} DKK</span>
+                    )}
+                    <div className="text-[40px] font-bold text-gray-900 tracking-tight leading-none mt-1">
+                      {finalTotal} <span className="text-[20px] text-gray-400 font-semibold">DKK</span>
+                    </div>
+                    {rsdExtraDiscount && totalItems >= 3 && (
+                      <span className="text-[12px] text-orange-500 font-semibold">-5% RSD aplicado</span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Method Grid */}
               <div className="flex flex-col gap-3">
@@ -848,6 +846,31 @@ function App() {
                   </button>
                 </div>
               </div>
+
+              {/* RSD 5% Extra Toggle */}
+              {(() => {
+                const totalItems = liveCart.reduce((sum, item) => sum + item.quantity, 0);
+                const canApply = totalItems >= 3;
+                return (
+                  <div className={`flex items-center justify-between p-4 rounded-[16px] border transition-all ${canApply ? 'border-orange-200 bg-orange-50/60' : 'border-gray-100 bg-gray-50 opacity-50'}`}>
+                    <div className="flex flex-col">
+                      <span className={`text-[14px] font-semibold ${canApply ? 'text-orange-700' : 'text-gray-400'}`}>🎉 Aplicar 5% extra RSD</span>
+                      {!canApply && <span className="text-[11px] text-gray-400 font-medium mt-0.5">Mínimo 3 ítems en el carrito</span>}
+                    </div>
+                    <button
+                      disabled={!canApply}
+                      onClick={() => canApply && setRsdExtraDiscount(prev => !prev)}
+                      className={`relative w-12 h-7 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                        rsdExtraDiscount && canApply ? 'bg-orange-500' : 'bg-gray-200'
+                      } ${!canApply ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                        rsdExtraDiscount && canApply ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Sub configuration */}
               <div className="flex flex-col gap-2">
@@ -959,7 +982,19 @@ function App() {
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <div className="bg-gray-50 rounded-[16px] p-4 flex flex-col items-center justify-center border border-gray-100">
                   <span className="text-[12px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Precio</span>
-                  <div className="text-[22px] font-bold text-gray-900">{selectedRecord.price || 0} <span className="text-[13px] text-gray-400 font-semibold inline-block translate-y-[-1px]">DKK</span></div>
+                  {selectedRecord.is_rsd_discount ? (
+                    <div className="flex flex-col items-center">
+                      <div className="text-[13px] text-gray-400 line-through leading-none mb-1">
+                        {selectedRecord.price || 0} DKK
+                      </div>
+                      <div className="text-[22px] font-bold text-orange-500 leading-none">
+                        {getEffectivePrice(selectedRecord)} <span className="text-[13px] text-orange-400 font-semibold inline-block translate-y-[-1px]">DKK</span>
+                      </div>
+                      <div className="bg-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full mt-1.5 uppercase tracking-widest">RSD -10%</div>
+                    </div>
+                  ) : (
+                    <div className="text-[22px] font-bold text-gray-900">{selectedRecord.price || 0} <span className="text-[13px] text-gray-400 font-semibold inline-block translate-y-[-1px]">DKK</span></div>
+                  )}
                 </div>
                 <div className="bg-gray-50 rounded-[16px] p-4 flex flex-col items-center justify-center border border-gray-100">
                   <span className="text-[12px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Stock</span>
