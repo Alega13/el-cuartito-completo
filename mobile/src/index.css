@@ -2,39 +2,43 @@
 
 @theme {
   --color-brand-orange: #F05A28;
-  --color-brand-yellow: #FDE047;
-  --color-brand-bg: #FEF9C3;
-  --color-brand-cream: #FFFBEB;
-  --color-brand-dark: #1e293b;
-  --font-display: "Outfit", sans-serif;
-  --font-sans: "Inter", sans-serif;
 }
 
-:root {
-  background-color: var(--color-brand-bg, #FEF9C3);
-  color: var(--color-brand-dark, #1e293b);
-  font-family: var(--font-sans);
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html {
+  /* Fill the entire screen on iOS Safari including home indicator */
+  height: -webkit-fill-available;
+  height: 100%;
 }
 
 body {
-  background-color: var(--color-brand-bg, #FEF9C3);
+  margin: 0;
+  padding: 0;
+  background: oklch(97.5% 0.011 58);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  overscroll-behavior: none;
+  /* Fallback chain: svh → fill-available → 100% */
+  min-height: 100svh;
+  min-height: -webkit-fill-available;
+  min-height: 100%;
 }
 
-/* Hide scrollbar for horizontal filter chips */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+#root {
+  min-height: 100svh;
+  min-height: -webkit-fill-available;
+  min-height: 100%;
+  /* Isolate stacking context */
+  position: relative;
+  isolation: isolate;
 }
 
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-/* Safe area utilities for iOS PWA */
-.pt-safe {
-  padding-top: max(0.75rem, env(safe-area-inset-top));
-}
-
-.pb-safe {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

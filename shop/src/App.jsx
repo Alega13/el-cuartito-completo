@@ -4,6 +4,7 @@ import { getOnlineRecords } from './services/api';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import NewArrivals from './components/NewArrivals';
+import RecordStoreWeek from './components/RecordStoreWeek';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 
@@ -124,8 +125,17 @@ function App() {
   // Find products marked as "Hero" (previously "header")
   const headerProducts = products.filter(p => p.tags && p.tags.includes('hero'));
 
-  // Find products marked as "New Arrival"
-  const newArrivalProducts = products.filter(p => p.tags && p.tags.includes('new_arrival'));
+  // Find products marked as "New Arrival" and sort by newest first
+  const newArrivalProducts = products
+    .filter(p => p.tags && p.tags.includes('new_arrival'))
+    .sort((a, b) => {
+      const dateA = a.created_at ? (a.created_at._seconds || a.created_at.seconds || new Date(a.created_at).getTime() / 1000) : 0;
+      const dateB = b.created_at ? (b.created_at._seconds || b.created_at.seconds || new Date(b.created_at).getTime() / 1000) : 0;
+      return dateB - dateA;
+    });
+
+  // Find products with RSD discount
+  const rsdProducts = products.filter(p => p.is_rsd_discount);
 
   // Determine if we're on product page (full mode) or elsewhere (mini mode)
   // Check if pathname starts with /product/
@@ -143,6 +153,7 @@ function App() {
           <Route path="/" element={
             <>
               <Hero products={headerProducts} />
+              {rsdProducts.length > 0 && <RecordStoreWeek products={rsdProducts} />}
               {newArrivalProducts.length > 0 && <NewArrivals products={newArrivalProducts} />}
               {error && products.length === 0 ? (
                 <ErrorState

@@ -20,6 +20,7 @@ const invoiceRoutes_1 = __importDefault(require("./routes/invoiceRoutes"));
 const health_1 = __importDefault(require("./routes/health"));
 const webhookRoutes_1 = require("./routes/webhookRoutes");
 const errorHandler_1 = require("./middlewares/errorHandler");
+const labelPrintRoutes_1 = __importDefault(require("./routes/labelPrintRoutes"));
 const app = (0, express_1.default)();
 const allowedOrigins = [
     'http://localhost:5173',
@@ -37,7 +38,7 @@ app.use((0, cors_1.default)({
 // Webhook endpoint - must use express.raw to preserve signature
 // This must come BEFORE any other body-parser middleware
 app.post('/api/webhook/stripe', express_1.default.raw({ type: 'application/json' }), webhookRoutes_1.stripeWebhookHandler);
-app.use(express_1.default.json());
+app.use(express_1.default.json({ limit: '10mb' }));
 app.use('/records', recordRoutes_1.default);
 app.use('/sales', saleRoutes_1.default);
 app.use('/checkout', checkoutRoutes_1.default);
@@ -54,6 +55,8 @@ app.use('/discogs', discogsRoutes_1.default);
 app.use('/upload', uploadRoutes_1.default);
 // Invoice routes (Brugtmoms-compliant PDF invoices)
 app.use('/invoices', invoiceRoutes_1.default);
+// Label printing (Brother QL via brother_ql CLI)
+app.use('/api', labelPrintRoutes_1.default);
 // Health check endpoint
 app.use('/api', health_1.default);
 app.use('/api', shippingRoutes_1.default); // Added to support /api/ship-order

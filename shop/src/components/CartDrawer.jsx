@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import { useCart, getItemPrice } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
 
@@ -74,7 +74,14 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                                 <div>
                                                     <div className="flex justify-between items-start">
                                                         <h3 className="text-xs font-bold uppercase tracking-tight truncate max-w-[150px]">{item.artist}</h3>
-                                                        <span className="text-xs font-bold tracking-tighter">DKK {item.price * item.quantity}</span>
+                                                        {item.is_rsd_discount ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[10px] text-black/30 line-through">DKK {item.price * item.quantity}</span>
+                                                                <span className="text-xs font-bold text-orange-600 tracking-tighter">DKK {getItemPrice(item) * item.quantity}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs font-bold tracking-tighter">DKK {item.price * item.quantity}</span>
+                                                        )}
                                                     </div>
                                                     <p className="text-[10px] text-black/60 truncate max-w-[180px]">{item.album}</p>
                                                 </div>

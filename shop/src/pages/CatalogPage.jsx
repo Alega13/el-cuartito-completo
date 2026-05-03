@@ -101,8 +101,11 @@ const CatalogPage = ({ products }) => {
                 case 'artist':
                     return (a.artist || '').localeCompare(b.artist || '');
                 case 'newest':
-                default:
-                    return 0;
+                default: {
+                    const dateA = a.created_at ? (a.created_at._seconds || a.created_at.seconds || new Date(a.created_at).getTime() / 1000) : 0;
+                    const dateB = b.created_at ? (b.created_at._seconds || b.created_at.seconds || new Date(b.created_at).getTime() / 1000) : 0;
+                    return dateB - dateA;
+                }
             }
         });
     }, [availableProducts, selectedFilters, sortOption, artistSearch, fuse]);

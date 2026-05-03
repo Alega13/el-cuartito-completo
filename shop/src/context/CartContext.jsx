@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 
 const CartContext = createContext();
 
+// Helper to get the effective price of an item (with RSD discount if applicable)
+export const getItemPrice = (item) => item.is_rsd_discount ? Math.round(item.price * 0.9) : item.price;
+
 export const useCart = () => {
     const context = useContext(CartContext);
     if (!context) {
@@ -49,7 +52,7 @@ export const CartProvider = ({ children }) => {
         setCartItems([]);
     }, []);
 
-    const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    const subtotal = cartItems.reduce((total, item) => total + (getItemPrice(item) * item.quantity), 0);
     const totalItems = cartItems.reduce((total, item) => total + item.quantity, 0);
 
     return (

@@ -24,6 +24,11 @@ const ProductCard = ({ product }) => {
 
     const imageSrc = isValidImage(product.image) ? product.image : (isValidImage(product.cover_image) ? product.cover_image : defaultImage);
 
+    // RSD Discount logic
+    const isRSD = product.is_rsd_discount;
+    const originalPrice = product.price;
+    const discountedPrice = isRSD ? Math.round(originalPrice * 0.9) : originalPrice;
+
     // Create a product object with proper fields for selections
     const productForSelection = {
         ...product,
@@ -68,6 +73,13 @@ const ProductCard = ({ product }) => {
                         </div>
                     )}
 
+                    {/* RSD Badge */}
+                    {isRSD && (
+                        <div className="absolute top-2.5 left-2.5 z-10 bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-orange-500/30 animate-pulse">
+                            RSD
+                        </div>
+                    )}
+
                     {/* Actions Overlay */}
                     <div className="absolute bottom-3 right-3 flex gap-2 z-10">
                         {/* Save to Listening Room button */}
@@ -98,7 +110,16 @@ const ProductCard = ({ product }) => {
                 <div className="space-y-1">
                     <div className="flex justify-between items-start">
                         <h3 className="text-sm font-semibold uppercase tracking-tight">{product.artist}</h3>
-                        {product.price && <span className="text-sm font-bold">DKK {product.price}</span>}
+                        {product.price && (
+                            isRSD ? (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs text-black/40 line-through">DKK {originalPrice}</span>
+                                    <span className="text-sm font-bold text-orange-600">DKK {discountedPrice}</span>
+                                </div>
+                            ) : (
+                                <span className="text-sm font-bold">DKK {product.price}</span>
+                            )
+                        )}
                     </div>
                     <p className="text-sm text-black/60">{product.title}</p>
                     <p className="text-xs text-black/40 mt-2">{product.label} — {product.year}</p>

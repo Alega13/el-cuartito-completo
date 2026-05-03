@@ -87,8 +87,26 @@ const createProduct = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const data = req.body;
         // Canonicalize names for Firestore
         const flattedData = Object.assign(Object.assign({}, data), { is_online: (_b = (_a = data.is_online) !== null && _a !== void 0 ? _a : data.availableOnline) !== null && _b !== void 0 ? _b : false, cover_image: (_d = (_c = data.cover_image) !== null && _c !== void 0 ? _c : data.coverImage) !== null && _d !== void 0 ? _d : null, condition: (_f = (_e = data.condition) !== null && _e !== void 0 ? _e : data.status) !== null && _f !== void 0 ? _f : 'VG', updated_at: admin.firestore.FieldValue.serverTimestamp() });
-        const docRef = yield db.collection('products').add(flattedData);
-        res.status(201).json(normalizeProduct(flattedData, docRef.id));
+        // Atomic quickId generation via transaction
+        const result = yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            const counterRef = db.collection('metadata').doc('vinylCounter');
+            const counterDoc = yield transaction.get(counterRef);
+            let currentCount = 0;
+            if (counterDoc.exists) {
+                currentCount = ((_a = counterDoc.data()) === null || _a === void 0 ? void 0 : _a.current) || 0;
+            }
+            const newCount = currentCount + 1;
+            const quickId = String(newCount).padStart(4, '0');
+            // Update counter
+            transaction.set(counterRef, { current: newCount }, { merge: true });
+            // Create product with quickId
+            flattedData.quickId = quickId;
+            const newDocRef = db.collection('products').doc();
+            transaction.set(newDocRef, flattedData);
+            return { id: newDocRef.id, quickId };
+        }));
+        res.status(201).json(normalizeProduct(Object.assign(Object.assign({}, flattedData), { quickId: result.quickId }), result.id));
     }
     catch (error) {
         res.status(500).json({ error: error.message });

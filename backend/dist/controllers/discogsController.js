@@ -668,17 +668,29 @@ const bulkImport = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 // 3. Create listing on Discogs
                 const listingId = yield discogsService.createListing(releaseId, product);
                 // 4. Save to Firestore
-                const sku = `DISCOGS-${listingId}`;
-                const existing = yield db.collection('products').where('sku', '==', sku).get();
+                const existing = yield db.collection('products')
+                    .where('discogs_listing_id', '==', String(listingId))
+                    .limit(1)
+                    .get();
                 if (!existing.empty) {
-                    console.log(`⏩ Skipping ${sku} - already exists`);
+                    console.log(`⏩ Skipping listing ${listingId} - already exists`);
                     results.success++; // Count as success since it's already there
                     continue;
                 }
+                // Generate next SKU-xxx atomically via counter
+                const skuCounterRef = db.collection('metadata').doc('skuCounter');
+                const newSku = yield db.runTransaction((txn) => __awaiter(void 0, void 0, void 0, function* () {
+                    var _a, _b;
+                    const counterDoc = yield txn.get(skuCounterRef);
+                    const current = counterDoc.exists ? ((_b = (_a = counterDoc.data()) === null || _a === void 0 ? void 0 : _a.current) !== null && _b !== void 0 ? _b : 703) : 703;
+                    const next = current + 1;
+                    txn.set(skuCounterRef, { current: next }, { merge: true });
+                    return `SKU-${String(next).padStart(3, '0')}`;
+                }));
                 const primaryImage = (_b = release.images) === null || _b === void 0 ? void 0 : _b.find((img) => img.type === 'primary');
                 const coverImage = (primaryImage === null || primaryImage === void 0 ? void 0 : primaryImage.uri) || ((_d = (_c = release.images) === null || _c === void 0 ? void 0 : _c[0]) === null || _d === void 0 ? void 0 : _d.uri) || '';
                 yield db.collection('products').add({
-                    sku: `DISCOGS-${listingId}`,
+                    sku: newSku,
                     artist: product.artist,
                     album: product.album,
                     price: product.price,

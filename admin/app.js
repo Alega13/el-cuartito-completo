@@ -1098,7 +1098,7 @@ const app = {
                         <button type="submit" id="manual-invoice-btn"
                             class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
                             <i class="ph-bold ph-file-pdf"></i> Generar Factura PDF
-                        </a>
+                        </button>
                     </div>
                 </form>
 
@@ -1848,6 +1848,24 @@ const app = {
                                 <i class="ph-bold ph-receipt mr-1"></i> Migrar
                             </a>
                         </div>
+                        <div class="flex items-center justify-between p-4 bg-purple-50 rounded-xl border border-purple-200">
+                            <div>
+                                <p class="font-bold text-purple-900">Normalizar SKUs</p>
+                                <p class="text-xs text-purple-700">Asigna formato SKU-001 a todos los productos que no lo tengan</p>
+                            </div>
+                            <button onclick="app.normalizeAllSkus()" class="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-purple-700 transition-colors text-sm">
+                                <i class="ph-bold ph-barcode mr-1"></i> Normalizar
+                            </a>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-200">
+                            <div>
+                                <p class="font-bold text-indigo-900">Backfill QuickIDs</p>
+                                <p class="text-xs text-indigo-700">Asigna quickId secuencial (0001, 0002...) a productos sin él</p>
+                            </div>
+                            <button onclick="app.backfillQuickIds()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors text-sm">
+                                <i class="ph-bold ph-hash mr-1"></i> Backfill
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1895,6 +1913,98 @@ const app = {
         } catch (error) {
             console.error('Migration error:', error);
             this.showToast('❌ Error durante la migración: ' + error.message, 'error');
+        }
+    },
+
+    async normalizeAllSkus() {
+        const skuPattern = /^SKU\s*-\s*(\d+)$/;
+        const productsToFix = this.state.inventory.filter(p => !skuPattern.test(p.sku));
+        const validSkus = this.state.inventory
+            .map(p => { const m = p.sku.match(skuPattern); return m ? parseInt(m[1]) : 0; });
+        let maxSku = Math.max(0, ...validSkus);
+
+        if (productsToFix.length === 0) {
+            this.showToast('✅ Todos los SKUs ya tienen formato SKU-xxx');
+            return;
+        }
+
+        if (!confirm(`Se encontraron ${productsToFix.length} productos con SKU irregular.\n\nSe les asignará un nuevo SKU desde SKU-${String(maxSku + 1).padStart(3, '0')} en adelante.\n\n¿Continuar?`)) return;
+
+        this.showToast('⏳ Normalizando SKUs...', 'info');
+        try {
+            // Process in batches of 500
+            for (let i = 0; i < productsToFix.length; i += 500) {
+                const batch = db.batch();
+                const chunk = productsToFix.slice(i, i + 500);
+
+                for (const product of chunk) {
+                    maxSku++;
+                    const newSku = `SKU-${String(maxSku).padStart(3, '0')}`;
+                    const docRef = await this.findProductBySku(product.sku);
+                    if (docRef) {
+                        batch.update(docRef.ref, { sku: newSku, old_sku: product.sku });
+                        console.log(`  → ${product.sku} → ${newSku} (${product.artist} - ${product.album})`);
+                    }
+                }
+                await batch.commit();
+            }
+
+            this.showToast(`✅ ${productsToFix.length} SKUs normalizados`);
+            await this.loadData();
+        } catch (error) {
+            console.error('SKU normalization error:', error);
+            this.showToast('❌ Error: ' + error.message, 'error');
+        }
+    },
+
+    async backfillQuickIds() {
+        const productsWithout = this.state.inventory.filter(p => !p.quickId);
+
+        if (productsWithout.length === 0) {
+            this.showToast('✅ Todos los productos ya tienen quickId');
+            return;
+        }
+
+        // Sort by created_at (oldest first)
+        productsWithout.sort((a, b) => {
+            const dateA = a.created_at ? (a.created_at.seconds ? a.created_at.seconds * 1000 : new Date(a.created_at).getTime()) : 0;
+            const dateB = b.created_at ? (b.created_at.seconds ? b.created_at.seconds * 1000 : new Date(b.created_at).getTime()) : 0;
+            return dateA - dateB;
+        });
+
+        if (!confirm(`Se encontraron ${productsWithout.length} productos sin quickId.\n\nSe les asignará un ID secuencial (0001, 0002...).\n\n¿Continuar?`)) return;
+
+        this.showToast('⏳ Asignando QuickIDs...', 'info');
+        try {
+            // Get current counter
+            const counterRef = db.collection('metadata').doc('vinylCounter');
+            const counterDoc = await counterRef.get();
+            let currentCount = counterDoc.exists ? (counterDoc.data().current || 0) : 0;
+
+            for (let i = 0; i < productsWithout.length; i += 500) {
+                const batch = db.batch();
+                const chunk = productsWithout.slice(i, i + 500);
+
+                for (const product of chunk) {
+                    currentCount++;
+                    const quickId = String(currentCount).padStart(4, '0');
+                    const docRef = await this.findProductBySku(product.sku);
+                    if (docRef) {
+                        batch.update(docRef.ref, { quickId });
+                        console.log(`  → ${quickId}: ${product.artist} - ${product.album}`);
+                    }
+                }
+                await batch.commit();
+            }
+
+            // Update counter
+            await counterRef.set({ current: currentCount }, { merge: true });
+
+            this.showToast(`✅ ${productsWithout.length} QuickIDs asignados (hasta ${String(currentCount).padStart(4, '0')})`);
+            await this.loadData();
+        } catch (error) {
+            console.error('QuickID backfill error:', error);
+            this.showToast('❌ Error: ' + error.message, 'error');
         }
     },
 
@@ -2669,9 +2779,8 @@ const app = {
 
             filteredSales.forEach(sale => {
                 const items = sale.items || [];
-                let saleCategory = null;
 
-                // Resolve category from inventory (genre2/genre or storageLocation)
+                // Resolve category per item from inventory
                 const resolveFromInventory = (productId, albumName) => {
                     const invProduct = this.state.inventory.find(p =>
                         (productId && (p.id === productId || p.sku === productId)) ||
@@ -2679,24 +2788,24 @@ const app = {
                     );
                     if (!invProduct) return null;
                     if (analysisMode === 'storage') return invProduct.storageLocation || null;
-                    return invProduct.genre2 || invProduct.genre || null;
+                    // genre2 holds specific sub-genre (e.g. "Techno"); genre may be a comma-joined
+                    // string from batch Discogs import (e.g. "Electronic, House, Deep House").
+                    // Prefer genre2; otherwise take the second comma-element (first Discogs style).
+                    if (invProduct.genre2) return invProduct.genre2;
+                    if (!invProduct.genre) return null;
+                    const parts = invProduct.genre.split(',').map(s => s.trim()).filter(Boolean);
+                    return parts[1] || parts[0] || null;
                 };
 
                 if (items.length > 0) {
-                    const firstItem = items[0];
-                    const productId = firstItem.productId || firstItem.recordId;
-                    saleCategory = resolveFromInventory(productId, firstItem.album);
-                }
-                if (!saleCategory) {
-                    saleCategory = analysisMode === 'storage' ? 'Sin ubicación' : (sale.genre || 'Otros');
-                }
-
-                if (items.length > 0) {
                     items.forEach(item => {
+                        const productId = item.productId || item.recordId;
+                        const itemCategory = resolveFromInventory(productId, item.album) ||
+                            (analysisMode === 'storage' ? 'Sin ubicación' : (sale.genre || 'Otros'));
                         const qty = Number(item.qty || item.quantity) || 1;
                         const price = Number(item.priceAtSale || item.unitPrice || item.price) || 0;
-                        categoryUnits[saleCategory] = (categoryUnits[saleCategory] || 0) + qty;
-                        categoryRevenue[saleCategory] = (categoryRevenue[saleCategory] || 0) + (price * qty);
+                        categoryUnits[itemCategory] = (categoryUnits[itemCategory] || 0) + qty;
+                        categoryRevenue[itemCategory] = (categoryRevenue[itemCategory] || 0) + (price * qty);
                         totalUnitsSold += qty;
                         const cond = item.productCondition || item.condition || 'Used';
                         if (cond === 'New') newUnits += qty; else usedUnits += qty;
@@ -2704,6 +2813,7 @@ const app = {
                 } else {
                     const qty = Number(sale.quantity) || 1;
                     const gross = Number(sale.originalTotal || sale.total_amount || sale.total) || 0;
+                    const saleCategory = analysisMode === 'storage' ? 'Sin ubicación' : (sale.genre || 'Otros');
                     categoryUnits[saleCategory] = (categoryUnits[saleCategory] || 0) + qty;
                     categoryRevenue[saleCategory] = (categoryRevenue[saleCategory] || 0) + gross;
                     totalUnitsSold += qty;
@@ -3380,7 +3490,7 @@ const app = {
                                 <th class="p-3 text-right w-24">Precio</th>
                                 <th class="p-3 text-center w-12 hidden sm:table-cell" title="Héroe / Destacado"><i class="ph-bold ph-star text-amber-400"></i></th>
                                 <th class="p-3 text-center w-12 hidden sm:table-cell" title="New Arrival / Novedad"><i class="ph-bold ph-sketch-logo text-blue-400"></i></th>
-                                <th class="p-3 text-center w-12 hidden sm:table-cell" title="RSD 10% Descuento"><span class="text-[9px] font-black text-orange-500">RSD</span></th>
+                                <th class="p-3 text-center w-12 hidden sm:table-cell" title="Imprimir Etiqueta"><i class="ph-bold ph-printer text-purple-400"></i></th>
                                 <th class="p-3 text-center w-16 hidden sm:table-cell">Stock</th>
                                 <th class="p-3 text-center w-12 hidden md:table-cell" title="Publicado en Discogs"><i class="ph-bold ph-disc text-purple-400"></i></th>
                                 <th class="p-3 text-right w-28">Acciones</th>
@@ -3438,10 +3548,10 @@ const app = {
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
-                                        <button onclick="app.toggleRsdDiscount('${item.sku.replace(/'/g, "\\\\'")}')" 
-                                            class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.is_rsd_discount ? 'bg-orange-100 text-orange-600 shadow-sm border border-orange-200 ring-1 ring-orange-300' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
-                                            title="Descuento RSD 10%">
-                                            <span class="text-[9px] font-black">%</span>
+                                        <button onclick="app.openPrintLabelModal('${item.sku.replace(/'/g, "\\\\'")}')" 
+                                            class="w-7 h-7 rounded-lg transition-all flex items-center justify-center text-slate-200 hover:bg-purple-50 hover:text-purple-600" 
+                                            title="Imprimir Etiqueta">
+                                            <i class="ph-bold ph-printer text-sm"></i>
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell">
@@ -3460,6 +3570,7 @@ const app = {
                                             <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
                                             </a>
+
                                             <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
                                             </a>
@@ -5071,9 +5182,9 @@ const app = {
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Owner</label>
-                                    <select name="owner" class="dashboard-input w-full h-10 bg-white">
+                                    <select name="owner" id="modal-owner" class="dashboard-input w-full h-10 bg-white">
                                         <option value="El Cuartito" ${item.owner === 'El Cuartito' || !item.owner ? 'selected' : ''}>El Cuartito</option>
-                                        <option value="Consignment" ${item.owner === 'Consignment' ? 'selected' : ''}>Consignment</option>
+                                        ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div class="space-y-1">
@@ -6209,128 +6320,906 @@ const app = {
         this.refreshCurrentView();
     },
 
-    openPrintLabelModal(sku) {
-        const item = this.state.inventory.find(i => i.sku === sku);
-        if (!item) return;
+    async openPrintLabelModal(sku) {
+        // Find item in state first for immediate feedback
+        const stateItem = this.state.inventory.find(i => i.sku === sku);
+        if (!stateItem) return;
+
+        // Fetch fresh document from Firestore to get all fields (incl. year) reliably
+        let item = { ...stateItem };
+        try {
+            const snap = await this.findProductBySku(sku);
+            if (snap && snap.data) {
+                // Merge raw Firestore data so no field is lost
+                item = { ...stateItem, ...snap.data };
+            }
+        } catch (e) {
+            console.warn('[printLabel] Could not fetch fresh product data, using state copy', e);
+        }
+
+        // Defensive year display: convert to string, treat 0 as missing
+        const displayYear = item.year && Number(item.year) !== 0 ? String(item.year) : '—';
+
+        const rawPrice = item.price ? Number(item.price).toLocaleString('da-DK') : '—';
 
         const modalHtml = `
-    <div id="print-label-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" >
-                                                        <div class="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-orange-100 overflow-hidden max-h-[90vh] flex flex-col relative">
+<div id="print-label-modal" data-sku="${item.sku}" data-orientation="landscape" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-[92vw] shadow-2xl border border-orange-100 overflow-hidden max-h-[95vh] flex flex-col relative">
 
-                                                            <!-- Header -->
-                                                            <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                                                                <div>
-                                                                    <h2 class="text-2xl font-display font-bold text-brand-dark">Imprimir Etiqueta</h2>
-                                                                    <p class="text-slate-500 text-sm">Configura e imprime la etiqueta para ${item.sku}</p>
-                                                                </div>
-                                                                <button onclick="document.getElementById('print-label-modal').remove()" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
-                                                                    <i class="ph-bold ph-x"></i>
-                                                                </a>
-                                                            </div>
+        <!-- Modal header -->
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <div>
+                <h2 class="text-2xl font-display font-bold text-brand-dark">Imprimir Etiqueta</h2>
+                <p class="text-slate-500 text-sm">Configura e imprime la etiqueta para ${item.album}</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-sm font-bold font-mono">${item.sku}</span>
+                <button onclick="app.closePrintLabelModal()" class="w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+        </div>
 
-                                                            <!-- Body -->
-                                                            <div class="p-8 flex-1 overflow-y-auto">
-                                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                                    <!-- Controls -->
-                                                                    <div class="space-y-6">
-                                                                        <div>
-                                                                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Comentario Personalizado</label>
-                                                                            <textarea id="label-comment" rows="4"
-                                                                                class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-orange focus:ring-4 focus:ring-orange-500/10 outline-none transition-all resize-none text-sm"
-                                                                                placeholder="Escribe un comentario para la etiqueta (ej. Info extra, estado, precio promocional)..."
-                                                                                oninput="document.getElementById('preview-comment').innerText = this.value"></textarea>
-                                                                        </div>
+        <!-- Modal body -->
+        <div class="p-5 flex-1 overflow-hidden">
+            <div class="grid gap-5" style="grid-template-columns: 1fr 1fr auto; height:100%;">
+                <!-- ── Column A: Disc info card + text fields ── -->
+                <div class="space-y-4 overflow-y-auto pr-1">
+                    <!-- Disc info card -->
+                    <div class="bg-slate-50 rounded-xl p-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-slate-200 overflow-hidden shrink-0 shadow-sm">
+                                ${item.cover_image ? `<img src="${item.cover_image}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i class="ph-fill ph-disc text-2xl"></i></div>`}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-brand-dark text-sm truncate">${item.album}</div>
+                                <div class="text-xs text-slate-500">${item.artist}</div>
+                                <div class="flex gap-2 mt-1">
+                                    <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-100">${item.label || 'Sin sello'}</span>
+                                    <span class="text-[10px] font-bold text-brand-orange bg-orange-50 px-2 py-0.5 rounded border border-orange-100">${this.formatCurrency(item.price, false)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                                                                        <div class="bg-blue-50 p-4 rounded-xl flex gap-3 text-blue-700 text-sm">
-                                                                            <i class="ph-fill ph-info text-lg shrink-0"></i>
-                                                                            <p>La etiqueta está diseñada para 7cm x 4cm. Asegúrate de configurar la impresora con estas medidas.</p>
-                                                                        </div>
+                    <!-- ── Editable label fields ── -->
+                    <div class="space-y-2.5">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="ph ph-pencil-simple"></i> Datos de la etiqueta <span class="font-normal normal-case">(solo impresión)</span></p>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-title">Título</label>
+                            <input id="label-edit-title" type="text" value="${item.album || ''}" 
+                                class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm font-bold"
+                                oninput="document.getElementById('preview-title').innerText = this.value || '—'">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-artist">Artista</label>
+                            <input id="label-edit-artist" type="text" value="${item.artist || ''}" 
+                                class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm"
+                                oninput="document.getElementById('preview-artist').innerText = this.value || '—'">
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-genre1">Género 1</label>
+                                <input id="label-edit-genre1" type="text" value="${item.genre || ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm"
+                                    placeholder="Ej: Electronic"
+                                    oninput="(function(v){ var el=document.getElementById('preview-genre-bar'); if(el){ var g2=document.getElementById('label-edit-genre2'); el.innerText=((v||'VINYL')+(g2&&g2.value?' / '+g2.value:'')).toUpperCase();} })(this.value)">
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-genre2">Género 2</label>
+                                <input id="label-edit-genre2" type="text" value="${item.genre2 || ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm"
+                                    placeholder="Ej: Techno"
+                                    oninput="(function(v){ var el=document.getElementById('preview-genre-bar'); if(el){ var g1=document.getElementById('label-edit-genre1'); el.innerText=((g1&&g1.value?g1.value:'VINYL')+(v?' / '+v:'')).toUpperCase();} })(this.value)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                                                                        <button onclick="window.print()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                                                                            <i class="ph-bold ph-printer"></i>
-                                                                            Imprimir
-                                                                        </a>
-                                                                    </div>
+                <!-- ── Column B: Numeric fields + orientation + actions ── -->
+                <div class="space-y-3 overflow-y-auto pr-1">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5"><i class="ph ph-sliders"></i> Opciones</p>
+                    <div class="space-y-2.5">
+                        <div class="flex gap-2">
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-year">Año</label>
+                                <input id="label-edit-year" type="text" value="${displayYear !== '—' ? displayYear : ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm font-mono"
+                                    placeholder="—"
+                                    oninput="(function(v){ var el = document.getElementById('preview-meta-year'); if(el) el.innerText = v || '—'; })(this.value)">
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-price">Precio (DKK)</label>
+                                <input id="label-edit-price" type="number" value="${item.price || ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm font-mono"
+                                    placeholder="—"
+                                    oninput="(function(v){ var el = document.getElementById('preview-price'); if(el) el.innerText = v ? Number(v).toLocaleString('da-DK') : '—'; })(this.value)">
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-cond">Condición</label>
+                                <input id="label-edit-cond" type="text" value="${item.condition || ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm font-mono"
+                                    placeholder="Ej: VG+"
+                                    oninput="(function(v){ var el = document.getElementById('preview-meta-cond'); if(el) el.innerText = v || '—'; })(this.value)">
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1" for="label-edit-loc">Ubicación</label>
+                                <input id="label-edit-loc" type="text" value="${item.storageLocation || ''}" 
+                                    class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all text-sm font-mono"
+                                    placeholder="Ej: A1"
+                                    oninput="(function(v){ var el = document.getElementById('preview-meta-loc'); if(el) el.innerText = v || '—'; })(this.value)">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nota / Descripción</label>
+                            <textarea id="label-comment" rows="2"
+                                class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all resize-none text-sm"
+                                placeholder="Ej: Original pressing..."
+                                oninput="document.getElementById('preview-comment').innerText = this.value"></textarea>
+                        </div>
+                    </div>
 
-                                                                    <!-- Preview Container -->
-                                                                    <div class="flex flex-col items-center justify-center bg-gray-100 rounded-xl p-8 border border-dashed border-gray-300">
-                                                                        <span class="text-xs font-bold text-slate-400 uppercase mb-4">Vista Previa (7cm x 4cm)</span>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Orientación</label>
+                        <div class="flex bg-slate-100 rounded-xl p-1 gap-1">
+                            <button id="orient-h" onclick="app.setLabelOrientation('landscape')"
+                                class="flex-1 py-1.5 bg-white text-brand-dark font-bold rounded-lg text-xs shadow-sm flex items-center justify-center gap-1.5 transition-all">
+                                Horiz. <span class="font-mono text-[9px] text-slate-400">62×40</span>
+                            </button>
+                            <button id="orient-v" onclick="app.setLabelOrientation('portrait')"
+                                class="flex-1 py-1.5 text-slate-500 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all">
+                                Vert. <span class="font-mono text-[9px] text-slate-400">40×62</span>
+                            </button>
+                        </div>
+                    </div>
 
-                                                                        <!-- THE LABEL (Print Target: Template Overlay) -->
-                                                                        <div id="printable-label" class="bg-white relative overflow-hidden"
-                                                                            style="width: 7cm; height: 4cm; box-sizing: border-box; font-family: 'Rockwell', 'Courier New', Courier, serif; color: black; line-height: 1;">
+                    <div class="bg-blue-50 p-3 rounded-xl flex gap-2 text-blue-700 text-xs">
+                        <i class="ph-fill ph-info text-base shrink-0"></i>
+                        <p>Brother QL 62mm. Horiz: 62×40mm · Vert: 40×62mm.</p>
+                    </div>
 
-                                                                            <!-- Background Template Image (Clean) -->
-                                                                            <img src="assets/label_clean.png"
-                                                                                style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;"
-                                                                                alt="Label Template">
+                    <div class="flex gap-2 pt-1">
+                        <button onclick="app.closePrintLabelModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 text-sm">
+                            <i class="ph-bold ph-x"></i> Cancelar
+                        </button>
+                        <button onclick="app.confirmPrintLabel()" class="flex-1 py-2.5 bg-brand-dark text-white font-bold rounded-xl shadow-lg hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 text-sm">
+                            <i class="ph-bold ph-printer"></i> Imprimir
+                        </button>
+                    </div>
+                </div>
 
-                                                                                <!-- Content Layer (Absolute Positioning) -->
-                                                                                <div style="position: relative; z-index: 10; height: 100%; width: 100%;">
+                <!-- ── Column C: Preview ── -->
+                <div class="flex flex-col items-center justify-center bg-[#ede8e3] rounded-xl px-6 py-5 border border-dashed border-gray-300">
+                    <span class="text-xs font-bold text-slate-400 uppercase mb-3">Vista Previa</span>
 
-                                                                                    <!-- Top Main Section -->
-                                                                                    <div style="position: absolute; top: 4mm; left: 4mm; width: calc(100% - 8mm);">
-                                                                                        <div style="font-size: 10pt; font-weight: bold; margin-bottom: 2px; line-height: 1.1; letter-spacing: -0.3px;">${item.album}</div>
-                                                                                        <div style="font-size: 8pt; margin-bottom: 12px; letter-spacing: -0.2px;">${item.artist}</div>
-                                                                                        <div style="font-size: 8pt; color: #444; font-weight: bold; font-style: italic;">${item.genre || ''}</div>
-                                                                                    </div>
+                    <!-- LABEL: scale up 1.5x for screen preview, prints at true 62×40mm -->
+                    <div class="vinyl-label-scaler" style="transform-origin: top left; transform: scale(1.5); margin-bottom: calc(40mm * 0.5); margin-right: calc(62mm * 0.5);">
+                        <div id="printable-label" class="label-b">
+                            <!-- Top black bar -->
+                            <div class="label-b__bar">
+                                <span class="label-b__genre" id="preview-genre-bar">${((item.genre || 'VINYL') + (item.genre2 ? ' / ' + item.genre2 : '')).toUpperCase()}</span>
+                                <div class="label-b__logo-wrap"><img class="label-b__logo" src="logo-broadsheet.png" alt="El Cuartito"></div>
+                            </div>
+                            <!-- Body -->
+                            <div class="label-b__body">
+                                <!-- Left column -->
+                                <div class="label-b__left">
+                                    <div>
+                                        <div class="label-b__title" id="preview-title">${item.album}</div>
+                                        <div class="label-b__artist" id="preview-artist">${item.artist}</div>
+                                        ${item.label ? `<div class="label-b__sello-row"><span class="label-b__sello-key">Label</span><span class="label-b__sello-val">${item.label}</span></div>` : ''}
+                                    </div>
+                                    <div class="label-b__comment-wrap">
+                                        <div class="label-b__comment" id="preview-comment"></div>
+                                    </div>
+                                    <div>
+                                        <div class="label-b__hairline"></div>
+                                        <div class="label-b__meta">
+                                            <span class="label-b__meta-item label-b__meta-item--left"><span class="label-b__meta-key">Loc </span><span class="label-b__meta-mono" id="preview-meta-loc">${item.storageLocation || '—'}</span></span>
+                                            <span class="label-b__meta-item label-b__meta-item--center"><span class="label-b__meta-key">Cond </span><span class="label-b__meta-mono" id="preview-meta-cond">${item.condition || '—'}</span></span>
+                                            <span class="label-b__meta-item label-b__meta-item--right"><span class="label-b__meta-key">Year </span><span class="label-b__meta-mono" id="preview-meta-year">${displayYear}</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Right column -->
+                                <div class="label-b__right">
+                                    <div class="label-b__qr-wrap">
+                                        <div class="label-b__qr" id="qr-container"></div>
+                                        <div class="label-b__sku">${item.sku}</div>
+                                    </div>
+                                    <div class="label-b__price-box">
+                                        <div class="label-b__price" id="preview-price">${rawPrice}</div>
+                                        <div class="label-b__currency">DKK</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                                                                                    <!-- Comment Section -->
-                                                                                    <div style="position: absolute; top: 21mm; left: 4mm; width: calc(100% - 8mm); height: 9mm; display: flex; align-items: start;">
-                                                                                        <p id="preview-comment" style="font-size: 7pt; line-height: 1.4; padding-top: 3px; margin: 0; white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-                                                                                            ${/* Comment injects here */ ''}
-                                                                                        </p>
-                                                                                    </div>
-
-                                                                                    <!-- Footer Section -->
-                                                                                    <div style="position: absolute; bottom: 1.5mm; left: 4mm; width: calc(100% - 8mm);">
-                                                                                        <div style="font-size: 11pt; font-weight: bold; letter-spacing: -0.5px; line-height: 0.9; margin-bottom: 2px;">${item.sku}</div>
-                                                                                        <div style="font-size: 7pt; font-weight: normal; text-transform: uppercase; color: #555; line-height: 1;">${item.storageLocation || 'Sin Ubicación'}</div>
-                                                                                    </div>
-                                                                                </div>
-                                                                        </div>
-
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <!--Injected Print Styles-- >
     <style>
         @media print {
-            @page {
-            size: 7cm 4cm;
-        margin: 0;
-                    }
-        body * {
-            visibility: hidden;
-                    }
-        #printable-label, #printable-label * {
-            visibility: visible;
-                    }
-        #printable-label {
-            position: fixed;
-        left: 0;
-        top: 0;
-        margin: 0;
-        border: none;
-        width: 7cm !important;
-        height: 4cm !important;
-        box-shadow: none;
-        background: white !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-                    }
-        .modal-container, .modal-backdrop {
-            display: none !important;
-                    }
-                }
+            @page { size: 62mm 40mm; margin: 0; }
+            body * { visibility: hidden !important; }
+            .vinyl-label-scaler { transform: none !important; margin: 0 !important; }
+            .label-b, .label-b * { visibility: visible !important; }
+            .label-b {
+                position: fixed !important;
+                top: 0 !important; left: 0 !important;
+                width: 62mm !important; height: 40mm !important;
+                transform: none !important;
+                box-shadow: none !important;
+            }
+        }
+        .label-b {
+            width: 62mm; height: 40mm;
+            background: #fff; color: #000;
+            font-family: 'DM Sans', sans-serif;
+            position: relative; overflow: hidden;
+            box-sizing: border-box;
+            display: flex; flex-direction: column;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            /* Hard-reset ALL inherited spacing & justification from parent page */
+            word-spacing: 0 !important;
+            letter-spacing: 0 !important;
+            text-align: left !important;
+            text-align-last: left !important;
+            text-justify: none !important;
+            font-feature-settings: normal !important;
+        }
+        /* Top black bar */
+        .label-b__bar {
+            height: 5.5mm; background: #000; color: #fff;
+            display: flex; align-items: center;
+            padding: 0 1.6mm; flex-shrink: 0;
+            position: relative;
+        }
+        .label-b__genre {
+            flex: 1;
+            font-size: 2.2mm; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .label-b__logo-wrap {
+            /* Centre logo over the right column (18mm wide) */
+            width: 18mm;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .label-b__logo {
+            height: 3mm; object-fit: contain;
+            filter: brightness(0) invert(1);
+            margin-right: 0;
+        }
+        /* Body */
+        .label-b__body { display: flex; flex: 1; overflow: hidden; }
+        /* Left column */
+        .label-b__left {
+            flex: 1; min-width: 0;
+            padding: 1.1mm 0.95mm 1.6mm 1.6mm;
+            display: flex; flex-direction: column; align-items: flex-start;
+        }
+        .label-b__title {
+            font-size: 3.8mm; font-weight: 800;
+            line-height: 1.1; color: #000;
+            display: block; width: 100%;
+            max-height: calc(3.8mm * 1.1 * 2); overflow: hidden;
+            word-spacing: 0 !important; letter-spacing: -0.01em;
+            word-break: normal; white-space: normal;
+            text-align: left !important; text-align-last: left !important;
+            text-justify: none !important;
+        }
+        .label-b__artist {
+            font-size: 2.4mm; font-weight: 600;
+            color: rgba(0,0,0,0.5); margin-top: 0.5mm;
+            display: block; width: 100%;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            word-spacing: 0 !important;
+            text-align: left !important; text-align-last: left !important;
+            text-justify: none !important;
+        }
+        .label-b__sello-row {
+            display: flex; align-items: baseline; gap: 0.8mm; margin-top: 0.6mm;
+        }
+        .label-b__sello-key {
+            font-size: 1.9mm; font-weight: 700; color: rgba(0,0,0,0.35);
+            text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+        }
+        .label-b__sello-val {
+            font-size: 2.2mm; font-weight: 600; color: #333;
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+        }
+        /* Comment */
+        .label-b__comment-wrap { flex: 1; display: flex; align-items: center; width: 100%; }
+        .label-b__comment {
+            font-size: 2.1mm; font-style: italic; color: rgba(0,0,0,0.4);
+            padding-left: 1.5mm; border-left: 0.5px solid rgba(0,0,0,0.2);
+            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 100%;
+            text-align: left !important; text-align-last: left !important;
+            text-justify: none !important; word-spacing: 0 !important;
+        }
+        /* Hairline + meta */
+        .label-b__hairline { height: 0.5px; background: rgba(0,0,0,0.15); margin-bottom: 0.8mm; }
+        .label-b__meta { display: flex; align-items: baseline; }
+        .label-b__meta-item { flex: 1; font-size: 2mm; color: rgba(0,0,0,0.45); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .label-b__meta-item--left { text-align: left; }
+        .label-b__meta-item--center { text-align: center; }
+        .label-b__meta-item--right { text-align: right; }
+        .label-b__meta-key {
+            font-size: 1.8mm; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .label-b__meta-mono {
+            font-family: 'DM Mono', monospace; font-weight: 700; color: rgba(0,0,0,0.6);
+        }
+        /* Right column */
+        .label-b__right {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: space-between;
+            padding: 1.1mm 1.6mm 1.6mm;
+            border-left: 0.5px solid rgba(0,0,0,0.12);
+            flex-shrink: 0;
+        }
+        .label-b__qr-wrap {
+            display: flex; flex-direction: column; align-items: center; gap: 0.4mm;
+        }
+        .label-b__qr { width: 15mm; height: 15mm; flex-shrink: 0; }
+        .label-b__qr canvas, .label-b__qr img { width: 100% !important; height: 100% !important; display: block; }
+        .label-b__sku {
+            font-size: 1.9mm; font-family: 'DM Mono', monospace;
+            font-weight: 600; color: rgba(0,0,0,0.45);
+            letter-spacing: 0.02em; text-align: center;
+        }
+        /* Price block */
+        .label-b__price-box {
+            background: #000; color: #fff;
+            width: 15mm; height: 12mm;
+            min-width: 15mm; max-width: 15mm;
+            min-height: 12mm; max-height: 12mm;
+            flex-shrink: 0; flex-grow: 0;
+            box-sizing: border-box; overflow: hidden;
+            border-radius: 0.8mm;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center;
+        }
+        .label-b__price {
+            font-size: 5.2mm; font-weight: 800;
+            font-family: 'DM Mono', monospace; line-height: 1; letter-spacing: -0.02em;
+        }
+        .label-b__currency {
+            font-size: 2mm; font-weight: 700;
+            color: #fff; letter-spacing: 0.05em; margin-top: 0.3mm;
+        }
+        .label-b--portrait {
+            width: 40mm !important; height: 62mm !important;
+        }
     </style>
-                                                    </div>
-    `;
+</div>
+`;
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Generate QR code encoding the SKU
+        setTimeout(() => {
+            const qrContainer = document.getElementById('qr-container');
+            if (qrContainer && typeof QRCode !== 'undefined') {
+                qrContainer.innerHTML = '';
+                new QRCode(qrContainer, {
+                    text: item.sku,
+                    width: 57,
+                    height: 57,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            }
+        }, 50);
     },
+
+    closePrintLabelModal() {
+        const modal = document.getElementById('print-label-modal');
+        if (modal) {
+            // Clean up comment input
+            const commentInput = document.getElementById('label-comment');
+            if (commentInput) commentInput.value = '';
+            modal.remove();
+        }
+    },
+
+    setLabelOrientation(o) {
+        const modal = document.getElementById('print-label-modal');
+        if (!modal) return;
+        modal.dataset.orientation = o;
+        const hBtn = document.getElementById('orient-h');
+        const vBtn = document.getElementById('orient-v');
+        const ACTIVE = 'flex-1 py-2 bg-white text-brand-dark font-bold rounded-lg text-sm shadow-sm flex items-center justify-center gap-1.5 transition-all';
+        const INACTIVE = 'flex-1 py-2 text-slate-500 font-bold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-all';
+        if (hBtn) hBtn.className = o === 'landscape' ? ACTIVE : INACTIVE;
+        if (vBtn) vBtn.className = o === 'portrait' ? ACTIVE : INACTIVE;
+        const labelEl = document.getElementById('printable-label');
+        if (labelEl) labelEl.classList.toggle('label-b--portrait', o === 'portrait');
+    },
+
+    async confirmPrintLabel() {
+        const commentInput = document.getElementById('label-comment');
+        const previewComment = document.getElementById('preview-comment');
+        const comment = commentInput ? commentInput.value : '';
+        if (commentInput && previewComment) previewComment.innerText = comment;
+
+        const btn = document.querySelector('#print-label-modal button[onclick="app.confirmPrintLabel()"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Imprimiendo…';
+        }
+
+        try {
+            // Build the label image using direct Canvas 2D drawing
+            // (bypasses html2canvas which has unfixable word-spacing bugs with variable fonts)
+            const modal2 = document.getElementById('print-label-modal');
+            const orientation = modal2 ? (modal2.dataset.orientation || 'landscape') : 'landscape';
+            const canvas = await this._drawLabelCanvas(comment, orientation);
+            const base64 = canvas.toDataURL('image/png').split(',')[1];
+
+            const res = await fetch(`${BASE_API_URL}/api/print-label`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64 }),
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Error desconocido');
+
+            if (btn) {
+                btn.innerHTML = '<i class="ph-bold ph-check"></i> ¡Enviado!';
+                btn.classList.replace('bg-brand-dark', 'bg-green-600');
+            }
+            this.showToast('✅ Etiqueta enviada a la impresora');
+            setTimeout(() => this.closePrintLabelModal(), 1500);
+
+        } catch (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-printer"></i> Imprimir';
+            }
+            this.showToast('Error al imprimir: ' + err.message, 'error');
+        }
+    },
+
+    // Draw the label directly on a Canvas using 2D API — no html2canvas, no CSS word-spacing issues.
+    async _drawLabelCanvas(comment, orientation = 'landscape') {
+        const modal = document.getElementById('print-label-modal');
+        const sku = modal ? modal.dataset.sku : null;
+        const baseItem = sku ? (this.state.inventory.find(i => i.sku === sku) || {}) : {};
+
+        // Override with any values the user edited in the modal fields (label-only, no DB write)
+        const getField = (id, fallback) => { const el = document.getElementById(id); return (el && el.value.trim()) ? el.value.trim() : fallback; };
+        const item = {
+            ...baseItem,
+            album:           getField('label-edit-title',  baseItem.album),
+            artist:          getField('label-edit-artist', baseItem.artist),
+            year:            getField('label-edit-year',   baseItem.year),
+            price:           getField('label-edit-price',  baseItem.price),
+            genre:           getField('label-edit-genre1', baseItem.genre),
+            genre2:          getField('label-edit-genre2', baseItem.genre2),
+            condition:       getField('label-edit-cond',   baseItem.condition),
+            storageLocation: getField('label-edit-loc',    baseItem.storageLocation),
+        };
+
+        const ppm = 300 / 25.4;
+        const isPortrait = orientation === 'portrait';
+        const W = Math.round((isPortrait ? 40 : 62) * ppm);
+        const H = Math.round((isPortrait ? 62 : 40) * ppm);
+
+        const cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext('2d');
+
+        // Canvas word/letter spacing reset (native API, no CSS involved)
+        if ('wordSpacing' in ctx) ctx.wordSpacing = '0px';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+        // ── Background ──────────────────────────────────────────────────
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        // ── Top black bar ────────────────────────────────────────────────
+        const barH = Math.round(5.5 * ppm);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, W, barH);
+
+        // Genre text (genre1 + optional genre2, separated by " / ")
+        const genreSz = Math.round(2.2 * ppm);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `800 ${genreSz}px "DM Sans", Arial, sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        const genreText = ((item.genre || 'VINYL') + (item.genre2 ? ' / ' + item.genre2 : '')).toUpperCase();
+        ctx.fillText(genreText, Math.round(1.6 * ppm), barH / 2);
+
+        // Logo (right side of bar) — load, invert to white, draw
+        try {
+            const logoImg = await new Promise((resolve) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+                img.src = 'logo-broadsheet.png';
+            });
+            if (logoImg) {
+                const logoH = Math.round(3 * ppm);
+                const logoW = Math.round(logoImg.naturalWidth * (logoH / logoImg.naturalHeight));
+                // Draw to temp canvas and invert pixels to white
+                const tmp = document.createElement('canvas');
+                tmp.width = logoImg.naturalWidth; tmp.height = logoImg.naturalHeight;
+                const tc = tmp.getContext('2d');
+                tc.drawImage(logoImg, 0, 0);
+                const id = tc.getImageData(0, 0, tmp.width, tmp.height);
+                const d = id.data;
+                for (let j = 0; j < d.length; j += 4) {
+                    if (d[j + 3] > 0) { d[j] = 255; d[j + 1] = 255; d[j + 2] = 255; }
+                }
+                tc.putImageData(id, 0, 0);
+                // Centre logo horizontally over the right column (rightW = 18mm)
+                const rightWmm = 18;
+                const rightWpx = Math.round(rightWmm * ppm);
+                const logoX = W - rightWpx + Math.round((rightWpx - logoW) / 2);
+                const logoY = (barH - logoH) / 2;
+                ctx.drawImage(tmp, logoX, logoY, logoW, logoH);
+            }
+        } catch(e) { /* logo optional */ }
+
+        if (!isPortrait) {
+        // ── Left column text ──────────────────────────────────────────────
+        const bodyY = barH;
+        const rightW = Math.round(18 * ppm);   // QR + price column width
+        const leftW  = W - rightW;
+        const padL   = Math.round(1.6 * ppm);
+        const padT   = Math.round(1.1 * ppm);
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Album title (bold, up to 2 lines)
+        const titleSz = Math.round(3.8 * ppm);
+        ctx.font = `800 ${titleSz}px "DM Sans", Arial, sans-serif`;
+        ctx.fillStyle = '#000000';
+        const titleMaxW = leftW - padL - Math.round(0.95 * ppm);
+        const titleLines = this._wrapText(ctx, item.album || '', titleMaxW, 2);
+        titleLines.forEach((line, i) => {
+            ctx.fillText(line, padL, bodyY + padT + i * Math.round(titleSz * 1.1));
+        });
+
+        // Artist
+        const artistSz = Math.round(2.4 * ppm);
+        ctx.font = `600 ${artistSz}px "DM Sans", Arial, sans-serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        const artistY = bodyY + padT + (titleLines.length * Math.round(titleSz * 1.1)) + Math.round(0.5 * ppm);
+        const artist = this._truncateText(ctx, item.artist || '', titleMaxW);
+        ctx.fillText(artist, padL, artistY);
+
+        // Track content bottom for comment vertical centering
+        let contentBottomY = artistY + artistSz;
+
+        // Label / Sello
+        if (item.label && item.label !== 'Desconocido') {
+            const selloSz = Math.round(2.2 * ppm);
+            const selloY = contentBottomY + Math.round(0.6 * ppm);
+            ctx.font = `700 ${Math.round(1.9 * ppm)}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillText('LABEL', padL, selloY);
+            ctx.font = `600 ${selloSz}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = '#333333';
+            const selloX = padL + ctx.measureText('LABEL ').width;
+            ctx.fillText(this._truncateText(ctx, item.label, titleMaxW - selloX + padL), selloX, selloY);
+            contentBottomY = selloY + selloSz;
+        }
+
+        // Hairline y position (needed for comment centering)
+        const hairlineY = H - Math.round(5.0 * ppm);
+
+        // Comment — centered vertically in the blank space between content and hairline
+        if (comment) {
+            const commentSz = Math.round(2.1 * ppm);
+            ctx.font = `italic 600 ${commentSz}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            const commentY = contentBottomY + (hairlineY - contentBottomY) / 2;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this._truncateText(ctx, comment, titleMaxW - Math.round(2 * ppm)), padL + Math.round(1.5 * ppm), commentY);
+            ctx.textBaseline = 'top';
+        }
+
+        // Bottom meta row: Loc | Cond | Year — 3 equal invisible columns
+        const metaSz = Math.round(2.0 * ppm);
+        const keySz  = Math.round(1.8 * ppm);
+        const metaY  = H - Math.round(2.5 * ppm);
+        const metaAreaW = leftW - padL - Math.round(0.95 * ppm);
+        const colW = metaAreaW / 3;
+
+        // Hairline above meta
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, hairlineY);
+        ctx.lineTo(leftW - Math.round(0.95 * ppm), hairlineY);
+        ctx.stroke();
+
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+
+        const drawMetaCol = (label, value, colX) => {
+            ctx.font = `700 ${keySz}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.fillText(label + ' ', colX, metaY);
+            const keyW = ctx.measureText(label + ' ').width;
+            ctx.font = `700 ${metaSz}px "DM Mono", "Courier New", monospace`;
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillText(value, colX + keyW, metaY);
+        };
+
+        drawMetaCol('Loc',  item.storageLocation || '—',  padL);
+        drawMetaCol('Cond', item.condition || '—',         padL + colW);
+        drawMetaCol('Year', item.year && Number(item.year) !== 0 ? String(item.year) : '—', padL + colW * 2);
+
+        // ── Right column: QR + Price ──────────────────────────────────────
+        const rightX = leftW;
+
+        // Divider line
+        ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rightX, bodyY);
+        ctx.lineTo(rightX, H);
+        ctx.stroke();
+
+        // QR code: grab the canvas already rendered by QRCode.js
+        const qrContainer = document.getElementById('qr-container');
+        const qrCanvas = qrContainer ? qrContainer.querySelector('canvas') : null;
+        const qrSizeMm = 15;
+        const qrSize = Math.round(qrSizeMm * ppm);
+        const qrX = rightX + Math.round((rightW - qrSize) / 2);
+        const qrY = bodyY + Math.round(1.1 * ppm);
+        if (qrCanvas) {
+            ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+        } else {
+            ctx.strokeStyle = '#ccc';
+            ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+        }
+
+        // SKU text under QR
+        const skuSz = Math.round(1.9 * ppm);
+        ctx.font = `600 ${skuSz}px "DM Mono", "Courier New", monospace`;
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(item.sku || '', rightX + rightW / 2, qrY + qrSize + Math.round(0.4 * ppm));
+
+        // Price box
+        const priceBoxH = Math.round(12 * ppm);
+        const priceBoxW = Math.round(15 * ppm);
+        const priceBoxX = rightX + Math.round((rightW - priceBoxW) / 2);
+        const priceBoxY = H - priceBoxH - Math.round(1.6 * ppm);
+
+        ctx.fillStyle = '#000000';
+        const r = Math.round(0.8 * ppm);
+        ctx.beginPath();
+        ctx.moveTo(priceBoxX + r, priceBoxY);
+        ctx.lineTo(priceBoxX + priceBoxW - r, priceBoxY);
+        ctx.quadraticCurveTo(priceBoxX + priceBoxW, priceBoxY, priceBoxX + priceBoxW, priceBoxY + r);
+        ctx.lineTo(priceBoxX + priceBoxW, priceBoxY + priceBoxH - r);
+        ctx.quadraticCurveTo(priceBoxX + priceBoxW, priceBoxY + priceBoxH, priceBoxX + priceBoxW - r, priceBoxY + priceBoxH);
+        ctx.lineTo(priceBoxX + r, priceBoxY + priceBoxH);
+        ctx.quadraticCurveTo(priceBoxX, priceBoxY + priceBoxH, priceBoxX, priceBoxY + priceBoxH - r);
+        ctx.lineTo(priceBoxX, priceBoxY + r);
+        ctx.quadraticCurveTo(priceBoxX, priceBoxY, priceBoxX + r, priceBoxY);
+        ctx.closePath();
+        ctx.fill();
+
+        const rawPrice = item.price ? Number(item.price).toLocaleString('da-DK') : '—';
+        const priceSz = Math.round(4.8 * ppm);
+        const dkkSz = Math.round(2.0 * ppm);
+        const priceLineH = priceSz * 1.1;
+        const dkkLineH = dkkSz * 1.1;
+        const totalTextH = priceLineH + dkkLineH;
+        const priceTextY = priceBoxY + (priceBoxH - totalTextH) / 2 + priceLineH / 2;
+        const dkkTextY = priceTextY + priceLineH / 2 + dkkLineH / 2;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.font = `800 ${priceSz}px "DM Mono", "Courier New", monospace`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(rawPrice, priceBoxX + priceBoxW / 2, priceTextY);
+
+        const dkkSz2 = Math.round(2.2 * ppm);
+        ctx.font = `700 ${dkkSz2}px "DM Sans", Arial, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('DKK', priceBoxX + priceBoxW / 2, dkkTextY);
+        } else {
+            // ── Portrait body (40mm × 62mm) ────────────────────────────────
+            const padLP = Math.round(1.6 * ppm);
+            const contentWP = W - padLP * 2;
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+
+            // Title
+            const titleSzP = Math.round(3.8 * ppm);
+            ctx.font = `800 ${titleSzP}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = '#000000';
+            const titleLinesP = this._wrapText(ctx, item.album || '', contentWP, 2);
+            let textYP = barH + Math.round(1.1 * ppm);
+            titleLinesP.forEach((line, i) => {
+                ctx.fillText(line, padLP, textYP + i * Math.round(titleSzP * 1.1));
+            });
+            textYP += titleLinesP.length * Math.round(titleSzP * 1.1);
+
+            // Artist
+            const artistSzP = Math.round(2.4 * ppm);
+            ctx.font = `600 ${artistSzP}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            textYP += Math.round(0.5 * ppm);
+            ctx.fillText(this._truncateText(ctx, item.artist || '', contentWP), padLP, textYP);
+            textYP += artistSzP;
+
+            // Label / sello
+            if (item.label && item.label !== 'Desconocido') {
+                const selloSzP = Math.round(2.2 * ppm);
+                textYP += Math.round(0.6 * ppm);
+                ctx.font = `700 ${Math.round(1.9 * ppm)}px "DM Sans", Arial, sans-serif`;
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillText('LABEL', padLP, textYP);
+                const kwP = ctx.measureText('LABEL ').width;
+                ctx.font = `600 ${selloSzP}px "DM Sans", Arial, sans-serif`;
+                ctx.fillStyle = '#333333';
+                ctx.fillText(this._truncateText(ctx, item.label, contentWP - kwP), padLP + kwP, textYP);
+                textYP += selloSzP;
+            }
+
+            // Comment
+            if (comment) {
+                const commentSzP = Math.round(2.1 * ppm);
+                ctx.font = `italic 600 ${commentSzP}px "DM Sans", Arial, sans-serif`;
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this._truncateText(ctx, comment, contentWP - Math.round(3 * ppm)), padLP + Math.round(1.5 * ppm), textYP + Math.round(1.8 * ppm) + commentSzP / 2);
+                ctx.textBaseline = 'top';
+            }
+
+            // Bottom section (price box + meta row, anchored from bottom)
+            const priceBoxHP = Math.round(12 * ppm);
+            const priceBoxWP = Math.round(20 * ppm);
+            const priceBoxXP = Math.round((W - priceBoxWP) / 2);
+            const priceBoxYP = H - priceBoxHP - Math.round(1.6 * ppm);
+            const hairlineYP = priceBoxYP - Math.round(4.5 * ppm);
+            const metaYP = hairlineYP - Math.round(2.2 * ppm);
+
+            // Hairline
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padLP, hairlineYP);
+            ctx.lineTo(W - padLP, hairlineYP);
+            ctx.stroke();
+
+            // Meta row: Loc | Cond | Year
+            const metaSzP = Math.round(2.0 * ppm);
+            const keySzP = Math.round(1.8 * ppm);
+            const colWP = contentWP / 3;
+            ctx.textBaseline = 'middle';
+            const drawMetaP = (lbl, val, colX) => {
+                ctx.textAlign = 'left';
+                ctx.font = `700 ${keySzP}px "DM Sans", Arial, sans-serif`;
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillText(lbl + ' ', colX, metaYP);
+                const kw3 = ctx.measureText(lbl + ' ').width;
+                ctx.font = `700 ${metaSzP}px "DM Mono", "Courier New", monospace`;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillText(val, colX + kw3, metaYP);
+            };
+            drawMetaP('Loc', item.storageLocation || '—', padLP);
+            drawMetaP('Cond', item.condition || '—', padLP + colWP);
+            drawMetaP('Year', item.year && Number(item.year) !== 0 ? String(item.year) : '—', padLP + colWP * 2);
+
+            // QR code (centered between content bottom and bottom section)
+            const qrSzP = Math.round(13 * ppm);
+            const qrXP = Math.round((W - qrSzP) / 2);
+            const skuSzP = Math.round(1.9 * ppm);
+            const qrAreaTop = textYP + Math.round(2.5 * ppm);
+            const qrAreaBot = metaYP - Math.round(skuSzP + Math.round(0.4 * ppm) + 4);
+            const qrYP = qrAreaTop + Math.max(0, Math.round((qrAreaBot - qrAreaTop - qrSzP) / 2));
+
+            const qrContP = document.getElementById('qr-container');
+            const qrCvP = qrContP ? qrContP.querySelector('canvas') : null;
+            if (qrCvP) {
+                ctx.drawImage(qrCvP, qrXP, qrYP, qrSzP, qrSzP);
+            } else {
+                ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+                ctx.strokeRect(qrXP, qrYP, qrSzP, qrSzP);
+            }
+
+            ctx.font = `600 ${skuSzP}px "DM Mono", "Courier New", monospace`;
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(item.sku || '', W / 2, qrYP + qrSzP + Math.round(0.4 * ppm));
+
+            // Price box (rounded rect, centered)
+            ctx.fillStyle = '#000000';
+            const rP = Math.round(0.8 * ppm);
+            ctx.beginPath();
+            ctx.moveTo(priceBoxXP + rP, priceBoxYP);
+            ctx.lineTo(priceBoxXP + priceBoxWP - rP, priceBoxYP);
+            ctx.quadraticCurveTo(priceBoxXP + priceBoxWP, priceBoxYP, priceBoxXP + priceBoxWP, priceBoxYP + rP);
+            ctx.lineTo(priceBoxXP + priceBoxWP, priceBoxYP + priceBoxHP - rP);
+            ctx.quadraticCurveTo(priceBoxXP + priceBoxWP, priceBoxYP + priceBoxHP, priceBoxXP + priceBoxWP - rP, priceBoxYP + priceBoxHP);
+            ctx.lineTo(priceBoxXP + rP, priceBoxYP + priceBoxHP);
+            ctx.quadraticCurveTo(priceBoxXP, priceBoxYP + priceBoxHP, priceBoxXP, priceBoxYP + priceBoxHP - rP);
+            ctx.lineTo(priceBoxXP, priceBoxYP + rP);
+            ctx.quadraticCurveTo(priceBoxXP, priceBoxYP, priceBoxXP + rP, priceBoxYP);
+            ctx.closePath();
+            ctx.fill();
+
+            const rawPriceP = item.price ? Number(item.price).toLocaleString('da-DK') : '—';
+            const priceSzP = Math.round(4.8 * ppm);
+            const dkkSzP2 = Math.round(2.2 * ppm);
+            const priceLineHP = priceSzP * 1.1;
+            const dkkLineHP = dkkSzP2 * 1.1;
+            const priceTextYP = priceBoxYP + (priceBoxHP - priceLineHP - dkkLineHP) / 2 + priceLineHP / 2;
+            const dkkTextYP = priceTextYP + priceLineHP / 2 + dkkLineHP / 2;
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `800 ${priceSzP}px "DM Mono", "Courier New", monospace`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(rawPriceP, priceBoxXP + priceBoxWP / 2, priceTextYP);
+            ctx.font = `700 ${dkkSzP2}px "DM Sans", Arial, sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('DKK', priceBoxXP + priceBoxWP / 2, dkkTextYP);
+        }
+
+        return cv;
+    },
+
+    // Wrap text to maxLines, returns array of strings
+    _wrapText(ctx, text, maxWidth, maxLines) {
+        const words = text.split(' ');
+        const lines = [];
+        let current = '';
+        for (const word of words) {
+            const test = current ? current + ' ' + word : word;
+            if (ctx.measureText(test).width > maxWidth && current) {
+                lines.push(current);
+                current = word;
+                if (lines.length >= maxLines) break;
+            } else {
+                current = test;
+            }
+        }
+        if (current && lines.length < maxLines) lines.push(current);
+        // If last line overflows, truncate with ellipsis
+        if (lines.length > 0) {
+            const last = lines[lines.length - 1];
+            lines[lines.length - 1] = this._truncateText(ctx, last, maxWidth);
+        }
+        return lines;
+    },
+
+    // Truncate text with ellipsis if wider than maxWidth
+    _truncateText(ctx, text, maxWidth) {
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        let truncated = text;
+        while (truncated.length > 1 && ctx.measureText(truncated + '…').width > maxWidth) {
+            truncated = truncated.slice(0, -1);
+        }
+        return truncated + '…';
+    },
+
+
     initFuse() {
         if (typeof Fuse === 'undefined') {
             console.warn('Fuse.js not loaded yet');
@@ -6344,6 +7233,7 @@ const app = {
                 { name: 'label', weight: 0.15 },
                 { name: 'storageLocation', weight: 0.15 },
                 { name: 'sku', weight: 0.1 },
+                { name: 'quickId', weight: 0.1 },
                 { name: 'genre', weight: 0.03 },
                 { name: 'notes', weight: 0.02 }
             ],
@@ -6550,6 +7440,7 @@ const app = {
             label: formData.get('label'),
             collection: collection || null,
             collectionNote: formData.get('collectionNote') || null,
+            year: formData.get('year') ? parseInt(formData.get('year')) : null,
             condition: formData.get('condition'),
             product_condition: formData.get('product_condition') || 'Second-hand',
             provider_origin: formData.get('provider_origin') || 'Local_Used',
@@ -6620,11 +7511,33 @@ const app = {
                 await product.ref.update(recordData);
                 this.showToast('✅ Disco actualizado');
             } else {
-                // Create new with auto-generated ID
+                // Create new with auto-generated quickId (atomic transaction)
                 recordData.created_at = firebase.firestore.FieldValue.serverTimestamp();
-                const docRef = await db.collection('products').add(recordData);
-                productId = docRef.id;
-                this.showToast('✅ Disco agregado al inventario');
+                
+                productId = await db.runTransaction(async (transaction) => {
+                    const counterRef = db.collection('metadata').doc('vinylCounter');
+                    const counterDoc = await transaction.get(counterRef);
+                    
+                    let currentCount = 0;
+                    if (counterDoc.exists) {
+                        currentCount = counterDoc.data().current || 0;
+                    }
+                    
+                    const newCount = currentCount + 1;
+                    const quickId = String(newCount).padStart(4, '0');
+                    
+                    // Update counter
+                    transaction.set(counterRef, { current: newCount }, { merge: true });
+                    
+                    // Create product with quickId
+                    recordData.quickId = quickId;
+                    const newDocRef = db.collection('products').doc();
+                    transaction.set(newDocRef, recordData);
+                    
+                    return newDocRef.id;
+                });
+                
+                this.showToast(`✅ Disco agregado (ID: ${recordData.quickId})`);
             }
 
             // Handle Discogs publishing
@@ -8421,10 +9334,6 @@ const app = {
         placeholder.innerHTML = '<i class="ph-duotone ph-spinner text-4xl text-brand-orange animate-spin mb-2"></i><p class="text-sm text-slate-500">Subiendo...</p>';
 
         try {
-            // Store original file temporarily for OCR
-            this._pendingReceiptFile = file;
-            this._pendingReceiptOriginalName = file.name;
-
             // Get file extension
             const ext = file.name.split('.').pop().toLowerCase();
 
@@ -8475,10 +9384,7 @@ const app = {
                 <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
             `;
 
-            this.showToast('✅ Archivo subido - procesando OCR...');
-
-            // Process OCR after upload (Background process - NO AWAIT)
-            this.processReceiptOCR(url);
+            this.showToast('✅ Archivo subido correctamente');
 
         } catch (error) {
             console.error('Upload error details:', error);

@@ -15,6 +15,7 @@ import invoiceRoutes from './routes/invoiceRoutes';
 import healthRoutes from './routes/health';
 import { stripeWebhookHandler } from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
+import labelPrintRoutes from './routes/labelPrintRoutes';
 
 
 
@@ -45,7 +46,7 @@ app.post('/api/webhook/stripe',
     stripeWebhookHandler
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.use('/records', recordRoutes);
 app.use('/sales', saleRoutes);
@@ -68,6 +69,9 @@ app.use('/upload', uploadRoutes);
 // Invoice routes (Brugtmoms-compliant PDF invoices)
 app.use('/invoices', invoiceRoutes);
 
+
+// Label printing (Brother QL via brother_ql CLI)
+app.use('/api', labelPrintRoutes);
 
 // Health check endpoint
 app.use('/api', healthRoutes);

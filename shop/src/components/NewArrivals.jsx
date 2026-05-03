@@ -109,6 +109,11 @@ const NewArrivals = ({ products }) => {
                                         NM
                                     </div>
                                 )}
+                                {product.is_rsd_discount && (
+                                    <div className="absolute top-2 right-2 md:top-3 md:right-3 z-10 bg-orange-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow-lg shadow-orange-500/30">
+                                        RSD
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-bold text-sm md:text-base text-black group-hover/card:text-accent transition-colors truncate">

@@ -222,8 +222,13 @@ const ProductPage = ({ products = [] }) => {
                                 {product.artist}
                             </h1>
                         </div>
-                        <p className="text-lg sm:text-xl lg:text-2xl font-medium text-black/60">
+                        <p className="text-lg sm:text-xl lg:text-2xl font-medium text-black/60 flex items-center gap-3">
                             {product.album}
+                            {product.is_rsd_discount && (
+                                <span className="inline-flex items-center bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-orange-500/30 animate-pulse">
+                                    RSD -10%
+                                </span>
+                            )}
                         </p>
                         <div className="mt-4 lg:mt-6 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-widest text-black/40">
                             <span>{product.label || 'Indie Label'}</span>
@@ -355,7 +360,14 @@ const ProductPage = ({ products = [] }) => {
                     <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                         <div className="flex flex-col min-w-fit">
                             <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-0.5">Vinyl 12"</span>
-                            <span className="text-base sm:text-lg font-bold">DKK {product.price}</span>
+                            {product.is_rsd_discount ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-black/40 line-through">DKK {product.price}</span>
+                                    <span className="text-base sm:text-lg font-bold text-orange-600">DKK {Math.round(product.price * 0.9)}</span>
+                                </div>
+                            ) : (
+                                <span className="text-base sm:text-lg font-bold">DKK {product.price}</span>
+                            )}
                         </div>
                         {product.stock > 0 ? (
                             <button

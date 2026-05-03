@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>El Cuartito — Label Designer</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <!-- QR via qrserver API -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { font-family: 'DM Sans', sans-serif; background: oklch(93% 0.01 55); color: oklch(18% 0.02 265); -webkit-font-smoothing: antialiased; }
+
+    /* ── Print styles ─────────────────────────────────────────── */
+    @media print {
+      @page {
+        size: 62mm 40mm;
+        margin: 0;
+      }
+      body * { visibility: hidden !important; }
+      #print-label, #print-label * { visibility: visible !important; }
+      #print-label {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 62mm !important; height: 40mm !important;
+        transform: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+
+const ORANGE = '#F05A28';
+
+/* ── Form field component ─────────────────────────────────── */
+function Field({ label, value, onChange, placeholder, mono, small }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: 'oklch(55% 0.01 265)', textTransform: 'uppercase', letterSpacing: 0.7 }}>{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || label}
+        style={{
+          padding: '8px 12px', borderRadius: 8,
+          border: '1.5px solid oklch(88% 0.006 60)',
+          background: '#fff', outline: 'none',
+          fontSize: small ? 13 : 14, fontWeight: 500,
+          fontFamily: mono ? 'DM Mono, monospace' : 'DM Sans, sans-serif',
+          color: 'oklch(18% 0.02 265)',
+          transition: 'border-color 0.15s'
+        }}
+        onFocus={(e) => e.target.style.borderColor = ORANGE}
+        onBlur={(e) => e.target.style.borderColor = 'oklch(88% 0.006 60)'} />
+      
+    </div>);
+
+}
+
+/* ── QR hook — uses qrserver.com API ─────────────────────── */
+function useQR(text) {
+  if (!text) return '';
+  return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=2&data=${encodeURIComponent(text)}`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LABEL COMPONENT — rendered at 62×40mm, scaled for preview
+══════════════════════════════════════════════════════════════ */
+function VinylLabel({ data, qrUrl, scale = 1, mmW = 62, mmH = 40 }) {
+  const { title, artist, sello, genre, genre2, genre3, year, sku, location, condition, price, comment } = data;
+  const genreStr = [genre, genre2, genre3].filter(Boolean).join(' · ');
+
+  const W = mmW * 3.7795;
+  const H = mmH * 3.7795;
+  const P = 7; // padding px (≈1.85mm)
+  const fs = (mm) => mm * 3.7795; // font-size from mm
+
+  return (
+    <div
+      id="print-label"
+      style={{
+        width: W, height: H,
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+        background: '#fff',
+        color: '#000',
+        borderRadius: 4,
+        fontFamily: 'DM Sans, sans-serif',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: scale > 1 ? '0 8px 40px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.08)' : 'none',
+        WebkitFontSmoothing: 'antialiased',
+        flexShrink: 0
+      }}>
+      
+      {/* ── Top row: title + logo ───────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: `${P}px ${P}px ${P * 0.5}px`, gap: 4 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: fs(3.6), fontWeight: 800, lineHeight: 1.15,
+            color: '#111', letterSpacing: -0.3,
+            overflow: 'hidden', display: '-webkit-box',
+            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            wordBreak: 'break-word'
+          }}>{title || 'Album Title'}</div>
+          <div style={{
+            fontSize: fs(2.6), fontWeight: 600, color: 'rgba(0,0,0,0.5)',
+            marginTop: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+          }}>{artist || 'Artista'}</div>
+        </div>
+        {/* Logo */}
+        <img
+          src="shop/src/assets/logo.png"
+          alt="El Cuartito"
+          style={{ height: fs(3.2), objectFit: 'contain', flexShrink: 0, marginTop: 1, filter: 'grayscale(1) contrast(1.4)' }} />
+        
+      </div>
+
+      {/* ── Divider ─────────────────────────────────────────── */}
+      <div style={{ height: 0.5, background: 'rgba(0,0,0,0.12)', margin: `0 ${P}px` }} />
+
+      {/* ── Middle: QR + fields ─────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 6, padding: `${P * 0.6}px ${P}px 0` }}>
+        {/* QR */}
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+          {qrUrl ?
+          <img src={qrUrl} alt="QR" style={{ width: fs(12), height: fs(12), imageRendering: 'pixelated' }} /> :
+
+          <div style={{ width: fs(12), height: fs(12), background: 'oklch(93% 0.006 55)', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: fs(2), color: 'oklch(65% 0.01 265)', fontWeight: 600 }}>QR</span>
+            </div>
+          }
+          <div style={{ fontSize: fs(2), fontFamily: 'DM Mono, monospace', fontWeight: 600, color: 'rgba(0,0,0,0.55)', letterSpacing: 0, textAlign: 'center', lineHeight: 1 }}>
+            {sku || 'SKU'}
+          </div>
+        </div>
+
+        {/* Fields */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* Label + Year on same row */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, minWidth: 0, overflow: 'hidden' }}>
+              <span style={{ fontSize: fs(2.1), fontWeight: 700, color: 'rgba(0,0,0,0.38)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>Label</span>
+              <span style={{ fontSize: fs(2.6), fontWeight: 600, color: '#111', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{sello || '—'}</span>
+            </div>
+            {year && <span style={{ fontSize: fs(2.6), fontWeight: 700, color: '#111', fontFamily: 'DM Mono, monospace', flexShrink: 0, marginLeft: 4 }}>{year}</span>}
+          </div>
+          {/* Genre only */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+            <span style={{ fontSize: fs(2.1), fontWeight: 700, color: 'rgba(0,0,0,0.38)', textTransform: 'uppercase', letterSpacing: 0.3 }}>Genre</span>
+            <span style={{ fontSize: fs(2.6), fontWeight: 600, color: '#111', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{genreStr || '—'}</span>
+          </div>
+          {/* Location */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+            <span style={{ fontSize: fs(2.1), fontWeight: 700, color: 'rgba(0,0,0,0.38)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>Location</span>
+            <span style={{ fontSize: fs(2.6), fontWeight: 600, color: '#111', fontFamily: 'DM Mono, monospace' }}>{location || '—'}</span>
+          </div>
+          {/* Condition */}
+          {condition &&
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+              <span style={{ fontSize: fs(2.1), fontWeight: 700, color: 'rgba(0,0,0,0.38)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>Cond.</span>
+              <span style={{ fontSize: fs(2.6), fontWeight: 700, color: '#111', fontFamily: 'DM Mono, monospace' }}>{condition}</span>
+            </div>
+          }
+          {/* Comment — wraps if long */}
+          {comment &&
+          <>
+              <div style={{ height: 0.5, background: 'rgba(0,0,0,0.12)', margin: `2px 0`, marginRight: P }} />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, minWidth: 0, paddingRight: P + fs(12) }}>
+              <span style={{ fontSize: fs(2.1), fontWeight: 700, color: 'rgba(0,0,0,0.38)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0, paddingTop: 1 }}>Note</span>
+              <span style={{ fontSize: fs(2.3), fontStyle: 'italic', color: 'rgba(0,0,0,0.55)', fontWeight: 500, minWidth: 0, flex: 1, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{comment}</span>
+            </div>
+            </>
+          }
+          {/* Price — absolute, bottom-right */}
+          <div style={{ marginTop: 1 }} />
+          {/* placeholder to keep flex spacing */}
+        </div>
+      </div>
+
+      {/* Divider above price */}
+      <div style={{ position: 'absolute', bottom: P + fs(5.8) + 2, right: P, left: P, height: 0.5, background: 'rgba(0,0,0,0.12)' }} />
+
+      {/* Price — absolute bottom-right */}
+      <div style={{ position: 'absolute', bottom: P, right: P, display: 'flex', alignItems: 'baseline', gap: 2 }}>
+        <span style={{ fontSize: fs(5.8), fontWeight: 800, color: '#000', fontFamily: 'DM Mono, monospace', lineHeight: 1, letterSpacing: -0.5 }}>{price || '0'}</span>
+        <span style={{ fontSize: fs(2.8), fontWeight: 700, color: '#000' }}>DKK</span>
+      </div>
+
+      {/* Black corner accent */}
+      <div style={{
+        position: 'absolute', top: 0, right: 0,
+        width: 0, height: 0,
+        borderTop: `${fs(4)}px solid #000`,
+        borderLeft: `${fs(4)}px solid transparent`,
+        opacity: 0.5
+      }} />
+    </div>);
+
+}
+
+/* ══════════════════════════════════════════════════════════════
+   VARIANT B — "Broadsheet" (Rough Trade editorial style)
+══════════════════════════════════════════════════════════════ */
+function VinylLabelB({ data, qrUrl, scale = 1, mmW = 62, mmH = 40 }) {
+  const { title, artist, sello, genre, genre2, genre3, year, sku, location, condition, price, comment } = data;
+  const genreStr = [genre, genre2, genre3].filter(Boolean).join(' · ');
+  const W = mmW * 3.7795;
+  const H = mmH * 3.7795;
+  const P = 6;
+  const fs = (mm) => mm * 3.7795;
+  const BAR = fs(5.5); // top black bar height
+
+  return (
+    <div id="print-label" style={{
+      width: W, height: H, background: '#fff', color: '#000',
+      fontFamily: 'DM Sans, sans-serif', position: 'relative', overflow: 'hidden',
+      boxShadow: scale > 1 ? '0 8px 40px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.08)' : 'none',
+      WebkitFontSmoothing: 'antialiased', flexShrink: 0
+    }}>
+      {/* ── Top black bar: genre + year + logo ── */}
+      <div style={{ height: BAR, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${P}px` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: fs(1.5) }}>
+          <span style={{ fontSize: fs(2.2), fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: 1.2 }}>{genreStr || 'Genre'}</span>
+        </div>
+        <img src="shop/src/assets/logo.png" alt="El Cuartito" style={{ height: fs(3.0), objectFit: 'contain', filter: 'brightness(0) invert(1)', marginRight: fs(1.5), padding: "0px 4px 0px 0px" }} />
+      </div>
+
+      {/* ── Body ── */}
+      <div style={{ display: 'flex', height: H - BAR, overflow: 'hidden' }}>
+        {/* Left: title + artist / comment (centered) / meta */}
+        <div style={{ flex: 1, padding: `${P * 0.7}px ${P * 0.6}px ${P}px ${P}px`, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Title + Artist + Label */}
+          <div>
+            <div style={{ fontSize: fs(3.8), fontWeight: 800, lineHeight: 1.1, letterSpacing: -0.3, color: '#000', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{title || 'Album Title'}</div>
+            <div style={{ fontSize: fs(2.4), fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginTop: fs(0.5), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{artist || '—'}</div>
+            {sello &&
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: fs(0.6) }}>
+                <span style={{ fontSize: fs(1.9), fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.4, flexShrink: 0 }}>Label</span>
+                <span style={{ fontSize: fs(2.2), fontWeight: 600, color: '#333', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{sello}</span>
+              </div>
+            }
+          </div>
+          {/* Comment — vertically centered in remaining space */}
+          {comment &&
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+              <div style={{ fontSize: fs(2.1), fontStyle: 'italic', color: 'rgba(0,0,0,0.4)', paddingLeft: fs(1.5), borderLeft: `0.5px solid rgba(0,0,0,0.2)`, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{comment}</div>
+            </div>
+          }
+          {!comment && <div style={{ flex: 1 }} />}
+          {/* Hairline + meta row */}
+          <div>
+            <div style={{ height: 0.5, background: 'rgba(0,0,0,0.15)', marginBottom: fs(0.8) }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div style={{ display: 'flex', gap: fs(1.5) }}>
+                {location &&
+                <span style={{ fontSize: fs(2), color: 'rgba(0,0,0,0.45)', fontWeight: 500 }}>
+                    <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: fs(1.8) }}>Loc </span>{location}
+                  </span>
+                }
+              </div>
+{condition &&
+              <span style={{ fontSize: fs(2), color: 'rgba(0,0,0,0.45)', fontWeight: 500, flexShrink: 0 }}>
+                  <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: fs(1.8) }}>Cond </span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, color: 'rgba(0,0,0,0.6)', opacity: "1" }}>{condition}</span>
+                </span>
+              }
+              {year &&
+              <span style={{ fontSize: fs(2), color: 'rgba(0,0,0,0.45)', fontWeight: 500, flexShrink: 0 }}>
+                  <span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: fs(1.8) }}>Year </span>
+                  <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, color: 'rgba(0,0,0,0.6)' }}>{year}</span>
+                </span>
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* Right: QR + SKU + price block (no logo here) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: `${P * 0.7}px ${P}px ${P}px`, borderLeft: '0.5px solid rgba(0,0,0,0.12)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: fs(0.4) }}>
+            {qrUrl ? <img src={qrUrl} alt="QR" style={{ width: fs(15), height: fs(15), imageRendering: 'pixelated' }} /> :
+            <div style={{ width: fs(15), height: fs(15), background: '#eee', borderRadius: 2 }} />}
+            <div style={{ fontSize: fs(1.9), fontFamily: 'DM Mono, monospace', fontWeight: 600, color: 'rgba(0,0,0,0.45)', letterSpacing: 0.2 }}>{sku || 'SKU'}</div>
+          </div>
+          {/* Price block */}
+          <div style={{ background: '#000', color: '#fff', padding: `${fs(0.8)}px ${fs(1.5)}px`, borderRadius: 3, textAlign: 'center' }}>
+            <div style={{ fontSize: fs(5.2), fontWeight: 800, fontFamily: 'DM Mono, monospace', lineHeight: 1, letterSpacing: -0.5 }}>{price || '0'}</div>
+            <div style={{ fontSize: fs(2), fontWeight: 700, color: '#fff', letterSpacing: 0.5, marginTop: 1 }}>DKK</div>
+          </div>
+        </div>
+      </div>
+    </div>);
+
+}
+
+/* ══════════════════════════════════════════════════════════════
+   VARIANT C — "Center Label" (vinyl center label inspired)
+══════════════════════════════════════════════════════════════ */
+function VinylLabelC({ data, qrUrl, scale = 1, mmW = 62, mmH = 40 }) {
+  const { title, artist, sello, genre, genre2, genre3, year, sku, location, condition, price, comment } = data;
+  const genreStr = [genre, genre2, genre3].filter(Boolean).join(' · ');
+  const W = mmW * 3.7795;
+  const H = mmH * 3.7795;
+  const P = 7;
+  const fs = (mm) => mm * 3.7795;
+  const cx = W / 2,cy = H / 2;
+
+  return (
+    <div id="print-label" style={{
+      width: W, height: H, background: '#fff', color: '#000',
+      fontFamily: 'DM Sans, sans-serif', position: 'relative', overflow: 'hidden',
+      boxShadow: scale > 1 ? '0 8px 40px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.08)' : 'none',
+      WebkitFontSmoothing: 'antialiased', flexShrink: 0
+    }}>
+      {/* Decorative vinyl rings — subtle background */}
+      <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} width={W} height={H}>
+        {[H * 0.95, H * 0.72, H * 0.5].map((r, i) =>
+        <circle key={i} cx={cx} cy={cy} r={r / 2} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={0.8} />
+        )}
+        <circle cx={cx} cy={cy} r={H * 0.08} fill="rgba(0,0,0,0.06)" />
+      </svg>
+
+      {/* Left column: QR + SKU */}
+      <div style={{ position: 'absolute', left: P, top: P, bottom: P, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', width: fs(13) }}>
+        {qrUrl ? <img src={qrUrl} alt="QR" style={{ width: fs(13), height: fs(13), imageRendering: 'pixelated' }} /> :
+        <div style={{ width: fs(13), height: fs(13), background: '#eee', borderRadius: 2 }} />}
+        <div style={{ fontSize: fs(1.9), fontFamily: 'DM Mono, monospace', fontWeight: 600, color: 'rgba(0,0,0,0.4)', textAlign: 'center', letterSpacing: 0.2 }}>{sku || 'SKU'}</div>
+      </div>
+
+      {/* Right column: logo + location */}
+      <div style={{ position: 'absolute', right: P, top: P, bottom: P, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', width: fs(13) }}>
+        <img src="shop/src/assets/logo.png" alt="El Cuartito" style={{ height: fs(3.2), objectFit: 'contain', filter: 'grayscale(1) contrast(1.4)' }} />
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: fs(1.8), fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Loc</div>
+          <div style={{ fontSize: fs(2.4), fontWeight: 700, fontFamily: 'DM Mono, monospace', color: '#000' }}>{location || '—'}</div>
+          {condition && <>
+            <div style={{ fontSize: fs(1.8), fontWeight: 700, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: fs(0.5) }}>Cond</div>
+            <div style={{ fontSize: fs(2.4), fontWeight: 700, fontFamily: 'DM Mono, monospace', color: '#000' }}>{condition}</div>
+          </>}
+        </div>
+      </div>
+
+      {/* Center content */}
+      <div style={{ position: 'absolute', left: P + fs(14), right: P + fs(14), top: P, bottom: P, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: fs(0.6) }}>
+        {/* Genre pill */}
+        <div style={{ fontSize: fs(1.8), fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)', border: '0.5px solid rgba(0,0,0,0.2)', padding: `${fs(0.4)}px ${fs(1.5)}px`, borderRadius: 99, lineHeight: 1 }}>{genreStr || 'Genre'}</div>
+
+        {/* Title */}
+        <div style={{ fontSize: fs(4), fontWeight: 800, lineHeight: 1.1, letterSpacing: -0.4, color: '#000', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', wordBreak: 'break-word' }}>{title || 'Album Title'}</div>
+
+        {/* Artist */}
+        <div style={{ fontSize: fs(2.5), fontWeight: 600, color: 'rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{artist || '—'}</div>
+
+        {/* Thin rule */}
+        <div style={{ width: fs(16), height: 0.5, background: 'rgba(0,0,0,0.15)' }} />
+
+        {/* Sello + note */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', maxWidth: '100%', gap: fs(1) }}>
+          <div style={{ fontSize: fs(2), color: 'rgba(0,0,0,0.45)', fontWeight: 500, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1 }}>{sello || '—'}{comment ? ` · ${comment}` : ''}</div>
+          {year && <span style={{ fontSize: fs(2), fontWeight: 700, color: 'rgba(0,0,0,0.55)', fontFamily: 'DM Mono, monospace', flexShrink: 0 }}>{year}</span>}
+        </div>
+
+        {/* Price */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: fs(0.5) }}>
+          <span style={{ fontSize: fs(5.5), fontWeight: 800, fontFamily: 'DM Mono, monospace', letterSpacing: -0.5, lineHeight: 1, color: '#000' }}>{price || '0'}</span>
+          <span style={{ fontSize: fs(2.6), fontWeight: 700, color: '#000' }}>DKK</span>
+        </div>
+      </div>
+    </div>);
+
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════════════════════════ */
+function App() {
+  const [data, setData] = React.useState({
+    title: 'Kind of Blue',
+    artist: 'Miles Davis',
+    sello: 'Columbia',
+    genre: 'Jazz',
+    genre2: '',
+    genre3: '',
+    year: '1959',
+    sku: 'MLJ-001',
+    location: 'A2',
+    condition: 'NM',
+    price: '249',
+    comment: 'Original pressing, excellent condition'
+  });
+
+  const [variant, setVariant] = React.useState('A');
+  const [copied, setCopied] = React.useState(false);
+  const [showPrintModal, setShowPrintModal] = React.useState(false);
+  const [isPrinting, setIsPrinting] = React.useState(false);
+  const [printStatus, setPrintStatus] = React.useState(null); // null | 'success' | 'error'
+  const [printError, setPrintError] = React.useState('');
+  const set = (key) => (val) => setData((prev) => ({ ...prev, [key]: val }));
+
+  const [orientation, setOrientation] = React.useState('landscape');
+  const labelMmW = orientation === 'landscape' ? 62 : 40;
+  const labelMmH = orientation === 'landscape' ? 40 : 62;
+
+  // Generate QR from SKU
+  const qrUrl = useQR(data.sku || 'SKU');
+
+  const LabelComponent = variant === 'B' ? VinylLabelB : variant === 'C' ? VinylLabelC : VinylLabel;
+
+  const SCALE = 3.2;
+  const W_base = labelMmW * 3.7795;
+  const H_base = labelMmH * 3.7795;
+
+  const handleConfirmPrint = async () => {
+    setIsPrinting(true);
+    setPrintStatus(null);
+    setPrintError('');
+    try {
+      const container = document.getElementById('print-label-container');
+      const canvas = await html2canvas(container, {
+        scale: 3.125,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      const base64 = canvas.toDataURL('image/png').split(',')[1];
+      const res = await fetch('http://localhost:3001/api/print-label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64 }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Error desconocido');
+      setPrintStatus('success');
+    } catch (err) {
+      setPrintStatus('error');
+      setPrintError(err.message);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handleClear = () => setData({ title: '', artist: '', sello: '', genre: '', genre2: '', genre3: '', year: '', sku: '', location: '', condition: '', price: '', comment: '' });
+
+  return (
+    <>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div style={{ background: '#fff', borderBottom: '1px solid oklch(90% 0.006 60)', padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src="shop/src/assets/logo.png" alt="El Cuartito" style={{ height: 28, objectFit: 'contain' }} />
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'oklch(18% 0.02 265)' }}>Label Designer</div>
+            <div style={{ fontSize: 12, color: 'oklch(58% 0.01 265)', fontWeight: 500 }}>{labelMmW} × {labelMmH} mm · Brother QL · 300 DPI</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', background: 'oklch(92% 0.008 55)', borderRadius: 8, padding: 3, gap: 2 }}>
+            {[['A', 'Classic'], ['B', 'Broadsheet'], ['C', 'Center Label']].map(([v, label]) =>
+            <button key={v} onClick={() => setVariant(v)} style={{
+              padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: variant === v ? '#fff' : 'transparent',
+              color: variant === v ? 'oklch(18% 0.02 265)' : 'oklch(55% 0.01 265)',
+              fontSize: 12, fontWeight: variant === v ? 700 : 500,
+              fontFamily: 'DM Sans, sans-serif',
+              boxShadow: variant === v ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s'
+            }}>{v} · {label}</button>
+            )}
+          </div>
+          <div style={{ display: 'flex', background: 'oklch(92% 0.008 55)', borderRadius: 8, padding: 3, gap: 2 }}>
+            {[['landscape', 'Horizontal'], ['portrait', 'Vertical']].map(([o, label]) =>
+            <button key={o} onClick={() => setOrientation(o)} style={{
+              padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: orientation === o ? '#fff' : 'transparent',
+              color: orientation === o ? 'oklch(18% 0.02 265)' : 'oklch(55% 0.01 265)',
+              fontSize: 12, fontWeight: orientation === o ? 700 : 500,
+              fontFamily: 'DM Sans, sans-serif',
+              boxShadow: orientation === o ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s'
+            }}>{label}</button>
+            )}
+          </div>
+          <button onClick={() => { setShowPrintModal(true); setPrintStatus(null); setPrintError(''); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: ORANGE, color: '#fff', border: 'none', borderRadius: 10,
+            padding: '10px 20px', cursor: 'pointer', fontSize: 14, fontWeight: 700,
+            fontFamily: 'DM Sans, sans-serif', boxShadow: '0 4px 14px rgba(240,90,40,0.35)'
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
+            Print Label
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main layout ──────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden' }}>
+
+        {/* ── Form panel ─────────────────────────────────────── */}
+        <div style={{ width: 320, background: '#fff', borderRight: '1px solid oklch(90% 0.006 60)', overflowY: 'auto', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          <div style={{ fontSize: 12, fontWeight: 700, color: ORANGE, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Record Details</div>
+
+          <Field label="Title" value={data.title} onChange={set('title')} placeholder="e.g. Kind of Blue" />
+          <Field label="Artist" value={data.artist} onChange={set('artist')} placeholder="e.g. Miles Davis" />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Label" value={data.sello} onChange={set('sello')} placeholder="Columbia" small />
+            <Field label="Genre 1" value={data.genre} onChange={set('genre')} placeholder="Jazz" small />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Genre 2" value={data.genre2} onChange={set('genre2')} placeholder="Soul" small />
+            <Field label="Genre 3" value={data.genre3} onChange={set('genre3')} placeholder="Blues" small />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="Year" value={data.year} onChange={set('year')} placeholder="1959" mono small />
+            <Field label="Location" value={data.location} onChange={set('location')} placeholder="A2" mono small />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Field label="SKU" value={data.sku} onChange={set('sku')} placeholder="MLJ-001" mono small />
+            <Field label="Price (DKK)" value={data.price} onChange={set('price')} placeholder="249" mono small />
+          </div>
+
+          {/* Condition selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'oklch(55% 0.01 265)', textTransform: 'uppercase', letterSpacing: 0.7 }}>Condition</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['M', 'Mint'], ['NM', 'Near Mint'], ['VG+', 'Very Good+'], ['VG', 'Very Good'], ['G', 'Good']].map(([abbr, full]) =>
+              <button key={abbr} onClick={() => set('condition')(abbr)} title={full} style={{
+                flex: 1, padding: '7px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: data.condition === abbr ? 'oklch(18% 0.02 265)' : 'oklch(92% 0.008 55)',
+                color: data.condition === abbr ? '#fff' : 'oklch(45% 0.01 265)',
+                fontSize: 11, fontWeight: 700, fontFamily: 'DM Mono, monospace',
+                transition: 'all 0.15s'
+              }}>{abbr}</button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ paddingTop: 4, borderTop: '1px solid oklch(92% 0.006 60)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: ORANGE, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Note at Print Time</div>
+            <textarea
+              value={data.comment}
+              onChange={(e) => set('comment')(e.target.value)}
+              placeholder="e.g. Original pressing, excellent condition..."
+              rows={3}
+              style={{
+                width: '100%', padding: '8px 12px', borderRadius: 8,
+                border: '1.5px solid oklch(88% 0.006 60)',
+                background: '#fff', outline: 'none', resize: 'vertical',
+                fontSize: 13, fontWeight: 500, fontFamily: 'DM Sans, sans-serif',
+                color: 'oklch(18% 0.02 265)', lineHeight: 1.5
+              }}
+              onFocus={(e) => e.target.style.borderColor = ORANGE}
+              onBlur={(e) => e.target.style.borderColor = 'oklch(88% 0.006 60)'} />
+            
+            <div style={{ fontSize: 11, color: 'oklch(65% 0.01 265)', marginTop: 5, fontWeight: 500 }}>
+              Appears between location and price on the label
+            </div>
+          </div>
+
+          <button onClick={handleClear} style={{
+            background: 'none', border: '1px solid oklch(88% 0.006 60)', borderRadius: 8,
+            padding: '8px', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            color: 'oklch(58% 0.01 265)', fontFamily: 'DM Sans, sans-serif',
+            marginTop: 4
+          }}>Clear fields</button>
+        </div>
+
+        {/* ── Preview panel ──────────────────────────────────── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28, padding: 48, background: 'oklch(93% 0.01 55)', overflowY: 'auto' }}>
+
+          {/* Label badge */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'oklch(55% 0.01 265)', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+              Preview — 3.2× scale
+            </div>
+
+            {/* Scaled label container */}
+            <div style={{ width: W_base * SCALE, height: H_base * SCALE, position: 'relative', borderRadius: 4 * SCALE, overflow: 'hidden' }}>
+              <div style={{ transform: `scale(${SCALE})`, transformOrigin: 'top left', width: W_base, height: H_base }}>
+                <LabelComponent data={data} qrUrl={qrUrl} scale={1} mmW={labelMmW} mmH={labelMmH} />
+              </div>
+            </div>
+
+            {/* Dimensions badge */}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ fontSize: 12, color: 'oklch(58% 0.01 265)', fontWeight: 600, background: '#fff', padding: '5px 12px', borderRadius: 20, border: '1px solid oklch(88% 0.006 60)', fontFamily: 'DM Mono, monospace' }}>
+                {labelMmW} × {labelMmH} mm
+              </div>
+              <div style={{ fontSize: 12, color: 'oklch(58% 0.01 265)', fontWeight: 600, background: '#fff', padding: '5px 12px', borderRadius: 20, border: '1px solid oklch(88% 0.006 60)' }}>
+                Brother QL · 300 DPI
+              </div>
+              {data.sku &&
+              <div style={{ fontSize: 12, color: ORANGE, fontWeight: 700, background: 'oklch(95% 0.055 48)', padding: '5px 12px', borderRadius: 20, border: `1px solid ${ORANGE}40`, fontFamily: 'DM Mono, monospace' }}>
+                  QR: {data.sku}
+                </div>
+              }
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div style={{ maxWidth: 480, background: '#fff', borderRadius: 14, padding: '18px 22px', border: '1px solid oklch(90% 0.006 60)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'oklch(18% 0.02 265)' }}>How to print</div>
+            {[
+            ['1', 'Fill in the fields on the left'],
+            ['2', 'Check the label preview'],
+            ['3', 'Click "Print Label" above'],
+            ['4', 'In the dialog: paper size → 62×40mm, no margins'],
+            ['5', 'In Brother QL: select DK-11209 or custom 62mm roll']].
+            map(([n, txt]) =>
+            <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: ORANGE, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{n}</div>
+                <span style={{ fontSize: 13, color: 'oklch(40% 0.01 265)', fontWeight: 500, lineHeight: 1.5 }}>{txt}</span>
+              </div>
+            )}
+          </div>
+
+          {/* CSS Export */}
+          <div style={{ maxWidth: 480, width: '100%', background: '#fff', borderRadius: 14, padding: '18px 22px', border: '1px solid oklch(90% 0.006 60)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'oklch(18% 0.02 265)' }}>CSS for App Integration</div>
+              <button
+                onClick={() => {navigator.clipboard.writeText(CSS_EXPORT);setCopied(true);setTimeout(() => setCopied(false), 2000);}}
+                style={{ background: copied ? '#22c55e' : ORANGE, color: '#fff', border: 'none', borderRadius: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'DM Sans, sans-serif', transition: 'background 0.2s' }}>
+                {copied ? '✓ Copied!' : 'Copy CSS'}
+              </button>
+            </div>
+            <pre style={{ background: 'oklch(14% 0.02 265)', color: 'oklch(82% 0.008 265)', borderRadius: 8, padding: '12px 14px', fontSize: 10.5, fontFamily: 'DM Mono, monospace', overflowX: 'auto', lineHeight: 1.75, whiteSpace: 'pre', margin: 0, maxHeight: 260, overflowY: 'auto' }}>{CSS_EXPORT}</pre>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    {/* ── Hidden capture container (off-screen, 1× scale for html2canvas) ── */}
+    <div
+      id="print-label-container"
+      style={{ position: 'fixed', left: -9999, top: 0, width: W_base, height: H_base, background: '#fff', overflow: 'hidden' }}
+    >
+      <LabelComponent data={data} qrUrl={qrUrl} scale={1} mmW={labelMmW} mmH={labelMmH} />
+    </div>
+
+    {/* ── Print confirmation modal ─────────────────────────────────────── */}
+    {showPrintModal && (
+      <div style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', zIndex: 1000
+      }} onClick={(e) => { if (e.target === e.currentTarget && !isPrinting) setShowPrintModal(false); }}>
+        <div style={{
+          background: '#fff', borderRadius: 16, padding: '28px 32px', width: 380,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', gap: 20
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'oklch(95% 0.055 48)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth={2.2} strokeLinecap="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'oklch(18% 0.02 265)' }}>Confirmar impresión</div>
+              <div style={{ fontSize: 12, color: 'oklch(58% 0.01 265)', fontWeight: 500 }}>Brother QL-570 · 62 mm</div>
+            </div>
+          </div>
+
+          {/* Label summary */}
+          <div style={{ background: 'oklch(96% 0.008 60)', borderRadius: 10, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'oklch(18% 0.02 265)' }}>{data.title || '(sin título)'}</div>
+            <div style={{ fontSize: 12, color: 'oklch(50% 0.01 265)', fontWeight: 500 }}>{data.artist}{data.sku ? ` · ${data.sku}` : ''}{data.price ? ` · ${data.price} DKK` : ''}</div>
+          </div>
+
+          {/* Status feedback */}
+          {printStatus === 'success' && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#16a34a', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span>✓</span> Etiqueta enviada a la impresora
+            </div>
+          )}
+          {printStatus === 'error' && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#dc2626', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0 }}>✕</span>
+              <span>Error: {printError}</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setShowPrintModal(false)}
+              disabled={isPrinting}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 10, border: '1.5px solid oklch(88% 0.006 60)',
+                background: '#fff', color: 'oklch(40% 0.01 265)', fontSize: 14, fontWeight: 600,
+                fontFamily: 'DM Sans, sans-serif', cursor: isPrinting ? 'not-allowed' : 'pointer',
+                opacity: isPrinting ? 0.5 : 1
+              }}>
+              {printStatus === 'success' ? 'Cerrar' : 'Cancelar'}
+            </button>
+            {printStatus !== 'success' && (
+              <button
+                onClick={handleConfirmPrint}
+                disabled={isPrinting}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                  background: isPrinting ? 'oklch(70% 0.04 48)' : ORANGE,
+                  color: '#fff', fontSize: 14, fontWeight: 700,
+                  fontFamily: 'DM Sans, sans-serif', cursor: isPrinting ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'background 0.15s'
+                }}>
+                {isPrinting
+                  ? <><span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} /> Imprimiendo…</>
+                  : 'Imprimir'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </>
+  );
+
+}
+
+const CSS_EXPORT =
+`/* El Cuartito — Vinyl Label 62x40mm
+ * Thermal printer (black only) · Brother QL
+ * Apply class="vinyl-label" to your label container
+ */
+
+@media print {
+  @page { size: 62mm 40mm; margin: 0; }
+  body * { visibility: hidden !important; }
+  .vinyl-label, .vinyl-label * { visibility: visible !important; }
+  .vinyl-label {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 62mm !important; height: 40mm !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+.vinyl-label {
+  width: 62mm; height: 40mm;
+  background: #fff; color: #000;
+  font-family: 'DM Sans', sans-serif;
+  position: relative; overflow: hidden;
+  padding: 1.85mm; box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Header */
+.vinyl-label__header {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 2mm; margin-bottom: 1mm;
+}
+.vinyl-label__title {
+  font-size: 3.6mm; font-weight: 800;
+  line-height: 1.15; letter-spacing: -0.01em;
+  overflow: hidden; max-height: 8.4mm;
+}
+.vinyl-label__artist {
+  font-size: 2.6mm; font-weight: 600;
+  color: rgba(0,0,0,0.5); margin-top: 0.5mm;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vinyl-label__logo { height: 5.5mm; flex-shrink: 0; }
+
+/* Divider */
+.vinyl-label__divider {
+  height: 0.3mm; background: rgba(0,0,0,0.15); margin-bottom: 1.5mm;
+}
+
+/* Body */
+.vinyl-label__body { display: flex; gap: 1.5mm; }
+
+/* QR */
+.vinyl-label__qr { width: 12mm; height: 12mm; flex-shrink: 0; }
+.vinyl-label__sku {
+  font-size: 2mm; font-family: 'DM Mono', monospace;
+  font-weight: 600; color: rgba(0,0,0,0.55); text-align: center; margin-top: 0.5mm;
+}
+
+/* Fields */
+.vinyl-label__fields {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 0.5mm;
+}
+.vinyl-label__field { display: flex; align-items: baseline; gap: 0.8mm; }
+.vinyl-label__field-label {
+  font-size: 2.1mm; font-weight: 700; color: rgba(0,0,0,0.38);
+  text-transform: uppercase; letter-spacing: 0.08em; flex-shrink: 0;
+}
+.vinyl-label__field-value {
+  font-size: 2.6mm; font-weight: 600; color: #111;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.vinyl-label__field-value--mono { font-family: 'DM Mono', monospace; }
+.vinyl-label__note {
+  font-size: 2.3mm; font-style: italic; color: rgba(0,0,0,0.55);
+  font-weight: 500; overflow: hidden; white-space: nowrap;
+  text-overflow: ellipsis; min-width: 0; flex: 1; padding-right: 1.85mm;
+}
+.vinyl-label__price {
+  font-size: 5.2mm; font-weight: 800; color: #000;
+  font-family: 'DM Mono', monospace; letter-spacing: -0.02em; line-height: 1;
+}
+.vinyl-label__price-unit { font-size: 2.8mm; font-weight: 700; color: rgba(0,0,0,0.5); }
+
+/* Corner accent */
+.vinyl-label__corner {
+  position: absolute; top: 0; right: 0; width: 0; height: 0;
+  border-top: 4mm solid rgba(0,0,0,0.4);
+  border-left: 4mm solid transparent;
+}`;
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+<!-- Thumbnail for bundler -->
+<template id="__bundler_thumbnail" data-bg-color="#F05A28">
+  <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+    <rect width="800" height="500" fill="#F05A28"/>
+    <rect x="120" y="100" width="560" height="300" rx="12" fill="white" opacity="0.95"/>
+    <rect x="148" y="128" width="200" height="16" rx="4" fill="#111" opacity="0.8"/>
+    <rect x="148" y="152" width="140" height="11" rx="3" fill="#999" opacity="0.6"/>
+    <rect x="148" y="180" width="504" height="0.5" fill="#ccc"/>
+    <rect x="148" y="195" width="60" height="60" rx="4" fill="#eee"/>
+    <rect x="220" y="200" width="80" height="8" rx="2" fill="#666" opacity="0.6"/>
+    <rect x="220" y="215" width="60" height="8" rx="2" fill="#666" opacity="0.4"/>
+    <rect x="220" y="230" width="100" height="8" rx="2" fill="#666" opacity="0.4"/>
+    <rect x="220" y="248" width="80" height="18" rx="3" fill="#F05A28" opacity="0.9"/>
+    <rect x="148" y="272" width="504" height="14" rx="3" fill="#F05A28" opacity="0.08"/>
+    <text x="400" y="450" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="28" fill="white" opacity="0.7">ETIQUETAS · EL CUARTITO</text>
+  </svg>
+</template>
+</body>
+</html>

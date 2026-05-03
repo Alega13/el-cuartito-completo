@@ -706,20 +706,32 @@ export const bulkImport = async (req: Request, res: Response) => {
                 const listingId = await discogsService.createListing(releaseId as number, product);
 
                 // 4. Save to Firestore
-                const sku = `DISCOGS-${listingId}`;
-                const existing = await db.collection('products').where('sku', '==', sku).get();
+                const existing = await db.collection('products')
+                    .where('discogs_listing_id', '==', String(listingId))
+                    .limit(1)
+                    .get();
 
                 if (!existing.empty) {
-                    console.log(`⏩ Skipping ${sku} - already exists`);
+                    console.log(`⏩ Skipping listing ${listingId} - already exists`);
                     results.success++; // Count as success since it's already there
                     continue;
                 }
+
+                // Generate next SKU-xxx atomically via counter
+                const skuCounterRef = db.collection('metadata').doc('skuCounter');
+                const newSku = await db.runTransaction(async (txn) => {
+                    const counterDoc = await txn.get(skuCounterRef);
+                    const current = counterDoc.exists ? (counterDoc.data()?.current ?? 703) : 703;
+                    const next = current + 1;
+                    txn.set(skuCounterRef, { current: next }, { merge: true });
+                    return `SKU-${String(next).padStart(3, '0')}`;
+                });
 
                 const primaryImage = release.images?.find((img: any) => img.type === 'primary');
                 const coverImage = primaryImage?.uri || release.images?.[0]?.uri || '';
 
                 await db.collection('products').add({
-                    sku: `DISCOGS-${listingId}`,
+                    sku: newSku,
                     artist: product.artist,
                     album: product.album,
                     price: product.price,

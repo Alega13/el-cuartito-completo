@@ -101,10 +101,11 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                 case 'year-asc':
                     return (a.year || 0) - (b.year || 0);
                 case 'newest':
-                default:
-                    // Assuming 'id' correlates with time or use explicit 'dateAdded' if available
-                    // For now, reverse order of ID if no date
-                    return 0; // Keeping default order (usually newest from backend)
+                default: {
+                    const dateA = a.created_at ? (a.created_at._seconds || a.created_at.seconds || new Date(a.created_at).getTime() / 1000) : 0;
+                    const dateB = b.created_at ? (b.created_at._seconds || b.created_at.seconds || new Date(b.created_at).getTime() / 1000) : 0;
+                    return dateB - dateA;
+                }
             }
         });
     }, [products, searchQuery, localSearch, collectionFilter, selectedFilters, sortOption, fuse]);

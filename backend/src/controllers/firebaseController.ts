@@ -71,7 +71,7 @@ export const createProduct = async (req: Request, res: Response) => {
         const data = req.body;
 
         // Canonicalize names for Firestore
-        const flattedData = {
+        const flattedData: any = {
             ...data,
             is_online: data.is_online ?? data.availableOnline ?? false,
             cover_image: data.cover_image ?? data.coverImage ?? null,
@@ -79,8 +79,31 @@ export const createProduct = async (req: Request, res: Response) => {
             updated_at: admin.firestore.FieldValue.serverTimestamp()
         };
 
-        const docRef = await db.collection('products').add(flattedData);
-        res.status(201).json(normalizeProduct(flattedData, docRef.id));
+        // Atomic quickId generation via transaction
+        const result = await db.runTransaction(async (transaction: admin.firestore.Transaction) => {
+            const counterRef = db.collection('metadata').doc('vinylCounter');
+            const counterDoc = await transaction.get(counterRef);
+
+            let currentCount = 0;
+            if (counterDoc.exists) {
+                currentCount = counterDoc.data()?.current || 0;
+            }
+
+            const newCount = currentCount + 1;
+            const quickId = String(newCount).padStart(4, '0');
+
+            // Update counter
+            transaction.set(counterRef, { current: newCount }, { merge: true });
+
+            // Create product with quickId
+            flattedData.quickId = quickId;
+            const newDocRef = db.collection('products').doc();
+            transaction.set(newDocRef, flattedData);
+
+            return { id: newDocRef.id, quickId };
+        });
+
+        res.status(201).json(normalizeProduct({ ...flattedData, quickId: result.quickId }, result.id));
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
