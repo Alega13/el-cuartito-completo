@@ -2788,13 +2788,24 @@ const app = {
                     );
                     if (!invProduct) return null;
                     if (analysisMode === 'storage') return invProduct.storageLocation || null;
-                    // genre2 holds specific sub-genre (e.g. "Techno"); genre may be a comma-joined
-                    // string from batch Discogs import (e.g. "Electronic, House, Deep House").
-                    // Prefer genre2; otherwise take the second comma-element (first Discogs style).
-                    if (invProduct.genre2) return invProduct.genre2;
-                    if (!invProduct.genre) return null;
-                    const parts = invProduct.genre.split(',').map(s => s.trim()).filter(Boolean);
-                    return parts[1] || parts[0] || null;
+                    const rawGenres = [
+                        invProduct.genre, invProduct.genre2, invProduct.genre3,
+                        invProduct.genre4, invProduct.genre5
+                    ].filter(Boolean);
+                    
+                    const itemGenres = [];
+                    rawGenres.forEach(rg => {
+                        itemGenres.push(...rg.split(',').map(s => s.trim()).filter(Boolean));
+                    });
+
+                    // Clean and unique
+                    const uniqueGenres = [...new Set(itemGenres)];
+
+                    // Electronic omission rule
+                    const nonElectronic = uniqueGenres.filter(g => g.toLowerCase() !== 'electronic');
+                    const effectiveGenres = nonElectronic.length > 0 ? nonElectronic : (uniqueGenres.length > 0 ? uniqueGenres : ['Otros']);
+
+                    return effectiveGenres[0] || null;
                 };
 
                 if (items.length > 0) {
@@ -3591,7 +3602,16 @@ const app = {
 
     renderInventory(container) {
         // Collect unique values for dynamic filters
-        const allGenres = [...new Set(this.state.inventory.map(i => i.genre).filter(Boolean))].sort();
+        const allGenres = [...new Set(this.state.inventory.flatMap(i => {
+            const rawGenres = [i.genre, i.genre2, i.genre3, i.genre4, i.genre5].filter(Boolean);
+            const itemGenres = [];
+            rawGenres.forEach(rg => {
+                itemGenres.push(...rg.split(',').map(s => s.trim()).filter(Boolean));
+            });
+            const uniqueGenres = [...new Set(itemGenres)];
+            const nonElectronic = uniqueGenres.filter(g => g.toLowerCase() !== 'electronic');
+            return nonElectronic.length > 0 ? nonElectronic : (uniqueGenres.length > 0 ? uniqueGenres : ['Otros']);
+        }))].sort();
         const allOwners = [...new Set(this.state.inventory.map(i => i.owner).filter(Boolean))].sort();
         const allLabels = [...new Set(this.state.inventory.map(i => i.label).filter(Boolean))].sort();
         const allStorage = [...new Set(this.state.inventory.map(i => i.storageLocation).filter(Boolean))].sort();
@@ -6639,7 +6659,7 @@ const app = {
         .label-b__comment {
             font-size: 2.1mm; font-style: italic; color: rgba(0,0,0,0.4);
             padding-left: 1.5mm; border-left: 0.5px solid rgba(0,0,0,0.2);
-            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 100%;
+            max-width: 100%; white-space: normal; word-break: break-word;
             text-align: left !important; text-align-last: left !important;
             text-justify: none !important; word-spacing: 0 !important;
         }
@@ -6922,15 +6942,20 @@ const app = {
         // Hairline y position (needed for comment centering)
         const hairlineY = H - Math.round(5.0 * ppm);
 
-        // Comment — centered vertically in the blank space between content and hairline
+        // Comment — wrapped up to 2 lines, centered vertically between content and hairline
         if (comment) {
             const commentSz = Math.round(2.1 * ppm);
             ctx.font = `italic 600 ${commentSz}px "DM Sans", Arial, sans-serif`;
             ctx.fillStyle = 'rgba(0,0,0,0.4)';
-            const commentY = contentBottomY + (hairlineY - contentBottomY) / 2;
-            ctx.textBaseline = 'middle';
-            ctx.fillText(this._truncateText(ctx, comment, titleMaxW - Math.round(2 * ppm)), padL + Math.round(1.5 * ppm), commentY);
             ctx.textBaseline = 'top';
+            const commentMaxW = titleMaxW - Math.round(2 * ppm);
+            const commentLines = this._wrapText(ctx, comment, commentMaxW, 2);
+            const lineH = Math.round(commentSz * 1.35);
+            const totalH = commentLines.length * lineH;
+            const commentStartY = contentBottomY + (hairlineY - contentBottomY - totalH) / 2;
+            commentLines.forEach((line, i) => {
+                ctx.fillText(line, padL + Math.round(1.5 * ppm), commentStartY + i * lineH);
+            });
         }
 
         // Bottom meta row: Loc | Cond | Year — 3 equal invisible columns
@@ -7080,14 +7105,19 @@ const app = {
                 textYP += selloSzP;
             }
 
-            // Comment
+            // Comment — wrapped up to 2 lines
             if (comment) {
                 const commentSzP = Math.round(2.1 * ppm);
                 ctx.font = `italic 600 ${commentSzP}px "DM Sans", Arial, sans-serif`;
                 ctx.fillStyle = 'rgba(0,0,0,0.4)';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(this._truncateText(ctx, comment, contentWP - Math.round(3 * ppm)), padLP + Math.round(1.5 * ppm), textYP + Math.round(1.8 * ppm) + commentSzP / 2);
                 ctx.textBaseline = 'top';
+                const commentMaxWP = contentWP - Math.round(3 * ppm);
+                const commentLinesP = this._wrapText(ctx, comment, commentMaxWP, 2);
+                const lineHP = Math.round(commentSzP * 1.35);
+                const commentStartYP = textYP + Math.round(1.8 * ppm);
+                commentLinesP.forEach((line, i) => {
+                    ctx.fillText(line, padLP + Math.round(1.5 * ppm), commentStartYP + i * lineHP);
+                });
             }
 
             // Bottom section (price box + meta row, anchored from bottom)
@@ -7281,7 +7311,16 @@ const app = {
 
         // 2. Apply static filters
         return results.filter(item => {
-            const matchesGenre = currentGenreFilter === 'all' || item.genre === currentGenreFilter;
+            const rawGenres = [item.genre, item.genre2, item.genre3, item.genre4, item.genre5].filter(Boolean);
+            const itemGenres = [];
+            rawGenres.forEach(rg => {
+                itemGenres.push(...rg.split(',').map(s => s.trim()).filter(Boolean));
+            });
+            const uniqueGenres = [...new Set(itemGenres)];
+            const nonElectronic = uniqueGenres.filter(g => g.toLowerCase() !== 'electronic');
+            const effectiveGenres = nonElectronic.length > 0 ? nonElectronic : (uniqueGenres.length > 0 ? uniqueGenres : ['Otros']);
+
+            const matchesGenre = currentGenreFilter === 'all' || effectiveGenres.includes(currentGenreFilter);
             const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
             const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
             const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
@@ -10110,8 +10149,8 @@ const app = {
                         discogsLink.style.display = 'flex'; // Force display
                     }
 
-                    // Render Genres/Styles
-                    const rawGenres = [...(fullRelease.genres || []), ...(fullRelease.styles || [])];
+                    // Render Styles (up to 3)
+                    const rawGenres = fullRelease.styles || [];
                     const uniqueGenres = [...new Set(rawGenres)];
                     if (tagsContainer) {
                         tagsContainer.innerHTML = uniqueGenres.map(g => `<span class="meta-chip border border-slate-200">${g}</span>`).join('');

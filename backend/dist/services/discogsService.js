@@ -162,7 +162,9 @@ class DiscogsService {
             price: price.value || 0,
             stock: quantity || 1,
             is_online: status === 'For Sale', // Only mark as online if actively for sale
-            genre: [...(release.genres || []), ...(release.styles || [])].join(', '),
+            genre: (release.styles || [])[0] || (release.genres || [])[0],
+            genre2: (release.styles || [])[1],
+            genre3: (release.styles || [])[2],
             condition: normalizedCondition,
             sleeveCondition: listing.sleeve_condition ? this.mapCondition(listing.sleeve_condition) : undefined,
             year: release.year,
