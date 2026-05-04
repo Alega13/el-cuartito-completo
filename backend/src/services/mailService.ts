@@ -2,7 +2,8 @@ import { Resend } from 'resend';
 import config from '../config/env';
 
 const resend = new Resend(config.RESEND_API_KEY);
-const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo.jpg';
+const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo-label.png';
+const DEFAULT_VINYL = 'https://el-cuartito-admin-records.web.app/default-vinyl.png';
 
 // ─── shared template helpers ──────────────────────────────────────────────────
 
@@ -19,10 +20,9 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;color:#fafa
     <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background-color:#ffffff;border:1px solid #ececec;">
 
       <!-- HEADER -->
-      <tr><td align="center" style="padding:48px 32px 32px 32px;">
-        <img src="${LOGO_URL}" alt="El Cuartito Records" width="64" height="64"
-             style="display:block;width:64px;height:64px;border-radius:50%;margin:0 auto 20px auto;"/>
-        <div style="font-size:11px;font-weight:600;letter-spacing:3px;color:#111111;text-transform:uppercase;">El Cuartito Records</div>
+      <tr><td align="center" style="padding:40px 32px 32px 32px;">
+        <img src="${LOGO_URL}" alt="El Cuartito Records" width="180"
+             style="display:block;width:180px;height:auto;margin:0 auto;"/>
       </td></tr>
 
       <!-- DIVIDER -->
@@ -60,7 +60,7 @@ const signature = (line: string) =>
     </td></tr>`;
 
 const itemRow = (item: any, showPrice = false) => {
-    const img = item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png';
+    const img = item.cover_image || item.image || DEFAULT_VINYL;
     const qty = item.quantity || item.qty || 1;
     const price = item.unitPrice || item.priceAtSale || 0;
     const priceCell = showPrice
@@ -130,7 +130,7 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
             } else if (isMixed) {
                 asterisk = ' *';
             }
-            const img = item.cover_image || item.image || 'https://elcuartito.dk/default-vinyl.png';
+            const img = item.cover_image || item.image || DEFAULT_VINYL;
             return `
     <tr>
       <td width="64" style="padding:16px 0;border-top:1px solid #ececec;vertical-align:middle;">
