@@ -1,9 +1,35 @@
 import { Resend } from 'resend';
 import config from '../config/env';
+import { getDb } from '../config/firebaseAdmin';
 
 const resend = new Resend(config.RESEND_API_KEY);
 const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo-label.png';
 const DEFAULT_VINYL = 'https://el-cuartito-admin-records.web.app/default-vinyl.png';
+
+// Enriches items with cover_image from the products collection when missing.
+// Tries productId (direct doc lookup) first, then discogs_listing_id (query).
+async function enrichItemImages(items: any[]): Promise<any[]> {
+    const db = getDb();
+    return Promise.all(items.map(async (item) => {
+        if (item.cover_image) return item;
+        try {
+            let cover_image = '';
+            if (item.productId) {
+                const doc = await db.collection('products').doc(item.productId).get();
+                cover_image = doc.data()?.cover_image || '';
+            }
+            if (!cover_image && item.discogs_listing_id) {
+                const snap = await db.collection('products')
+                    .where('discogs_listing_id', '==', String(item.discogs_listing_id))
+                    .limit(1).get();
+                if (!snap.empty) cover_image = snap.docs[0].data().cover_image || '';
+            }
+            return { ...item, cover_image };
+        } catch {
+            return item;
+        }
+    }));
+}
 
 // ─── shared template helpers ──────────────────────────────────────────────────
 
@@ -95,7 +121,8 @@ export const sendOrderConfirmationEmail = async (orderData: any) => {
         console.log(`✅ [MAIL-SERVICE] API Key detected (Starts with: ${config.RESEND_API_KEY.substring(0, 7)}...)`);
         console.log('📧 Starting sendOrderConfirmationEmail for order:', orderData.orderNumber);
 
-        const { customer, items, orderNumber, total_amount, items_total, shipping_cost } = orderData;
+        const { customer, orderNumber, total_amount, items_total, shipping_cost } = orderData;
+        const items = await enrichItemImages(orderData.items || []);
         const customerEmail = customer?.email;
         const customerName = `${customer?.firstName} ${customer?.lastName}`;
         const customerFirst = customer?.firstName || 'there';
@@ -410,7 +437,7 @@ export const sendPickupReadyEmail = async (orderData: any) => {
 
         const customerEmail = orderData.customer?.email || orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customer?.firstName || orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = await enrichItemImages(orderData.items || []);
         const orderRef = orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : '');
 
         const itemsHtml = items.map((item: any) => itemRow(item)).join('');
@@ -480,7 +507,7 @@ export const sendDiscogsOrderPreparingEmail = async (orderData: any) => {
 
         const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = await enrichItemImages(orderData.items || []);
         const itemsHtml = items.map((item: any) => itemRow(item)).join('');
 
         const html = emailOpen("We're packing your Discogs order — tracking info coming soon.") + `
@@ -535,7 +562,7 @@ export const sendDiscogsShippingNotificationEmail = async (orderData: any, track
 
         const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = await enrichItemImages(orderData.items || []);
         const itemsHtml = items.map((item: any) => itemRow(item)).join('');
         const trackingLink = orderData.tracking_link || '';
         const trackButton = trackingLink

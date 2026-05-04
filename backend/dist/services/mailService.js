@@ -15,9 +15,40 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendSaleNotificationEmail = exports.sendDiscogsShippingNotificationEmail = exports.sendDiscogsOrderPreparingEmail = exports.sendPickupReadyEmail = exports.sendShipOrderEmail = exports.sendShippingNotificationEmail = exports.sendOrderConfirmationEmail = void 0;
 const resend_1 = require("resend");
 const env_1 = __importDefault(require("../config/env"));
+const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const resend = new resend_1.Resend(env_1.default.RESEND_API_KEY);
 const LOGO_URL = 'https://el-cuartito-admin-records.web.app/logo-label.png';
 const DEFAULT_VINYL = 'https://el-cuartito-admin-records.web.app/default-vinyl.png';
+// Enriches items with cover_image from the products collection when missing.
+// Tries productId (direct doc lookup) first, then discogs_listing_id (query).
+function enrichItemImages(items) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const db = (0, firebaseAdmin_1.getDb)();
+        return Promise.all(items.map((item) => __awaiter(this, void 0, void 0, function* () {
+            var _a;
+            if (item.cover_image)
+                return item;
+            try {
+                let cover_image = '';
+                if (item.productId) {
+                    const doc = yield db.collection('products').doc(item.productId).get();
+                    cover_image = ((_a = doc.data()) === null || _a === void 0 ? void 0 : _a.cover_image) || '';
+                }
+                if (!cover_image && item.discogs_listing_id) {
+                    const snap = yield db.collection('products')
+                        .where('discogs_listing_id', '==', String(item.discogs_listing_id))
+                        .limit(1).get();
+                    if (!snap.empty)
+                        cover_image = snap.docs[0].data().cover_image || '';
+                }
+                return Object.assign(Object.assign({}, item), { cover_image });
+            }
+            catch (_b) {
+                return item;
+            }
+        })));
+    });
+}
 // ─── shared template helpers ──────────────────────────────────────────────────
 const emailOpen = (preheader = '') => `<!DOCTYPE html>
 <html lang="en">
@@ -96,7 +127,8 @@ const sendOrderConfirmationEmail = (orderData) => __awaiter(void 0, void 0, void
         }
         console.log(`✅ [MAIL-SERVICE] API Key detected (Starts with: ${env_1.default.RESEND_API_KEY.substring(0, 7)}...)`);
         console.log('📧 Starting sendOrderConfirmationEmail for order:', orderData.orderNumber);
-        const { customer, items, orderNumber, total_amount, items_total, shipping_cost } = orderData;
+        const { customer, orderNumber, total_amount, items_total, shipping_cost } = orderData;
+        const items = yield enrichItemImages(orderData.items || []);
         const customerEmail = customer === null || customer === void 0 ? void 0 : customer.email;
         const customerName = `${customer === null || customer === void 0 ? void 0 : customer.firstName} ${customer === null || customer === void 0 ? void 0 : customer.lastName}`;
         const customerFirst = (customer === null || customer === void 0 ? void 0 : customer.firstName) || 'there';
@@ -394,7 +426,7 @@ const sendPickupReadyEmail = (orderData) => __awaiter(void 0, void 0, void 0, fu
         }
         const customerEmail = ((_a = orderData.customer) === null || _a === void 0 ? void 0 : _a.email) || orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = ((_b = orderData.customer) === null || _b === void 0 ? void 0 : _b.firstName) || orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = yield enrichItemImages(orderData.items || []);
         const orderRef = orderData.orderNumber || (orderData.id ? orderData.id.slice(0, 8) : '');
         const itemsHtml = items.map((item) => itemRow(item)).join('');
         const html = emailOpen('Your order is ready — come by whenever you like!') + `
@@ -459,7 +491,7 @@ const sendDiscogsOrderPreparingEmail = (orderData) => __awaiter(void 0, void 0, 
         }
         const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = yield enrichItemImages(orderData.items || []);
         const itemsHtml = items.map((item) => itemRow(item)).join('');
         const html = emailOpen("We're packing your Discogs order — tracking info coming soon.") + `
 
@@ -511,7 +543,7 @@ const sendDiscogsShippingNotificationEmail = (orderData, trackingNumber) => __aw
         }
         const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email;
         const customerName = orderData.customerName || 'there';
-        const items = orderData.items || [];
+        const items = yield enrichItemImages(orderData.items || []);
         const itemsHtml = items.map((item) => itemRow(item)).join('');
         const trackingLink = orderData.tracking_link || '';
         const trackButton = trackingLink
