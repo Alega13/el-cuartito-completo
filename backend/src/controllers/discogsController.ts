@@ -137,8 +137,12 @@ export const syncInventory = async (req: Request, res: Response) => {
                         await batch.commit();
                         result.salesDetected++;
                     } else {
-                        // No sale detected, just update product data
-                        await db.collection('products').doc(docId).update(productData);
+                        // No Discogs-side sale. Update metadata but NEVER let Discogs raise the
+                        // local stock: local/online sales lower stock first and the Discogs listing
+                        // lags until it's removed, so trusting Discogs here would undo real sales.
+                        // Stock only ever decreases — via this sale-detection branch or local sales.
+                        const { stock, ...metadataOnly } = productData as any;
+                        await db.collection('products').doc(docId).update(metadataOnly);
                     }
 
                     result.updated++;

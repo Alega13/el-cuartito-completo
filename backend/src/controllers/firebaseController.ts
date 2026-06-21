@@ -4,6 +4,7 @@ import * as admin from 'firebase-admin';
 import { calculateSaleVATLiability } from '../services/vatCalculator';
 import { generateInvoice, buildInvoiceFromPOSSale } from '../services/invoiceService';
 import { sendSaleNotificationEmail } from '../services/mailService';
+import { removeDiscogsListings } from '../services/discogsService';
 
 // Types for clarity
 interface ProductData {
@@ -214,8 +215,12 @@ export const createSale = async (req: Request, res: Response) => {
             return normalized;
         });
 
+        // Discogs listings to remove after the sale commits (reset on each tx retry).
+        const discogsListingsToRemove: string[] = [];
+
         const saleId = await db.runTransaction(async (transaction: admin.firestore.Transaction) => {
             let calculatedTotal = 0;
+            discogsListingsToRemove.length = 0;
 
             // 1. Validate all items have enough stock AND calculate total
             for (const item of normalizedItems) {
@@ -242,6 +247,12 @@ export const createSale = async (req: Request, res: Response) => {
                 item.costAtSale = productData.cost || 0; // Store cost for profit calculation
                 item.productCondition = productData.product_condition || 'Second-hand'; // Store for VAT calculation
                 item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
+
+                // If this item is listed on Discogs and now sells out, queue listing removal
+                // so the Discogs inventory sync can't re-inflate its stock.
+                if (productData.discogs_listing_id && currentStock - item.qty <= 0) {
+                    discogsListingsToRemove.push(String(productData.discogs_listing_id));
+                }
 
                 calculatedTotal += price * item.qty;
             }
@@ -286,6 +297,13 @@ export const createSale = async (req: Request, res: Response) => {
         });
 
         res.json({ success: true, saleId });
+
+        // Sync sold-out items to Discogs by removing their listings (non-blocking)
+        if (discogsListingsToRemove.length > 0) {
+            removeDiscogsListings(discogsListingsToRemove).catch(e =>
+                console.error('⚠️ Discogs listing removal failed for POS sale:', e.message)
+            );
+        }
 
         // Generate invoice in background (non-blocking)
         const finalTotal = totalAmount || normalizedItems.reduce((sum: number, i: any) => sum + (i.priceAtSale * i.qty), 0);

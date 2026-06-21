@@ -460,3 +460,25 @@ export class DiscogsService {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
+
+/**
+ * Removes Discogs marketplace listings after a record sells locally/online,
+ * so the inventory sync can no longer re-inflate the sold item's stock and the
+ * item is no longer advertised on Discogs. Best-effort: failures are logged, not thrown.
+ */
+export async function removeDiscogsListings(listingIds: string[]): Promise<void> {
+    const username = process.env.DISCOGS_USERNAME;
+    const token = process.env.DISCOGS_TOKEN;
+    const ids = [...new Set(listingIds.filter(Boolean))];
+    if (!username || !token || ids.length === 0) return;
+
+    const service = new DiscogsService(username, token);
+    for (const id of ids) {
+        try {
+            await service.deleteListing(id);
+            console.log(`🗑️  Removed Discogs listing ${id} after sale`);
+        } catch (e: any) {
+            console.error(`⚠️ Failed to remove Discogs listing ${id} after sale:`, e.message);
+        }
+    }
+}

@@ -6,6 +6,7 @@ import * as admin from 'firebase-admin';
 import { sendOrderConfirmationEmail } from '../services/mailService';
 import { generateInvoice, buildInvoiceFromWebshopSale } from '../services/invoiceService';
 import { sendSaleNotificationEmail } from '../services/mailService';
+import { removeDiscogsListings } from '../services/discogsService';
 
 // Initialize Stripe only if key exists
 const stripe = config.STRIPE_SECRET_KEY && config.STRIPE_SECRET_KEY !== 'sk_test_mock'
@@ -49,8 +50,12 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
             if (saleId) {
                 const db = getDb();
 
+                // Discogs listings to remove after commit (reset on each tx retry).
+                const discogsListingsToRemove: string[] = [];
+
                 // Confirm sale and deduct stock in transaction
                 await db.runTransaction(async (transaction) => {
+                    discogsListingsToRemove.length = 0;
                     const saleRef = db.collection('sales').doc(saleId);
                     const saleDoc = await transaction.get(saleRef);
 
@@ -82,6 +87,12 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                             const productDoc = await transaction.get(productRef);
 
                             if (productDoc.exists) {
+                                const pData = productDoc.data() as any;
+                                // If sold out and listed on Discogs, queue listing removal.
+                                if (pData?.discogs_listing_id && (pData?.stock || 0) - item.quantity <= 0) {
+                                    discogsListingsToRemove.push(String(pData.discogs_listing_id));
+                                }
+
                                 transaction.update(productRef, {
                                     stock: admin.firestore.FieldValue.increment(-item.quantity),
                                     updated_at: admin.firestore.FieldValue.serverTimestamp()
@@ -200,6 +211,13 @@ export const stripeWebhookHandler = async (req: Request, res: Response) => {
                         console.log('Sale not found or already processed:', saleId);
                     }
                 });
+
+                // Sync sold-out items to Discogs by removing their listings (non-blocking)
+                if (discogsListingsToRemove.length > 0) {
+                    removeDiscogsListings(discogsListingsToRemove).catch(e =>
+                        console.error('⚠️ Discogs listing removal failed for online sale:', e.message)
+                    );
+                }
             }
         } else if (event.type === 'payment_intent.payment_failed') {
             const paymentIntent = event.data.object as Stripe.PaymentIntent;
