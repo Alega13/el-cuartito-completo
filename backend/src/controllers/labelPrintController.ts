@@ -21,9 +21,14 @@ export const printLabel = (req: Request, res: Response): void => {
         return;
     }
 
-    const cmd = `brother_ql -b pyusb -m QL-570 -p usb://0x04f9:0x2028 print -l 62 -r 0 "${tmpPath}"`;
+    const brotherQlExe = `"C:\\Users\\Bootleggers Amager\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\brother_ql.exe"`;
+    const cmd = `${brotherQlExe} -b pyusb -m QL-570 -p usb://0x04f9:0x2028 print -l 62 -r 0 "${tmpPath}"`;
 
-    exec(cmd, (error, stdout, stderr) => {
+    // Add libusb DLL directory to PATH so pyusb can find it on Windows
+    const libusbDir = `C:\\Users\\Bootleggers Amager\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\usb1`;
+    const execEnv = { ...process.env, PATH: `${libusbDir};${process.env.PATH || ''}` };
+
+    exec(cmd, { env: execEnv }, (error, stdout, stderr) => {
         try {
             fs.unlinkSync(tmpPath);
         } catch (_) {

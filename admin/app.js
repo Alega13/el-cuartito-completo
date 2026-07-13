@@ -40,6 +40,7 @@ const api = {
                     quantity: item.quantity,
                     price: productData.price,
                     cost: productData.cost || 0,
+                    providerOrigin: productData.provider_origin || 'Local_Used',
                     productCondition: item.productCondition || item.condition || productData.product_condition || productData.condition || 'Used'
                 });
             }
@@ -65,6 +66,7 @@ const api = {
                     unitPrice: item.price,
                     costAtSale: item.cost,
                     qty: item.quantity,
+                    providerOrigin: item.providerOrigin || 'Local_Used',
                     productCondition: item.productCondition || 'Used'
                 }))
             });
@@ -187,6 +189,99 @@ const api = {
 };
 
 const app = {
+    // --- SKU HISTORICAL FIX SCRIPT ---
+    async runSkuFix_v3() {
+        if (localStorage.getItem('sku_fix_run_v3')) return;
+        localStorage.setItem('sku_fix_run_v3', 'true');
+        console.log("🔍 Buscando el SKU histórico más alto absoluto...");
+        
+        try {
+            // 1. Get all products
+            const pSnap = await db.collection('products').get();
+            let maxSku = 0;
+            const skuRe = /^SKU-(\d+)$/;
+            
+            pSnap.docs.forEach(d => {
+                const s = d.data().sku;
+                if (s) {
+                    const m = s.match(skuRe);
+                    if (m) maxSku = Math.max(maxSku, parseInt(m[1]));
+                }
+            });
+            
+            // 2. Get all sales items
+            const sSnap = await db.collection('sales').get();
+            sSnap.docs.forEach(d => {
+                const items = d.data().items || [];
+                items.forEach(item => {
+                    const s = item.sku;
+                    if (s) {
+                        const m = s.match(skuRe);
+                        if (m) maxSku = Math.max(maxSku, parseInt(m[1]));
+                    }
+                });
+            });
+            
+            console.log("✅ El SKU histórico más alto encontrado es:", maxSku);
+            
+            const usedSkus = new Set();
+            // Add all sold SKUs to used
+            sSnap.docs.forEach(d => {
+                (d.data().items || []).forEach(i => {
+                    if (i.sku) usedSkus.add(i.sku);
+                });
+            });
+            
+            const duplicates = [];
+            // Sort products from oldest to newest so older products keep their SKU
+            const products = pSnap.docs.map(d => ({id: d.id, ref: d.ref, data: d.data()}))
+                                       .sort((a,b) => (a.data.created_at?.seconds || 0) - (b.data.created_at?.seconds || 0));
+                                       
+            for (const p of products) {
+                const s = p.data.sku;
+                if (s) {
+                    if (usedSkus.has(s)) {
+                        // Conflict! This SKU is used by a sale or older product
+                        duplicates.push(p);
+                    } else {
+                        usedSkus.add(s);
+                    }
+                }
+            }
+            
+            if (duplicates.length > 0) {
+                console.log(`⚠️ Encontrados ${duplicates.length} productos con SKU en conflicto. Arreglando...`);
+                let count = maxSku;
+                let msg = "";
+                await db.runTransaction(async (t) => {
+                    const cRef = db.collection('metadata').doc('vinylCounter');
+                    for (const p of duplicates) {
+                        count++;
+                        const nSku = `SKU-${String(count).padStart(3, '0')}`;
+                        const qId = String(count).padStart(4, '0');
+                        t.update(p.ref, { sku: nSku, quickId: qId });
+                        msg += `- ${p.data.album} (era ${p.data.sku}) -> ahora es ${nSku}\n`;
+                    }
+                    t.set(cRef, { current: count }, { merge: true });
+                });
+                alert("🛠️ Arreglo histórico completado!\nSe reasignaron los SKUs que chocaban con discos viejos vendidos:\n\n" + msg + "\nPor favor, recarga la página.");
+            } else {
+                // Update counter just in case it's lagging
+                const cRef = db.collection('metadata').doc('vinylCounter');
+                const cDoc = await cRef.get();
+                const current = cDoc.exists ? (cDoc.data().current || 0) : 0;
+                if (maxSku > current) {
+                    await cRef.set({ current: maxSku }, { merge: true });
+                    console.log(`🆙 Contador actualizado a ${maxSku}`);
+                }
+                console.log("✅ No hay conflictos de SKU.");
+            }
+        } catch (e) {
+            console.error("❌ Error en script histórico:", e);
+        }
+    },
+    // ------------------------------------------
+
     state: {
         inventory: [],
         sales: [],
@@ -225,6 +320,7 @@ const app = {
     },
 
     async init() {
+        this.runSkuFix_v3(); // Historical duplicate SKU fix
         if (this._initialized) return;
         this._initialized = true;
 
@@ -2637,11 +2733,11 @@ const app = {
                         const qty = Number(item.qty || item.quantity) || 1;
                         let itemCost = Number(item.costAtSale || item.cost) || 0;
                         const owner = (item.owner || '').toLowerCase();
-                        let condition = item.productCondition || item.condition;
+                        let origin = item.providerOrigin || item.provider_origin;
                         const totalPrice = price * qty;
 
-                        // If cost is 0 or condition is missing, try to find it from the inventory (MATCH VAT REPORT LOGIC)
-                        if (itemCost === 0 || !condition) {
+                        // If cost is 0 or origin is missing, try to find it from the inventory (MATCH VAT REPORT LOGIC)
+                        if (itemCost === 0 || !origin) {
                             const productId = item.productId || item.recordId;
                             const albumName = item.album;
                             const inventoryProduct = this.state.inventory.find(p =>
@@ -2650,13 +2746,13 @@ const app = {
                             );
                             if (inventoryProduct) {
                                 if (itemCost === 0) itemCost = inventoryProduct.cost || 0;
-                                if (!condition) condition = inventoryProduct.product_condition || inventoryProduct.condition || 'Used';
+                                if (!origin) origin = inventoryProduct.provider_origin;
                             }
                         }
-                        if (!condition) condition = 'Used'; // Default to Margin Scheme
+                        if (!origin) origin = 'Local_Used'; // Default to Margin Scheme
 
                         // Calculate VAT based on MOMS TILSVAR logic
-                        if (condition === 'New') {
+                        if (origin === 'EU_B2B' || origin === 'DK_B2B') {
                             totalStandardVat += (totalPrice * 0.20);
                         } else {
                             const margin = totalPrice - (itemCost * qty);
@@ -3430,22 +3526,22 @@ const app = {
                         ${filteredInventory.map(item => `
                             <!-- Item Card -->
                             <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
-                                onclick="app.openProductModal('${item.sku.replace(/'/g, "\\'")}')">
+                                onclick="app.openProductModal('${item.id}')">
                                 <div class="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-4 relative shadow-inner">
                                      ${item.cover_image
                         ? `<img src="${item.cover_image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                         : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-disc text-5xl"></i></div>`
                     }
                                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[2px]">
-                                         <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\'")}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         <button onclick="event.stopPropagation(); app.addToCart('${item.id}', event)" class="w-10 h-10 rounded-full bg-brand-orange text-white flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-shopping-cart text-lg"></i>
-                                         </a>
-                                         <button onclick="event.stopPropagation(); app.openProductModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         </button>
+                                         <button onclick="event.stopPropagation(); app.openProductModal('${item.id}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-eye text-lg"></i>
-                                         </a>
-                                         <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.sku.replace(/'/g, "\\'")}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
+                                         </button>
+                                         <button onclick="event.stopPropagation(); app.openPrintLabelModal('${item.id}')" class="w-10 h-10 rounded-full bg-white text-brand-dark flex items-center justify-center hover:scale-110 transition-transform shadow-xl">
                                             <i class="ph-bold ph-printer text-lg"></i>
-                                         </a>
+                                         </button>
                                      </div>
                                      <div class="absolute top-2 right-2 flex flex-col gap-1 items-end">
                                          ${this.getStatusBadge(item.condition)}
@@ -3474,15 +3570,15 @@ const app = {
                         <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-slide-up">
                             <div class="flex items-center gap-3">
                                 <span class="font-bold text-sm bg-white/10 px-3 py-1 rounded-lg">${this.state.selectedItems.size} seleccionados</span>
-                                <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</a>
+                                <button onclick="app.toggleSelectAll()" class="text-xs text-slate-300 hover:text-white underline">Deseleccionar</button>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick="app.addSelectionToCart()" class="bg-brand-orange text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:scale-105 transition-transform flex items-center gap-2">
                                     <i class="ph-bold ph-shopping-cart"></i> Agregar al Carrito
-                                </a>
+                                </button>
                                 <button onclick="app.deleteSelection()" class="bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg hover:bg-red-600 transition-colors flex items-center gap-2">
                                     <i class="ph-bold ph-trash"></i> Eliminar
-                                </a>
+                                </button>
                             </div>
                         </div>
                     ` : ''}
@@ -3509,12 +3605,12 @@ const app = {
                         </thead>
                         <tbody class="divide-y divide-slate-50">
                             ${filteredInventory.map(item => `
-                                <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.sku) ? 'bg-orange-50/50' : ''}" 
-                                    onclick="app.openProductModal('${item.sku.replace(/'/g, "\\\\'")}')">
+                                <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.id) ? 'bg-orange-50/50' : ''}" 
+                                    onclick="app.openProductModal('${item.id}')">
                                     <td class="p-3" onclick="event.stopPropagation()">
-                                        <input type="checkbox" onchange="app.toggleSelection('${item.sku.replace(/'/g, "\\\\'")}')"
+                                        <input type="checkbox" onchange="app.toggleSelection('${item.id}')"
                                             class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
-                                            ${this.state.selectedItems.has(item.sku) ? 'checked' : ''}>
+                                            ${this.state.selectedItems.has(item.id) ? 'checked' : ''}>
                                     </td>
                                     <td class="p-3">
                                         <div class="flex items-center gap-3">
@@ -3545,21 +3641,21 @@ const app = {
                                         }
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
-                                        <button onclick="app.toggleProductTag('${item.sku.replace(/'/g, "\\\\'")}', 'hero')" 
+                                        <button onclick="app.toggleProductTag('${item.id}', 'hero')" 
                                             class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.tags && item.tags.includes('hero') ? 'bg-amber-50 text-amber-500 shadow-sm border border-amber-100' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
                                             title="Marcar como Destacado">
                                             <i class="ph-fill ph-star text-sm"></i>
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
-                                        <button onclick="app.toggleProductTag('${item.sku.replace(/'/g, "\\\\'")}', 'new_arrival')" 
+                                        <button onclick="app.toggleProductTag('${item.id}', 'new_arrival')" 
                                             class="w-7 h-7 rounded-lg transition-all flex items-center justify-center ${item.tags && item.tags.includes('new_arrival') ? 'bg-blue-50 text-blue-500 shadow-sm border border-blue-100' : 'text-slate-200 hover:bg-slate-50 hover:text-slate-400'}" 
                                             title="Marcar como Novedad">
                                             <i class="ph-fill ph-sketch-logo text-sm"></i>
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
-                                        <button onclick="app.openPrintLabelModal('${item.sku.replace(/'/g, "\\\\'")}')" 
+                                        <button onclick="app.openPrintLabelModal('${item.id}')" 
                                             class="w-7 h-7 rounded-lg transition-all flex items-center justify-center text-slate-200 hover:bg-purple-50 hover:text-purple-600" 
                                             title="Imprimir Etiqueta">
                                             <i class="ph-bold ph-printer text-sm"></i>
@@ -3578,16 +3674,16 @@ const app = {
                                     </td>
                                     <td class="p-3 text-right" onclick="event.stopPropagation()">
                                         <div class="flex justify-end gap-1">
-                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
+                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.id}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
-                                            </a>
+                                            </button>
 
-                                            <button onclick="event.stopPropagation(); app.addToCart('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
+                                            <button onclick="event.stopPropagation(); app.addToCart('${item.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
-                                            </a>
-                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.sku.replace(/'/g, "\\\\'")}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center" title="Eliminar">
+                                            </button>
+                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.id}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center" title="Eliminar">
                                                 <i class="ph-bold ph-trash text-sm"></i>
-                                            </a>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -3664,19 +3760,19 @@ const app = {
                              <div class="flex gap-2">
                                 <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors" title="Historial">
                                     <i class="ph-bold ph-clock-counter-clockwise text-lg"></i>
-                                </a>
+                                </button>
                                 <button onclick="app.openBulkImportModal()" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-emerald-400 hover:text-emerald-600 transition-all" title="Carga Masiva CSV">
                                     <i class="ph-bold ph-file-csv text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Importar</span>
-                                </a>
+                                </button>
                                 <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all" title="Sincronizar con Discogs">
                                     <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Discogs</span>
-                                </a>
+                                </button>
                                 <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
                                     <i class="ph-bold ph-plus text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Nuevo</span>
-                                </a>
+                                </button>
                             </div>
                         </div>
 
@@ -3701,8 +3797,8 @@ const app = {
                         <div class="flex justify-between items-center mb-3">
                             <p class="text-xs font-bold text-slate-400">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
                             <div class="hidden lg:flex items-center gap-2">
-                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></a>
-                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></a>
+                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></button>
+                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></button>
                             </div>
                         </div>
                         <div id="inventory-content-container"></div>
@@ -3782,16 +3878,16 @@ const app = {
                     <span class="text-[10px] font-bold text-slate-400 uppercase mr-1">Antigüedad:</span>
                     <button onclick="app.toggleStockTimeFilter('green')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('green') ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-emerald-200 bg-white text-emerald-500'} hover:scale-110 transition-all" title="0-2 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('green') ? 'bg-white' : 'bg-emerald-500'}"></span>
-                    </a>
+                    </button>
                     <button onclick="app.toggleStockTimeFilter('orange')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('orange') ? 'border-orange-500 bg-orange-500 text-white' : 'border-orange-200 bg-white text-orange-500'} hover:scale-110 transition-all" title="2-4 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('orange') ? 'bg-white' : 'bg-orange-500'}"></span>
-                    </a>
+                    </button>
                     <button onclick="app.toggleStockTimeFilter('red')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('red') ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 bg-white text-red-500'} hover:scale-110 transition-all" title="4-6 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('red') ? 'bg-white' : 'bg-red-500'}"></span>
-                    </a>
+                    </button>
                     <button onclick="app.toggleStockTimeFilter('purple')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('purple') ? 'border-purple-500 bg-purple-500 text-white' : 'border-purple-200 bg-white text-purple-500'} hover:scale-110 transition-all" title="+6 meses">
                         <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('purple') ? 'bg-white' : 'bg-purple-500'}"></span>
-                    </a>
+                    </button>
                 </div>
                 <div class="filter-chip ${this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 'active' : ''}">
                     <i class="ph-bold ph-disc text-xs"></i>
@@ -3812,7 +3908,7 @@ const app = {
                 ${activeFilters > 0 || this.state.filterStockTime.length > 0 ? `
                     <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.state.filterStockTime=[]; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
                         <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters + this.state.filterStockTime.length})
-                    </a>
+                    </button>
                 ` : ''}
             `;
         }
@@ -4746,6 +4842,7 @@ const app = {
                     artist: artist || 'Desconocido',
                     album: album || this.state.manualSaleSearch || 'Venta Manual',
                     sku: sku || 'N/A',
+                    providerOrigin: record?.provider_origin || 'Local_Used',
                     productCondition: record?.product_condition || this.state.posCondition || 'New'
                 }],
                 paymentMethod: paymentMethod,
@@ -4903,7 +5000,7 @@ const app = {
     },
 
     selectSku(sku) {
-        const item = this.state.inventory.find(i => i.sku === sku);
+        const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!item) return;
 
         this.state.posSelectedItemSku = item.sku;
@@ -4954,11 +5051,11 @@ const app = {
 
 
     openAddVinylModal(editSku = null) {
-        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'Local_Used', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'EU_B2B', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
         let isEdit = false;
 
         if (editSku) {
-            const found = this.state.inventory.find(i => i.sku === editSku);
+            const found = this.state.inventory.find(i => i.id === editSku || i.sku === editSku);
             if (found) {
                 item = found;
                 isEdit = true;
@@ -5079,7 +5176,7 @@ const app = {
                                     <div class="space-y-1">
                                         <label class="text-[9px] font-black text-slate-400 uppercase block">Provider Origin</label>
                                         <select name="provider_origin" id="modal-provider-origin" onchange="app.onProviderOriginChange()" class="dashboard-input w-full h-10 bg-white">
-                                            <option value="Local_Used" ${item.provider_origin === 'Local_Used' || !item.provider_origin ? 'selected' : ''}>🏪 Local / Usado</option>
+                                            <option value="Local_Used" ${item.provider_origin === 'Local_Used' || !item.provider_origin ? 'selected' : ''}>🏪 Local</option>
                                             <option value="EU_B2B" ${item.provider_origin === 'EU_B2B' ? 'selected' : ''}>🇪🇺 EU B2B (Factura)</option>
                                             <option value="DK_B2B" ${item.provider_origin === 'DK_B2B' ? 'selected' : ''}>🇩🇰 DK B2B (Factura)</option>
                                         </select>
@@ -5165,13 +5262,7 @@ const app = {
                                         <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
                                     </select>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Condición Prod.</label>
-                                    <select name="product_condition" class="dashboard-input w-full h-10 bg-white">
-                                        <option value="Second-hand" ${item.product_condition === 'Second-hand' || !item.product_condition ? 'selected' : ''}>Usado (Second-hand)</option>
-                                        <option value="New" ${item.product_condition === 'New' ? 'selected' : ''}>Nuevo (New)</option>
-                                    </select>
-                                </div>
+
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Year</label>
                                     <input name="year" value="${item.year || ''}" class="dashboard-input w-full h-10 bg-white">
@@ -5337,7 +5428,7 @@ const app = {
     openProductModal(sku) {
         console.log('Attempting to open modal for:', sku);
         try {
-            const item = this.state.inventory.find(i => i.sku === sku);
+            const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
             if (!item) {
                 console.error('Item not found:', sku);
                 alert('Error: No se encontró el disco. Intenta recargar.');
@@ -5362,7 +5453,7 @@ const app = {
 
                             <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm">
                                 <i class="ph-bold ph-x text-xl"></i>
-                            </a>
+                            </button>
 
                             <div class="absolute bottom-0 left-0 w-full p-6 text-white">
                                 <div class="flex items-center gap-2 mb-2">
@@ -5414,7 +5505,7 @@ const app = {
                                 ${item.provider_origin ? `
                                 <div class="flex justify-between items-center py-2 border-b border-slate-50">
                                     <span class="text-sm text-slate-500 font-medium">Origen Proveedor</span>
-                                    <span class="text-sm font-bold ${item.provider_origin === 'EU_B2B' ? 'text-blue-600' : item.provider_origin === 'DK_B2B' ? 'text-emerald-600' : 'text-brand-dark'}">${item.provider_origin === 'EU_B2B' ? '🇪🇺 EU B2B' : item.provider_origin === 'DK_B2B' ? '🇩🇰 DK B2B' : '🏪 Local / Usado'}</span>
+                                    <span class="text-sm font-bold ${item.provider_origin === 'EU_B2B' ? 'text-blue-600' : item.provider_origin === 'DK_B2B' ? 'text-emerald-600' : 'text-brand-dark'}">${item.provider_origin === 'EU_B2B' ? '🇪🇺 EU B2B' : item.provider_origin === 'DK_B2B' ? '🇩🇰 DK B2B' : '🏪 Local'}</span>
                                 </div>` : ''}
                                 ${item.item_phantom_vat ? `
                                 <div class="flex justify-between items-center py-2 border-b border-slate-50 bg-blue-50/50 -mx-5 px-5 rounded">
@@ -5434,16 +5525,16 @@ const app = {
                             </div>
 
                             <div class="pt-4 flex flex-wrap gap-3">
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.sku}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
+                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.id}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                     Editar
-                                </a>
+                                </button>
                                 <button id="refresh-metadata-btn" onclick="app.refreshProductMetadata('${item.id || item.sku}')" 
                                     class="flex-1 min-w-[120px] bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 border border-emerald-100 text-sm"
                                     title="Actualizar datos desde Discogs">
                                     <i class="ph-bold ph-arrows-clockwise"></i>
                                     Re-sync
-                                </a>
+                                </button>
                                 ${item.discogsUrl
                     ? `<a href="${item.discogsUrl}" target="_blank" class="flex-1 min-w-[120px] bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm">
                                     <i class="ph-bold ph-disc"></i> Discogs
@@ -5454,14 +5545,14 @@ const app = {
                 }
                                 <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
                                     <i class="ph-bold ph-list-numbers"></i> Tracks
-                                </a>
-                                <button onclick="app.addToCart('${item.sku}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
+                                </button>
+                                <button onclick="app.addToCart('${item.id}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
                                     <i class="ph-bold ph-shopping-cart"></i>
                                     Vender
-                                </a>
-                                <button onclick="app.deleteVinyl('${item.sku}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
+                                </button>
+                                <button onclick="app.deleteVinyl('${item.id}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
                                     <i class="ph-bold ph-trash text-xl"></i>
-                                </a>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -5517,19 +5608,15 @@ const app = {
         const dateContainer = document.getElementById('acquisition-date-container');
         const phantomPreview = document.getElementById('phantom-vat-preview');
         const realVatPreview = document.getElementById('real-vat-preview');
-        const conditionSelect = document.querySelector('[name="product_condition"]');
-
         if (origin === 'EU_B2B') {
             dateContainer?.classList.remove('hidden');
             phantomPreview?.classList.remove('hidden');
             realVatPreview?.classList.add('hidden');
-            if (conditionSelect) conditionSelect.value = 'New';
             this.updatePhantomVatPreview();
         } else if (origin === 'DK_B2B') {
             dateContainer?.classList.remove('hidden');
             phantomPreview?.classList.add('hidden');
             realVatPreview?.classList.remove('hidden');
-            if (conditionSelect) conditionSelect.value = 'New';
             this.updatePhantomVatPreview();
         } else {
             dateContainer?.classList.add('hidden');
@@ -5828,7 +5915,7 @@ const app = {
     addToCart(sku, event) {
         if (event) event.stopPropagation();
 
-        const item = this.state.inventory.find(i => i.sku === sku);
+        const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!item) return;
 
         // Stock Check for Cart
@@ -6342,16 +6429,17 @@ const app = {
 
     async openPrintLabelModal(sku) {
         // Find item in state first for immediate feedback
-        const stateItem = this.state.inventory.find(i => i.sku === sku);
+        const stateItem = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!stateItem) return;
 
         // Fetch fresh document from Firestore to get all fields (incl. year) reliably
         let item = { ...stateItem };
         try {
-            const snap = await this.findProductBySku(sku);
-            if (snap && snap.data) {
+            // Use document ID directly instead of querying by SKU field
+            const docSnap = await db.collection('products').doc(stateItem.id).get();
+            if (docSnap.exists) {
                 // Merge raw Firestore data so no field is lost
-                item = { ...stateItem, ...snap.data };
+                item = { ...stateItem, ...docSnap.data() };
             }
         } catch (e) {
             console.warn('[printLabel] Could not fetch fresh product data, using state copy', e);
@@ -6474,7 +6562,7 @@ const app = {
                         </div>
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nota / Descripción</label>
-                            <textarea id="label-comment" rows="2"
+                            <textarea id="label-comment" rows="5"
                                 class="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 focus:border-brand-orange focus:ring-2 focus:ring-orange-500/10 outline-none transition-all resize-none text-sm"
                                 placeholder="Ej: Original pressing..."
                                 oninput="document.getElementById('preview-comment').innerText = this.value"></textarea>
@@ -6655,11 +6743,14 @@ const app = {
             overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
         }
         /* Comment */
-        .label-b__comment-wrap { flex: 1; display: flex; align-items: center; width: 100%; }
+        .label-b__comment-wrap { flex: 1; display: flex; align-items: flex-start; width: 100%; overflow: hidden; padding-top: 0.4mm; }
         .label-b__comment {
             font-size: 2.1mm; font-style: italic; color: rgba(0,0,0,0.4);
             padding-left: 1.5mm; border-left: 0.5px solid rgba(0,0,0,0.2);
             max-width: 100%; white-space: normal; word-break: break-word;
+            line-height: 1.3;
+            max-height: calc(2.1mm * 1.3 * 5); overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
             text-align: left !important; text-align-last: left !important;
             text-justify: none !important; word-spacing: 0 !important;
         }
@@ -6814,7 +6905,7 @@ const app = {
     async _drawLabelCanvas(comment, orientation = 'landscape') {
         const modal = document.getElementById('print-label-modal');
         const sku = modal ? modal.dataset.sku : null;
-        const baseItem = sku ? (this.state.inventory.find(i => i.sku === sku) || {}) : {};
+        const baseItem = sku ? (this.state.inventory.find(i => i.id === sku || i.sku === sku) || {}) : {};
 
         // Override with any values the user edited in the modal fields (label-only, no DB write)
         const getField = (id, fallback) => { const el = document.getElementById(id); return (el && el.value.trim()) ? el.value.trim() : fallback; };
@@ -6949,7 +7040,7 @@ const app = {
             ctx.fillStyle = 'rgba(0,0,0,0.4)';
             ctx.textBaseline = 'top';
             const commentMaxW = titleMaxW - Math.round(2 * ppm);
-            const commentLines = this._wrapText(ctx, comment, commentMaxW, 2);
+            const commentLines = this._wrapText(ctx, comment, commentMaxW, 5);
             const lineH = Math.round(commentSz * 1.35);
             const totalH = commentLines.length * lineH;
             const commentStartY = contentBottomY + (hairlineY - contentBottomY - totalH) / 2;
@@ -7112,7 +7203,7 @@ const app = {
                 ctx.fillStyle = 'rgba(0,0,0,0.4)';
                 ctx.textBaseline = 'top';
                 const commentMaxWP = contentWP - Math.round(3 * ppm);
-                const commentLinesP = this._wrapText(ctx, comment, commentMaxWP, 2);
+                const commentLinesP = this._wrapText(ctx, comment, commentMaxWP, 5);
                 const lineHP = Math.round(commentSzP * 1.35);
                 const commentStartYP = textYP + Math.round(1.8 * ppm);
                 commentLinesP.forEach((line, i) => {
@@ -7357,7 +7448,7 @@ const app = {
 
     addSelectionToCart() {
         this.state.selectedItems.forEach(sku => {
-            const item = this.state.inventory.find(i => i.sku === sku);
+            const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
             if (item && item.stock > 0) {
                 // Simple addToCart logic duplication or loop
                 // Check if already in cart
@@ -7378,7 +7469,7 @@ const app = {
         const itemsToDelete = []; // Track for logging
         this.state.selectedItems.forEach(sku => {
             const ref = db.collection('products').doc(sku);
-            const item = this.state.inventory.find(i => i.sku === sku);
+            const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
             if (item) itemsToDelete.push(item);
             batch.delete(ref);
         });
@@ -7481,7 +7572,7 @@ const app = {
             collectionNote: formData.get('collectionNote') || null,
             year: formData.get('year') ? parseInt(formData.get('year')) : null,
             condition: formData.get('condition'),
-            product_condition: formData.get('product_condition') || 'Second-hand',
+
             provider_origin: formData.get('provider_origin') || 'Local_Used',
             sleeveCondition: formData.get('sleeveCondition') || '',
             comments: formData.get('comments') || '',
@@ -7517,12 +7608,10 @@ const app = {
 
         // Micro-IVA: Calculate VAT fields based on provider origin
         if (recordData.provider_origin === 'EU_B2B') {
-            recordData.product_condition = 'New';
             recordData.item_phantom_vat = Math.round((recordData.cost * 0.25) * 100) / 100;
             recordData.item_real_vat = 0;
             recordData.acquisition_date = formData.get('acquisition_date') || new Date().toISOString().split('T')[0];
         } else if (recordData.provider_origin === 'DK_B2B') {
-            recordData.product_condition = 'New';
             recordData.item_phantom_vat = 0;
             recordData.item_real_vat = Math.round((recordData.cost * 0.25) * 100) / 100;
             recordData.acquisition_date = formData.get('acquisition_date') || new Date().toISOString().split('T')[0];
@@ -7550,6 +7639,13 @@ const app = {
                 await product.ref.update(recordData);
                 this.showToast('✅ Disco actualizado');
             } else {
+                const skuNumbers = this.state.inventory
+                    .map(i => {
+                        const match = (i.sku && typeof i.sku === 'string') ? i.sku.match(/^SKU\s*-\s*(\d+)/) : null;
+                        return match ? parseInt(match[1]) : 0;
+                    });
+                const localMaxSku = Math.max(0, ...skuNumbers);
+
                 // Create new with auto-generated quickId (atomic transaction)
                 recordData.created_at = firebase.firestore.FieldValue.serverTimestamp();
                 
@@ -7562,14 +7658,17 @@ const app = {
                         currentCount = counterDoc.data().current || 0;
                     }
                     
-                    const newCount = currentCount + 1;
+                    // Ensure the new counter is strictly greater than both the DB counter and the local max SKU
+                    const newCount = Math.max(currentCount, localMaxSku) + 1;
                     const quickId = String(newCount).padStart(4, '0');
                     
                     // Update counter
                     transaction.set(counterRef, { current: newCount }, { merge: true });
                     
-                    // Create product with quickId
+                    // Safely assign both quickId and sku inside the atomic transaction
                     recordData.quickId = quickId;
+                    recordData.sku = `SKU-${String(newCount).padStart(3, '0')}`;
+                    
                     const newDocRef = db.collection('products').doc();
                     transaction.set(newDocRef, recordData);
                     
@@ -7646,7 +7745,7 @@ const app = {
 
     async toggleProductTag(sku, tag) {
         try {
-            const product = this.state.inventory.find(i => i.sku === sku);
+            const product = this.state.inventory.find(i => i.id === sku || i.sku === sku);
             if (!product) {
                 this.showToast('❌ Producto no encontrado', 'error');
                 return;
@@ -7659,14 +7758,13 @@ const app = {
                 tags.push(tag);
             }
 
-            // Find doc in Firestore
-            const snapshot = await db.collection('products').where('sku', '==', sku).limit(1).get();
-            if (snapshot.empty) {
+            // Use document ID directly to find the correct Firestore document
+            const docRef = db.collection('products').doc(product.id);
+            const docSnap = await docRef.get();
+            if (!docSnap.exists) {
                 this.showToast('❌ Error: Documento no encontrado', 'error');
                 return;
             }
-
-            const docRef = snapshot.docs[0].ref;
             await docRef.update({ 
                 tags: tags,
                 updated_at: firebase.firestore.FieldValue.serverTimestamp()
@@ -7685,7 +7783,7 @@ const app = {
 
     async toggleRsdDiscount(sku) {
         try {
-            const product = this.state.inventory.find(i => i.sku === sku);
+            const product = this.state.inventory.find(i => i.id === sku || i.sku === sku);
             if (!product) {
                 this.showToast('❌ Producto no encontrado', 'error');
                 return;
@@ -7693,14 +7791,13 @@ const app = {
 
             const newValue = !product.is_rsd_discount;
 
-            // Find doc in Firestore
-            const snapshot = await db.collection('products').where('sku', '==', sku).limit(1).get();
-            if (snapshot.empty) {
+            // Use document ID directly to find the correct Firestore document
+            const docRef = db.collection('products').doc(product.id);
+            const docSnap = await docRef.get();
+            if (!docSnap.exists) {
                 this.showToast('❌ Error: Documento no encontrado', 'error');
                 return;
             }
-
-            const docRef = snapshot.docs[0].ref;
             await docRef.update({ 
                 is_rsd_discount: newValue,
                 updated_at: firebase.firestore.FieldValue.serverTimestamp()
@@ -7718,7 +7815,7 @@ const app = {
     },
 
     deleteVinyl(sku) {
-        const item = this.state.inventory.find(i => i.sku === sku);
+        const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!item) {
             alert('Error: Item not found');
             return;
@@ -7746,7 +7843,7 @@ const app = {
                                                                 <button onclick="document.getElementById('delete-confirm-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                                                     Cancelar
                                                                 </a>
-                                                                <button onclick="app.confirmDelete('${item.sku}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
+                                                                <button onclick="app.confirmDelete('${item.id}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">
                                                                     Eliminar
                                                                 </a>
                                                             </div>
@@ -7767,12 +7864,15 @@ const app = {
         if (productModal) productModal.remove();
 
         try {
-            // Find product by SKU field first
-            const product = await this.findProductBySku(sku);
-            if (!product) {
+            // Find product using document ID directly (sku param may be doc ID or actual SKU)
+            const stateItem = this.state.inventory.find(i => i.id === sku || i.sku === sku);
+            const docId = stateItem ? stateItem.id : sku;
+            const docSnap = await db.collection('products').doc(docId).get();
+            if (!docSnap.exists) {
                 this.showToast('❌ Producto no encontrado', 'error');
                 return;
             }
+            const product = { id: docSnap.id, ref: docSnap.ref, data: docSnap.data() };
 
             console.log('Product to delete:', product.data);
             console.log('Has discogs_listing_id?', product.data.discogs_listing_id);
@@ -7922,7 +8022,7 @@ const app = {
     addToCart(sku, event) {
         if (event) event.stopPropagation();
 
-        const item = this.state.inventory.find(i => i.sku === sku);
+        const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!item) return;
 
         // Check if stock is sufficient
@@ -10073,9 +10173,9 @@ const app = {
         if (!form) return;
 
         // Auto-check Discogs publishing toggle if present
-        if (form.publish_discogs && !form.publish_discogs.checked) {
-            form.publish_discogs.checked = true;
-        }
+        // if (form.publish_discogs && !form.publish_discogs.checked) {
+        //     form.publish_discogs.checked = true;
+        // }
 
         // Set basic info immediately
         if (form.artist) form.artist.value = artist;
@@ -10195,7 +10295,7 @@ const app = {
 
 
     openTracklistModal(sku) {
-        const item = this.state.inventory.find(i => i.sku === sku);
+        const item = this.state.inventory.find(i => i.id === sku || i.sku === sku);
         if (!item) return;
 
         // Try to find Discogs ID
@@ -10906,25 +11006,25 @@ const app = {
                 const productId = item.productId || item.recordId;
                 const albumName = item.album;
 
-                let condition = item.productCondition || item.condition;
+                let origin = item.providerOrigin || item.provider_origin;
 
-                // If cost is 0 or condition missing, try to find it from the inventory
-                if (cost === 0 || !condition) {
+                // If cost is 0 or origin missing, try to find it from the inventory
+                if (cost === 0 || !origin) {
                     const inventoryProduct = this.state.inventory.find(p =>
                         (productId && (p.id === productId || p.sku === productId)) ||
                         (albumName && p.album === albumName)
                     );
                     if (inventoryProduct) {
                         if (cost === 0) cost = inventoryProduct.cost || 0;
-                        if (!condition) condition = inventoryProduct.product_condition || inventoryProduct.condition || 'Second-hand';
+                        if (!origin) origin = inventoryProduct.provider_origin || 'Local_Used';
                     }
                 }
-                if (!condition) condition = 'Second-hand'; // fallback
+                if (!origin) origin = 'Local_Used'; // fallback
                 const qty = item.qty || item.quantity || 1;
                 const totalPrice = price * qty;
                 const totalCost = cost * qty;
 
-                if (condition === 'New') {
+                if (origin === 'EU_B2B' || origin === 'DK_B2B') {
                     // Standard VAT: 25% on full price (extract: price * 0.20)
                     const vat = totalPrice * 0.20;
                     totalStandardVat += vat;
@@ -11543,14 +11643,14 @@ const app = {
                 }
 
                 const qty = item.qty || item.quantity || 1;
-                const condition = item.productCondition || 'Second-hand';
-                const isNew = condition === 'New';
+                const origin = item.providerOrigin || providerOrigin;
+                const isB2B = origin === 'EU_B2B' || origin === 'DK_B2B';
                 const totalPrice = price * qty;
                 const totalCost = cost * qty;
 
                 // Calculation logic
                 let calculationBasis, outputVAT, schemeApplied;
-                if (isNew) {
+                if (isB2B) {
                     calculationBasis = totalPrice;
                     outputVAT = totalPrice * 0.20; // 25% of net -> 20% of gross
                     schemeApplied = 'Standard Rate';

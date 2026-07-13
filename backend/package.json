@@ -11,8 +11,8 @@
         "logs": "pm2 logs el-cuartito-api --lines 100",
         "monit": "pm2 monit",
         "status": "pm2 status",
-        "clean": "rm -rf dist",
-        "build": "npm run clean && tsc && cp -r src/assets dist/"
+        "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('dist')) fs.rmSync('dist', {recursive:true, force:true})\"",
+        "build": "npm run clean && tsc && node -e \"const fs=require('fs'); if(fs.existsSync('src/assets')) fs.cpSync('src/assets', 'dist/assets', {recursive:true})\""
     },
     "keywords": [],
     "author": "",

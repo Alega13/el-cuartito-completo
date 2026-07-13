@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>El Cuartito — Label Printer</title>
+  <style>
+    :root {
+      --bg:      #0d0d0d;
+      --surface: #181818;
+      --border:  #2c2c2c;
+      --red:     #cc1111;
+      --red-h:   #ee2222;
+      --white:   #f0f0f0;
+      --muted:   #505050;
+      --ok:      #22bb66;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+      padding: 28px 32px 48px;
+      max-width: 860px;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+    }
+    .header-left {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+    .header-title {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+    .header-sub {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* ── TOGGLE NEW ARRIVALS ── */
+    .toggle-btn {
+      background: var(--bg);
+      border: 1px solid var(--muted);
+      color: var(--muted);
+      padding: 8px 14px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+    .toggle-btn.active {
+      background: var(--white);
+      color: var(--bg);
+      border-color: var(--white);
+    }
+
+    /* ── SECTION LABEL ── */
+    .section {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* ── GENRE GRID ── */
+    .genre-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 5px;
+      margin-bottom: 30px;
+    }
+    .genre-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 12px 6px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 80ms, background 80ms, color 80ms;
+      line-height: 1;
+    }
+    .genre-btn:hover { border-color: var(--white); }
+    .genre-btn.active {
+      background: var(--white);
+      color: var(--bg);
+      border-color: var(--white);
+    }
+
+    /* ── CUSTOM INPUT ── */
+    .custom-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 30px;
+    }
+    .custom-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 80ms;
+    }
+    .custom-input::placeholder { color: var(--muted); font-weight: 400; letter-spacing: 1px; }
+    .custom-input:focus { border-color: var(--white); }
+    .small-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 12px 18px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 80ms;
+      white-space: nowrap;
+    }
+    .small-btn:hover { border-color: var(--white); }
+
+    /* ── PREVIEW ── */
+    .preview-area {
+      margin-bottom: 28px;
+    }
+    .preview-placeholder {
+      height: 100px;
+      border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 9px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+    .preview-img {
+      display: none;
+      width: 100%;
+      border: 1px solid var(--border);
+      opacity: 0;
+      transition: opacity 180ms;
+      image-rendering: -webkit-optimize-contrast;
+    }
+    .preview-img.show {
+      display: block;
+      opacity: 1;
+    }
+    .preview-label {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 7px;
+    }
+
+    /* ── PRINT BUTTON ── */
+    .print-btn {
+      display: block;
+      width: 100%;
+      background: var(--red);
+      border: none;
+      color: #fff;
+      padding: 19px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 80ms;
+      margin-bottom: 14px;
+    }
+    .print-btn:hover:not(:disabled) { background: var(--red-h); }
+    .print-btn:disabled {
+      background: var(--border);
+      color: var(--muted);
+      cursor: default;
+    }
+
+    /* ── STATUS ── */
+    .status {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      min-height: 18px;
+      transition: color 150ms;
+    }
+    .status.printing { color: #ffaa22; }
+    .status.ok       { color: var(--ok); }
+    .status.error    { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <span class="header-title">El Cuartito</span>
+    <span class="header-sub">Label Printer</span>
+  </div>
+  <div class="header-right" style="display: flex; gap: 10px;">
+    <button class="toggle-btn" id="invert-btn">◐ INVERTIR</button>
+    <button class="toggle-btn" id="new-arrivals-btn">★ NEW ARRIVALS</button>
+  </div>
+</header>
+
+<div class="section">Géneros</div>
+<div class="genre-grid" id="genre-grid"></div>
+
+<div class="section">Sello Discográfico (Imagen Central)</div>
+<div style="background: var(--surface); border: 1px solid var(--border); padding: 14px; margin-bottom: 30px;">
+  <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+    <input type="file" id="logo-upload" accept="image/png, image/jpeg" style="display: none;">
+    <button class="small-btn" onclick="document.getElementById('logo-upload').click()">Subir Imagen</button>
+    <button class="small-btn" id="remove-logo-btn" style="display: none; border-color: var(--red); color: var(--red);">Eliminar Imagen</button>
+  </div>
+  
+  <div id="logo-controls" style="display: none; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Zoom</span>
+      <input type="range" id="logo-scale" min="0.1" max="3" step="0.05" value="1" style="flex: 1;">
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Pos X</span>
+      <input type="range" id="logo-x" min="-1000" max="1000" step="5" value="0" style="flex: 1;">
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Pos Y</span>
+      <input type="range" id="logo-y" min="-500" max="500" step="5" value="0" style="flex: 1;">
+    </div>
+  </div>
+</div>
+
+<div class="section">Logo Recuadro Negro (Columna Derecha)</div>
+<div style="background: var(--surface); border: 1px solid var(--border); padding: 14px; margin-bottom: 30px;">
+  <div style="font-size: 9px; color: var(--muted); margin-bottom: 10px;">Reemplaza el logo de El Cuartito en el recuadro negro. La imagen se convierte a blanco automáticamente.</div>
+  <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+    <input type="file" id="right-logo-upload" accept="image/png, image/jpeg" style="display: none;">
+    <button class="small-btn" onclick="document.getElementById('right-logo-upload').click()">Subir Logo</button>
+    <button class="small-btn" id="remove-right-logo-btn" style="display: none; border-color: var(--red); color: var(--red);">Restaurar Original</button>
+  </div>
+  
+  <div id="right-logo-controls" style="display: none; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Zoom</span>
+      <input type="range" id="right-logo-scale" min="0.3" max="3" step="0.05" value="1" style="flex: 1;">
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Pos X</span>
+      <input type="range" id="right-logo-x" min="-200" max="200" step="3" value="0" style="flex: 1;">
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 10px; width: 60px;">Pos Y</span>
+      <input type="range" id="right-logo-y" min="-150" max="150" step="3" value="0" style="flex: 1;">
+    </div>
+  </div>
+</div>
+
+<div class="section">Etiqueta personalizada</div>
+<div class="custom-row">
+  <input class="custom-input" id="custom-input"
+         type="text" placeholder="Escribe un género..." maxlength="30"
+         autocomplete="off" spellcheck="false">
+  <button class="small-btn" id="custom-preview-btn">Preview</button>
+</div>
+
+<div class="section">Preview</div>
+<div class="preview-area">
+  <div class="preview-placeholder" id="preview-placeholder">
+    Seleccioná un género para ver el preview
+  </div>
+  <img class="preview-img" id="preview-img" alt="Label preview">
+  <div class="preview-label" id="preview-label"></div>
+</div>
+
+<button class="print-btn" id="print-btn" disabled>Imprimir Etiqueta</button>
+<div class="status" id="status"></div>
+
+<script>
+  let current = null; // { text, type: 'genre' | 'custom' }
+  let isNewArrivals = false;
+  let isInvert = false;
+  
+  let uploadedLogoId = null;
+  let logoControls = { scale: 1.0, x: 0, y: 0 };
+  
+  let rightLogoId = null;
+  let rightLogoControls = { scale: 1.0, x: 0, y: 0 };
+
+  async function init() {
+    const genres = await fetch('/genres').then(r => r.json());
+    const grid = document.getElementById('genre-grid');
+    genres.forEach(g => {
+      const btn = document.createElement('button');
+      btn.className = 'genre-btn';
+      btn.textContent = g;
+      btn.addEventListener('click', () => selectGenre(g, btn));
+      grid.appendChild(btn);
+    });
+
+    document.getElementById('new-arrivals-btn').addEventListener('click', (e) => {
+      isNewArrivals = !isNewArrivals;
+      e.target.classList.toggle('active', isNewArrivals);
+      if (current) loadPreview(current.text);
+    });
+
+    document.getElementById('invert-btn').addEventListener('click', (e) => {
+      isInvert = !isInvert;
+      e.target.classList.toggle('active', isInvert);
+      if (current) loadPreview(current.text);
+    });
+
+    document.getElementById('logo-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const res = await fetch('/upload_logo', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.logo_id) {
+          uploadedLogoId = data.logo_id;
+          document.getElementById('remove-logo-btn').style.display = 'inline-block';
+          document.getElementById('logo-controls').style.display = 'flex';
+          document.getElementById('logo-scale').value = 1;
+          document.getElementById('logo-x').value = 0;
+          document.getElementById('logo-y').value = 0;
+          logoControls = { scale: 1.0, x: 0, y: 0 };
+          
+          if (current) loadPreview(current.text);
+        } else {
+          alert(data.error);
+        }
+      } catch (err) {
+        alert('Error uploading file');
+      }
+      e.target.value = '';
+    });
+    
+    document.getElementById('remove-logo-btn').addEventListener('click', () => {
+      uploadedLogoId = null;
+      document.getElementById('remove-logo-btn').style.display = 'none';
+      document.getElementById('logo-controls').style.display = 'none';
+      if (current) loadPreview(current.text);
+    });
+    
+    ['scale', 'x', 'y'].forEach(prop => {
+      document.getElementById('logo-' + prop).addEventListener('input', (e) => {
+        logoControls[prop] = parseFloat(e.target.value);
+        if (current) loadPreview(current.text);
+      });
+    });
+
+    // ── Right logo (black column) handlers ──
+    document.getElementById('right-logo-upload').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const res = await fetch('/upload_right_logo', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.logo_id) {
+          rightLogoId = data.logo_id;
+          document.getElementById('remove-right-logo-btn').style.display = 'inline-block';
+          document.getElementById('right-logo-controls').style.display = 'flex';
+          document.getElementById('right-logo-scale').value = 1;
+          document.getElementById('right-logo-x').value = 0;
+          document.getElementById('right-logo-y').value = 0;
+          rightLogoControls = { scale: 1.0, x: 0, y: 0 };
+          
+          if (current) loadPreview(current.text);
+        } else {
+          alert(data.error);
+        }
+      } catch (err) {
+        alert('Error uploading file');
+      }
+      e.target.value = '';
+    });
+    
+    document.getElementById('remove-right-logo-btn').addEventListener('click', () => {
+      rightLogoId = null;
+      document.getElementById('remove-right-logo-btn').style.display = 'none';
+      document.getElementById('right-logo-controls').style.display = 'none';
+      if (current) loadPreview(current.text);
+    });
+    
+    ['scale', 'x', 'y'].forEach(prop => {
+      document.getElementById('right-logo-' + prop).addEventListener('input', (e) => {
+        rightLogoControls[prop] = parseFloat(e.target.value);
+        if (current) loadPreview(current.text);
+      });
+    });
+  }
+
+  function selectGenre(genre, btn) {
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('custom-input').value = '';
+    current = { text: genre, type: 'genre' };
+    loadPreview(genre);
+  }
+
+  function selectCustom() {
+    const val = document.getElementById('custom-input').value.trim().toUpperCase();
+    if (!val) return;
+    document.querySelectorAll('.genre-btn').forEach(b => b.classList.remove('active'));
+    current = { text: val, type: 'custom' };
+    loadPreview(val);
+  }
+
+  function loadPreview(text) {
+    const img        = document.getElementById('preview-img');
+    const placeholder = document.getElementById('preview-placeholder');
+    const label      = document.getElementById('preview-label');
+    const printBtn   = document.getElementById('print-btn');
+
+    img.classList.remove('show');
+    placeholder.style.display = 'flex';
+    placeholder.textContent = 'Cargando preview…';
+    label.textContent = '';
+
+    img.onload = () => {
+      placeholder.style.display = 'none';
+      img.classList.add('show');
+      label.textContent = text + (isNewArrivals ? ' (NEW ARRIVALS)' : '') + (isInvert ? ' (INVERTIDO)' : '');
+    };
+    img.onerror = () => {
+      placeholder.textContent = 'Error al generar preview';
+    };
+    const newArrParam = isNewArrivals ? '&new_arrivals=1' : '';
+    const invertParam = isInvert ? '&invert=1' : '';
+    let logoParams = '';
+    if (uploadedLogoId) {
+      logoParams = `&logo_id=${uploadedLogoId}&scale=${logoControls.scale}&x=${logoControls.x}&y=${logoControls.y}`;
+    }
+    let rightLogoParams = '';
+    if (rightLogoId) {
+      rightLogoParams = `&right_logo_id=${rightLogoId}&right_scale=${rightLogoControls.scale}&right_x=${rightLogoControls.x}&right_y=${rightLogoControls.y}`;
+    }
+    img.src = `/preview/${encodeURIComponent(text)}?t=${Date.now()}${newArrParam}${invertParam}${logoParams}${rightLogoParams}`;
+    printBtn.disabled = false;
+  }
+
+  async function printLabel() {
+    if (!current) return;
+    const printBtn = document.getElementById('print-btn');
+    printBtn.disabled = true;
+    setStatus('printing', 'Imprimiendo…');
+
+    try {
+      const bodyParams = {
+        new_arrivals: isNewArrivals,
+        invert: isInvert
+      };
+      
+      if (uploadedLogoId) {
+        bodyParams.custom_logo_id = uploadedLogoId;
+        bodyParams.logo_scale = logoControls.scale;
+        bodyParams.logo_x = logoControls.x;
+        bodyParams.logo_y = logoControls.y;
+      }
+
+      if (rightLogoId) {
+        bodyParams.right_logo_id = rightLogoId;
+        bodyParams.right_logo_scale = rightLogoControls.scale;
+        bodyParams.right_logo_x = rightLogoControls.x;
+        bodyParams.right_logo_y = rightLogoControls.y;
+      }
+
+      if (current.type === 'genre') {
+        bodyParams.genre = current.text;
+      } else {
+        bodyParams.text = current.text;
+      }
+
+      const endpoint = current.type === 'genre' ? '/print' : '/custom';
+
+      const res  = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyParams),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setStatus('ok', `✓  Impreso: ${data.printed}`);
+      } else {
+        setStatus('error', `Error: ${data.error}`);
+      }
+    } catch (e) {
+      setStatus('error', `Error de conexión: ${e.message}`);
+    } finally {
+      printBtn.disabled = !current;
+    }
+  }
+
+  function setStatus(cls, msg) {
+    const el = document.getElementById('status');
+    el.className = 'status ' + cls;
+    el.textContent = msg;
+  }
+
+  document.getElementById('custom-preview-btn').addEventListener('click', selectCustom);
+  document.getElementById('custom-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') selectCustom();
+  });
+  document.getElementById('print-btn').addEventListener('click', printLabel);
+
+  init();
+</script>
+</body>
+</html>

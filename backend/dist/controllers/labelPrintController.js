@@ -52,8 +52,12 @@ const printLabel = (req, res) => {
         res.status(500).json({ error: 'No se pudo guardar la imagen temporal.' });
         return;
     }
-    const cmd = `brother_ql -b pyusb -m QL-570 -p usb://0x04f9:0x2028 print -l 62 -r 0 "${tmpPath}"`;
-    (0, child_process_1.exec)(cmd, (error, stdout, stderr) => {
+    const brotherQlExe = `"C:\\Users\\Bootleggers Amager\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\brother_ql.exe"`;
+    const cmd = `${brotherQlExe} -b pyusb -m QL-570 -p usb://0x04f9:0x2028 print -l 62 -r 0 "${tmpPath}"`;
+    // Add libusb DLL directory to PATH so pyusb can find it on Windows
+    const libusbDir = `C:\\Users\\Bootleggers Amager\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\usb1`;
+    const execEnv = Object.assign(Object.assign({}, process.env), { PATH: `${libusbDir};${process.env.PATH || ''}` });
+    (0, child_process_1.exec)(cmd, { env: execEnv }, (error, stdout, stderr) => {
         try {
             fs.unlinkSync(tmpPath);
         }
