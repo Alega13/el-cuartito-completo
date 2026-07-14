@@ -5155,10 +5155,15 @@ const app = {
 
                         <!-- Block B: Pricing & Margins -->
                         <div class="col-span-12 lg:col-span-5 dashboard-card p-5 bg-slate-50/30 border-dashed flex flex-col justify-center">
-                            <div class="grid grid-cols-2 gap-4 mb-3">
+                            <div class="space-y-3 mb-3">
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-bold text-slate-400 uppercase block">Buy Cost</label>
-                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.calculateMargin(); app.updatePhantomVatPreview()" class="dashboard-input w-full h-10">
+                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.onCostChange()" class="dashboard-input w-full h-10">
+                                </div>
+                                <div id="multiplier-row" class="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
+                                    <i class="ph-bold ph-x text-[10px] text-slate-400"></i>
+                                    <input type="number" id="modal-multiplier" step="0.1" min="1" value="${(() => { const c = parseFloat(item.cost) || 0; const p = parseFloat(item.price) || 0; if (c > 0 && p > 0) return (p / c).toFixed(1); return c > 100 ? '2.2' : '2.5'; })()}" oninput="app.applyPriceMultiplier()" class="w-16 text-center font-black text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-1 py-1 focus:border-[#FF6B00] focus:bg-white outline-none transition-all">
+                                    <span id="multiplier-label" class="text-[9px] font-bold uppercase tracking-wider ${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'text-amber-600' : 'text-emerald-600'; })()}">${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'Disco caro (+100kr)' : 'Disco barato (≤100kr)'; })()}</span>
                                 </div>
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-bold text-slate-400 uppercase block">Retail Price</label>
@@ -5599,6 +5604,56 @@ const app = {
     },
 
     calculateProfit() {
+        this.calculateMargin();
+    },
+
+    // Smart multiplier: auto-set multiplier based on cost and recalculate price
+    onCostChange() {
+        const costInput = document.getElementById('modal-cost');
+        const multiplierInput = document.getElementById('modal-multiplier');
+        const multiplierLabel = document.getElementById('multiplier-label');
+        if (!costInput || !multiplierInput) return;
+
+        const cost = parseFloat(costInput.value) || 0;
+
+        // Only auto-set the multiplier if the user is not actively editing it
+        if (document.activeElement !== multiplierInput) {
+            if (cost > 100) {
+                multiplierInput.value = '2.2';
+                if (multiplierLabel) {
+                    multiplierLabel.textContent = 'Disco caro (+100kr)';
+                    multiplierLabel.className = 'text-[9px] font-bold uppercase tracking-wider text-amber-600';
+                }
+            } else {
+                multiplierInput.value = '2.5';
+                if (multiplierLabel) {
+                    multiplierLabel.textContent = 'Disco barato (≤100kr)';
+                    multiplierLabel.className = 'text-[9px] font-bold uppercase tracking-wider text-emerald-600';
+                }
+            }
+        }
+
+        this.applyPriceMultiplier();
+        this.updatePhantomVatPreview();
+    },
+
+    // Recalculate retail price from cost × multiplier
+    applyPriceMultiplier() {
+        const costInput = document.getElementById('modal-cost');
+        const multiplierInput = document.getElementById('modal-multiplier');
+        const priceInput = document.getElementById('modal-price');
+        if (!costInput || !multiplierInput || !priceInput) return;
+
+        const cost = parseFloat(costInput.value) || 0;
+        const multiplier = parseFloat(multiplierInput.value) || 1;
+
+        if (cost > 0) {
+            // Round to nearest 5 for clean pricing
+            const raw = cost * multiplier;
+            const rounded = Math.round(raw / 5) * 5;
+            priceInput.value = rounded;
+        }
+
         this.calculateMargin();
     },
 
