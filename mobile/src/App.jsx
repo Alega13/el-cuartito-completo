@@ -347,7 +347,7 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
     return [...r].reverse();
   }, [searchQuery, genre, location, sort, records]);
 
-  const getEff = r => r.is_rsd_discount ? Math.round(r.price * 0.9) : r.price;
+
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden' }}>
@@ -403,7 +403,6 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
             <div style={{ fontSize: 14, color: T.textSub }}>Probá con otro término</div>
           </div>
         ) : filtered.map(record => {
-          const eff = getEff(record);
           const out = record.stock <= 0;
           return (
             <div key={record.id} onClick={() => onSelectRecord(record)} style={{
@@ -422,15 +421,7 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
                 <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Mono, monospace', marginTop: 2, letterSpacing: 0.5 }}>{record.sku || 'N/A'}</div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                {record.is_rsd_discount ? (
-                  <>
-                    <div style={{ fontSize: 10, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'DM Mono, monospace' }}>{record.price} DKK</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace' }}>{eff} DKK</div>
-                    <div style={{ fontSize: 8, fontWeight: 800, color: '#fff', background: ORANGE, padding: '1px 5px', borderRadius: 4, marginTop: 1, display: 'inline-block', letterSpacing: 0.5 }}>RSD</div>
-                  </>
-                ) : (
-                  <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace' }}>{record.price || 0} DKK</div>
-                )}
+                <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace' }}>{record.price || 0} DKK</div>
                 <div style={{ fontSize: 10, color: out ? '#ef4444' : T.textMuted, fontWeight: 600, marginTop: 2 }}>
                   {out ? 'Agotado' : `Disp. ${record.stock}`}
                 </div>
@@ -445,7 +436,7 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
 
 // ── DetailModal ────────────────────────────────────────────────
 function DetailModal({ record, onClose, onAddToCart }) {
-  const eff = record.is_rsd_discount ? Math.round(record.price * 0.9) : record.price;
+  const eff = record.price;
   const out = record.stock <= 0;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }} onClick={onClose}>
@@ -471,11 +462,9 @@ function DetailModal({ record, onClose, onAddToCart }) {
           <div>
             <SectionLabel>Precio</SectionLabel>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              {record.is_rsd_discount && <span style={{ fontSize: 14, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'DM Mono, monospace' }}>{record.price}</span>}
               <span style={{ fontSize: 30, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{eff}</span>
               <span style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>DKK</span>
             </div>
-            {record.is_rsd_discount && <div style={{ fontSize: 11, fontWeight: 700, color: ORANGE, marginTop: 4 }}>RSD −10%</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
             <SectionLabel>Stock</SectionLabel>
@@ -517,8 +506,7 @@ function DetailModal({ record, onClose, onAddToCart }) {
 
 // ── CartScreen ─────────────────────────────────────────────────
 function CartScreen({ liveCart, onRemove, onCheckout }) {
-  const getEff = i => i.is_rsd_discount ? Math.round(i.price * 0.9) : i.price;
-  const total = liveCart.reduce((s, i) => s + getEff(i) * i.quantity, 0);
+  const total = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden' }}>
       <div style={{ padding: '12px 20px 14px', paddingTop: 'max(12px, env(safe-area-inset-top, 12px))', borderBottom: `0.5px solid ${T.border}`, background: T.navBg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', flexShrink: 0 }}>
@@ -538,7 +526,6 @@ function CartScreen({ liveCart, onRemove, onCheckout }) {
           <>
             <div style={{ background: T.surface, borderRadius: 18, overflow: 'hidden', border: `1px solid ${T.border}` }}>
               {liveCart.map((item, i) => {
-                const eff = getEff(item);
                 return (
                   <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < liveCart.length - 1 ? `0.5px solid ${T.border}` : 'none' }}>
                     <VinylCover record={item} size={44} radius={8} />
@@ -546,8 +533,7 @@ function CartScreen({ liveCart, onRemove, onCheckout }) {
                       <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.album}</div>
                       <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500 }}>{item.artist}</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: ORANGE, fontFamily: 'DM Mono, monospace', marginTop: 2 }}>
-                        {eff} DKK <span style={{ color: T.textMuted, fontWeight: 500, fontSize: 12 }}>×{item.quantity}</span>
-                        {item.is_rsd_discount && <span style={{ fontSize: 9, fontWeight: 800, background: ORANGE, color: '#fff', padding: '1px 4px', borderRadius: 4, marginLeft: 5 }}>RSD</span>}
+                        {item.price} DKK <span style={{ color: T.textMuted, fontWeight: 500, fontSize: 12 }}>×{item.quantity}</span>
                       </div>
                     </div>
                     <button onClick={() => onRemove(item.id)} style={{ background: T.surface2, border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -582,15 +568,14 @@ function CartScreen({ liveCart, onRemove, onCheckout }) {
 function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
   const [method, setMethod] = useState('MobilePay');
   const [channel, setChannel] = useState('tienda');
-  const [rsd, setRsd] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState(null);
 
-  const getEff = i => i.is_rsd_discount ? Math.round(i.price * 0.9) : i.price;
-  const subtotal = liveCart.reduce((s, i) => s + getEff(i) * i.quantity, 0);
-  const totalItems = liveCart.reduce((s, i) => s + i.quantity, 0);
-  const total = (rsd && totalItems >= 3) ? Math.round(subtotal * 0.95) : subtotal;
+  const subtotal = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const discountAmount = discountPercent > 0 ? Math.round(subtotal * discountPercent / 100) : 0;
+  const total = subtotal - discountAmount;
 
   const handleConfirm = async () => {
     setError(null);
@@ -599,7 +584,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
       window.location.href = 'stripe://';
     }
     try {
-      await onConfirm({ method, channel, rsdDiscount: rsd });
+      await onConfirm({ method, channel, discountPercent, discountAmount });
       setShowSuccess(true);
     } catch (err) {
       setError(err.message || 'Error al procesar venta');
@@ -646,14 +631,14 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
         {/* Total */}
         <div style={{ textAlign: 'center', padding: '12px 20px 20px', borderBottom: `0.5px solid ${T.border}` }}>
           <SectionLabel>Total a Cobrar</SectionLabel>
-          {rsd && totalItems >= 3 && (
+          {discountPercent > 0 && (
             <div style={{ fontSize: 14, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'DM Mono, monospace' }}>{subtotal} DKK</div>
           )}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6 }}>
             <span style={{ fontSize: 52, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -2, lineHeight: 1 }}>{total}</span>
             <span style={{ fontSize: 18, fontWeight: 600, color: T.textSub }}>DKK</span>
           </div>
-          {rsd && totalItems >= 3 && <div style={{ fontSize: 12, color: ORANGE, fontWeight: 700, marginTop: 4 }}>−5% descuento RSD aplicado</div>}
+          {discountPercent > 0 && <div style={{ fontSize: 12, color: ORANGE, fontWeight: 700, marginTop: 4 }}>−{discountPercent}% descuento aplicado (−{discountAmount} DKK)</div>}
         </div>
 
         <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -704,20 +689,27 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
             </div>
           )}
 
-          {/* RSD toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 14, border: `1px solid ${totalItems >= 3 ? 'rgba(240,90,40,0.3)' : T.border}`, background: totalItems >= 3 ? T.orangeBg : T.surface2, opacity: totalItems >= 3 ? 1 : 0.5 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: totalItems >= 3 ? ORANGE : T.textSub }}>🎉 5% extra RSD</div>
-              {totalItems < 3 && <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 500, marginTop: 2 }}>Mínimo 3 ítems en el carrito</div>}
+          {/* Discount buttons */}
+          <div>
+            <SectionLabel>Descuento</SectionLabel>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {[10, 20, 30].map(pct => {
+                const active = discountPercent === pct;
+                return (
+                  <button key={pct} onClick={() => setDiscountPercent(active ? 0 : pct)} style={{
+                    padding: '13px 6px', borderRadius: 14,
+                    border: `1.5px solid ${active ? ORANGE : T.border}`,
+                    background: active ? T.orangeBg : T.surface2,
+                    color: active ? ORANGE : T.textSub,
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s',
+                  }}>
+                    <span style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{pct}%</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{active ? `−${Math.round(subtotal * pct / 100)} DKK` : 'Descuento'}</span>
+                  </button>
+                );
+              })}
             </div>
-            <button disabled={totalItems < 3} onClick={() => totalItems >= 3 && setRsd(p => !p)} style={{
-              width: 48, height: 28, borderRadius: 999, border: 'none',
-              cursor: totalItems >= 3 ? 'pointer' : 'default',
-              background: rsd && totalItems >= 3 ? ORANGE : 'rgba(0,0,0,0.15)',
-              position: 'relative', padding: 0, flexShrink: 0,
-            }}>
-              <div style={{ position: 'absolute', top: 2, left: 2, width: 24, height: 24, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transform: `translateX(${rsd && totalItems >= 3 ? 20 : 0}px)`, transition: 'transform 0.18s' }} />
-            </button>
           </div>
 
           {/* Channel */}
@@ -856,7 +848,7 @@ function App() {
 
   const liveCart = useMemo(() => cart.map(cartItem => {
     const record = records.find(r => r.id === cartItem.id);
-    return { ...record, ...cartItem, price: record?.price ?? cartItem.price, is_rsd_discount: record?.is_rsd_discount ?? false };
+    return { ...record, ...cartItem, price: record?.price ?? cartItem.price };
   }), [cart, records]);
 
   const showToast = useCallback((msg) => {
@@ -893,20 +885,18 @@ function App() {
     fetchSalesHistory();
   };
 
-  const handleConfirm = async ({ method, channel, rsdDiscount }) => {
+  const handleConfirm = async ({ method, channel, discountPercent, discountAmount }) => {
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error('No autenticado. Reiniciá la app.');
     const idToken = await currentUser.getIdToken();
-    const getEff = i => i.is_rsd_discount ? Math.round(i.price * 0.9) : i.price;
-    const subtotal = liveCart.reduce((s, i) => s + getEff(i) * i.quantity, 0);
-    const totalItems = liveCart.reduce((s, i) => s + i.quantity, 0);
-    const totalAmount = rsdDiscount && totalItems >= 3 ? Math.round(subtotal * 0.95) : subtotal;
-    const items = liveCart.map(i => ({ productId: i.id, qty: i.quantity, priceAtSale: getEff(i), album: i.album || 'Venta App' }));
+    const subtotal = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
+    const totalAmount = subtotal - (discountAmount || 0);
+    const items = liveCart.map(i => ({ productId: i.id, qty: i.quantity, priceAtSale: i.price, album: i.album || 'Venta App' }));
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     const res = await fetch(`${apiUrl}/sales`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({ items, channel, totalAmount, paymentMethod: method, customerName: 'Venta Mostrador' }),
+      body: JSON.stringify({ items, channel, totalAmount, paymentMethod: method, customerName: 'Venta Mostrador', discountPercent: discountPercent || 0, discountAmount: discountAmount || 0 }),
     });
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || 'Error al procesar venta');

@@ -197,7 +197,7 @@ export const releaseStock = async (req: Request, res: Response) => {
 };
 
 export const createSale = async (req: Request, res: Response) => {
-    const { items, channel, totalAmount, paymentMethod, customerName, customerEmail } = req.body;
+    const { items, channel, totalAmount, paymentMethod, customerName, customerEmail, discountPercent, discountAmount } = req.body;
     // items: [{ productId, qty, priceAtSale, album }]
 
     try {
@@ -289,6 +289,8 @@ export const createSale = async (req: Request, res: Response) => {
                 paymentMethod: paymentMethod || 'CASH',
                 customerName: customerName || null,
                 customerEmail: customerEmail || null,
+                discount_percent: discountPercent || 0,
+                discount_amount: discountAmount || 0,
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 status: 'completed'
             });
@@ -309,7 +311,7 @@ export const createSale = async (req: Request, res: Response) => {
         const finalTotal = totalAmount || normalizedItems.reduce((sum: number, i: any) => sum + (i.priceAtSale * i.qty), 0);
         setTimeout(() => {
             const invoiceData = buildInvoiceFromPOSSale(
-                saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName
+                saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName, discountPercent, discountAmount
             );
             generateInvoice(invoiceData).catch(e =>
                 console.error('⚠️ Invoice generation failed for POS sale:', e.message)
