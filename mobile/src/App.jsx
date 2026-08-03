@@ -207,56 +207,136 @@ function BottomNav({ activeTab, setActiveTab, cartCount }) {
 }
 
 // ── HomeScreen ─────────────────────────────────────────────────
-function HomeScreen({ recordCount, onNavigate, onOpenHistory, onOpenScanner }) {
+function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
+  const [salesPeriod, setSalesPeriod] = useState('hoy');
+  const [salesData, setSalesData] = useState([]);
+  const [loadingSales, setLoadingSales] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSales = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'sales'), orderBy('timestamp', 'desc'), limit(200)));
+        if (!cancelled) setSalesData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch { /* silent */ }
+      if (!cancelled) setLoadingSales(false);
+    };
+    fetchSales();
+    return () => { cancelled = true; };
+  }, []);
+
+  const stockCount = useMemo(() => records.filter(r => (r.stock || 0) > 0).length, [records]);
+  const totalStock = useMemo(() => records.reduce((s, r) => s + (r.stock || 0), 0), [records]);
+
+  const filteredSales = useMemo(() => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay() + 1); // Monday
+    if (startOfDay.getDay() === 0) startOfWeek.setDate(startOfWeek.getDate() - 7);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let cutoff = startOfDay;
+    if (salesPeriod === 'semana') cutoff = startOfWeek;
+    if (salesPeriod === 'mes') cutoff = startOfMonth;
+
+    return salesData.filter(s => {
+      if (!s.timestamp) return false;
+      const ts = s.timestamp.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
+      return ts >= cutoff;
+    });
+  }, [salesData, salesPeriod]);
+
+  const salesTotal = useMemo(() => filteredSales.reduce((s, sale) => s + (sale.total_amount || 0), 0), [filteredSales]);
+  const salesCount = filteredSales.length;
+
+  const PERIODS = [
+    { id: 'hoy', label: 'Hoy' },
+    { id: 'semana', label: 'Semana' },
+    { id: 'mes', label: 'Mes' },
+  ];
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden', paddingBottom: 80 }}>
       {/* Hero */}
       <div style={{
-        flex: 1, position: 'relative', overflow: 'hidden',
+        position: 'relative', overflow: 'hidden',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         background: 'linear-gradient(160deg, oklch(95% 0.03 48) 0%, oklch(97.5% 0.011 58) 100%)',
+        padding: '40px 20px 24px',
+        paddingTop: 'max(40px, calc(env(safe-area-inset-top, 40px) + 20px))',
       }}>
         {[360, 260, 180, 110, 60].map((r, i) => (
           <div key={i} style={{
-            position: 'absolute', top: '50%', left: '50%',
+            position: 'absolute', top: '45%', left: '50%',
             transform: 'translate(-50%, -50%)',
             width: r, height: r, borderRadius: '50%',
             border: '1px solid rgba(240,90,40,0.1)',
             pointerEvents: 'none',
           }} />
         ))}
-        <div style={{
-          width: 56, height: 56, borderRadius: '50%',
-          background: 'rgba(240,90,40,0.12)',
-          border: '1px solid rgba(240,90,40,0.25)',
-          marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: ORANGE }} />
-        </div>
-        <img src="/logo.png" alt="El Cuartito" style={{ height: 38, objectFit: 'contain' }} />
-        <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: 1.2, textTransform: 'uppercase', color: T.textSub, marginTop: 8 }}>
+        <img src="/logo.png" alt="El Cuartito" style={{ height: 32, objectFit: 'contain' }} />
+        <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: 'uppercase', color: T.textSub, marginTop: 6, marginBottom: 0 }}>
           Discos de Vinilo · Copenhague
         </p>
-        {/* Stats card */}
-        <div style={{
-          display: 'flex', marginTop: 28,
-          background: 'rgba(255,255,255,0.75)',
-          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-          borderRadius: 16, border: `1px solid ${T.border}`, overflow: 'hidden',
-        }}>
-          {[[recordCount || '—', 'En catálogo'], ['CPH', 'Ciudad'], ['Vinilo', 'Formato']].map(([val, lbl], i) => (
-            <div key={lbl} style={{
-              padding: '14px 22px', textAlign: 'center',
-              borderRight: i < 2 ? `0.5px solid ${T.border}` : 'none',
-            }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: T.text, lineHeight: 1, fontFamily: 'DM Mono, monospace' }}>{val}</div>
-              <div style={{ fontSize: 10, color: T.textSub, marginTop: 4, fontWeight: 600, letterSpacing: 0.3 }}>{lbl}</div>
-            </div>
-          ))}
-        </div>
       </div>
-      {/* Action tiles */}
-      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Stock card */}
+        <div style={{
+          background: T.surface, borderRadius: 18, padding: '18px 20px', border: `1px solid ${T.border}`, boxShadow: T.shadowSm,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Discos en Stock</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 36, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{totalStock}</span>
+              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>unidades</span>
+            </div>
+            <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, marginTop: 2 }}>{stockCount} títulos distintos</div>
+          </div>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: T.orangeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth={2} strokeLinecap="round"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4" /><path d="M4 6v12c0 1.1.9 2 2 2h14v-4" /><circle cx="18" cy="16" r="2" /></svg>
+          </div>
+        </div>
+
+        {/* Sales card */}
+        <div style={{
+          background: T.surface, borderRadius: 18, padding: '18px 20px', border: `1px solid ${T.border}`, boxShadow: T.shadowSm,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Vendidos</div>
+            <div style={{ display: 'flex', background: T.inputBg, borderRadius: 10, padding: 2 }}>
+              {PERIODS.map(p => (
+                <button key={p.id} onClick={() => setSalesPeriod(p.id)} style={{
+                  padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: salesPeriod === p.id ? ORANGE : 'transparent',
+                  color: salesPeriod === p.id ? '#fff' : T.textSub,
+                  fontSize: 11, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
+                  transition: 'all 0.15s',
+                }}>{p.label}</button>
+              ))}
+            </div>
+          </div>
+          {loadingSales ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+              <Spinner size={18} />
+              <span style={{ fontSize: 13, color: T.textSub }}>Cargando...</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 36, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{salesTotal}</span>
+                  <span style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>DKK</span>
+                </div>
+                <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, marginTop: 4 }}>{salesCount} {salesCount === 1 ? 'venta' : 'ventas'}</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action tiles */}
         <button onClick={() => onNavigate('search')} style={{
           display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
           background: ORANGE, color: '#fff', border: 'none', borderRadius: 18,
@@ -273,7 +353,7 @@ function HomeScreen({ recordCount, onNavigate, onOpenHistory, onOpenScanner }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth={2.5} strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
         </button>
 
-        {/* ── QR Scanner FAB ── */}
+        {/* QR Scanner */}
         <button onClick={onOpenScanner} style={{
           display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
           background: 'oklch(15% 0.02 265)', color: '#fff', border: 'none', borderRadius: 18,
@@ -292,19 +372,16 @@ function HomeScreen({ recordCount, onNavigate, onOpenHistory, onOpenScanner }) {
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth={2.5} strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
         </button>
+
+        {/* Small history link */}
         <button onClick={onOpenHistory} style={{
-          display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
-          background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderRadius: 18,
-          cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif', boxShadow: T.shadowSm,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '8px 0', marginTop: 2,
+          fontFamily: 'DM Sans, sans-serif',
         }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: T.orangeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth={2} strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="12" y2="17" /></svg>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.1 }}>Historial de Ventas</div>
-            <div style={{ fontSize: 12, color: T.textSub, marginTop: 3, fontWeight: 500 }}>Últimas 50 transacciones</div>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2.5} strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2} strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /><polyline points="14 2 14 8 20 8" /></svg>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>Ver historial de ventas</span>
         </button>
       </div>
     </div>
@@ -910,7 +987,7 @@ function App() {
 
       {activeTab === 'home' && (
         <HomeScreen
-          recordCount={records.length}
+          records={records}
           onNavigate={setActiveTab}
           onOpenHistory={openSalesHistory}
           onOpenScanner={() => setIsScannerOpen(true)}
