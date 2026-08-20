@@ -2623,6 +2623,114 @@ const app = {
 
     // --- VIEWS ---
 
+    showFinancialReportModal() {
+        const modalId = 'financialReportModal';
+        if (document.getElementById(modalId)) {
+            document.getElementById(modalId).remove();
+        }
+
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const today = now.toISOString().split('T')[0];
+
+        const html = `
+            <div id="${modalId}" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
+                <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden relative">
+                    <button onclick="document.getElementById('${modalId}').remove()" class="absolute top-4 right-4 text-slate-400 hover:text-brand-dark transition-colors">
+                        <i class="ph-bold ph-x text-xl"></i>
+                    </button>
+                    <div class="p-8">
+                        <div class="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 mb-6">
+                            <i class="ph-fill ph-microsoft-excel-logo text-2xl"></i>
+                        </div>
+                        <h3 class="font-display text-2xl font-bold text-brand-dark mb-2">Exportar Informe</h3>
+                        <p class="text-sm text-slate-500 mb-6">Selecciona el rango de fechas para el reporte financiero en Excel.</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Fecha Desde</label>
+                                <input type="date" id="reportStartDate" value="${firstDayOfMonth}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Fecha Hasta</label>
+                                <input type="date" id="reportEndDate" value="${today}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/20 transition-all">
+                            </div>
+                        </div>
+
+                        <div class="mt-8 flex gap-3">
+                            <button onclick="document.getElementById('${modalId}').remove()" class="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 transition-colors">
+                                Cancelar
+                            </button>
+                            <button id="btnDownloadReport" onclick="app.downloadFinancialReport()" class="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 transition-all flex justify-center items-center gap-2">
+                                <i class="ph-bold ph-download-simple"></i> Descargar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    },
+
+    async downloadFinancialReport() {
+        const startDate = document.getElementById('reportStartDate').value;
+        const endDate = document.getElementById('reportEndDate').value;
+        const btn = document.getElementById('btnDownloadReport');
+
+        if (!startDate || !endDate) {
+            app.showToast('Por favor, selecciona ambas fechas', 'error');
+            return;
+        }
+
+        if (startDate > endDate) {
+            app.showToast('La fecha "Desde" no puede ser mayor a "Hasta"', 'error');
+            return;
+        }
+
+        const originalBtnContent = btn.innerHTML;
+        btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Procesando...';
+        btn.disabled = true;
+        btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+        try {
+            const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+            const url = `${BASE_API_URL}/api/reports/financial?startDate=${startDate}&endDate=${endDate}`;
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error al generar el reporte: ${response.statusText}`);
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `Reporte_Financiero_${startDate}_al_${endDate}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            document.getElementById('financialReportModal').remove();
+            app.showToast('Reporte descargado con éxito');
+        } catch (error) {
+            console.error('Error downloading report:', error);
+            app.showToast(error.message, 'error');
+        } finally {
+            if (document.getElementById('btnDownloadReport')) {
+                btn.innerHTML = originalBtnContent;
+                btn.disabled = false;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        }
+    },
+
     toggleMonthFilter(monthIndex) {
         const index = this.state.filterMonths.indexOf(monthIndex);
         if (index === -1) {
@@ -2792,9 +2900,11 @@ const app = {
                 const eDate = new Date(e.date);
                 return eDate.getFullYear() === currentYear && selectedMonths.includes(eDate.getMonth());
             });
+            let extraIncomeTotal = 0;
             filteredExtraIncome.forEach(e => {
                 const amt = Number(e.amount) || 0;
                 const vat = Number(e.vatAmount) || 0;
+                extraIncomeTotal += amt;
                 totalRevenue += amt;
                 totalNetProfit += amt;
                 totalStandardVat += vat;
@@ -2945,7 +3055,7 @@ const app = {
             <div class="max-w-7xl mx-auto space-y-8 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!-- Header with Navigation and Filter -->
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div class="flex items-center gap-4">
+                    <div class="flex flex-wrap items-center gap-4">
                         <div class="w-14 h-14 bg-brand-orange rounded-2xl flex items-center justify-center text-white text-3xl shadow-xl shadow-brand-orange/20">
                             <i class="ph-fill ph-house-line"></i>
                         </div>
@@ -2953,6 +3063,9 @@ const app = {
                             <h2 class="font-display text-3xl font-bold text-brand-dark">Resumen Operativo</h2>
                             <p class="text-slate-500 text-sm">Monitor de actividad: <span class="font-bold text-brand-orange">${periodText}</span></p>
                         </div>
+                        <button onclick="app.showFinancialReportModal()" class="ml-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm">
+                            <i class="ph-bold ph-microsoft-excel-logo text-lg"></i> Exportar Informe
+                        </button>
                     </div>
 
                     <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
@@ -2980,7 +3093,24 @@ const app = {
                 <!-- KPI Top Grid (3 Status Cards) -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Card 1: Ingresos del Período -->
-                    <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="relative group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <!-- Tooltip Custom -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max min-w-[200px] bg-brand-dark text-white text-xs rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none">
+                            <div class="flex justify-between gap-4 mb-1">
+                                <span class="text-slate-400">Ventas:</span>
+                                <span>${this.formatCurrency(totalRevenue - extraIncomeTotal)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 mb-2 pb-2 border-b border-slate-700">
+                                <span class="text-slate-400">Ingresos Extra:</span>
+                                <span>${this.formatCurrency(extraIncomeTotal)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 font-bold">
+                                <span>Total:</span>
+                                <span>${this.formatCurrency(totalRevenue)}</span>
+                            </div>
+                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-brand-dark"></div>
+                        </div>
+
                         <div class="flex items-center gap-3 mb-4">
                             <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange">
                                 <i class="ph-bold ph-chart-line-up text-xl"></i>
@@ -2996,7 +3126,32 @@ const app = {
                     </div>
 
                     <!-- Card 2: Beneficio Neto Estimado -->
-                    <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="relative group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <!-- Tooltip Custom -->
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max min-w-[250px] bg-brand-dark text-white text-xs rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none">
+                            <div class="flex justify-between gap-4 mb-1">
+                                <span class="text-slate-400">Beneficio Bruto:</span>
+                                <span>${this.formatCurrency(totalNetProfit - extraIncomeTotal)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 mb-1">
+                                <span class="text-slate-400">Ingresos Extra:</span>
+                                <span class="text-green-400">+${this.formatCurrency(extraIncomeTotal)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 mb-1">
+                                <span class="text-slate-400">Impuestos (IVA):</span>
+                                <span class="text-red-400">-${this.formatCurrency(taxAmount)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 mb-2 pb-2 border-b border-slate-700">
+                                <span class="text-slate-400">Gastos Operativos:</span>
+                                <span class="text-red-400">-${this.formatCurrency(periodExpenses)}</span>
+                            </div>
+                            <div class="flex justify-between gap-4 font-bold text-emerald-400">
+                                <span>Beneficio Neto:</span>
+                                <span>${this.formatCurrency(netProfitActual)}</span>
+                            </div>
+                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-brand-dark"></div>
+                        </div>
+
                         <div class="flex items-center gap-3 mb-4">
                             <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500">
                                 <i class="ph-bold ph-hand-coins text-xl"></i>

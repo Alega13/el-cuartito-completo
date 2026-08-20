@@ -16,6 +16,7 @@ import healthRoutes from './routes/health';
 import { stripeWebhookHandler } from './routes/webhookRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import labelPrintRoutes from './routes/labelPrintRoutes';
+import reportRoutes from './routes/reportRoutes';
 
 
 
@@ -76,6 +77,7 @@ app.use('/api', labelPrintRoutes);
 // Health check endpoint
 app.use('/api', healthRoutes);
 app.use('/api', shippingRoutes); // Added to support /api/ship-order
+app.use('/api/reports', reportRoutes);
 
 app.get('/', (req, res) => {
     res.send("<h1>El Cuartito API is running 🎵</h1><p>Go to <a href='/records/online'>/records/online</a> to see products.</p>");
