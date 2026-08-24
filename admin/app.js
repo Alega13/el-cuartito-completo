@@ -126,6 +126,16 @@ const api = {
         return response.json();
     },
 
+    async cancelOrder(saleId) {
+        const idToken = await auth.currentUser.getIdToken();
+        const response = await fetch(`${BASE_API_URL}/sales/${saleId}/cancel-order`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+    },
+
     async updateTracking(saleId, trackingNumber) {
         const idToken = await auth.currentUser.getIdToken();
         const response = await fetch(`${BASE_API_URL}/sales/${saleId}/update-tracking`, {
@@ -308,7 +318,11 @@ const app = {
         filterLabel: 'all',
         filterStorage: 'all',
         filterDiscogs: 'all',
+        filterStock: 'all',
+        filterCondition: 'all',
         filterStockTime: [],
+        showStats: false,
+        showAdvancedFilters: false,
         privacyMode: false,
         rsdExtraDiscount: false,
         dashboardAnalysisMode: 'genre'
@@ -3669,7 +3683,7 @@ const app = {
                     <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 animate-fade-in">
                         <!-- Back Button if Filtered -->
                         ${(this.state.filterGenre !== 'all' || this.state.filterOwner !== 'all' || this.state.filterLabel !== 'all' || this.state.filterStorage !== 'all') ? `
-                            <div onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.refreshCurrentView()" 
+                            <div onclick="app.clearAllFilters()" 
                                 class="col-span-full mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-orange cursor-pointer w-fit pl-1 group">
                                 <div class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:bg-brand-orange group-hover:text-white group-hover:border-brand-orange transition-all shadow-sm">
                                     <i class="ph-bold ph-arrow-left"></i>
@@ -3882,24 +3896,36 @@ const app = {
             return 0;
         });
 
-        // KPI calculations
-        const totalItems = this.state.inventory.length;
-        const totalValue = this.state.inventory.reduce((sum, i) => {
+        // KPI calculations — DERIVED from filteredInventory
+        const globalTotal = this.state.inventory.length;
+        const totalItems = filteredInventory.length;
+        const totalValue = filteredInventory.reduce((sum, i) => {
             const stock = Number(i.stock) || 0;
             return sum + (stock > 0 ? (parseFloat(i.price) || 0) * stock : 0);
         }, 0);
-        const inStock = this.state.inventory.filter(i => (i.stock || 0) > 0).length;
-        const onDiscogs = this.state.inventory.filter(i => i.discogs_listing_id).length;
+        const inStock = filteredInventory.filter(i => (i.stock || 0) > 0).length;
+        const onDiscogs = filteredInventory.filter(i => i.discogs_listing_id).length;
 
-        // Active filter count
-        const activeFilters = [
-            this.state.filterGenre !== 'all' ? 1 : 0,
-            this.state.filterOwner !== 'all' ? 1 : 0,
-            this.state.filterLabel !== 'all' ? 1 : 0,
-            this.state.filterStorage !== 'all' ? 1 : 0,
-            this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 1 : 0,
-            this.state.filterHero && this.state.filterHero !== 'all' ? 1 : 0,
-        ].reduce((a, b) => a + b, 0);
+        // Active filter tracking (for tags)
+        const activeFiltersList = [];
+        if (this.state.filterStock === 'inStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo en Stock', icon: 'ph-check-circle' });
+        if (this.state.filterStock === 'outOfStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo Agotados', icon: 'ph-x-circle' });
+        if (this.state.filterDiscogs === 'yes') activeFiltersList.push({ key: 'filterDiscogs', label: 'En Discogs', icon: 'ph-disc' });
+        if (this.state.filterDiscogs === 'no') activeFiltersList.push({ key: 'filterDiscogs', label: 'No en Discogs', icon: 'ph-disc' });
+        if (this.state.filterCondition === 'used') activeFiltersList.push({ key: 'filterCondition', label: 'Brugtmoms (Usados)', icon: 'ph-recycle' });
+        if (this.state.filterCondition === 'new') activeFiltersList.push({ key: 'filterCondition', label: 'Nuevos', icon: 'ph-sparkle' });
+        if (this.state.filterGenre !== 'all') activeFiltersList.push({ key: 'filterGenre', label: `Género: ${this.state.filterGenre}`, icon: 'ph-music-notes' });
+        if (this.state.filterLabel !== 'all') activeFiltersList.push({ key: 'filterLabel', label: `Sello: ${this.state.filterLabel}`, icon: 'ph-vinyl-record' });
+        if (this.state.filterOwner !== 'all') activeFiltersList.push({ key: 'filterOwner', label: `Dueño: ${this.state.filterOwner}`, icon: 'ph-user' });
+        if (this.state.filterStorage !== 'all') activeFiltersList.push({ key: 'filterStorage', label: `Disquería: ${this.state.filterStorage}`, icon: 'ph-tag' });
+        if (this.state.filterHero === 'yes') activeFiltersList.push({ key: 'filterHero', label: 'Destacados', icon: 'ph-star' });
+        if (this.state.filterHero === 'no') activeFiltersList.push({ key: 'filterHero', label: 'No Destacados', icon: 'ph-star' });
+        if (this.state.filterStockTime.length > 0) {
+            const timeLabels = { green: '0-2m', orange: '2-4m', red: '4-6m', purple: '+6m' };
+            activeFiltersList.push({ key: 'filterStockTime', label: `Antigüedad: ${this.state.filterStockTime.map(t => timeLabels[t]).join(', ')}`, icon: 'ph-clock', resetValue: 'stockTime' });
+        }
+        const hasActiveFilters = activeFiltersList.length > 0 || this.state.inventorySearch.length > 0;
+        const isFiltered = activeFiltersList.length > 0;
 
         // 1. Static Layout Init
         if (!document.getElementById('inventory-layout-root')) {
@@ -3910,7 +3936,7 @@ const app = {
                          <div class="flex justify-between items-center mb-5">
                             <div>
                                 <h2 class="font-display text-2xl font-bold text-brand-dark">Inventario</h2>
-                                <p class="text-xs text-slate-400 mt-1">${totalItems} discos registrados</p>
+                                <p class="text-xs text-slate-400 mt-1" id="inventory-subtitle">${globalTotal} discos registrados</p>
                             </div>
                              <div class="flex gap-2">
                                 <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors" title="Historial">
@@ -3940,9 +3966,15 @@ const app = {
                         <!-- KPI Stats Row -->
                         <div id="inventory-kpi-container" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
 
-                        <!-- Inline Filter Chips -->
-                        <div id="inventory-filters-container" class="flex flex-wrap items-center gap-2"></div>
+                        <!-- Quick Filter Pills + Sort + Advanced -->
+                        <div id="inventory-filters-container" class="flex flex-wrap items-center gap-2 mb-2"></div>
+
+                        <!-- Active Filter Tags -->
+                        <div id="inventory-active-tags" class="flex flex-wrap items-center gap-2"></div>
                     </div>
+
+                    <!-- Mini-Dashboard Stats -->
+                    <div id="inventory-stats-section" class="stats-section"></div>
 
                     <!-- Cart (if items present) -->
                     <div id="inventory-cart-container" class="hidden mb-4"></div>
@@ -3950,7 +3982,7 @@ const app = {
                     <!-- View Toggle + Content -->
                     <div class="mt-4">
                         <div class="flex justify-between items-center mb-3">
-                            <p class="text-xs font-bold text-slate-400">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
+                            <p class="text-xs font-bold text-slate-400" id="inventory-results-count">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
                             <div class="hidden lg:flex items-center gap-2">
                                 <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></button>
                                 <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></button>
@@ -3959,33 +3991,56 @@ const app = {
                         <div id="inventory-content-container"></div>
                     </div>
                 </div>
+
+    <!-- Advanced Filters Slide-over -->
+    <div id="advanced-filters-backdrop" class="slide-over-backdrop" onclick="app.toggleAdvancedFilters()"></div>
+    <div id="advanced-filters-panel" class="slide-over-panel">
+        <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+            <h3 class="font-display font-bold text-lg text-brand-dark flex items-center gap-2">
+                <i class="ph-bold ph-sliders-horizontal text-brand-orange"></i> Filtros Avanzados
+            </h3>
+            <button onclick="app.toggleAdvancedFilters()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
+                <i class="ph-bold ph-x"></i>
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-5" id="advanced-filters-content"></div>
+        <div class="p-4 border-t border-slate-100 flex gap-2">
+            <button onclick="app.clearAllFilters(); app.toggleAdvancedFilters()" class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-all">
+                <i class="ph-bold ph-x"></i> Limpiar
+            </button>
+            <button onclick="app.toggleAdvancedFilters()" class="flex-1 py-2.5 rounded-xl bg-brand-dark text-white font-bold text-sm shadow-lg shadow-brand-dark/20 hover:scale-[1.02] transition-transform">
+                Aplicar
+            </button>
+        </div>
+    </div>
     `;
         }
 
-        // 2. Dynamic Updates — KPI Stats
+        // 2. Dynamic Updates — KPI Stats (derived from filteredInventory)
         const kpiContainer = document.getElementById('inventory-kpi-container');
         if (kpiContainer) {
+            const filteredBadge = isFiltered ? `<span class="ml-1.5 text-[9px] bg-orange-100 text-brand-orange px-1.5 py-0.5 rounded-full font-bold"><i class="ph-bold ph-funnel text-[8px]"></i> Filtrado</span>` : '';
             kpiContainer.innerHTML = `
                 <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Discos</p>
-                    <p class="text-xl font-bold text-brand-dark font-display mt-1">${totalItems}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Discos ${filteredBadge}</p>
+                    <p class="text-xl font-bold text-brand-dark font-display mt-1">${totalItems}${isFiltered ? ` <span class="text-xs text-slate-400 font-normal">/ ${globalTotal}</span>` : ''}</p>
                 </div>
                 <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total ${filteredBadge}</p>
                     <p class="text-xl font-bold text-brand-orange font-display mt-1">${this.formatCurrency(totalValue)}</p>
                 </div>
                 <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Stock</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Stock ${filteredBadge}</p>
                     <p class="text-xl font-bold text-emerald-600 font-display mt-1">${inStock} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
                 </div>
                 <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Discogs</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Discogs ${filteredBadge}</p>
                     <p class="text-xl font-bold text-purple-600 font-display mt-1">${onDiscogs} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
                 </div>
             `;
         }
 
-        // 3. Dynamic Updates — Inline Filter Chips
+        // 3. Dynamic Updates — Quick Pills + Sort + Advanced Filters button
         const filtersContainer = document.getElementById('inventory-filters-container');
         if (filtersContainer) {
             filtersContainer.innerHTML = `
@@ -3999,73 +4054,229 @@ const app = {
                         <option value="stockDesc" ${this.state.sortBy === 'stockDesc' ? 'selected' : ''}>Stock ↓</option>
                     </select>
                 </div>
-                <div class="filter-chip ${this.state.filterGenre !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-music-notes text-xs"></i>
-                    <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()">
-                        <option value="all">Género</option>
+
+                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+                <!-- Quick Filter Pills -->
+                <button onclick="app.toggleQuickFilter('filterStock', 'inStock')" class="quick-pill ${this.state.filterStock === 'inStock' ? 'active' : ''}">
+                    <i class="ph-bold ph-check-circle text-xs"></i> En Stock
+                </button>
+                <button onclick="app.toggleQuickFilter('filterStock', 'outOfStock')" class="quick-pill ${this.state.filterStock === 'outOfStock' ? 'active' : ''}">
+                    <i class="ph-bold ph-x-circle text-xs"></i> Agotados
+                </button>
+                <button onclick="app.toggleQuickFilter('filterDiscogs', 'yes')" class="quick-pill ${this.state.filterDiscogs === 'yes' ? 'active' : ''}">
+                    <i class="ph-bold ph-disc text-xs"></i> Discogs
+                </button>
+                <button onclick="app.toggleQuickFilter('filterCondition', 'used')" class="quick-pill ${this.state.filterCondition === 'used' ? 'active' : ''}">
+                    <i class="ph-bold ph-recycle text-xs"></i> Brugtmoms
+                </button>
+                <button onclick="app.toggleQuickFilter('filterCondition', 'new')" class="quick-pill ${this.state.filterCondition === 'new' ? 'active' : ''}">
+                    <i class="ph-bold ph-sparkle text-xs"></i> Nuevos
+                </button>
+
+                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+                <!-- Advanced Filters button -->
+                <button onclick="app.toggleAdvancedFilters()" class="quick-pill ${isFiltered && activeFiltersList.some(f => ['filterGenre','filterLabel','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)) ? 'active' : ''}">
+                    <i class="ph-bold ph-sliders-horizontal text-xs"></i> Más Filtros
+                    ${(() => { const advCount = activeFiltersList.filter(f => ['filterGenre','filterLabel','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)).length; return advCount > 0 ? `<span class="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px]">${advCount}</span>` : ''; })()}
+                </button>
+
+                <!-- Stats Toggle -->
+                <button onclick="app.toggleStats()" class="quick-pill ${this.state.showStats ? 'active' : ''}">
+                    <i class="ph-bold ph-chart-bar text-xs"></i> Estadísticas
+                </button>
+            `;
+        }
+
+        // 3b. Active Filter Tags
+        const tagsContainer = document.getElementById('inventory-active-tags');
+        if (tagsContainer) {
+            if (activeFiltersList.length > 0) {
+                tagsContainer.innerHTML = `
+                    <div class="flex flex-wrap items-center gap-2 mt-2 animate-fade-in">
+                        ${activeFiltersList.map(f => `
+                            <span class="active-tag">
+                                <i class="ph-bold ${f.icon} text-[10px]"></i>
+                                ${f.label}
+                                <span class="tag-remove" onclick="app.clearSingleFilter('${f.key}'${f.resetValue ? ", '" + f.resetValue + "'" : ''})">
+                                    <i class="ph-bold ph-x"></i>
+                                </span>
+                            </span>
+                        `).join('')}
+                        <button onclick="app.clearAllFilters()" class="active-tag hover:!bg-red-100 hover:!border-red-300 hover:!text-red-600" style="background:#fee2e2;border-color:#fca5a5;color:#ef4444;">
+                            <i class="ph-bold ph-x text-[10px]"></i> Limpiar todo (${activeFiltersList.length})
+                        </button>
+                    </div>
+                `;
+            } else {
+                tagsContainer.innerHTML = '';
+            }
+        }
+
+        // 3c. Advanced Filters Slide-over content
+        const advContent = document.getElementById('advanced-filters-content');
+        if (advContent) {
+            advContent.innerHTML = `
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Género</label>
+                    <select onchange="app.state.filterGenre = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all">Todos los géneros</option>
                         ${allGenres.map(g => `<option value="${g}" ${this.state.filterGenre === g ? 'selected' : ''}>${g}</option>`).join('')}
                     </select>
                 </div>
-                <div class="filter-chip ${this.state.filterLabel !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-vinyl-record text-xs"></i>
-                    <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()">
-                        <option value="all">Sello</option>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Sello</label>
+                    <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all">Todos los sellos</option>
                         ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
                     </select>
                 </div>
-                <div class="filter-chip ${this.state.filterStorage !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-tag text-xs"></i>
-                    <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()">
-                        <option value="all">Disquería</option>
-                        ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="filter-chip ${this.state.filterOwner !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-user text-xs"></i>
-                    <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()">
-                        <option value="all">Dueño</option>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Dueño</label>
+                    <select onchange="app.state.filterOwner = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all">Todos los dueños</option>
                         ${allOwners.map(o => `<option value="${o}" ${this.state.filterOwner === o ? 'selected' : ''}>${o}</option>`).join('')}
                     </select>
                 </div>
-
-                <!-- Stock Time Filter -->
-                <div class="flex items-center gap-1.5 ml-2 border-l border-slate-200 pl-4 py-1">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase mr-1">Antigüedad:</span>
-                    <button onclick="app.toggleStockTimeFilter('green')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('green') ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-emerald-200 bg-white text-emerald-500'} hover:scale-110 transition-all" title="0-2 meses">
-                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('green') ? 'bg-white' : 'bg-emerald-500'}"></span>
-                    </button>
-                    <button onclick="app.toggleStockTimeFilter('orange')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('orange') ? 'border-orange-500 bg-orange-500 text-white' : 'border-orange-200 bg-white text-orange-500'} hover:scale-110 transition-all" title="2-4 meses">
-                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('orange') ? 'bg-white' : 'bg-orange-500'}"></span>
-                    </button>
-                    <button onclick="app.toggleStockTimeFilter('red')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('red') ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 bg-white text-red-500'} hover:scale-110 transition-all" title="4-6 meses">
-                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('red') ? 'bg-white' : 'bg-red-500'}"></span>
-                    </button>
-                    <button onclick="app.toggleStockTimeFilter('purple')" class="w-6 h-6 rounded-full flex items-center justify-center border-2 ${this.state.filterStockTime.includes('purple') ? 'border-purple-500 bg-purple-500 text-white' : 'border-purple-200 bg-white text-purple-500'} hover:scale-110 transition-all" title="+6 meses">
-                        <span class="w-2 h-2 rounded-full ${this.state.filterStockTime.includes('purple') ? 'bg-white' : 'bg-purple-500'}"></span>
-                    </button>
-                </div>
-                <div class="filter-chip ${this.state.filterDiscogs && this.state.filterDiscogs !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-disc text-xs"></i>
-                    <select onchange="app.state.filterDiscogs = this.value; app.refreshCurrentView()">
-                        <option value="all" ${(this.state.filterDiscogs || 'all') === 'all' ? 'selected' : ''}>Discogs</option>
-                        <option value="yes" ${this.state.filterDiscogs === 'yes' ? 'selected' : ''}>✅ Publicado</option>
-                        <option value="no" ${this.state.filterDiscogs === 'no' ? 'selected' : ''}>❌ No pub.</option>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Disquería</label>
+                    <select onchange="app.state.filterStorage = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all">Todas las disquerías</option>
+                        ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
                     </select>
                 </div>
-                <div class="filter-chip ${this.state.filterHero && this.state.filterHero !== 'all' ? 'active' : ''}">
-                    <i class="ph-bold ph-star text-xs"></i>
-                    <select onchange="app.state.filterHero = this.value; app.refreshCurrentView()">
-                        <option value="all" ${(this.state.filterHero || 'all') === 'all' ? 'selected' : ''}>Héroe</option>
-                        <option value="yes" ${this.state.filterHero === 'yes' ? 'selected' : ''}>🌟 Destacado</option>
-                        <option value="no" ${this.state.filterHero === 'no' ? 'selected' : ''}>➖ Normal</option>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Héroe / Destacado</label>
+                    <select onchange="app.state.filterHero = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all" ${(this.state.filterHero || 'all') === 'all' ? 'selected' : ''}>Todos</option>
+                        <option value="yes" ${this.state.filterHero === 'yes' ? 'selected' : ''}>🌟 Destacados</option>
+                        <option value="no" ${this.state.filterHero === 'no' ? 'selected' : ''}>➖ Normales</option>
                     </select>
                 </div>
-                ${activeFilters > 0 || this.state.filterStockTime.length > 0 ? `
-                    <button onclick="app.state.filterGenre='all'; app.state.filterOwner='all'; app.state.filterLabel='all'; app.state.filterStorage='all'; app.state.filterDiscogs='all'; app.state.filterHero='all'; app.state.filterStockTime=[]; app.refreshCurrentView()" class="filter-chip hover:!bg-red-50 hover:!border-red-300 hover:!text-red-500">
-                        <i class="ph-bold ph-x text-xs"></i> Limpiar (${activeFilters + this.state.filterStockTime.length})
-                    </button>
-                ` : ''}
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Antigüedad en Stock</label>
+                    <div class="flex items-center gap-3">
+                        <button onclick="app.toggleStockTimeFilter('green'); " class="flex items-center gap-2 px-3 py-2 rounded-xl border ${this.state.filterStockTime.includes('green') ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500'} hover:border-emerald-400 transition-all text-xs font-bold">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span> 0-2m
+                        </button>
+                        <button onclick="app.toggleStockTimeFilter('orange'); " class="flex items-center gap-2 px-3 py-2 rounded-xl border ${this.state.filterStockTime.includes('orange') ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-slate-200 bg-white text-slate-500'} hover:border-orange-400 transition-all text-xs font-bold">
+                            <span class="w-3 h-3 rounded-full bg-orange-500"></span> 2-4m
+                        </button>
+                        <button onclick="app.toggleStockTimeFilter('red'); " class="flex items-center gap-2 px-3 py-2 rounded-xl border ${this.state.filterStockTime.includes('red') ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500'} hover:border-red-400 transition-all text-xs font-bold">
+                            <span class="w-3 h-3 rounded-full bg-red-500"></span> 4-6m
+                        </button>
+                        <button onclick="app.toggleStockTimeFilter('purple'); " class="flex items-center gap-2 px-3 py-2 rounded-xl border ${this.state.filterStockTime.includes('purple') ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-slate-200 bg-white text-slate-500'} hover:border-purple-400 transition-all text-xs font-bold">
+                            <span class="w-3 h-3 rounded-full bg-purple-500"></span> +6m
+                        </button>
+                    </div>
+                </div>
             `;
+        }
+
+        // 3d. Mini-Dashboard Stats (rendered when showStats is true)
+        const statsSection = document.getElementById('inventory-stats-section');
+        if (statsSection) {
+            if (this.state.showStats) {
+                // Genre distribution from filtered inventory
+                const genreCounts = {};
+                filteredInventory.forEach(item => {
+                    const rawGenres = [item.genre, item.genre2, item.genre3, item.genre4, item.genre5].filter(Boolean);
+                    const itemGenres = [];
+                    rawGenres.forEach(rg => { itemGenres.push(...rg.split(',').map(s => s.trim()).filter(Boolean)); });
+                    const uniqueGenres = [...new Set(itemGenres)];
+                    const nonElectronic = uniqueGenres.filter(g => g.toLowerCase() !== 'electronic');
+                    const effectiveGenres = nonElectronic.length > 0 ? nonElectronic : (uniqueGenres.length > 0 ? uniqueGenres : ['Otros']);
+                    effectiveGenres.forEach(g => { genreCounts[g] = (genreCounts[g] || 0) + 1; });
+                });
+                const sortedGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+                const maxGenreCount = sortedGenres.length > 0 ? sortedGenres[0][1] : 1;
+                const genreColors = ['#F05A28', '#e04d1c', '#f97316', '#fb923c', '#fdba74', '#8b5cf6', '#a78bfa', '#3b82f6', '#60a5fa', '#22c55e'];
+
+                // Stock vs Sold value
+                const stockValue = filteredInventory.reduce((sum, i) => {
+                    const s = Number(i.stock) || 0;
+                    return sum + (s > 0 ? (parseFloat(i.price) || 0) * s : 0);
+                }, 0);
+                const soldValue = filteredInventory.reduce((sum, i) => {
+                    const s = Number(i.stock) || 0;
+                    return sum + (s <= 0 ? (parseFloat(i.price) || 0) : 0);
+                }, 0);
+                const maxBarValue = Math.max(stockValue, soldValue, 1);
+
+                statsSection.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <!-- Genre Distribution -->
+                        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                            <h4 class="font-bold text-brand-dark text-sm mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-music-notes-simple text-brand-orange"></i> Distribución por Género
+                                <span class="text-[10px] text-slate-400 font-normal">(Top 10)</span>
+                            </h4>
+                            <div class="space-y-2.5">
+                                ${sortedGenres.map(([genre, count], idx) => `
+                                    <div>
+                                        <div class="flex justify-between items-center mb-1">
+                                            <span class="text-xs font-bold text-slate-600 truncate max-w-[160px]">${genre}</span>
+                                            <span class="text-xs font-bold text-slate-400">${count}</span>
+                                        </div>
+                                        <div class="stat-bar-track">
+                                            <div class="stat-bar-fill" style="width: ${Math.max((count / maxGenreCount) * 100, 8)}%; background: ${genreColors[idx % genreColors.length]};"></div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                                ${sortedGenres.length === 0 ? '<p class="text-xs text-slate-400 text-center py-4">Sin datos</p>' : ''}
+                            </div>
+                        </div>
+
+                        <!-- Stock vs Sold Value -->
+                        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                            <h4 class="font-bold text-brand-dark text-sm mb-4 flex items-center gap-2">
+                                <i class="ph-fill ph-chart-bar text-brand-orange"></i> Valor de Inventario
+                            </h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <span class="text-xs font-bold text-emerald-600 flex items-center gap-1.5"><i class="ph-fill ph-package text-sm"></i> En Stock</span>
+                                        <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(stockValue)}</span>
+                                    </div>
+                                    <div class="stat-bar-track">
+                                        <div class="stat-bar-fill" style="width: ${Math.max((stockValue / maxBarValue) * 100, 5)}%; background: linear-gradient(90deg, #22c55e, #4ade80);"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5"><i class="ph-fill ph-shopping-cart text-sm"></i> Vendido (Agotado)</span>
+                                        <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(soldValue)}</span>
+                                    </div>
+                                    <div class="stat-bar-track">
+                                        <div class="stat-bar-fill" style="width: ${Math.max((soldValue / maxBarValue) * 100, 5)}%; background: linear-gradient(90deg, #94a3b8, #cbd5e1);"></div>
+                                    </div>
+                                </div>
+                                <div class="pt-3 border-t border-slate-100">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs font-bold text-slate-400">Valor Total Registrado</span>
+                                        <span class="text-lg font-bold text-brand-orange font-display">${this.formatCurrency(stockValue + soldValue)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                // Ensure section is visually open
+                statsSection.classList.add('open');
+            } else {
+                statsSection.classList.remove('open');
+            }
+        }
+
+        // 3e. Update results count and subtitle
+        const resultsCount = document.getElementById('inventory-results-count');
+        if (resultsCount) {
+            resultsCount.textContent = `${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}`;
+        }
+        const subtitle = document.getElementById('inventory-subtitle');
+        if (subtitle) {
+            subtitle.textContent = `${globalTotal} discos registrados`;
         }
 
         // 4. Cart
@@ -4113,6 +4324,67 @@ const app = {
         } else {
             this.state.filterStockTime.splice(index, 1);
         }
+        this.refreshCurrentView();
+    },
+
+    toggleQuickFilter(filterName, value) {
+        // Toggle: if already set to this value, reset to 'all'; otherwise set it
+        if (this.state[filterName] === value) {
+            this.state[filterName] = 'all';
+        } else {
+            this.state[filterName] = value;
+        }
+        this.refreshCurrentView();
+    },
+
+    toggleAdvancedFilters() {
+        this.state.showAdvancedFilters = !this.state.showAdvancedFilters;
+        const backdrop = document.getElementById('advanced-filters-backdrop');
+        const panel = document.getElementById('advanced-filters-panel');
+        if (backdrop && panel) {
+            if (this.state.showAdvancedFilters) {
+                backdrop.classList.add('open');
+                panel.classList.add('open');
+            } else {
+                backdrop.classList.remove('open');
+                panel.classList.remove('open');
+            }
+        }
+    },
+
+    toggleStats() {
+        this.state.showStats = !this.state.showStats;
+        const section = document.getElementById('inventory-stats-section');
+        if (section) {
+            if (this.state.showStats) {
+                section.classList.add('open');
+            } else {
+                section.classList.remove('open');
+            }
+        }
+        // Re-render to update stat content
+        this.refreshCurrentView();
+    },
+
+    clearSingleFilter(filterName, resetValue) {
+        if (resetValue === 'stockTime') {
+            this.state.filterStockTime = [];
+        } else {
+            this.state[filterName] = resetValue !== undefined ? resetValue : 'all';
+        }
+        this.refreshCurrentView();
+    },
+
+    clearAllFilters() {
+        this.state.filterGenre = 'all';
+        this.state.filterOwner = 'all';
+        this.state.filterLabel = 'all';
+        this.state.filterStorage = 'all';
+        this.state.filterDiscogs = 'all';
+        this.state.filterHero = 'all';
+        this.state.filterStock = 'all';
+        this.state.filterCondition = 'all';
+        this.state.filterStockTime = [];
         this.refreshCurrentView();
     },
 
@@ -7586,6 +7858,8 @@ const app = {
         const currentStorageFilter = this.state.filterStorage || 'all';
         const currentDiscogsFilter = this.state.filterDiscogs || 'all';
         const currentHeroFilter = this.state.filterHero || 'all';
+        const currentStockFilter = this.state.filterStock || 'all';
+        const currentConditionFilter = this.state.filterCondition || 'all';
 
         let results = this.state.inventory;
 
@@ -7639,7 +7913,17 @@ const app = {
             const stockAge = this.getTimeInStockCategory(item.created_at || null);
             const matchesStockTime = this.state.filterStockTime.length === 0 || this.state.filterStockTime.includes(stockAge);
 
-            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero && matchesStockTime;
+            const itemStock = Number(item.stock) || 0;
+            const matchesStock = currentStockFilter === 'all' ||
+                (currentStockFilter === 'inStock' && itemStock > 0) ||
+                (currentStockFilter === 'outOfStock' && itemStock <= 0);
+
+            const itemCondition = item.product_condition || 'Second-hand';
+            const matchesCondition = currentConditionFilter === 'all' ||
+                (currentConditionFilter === 'used' && itemCondition === 'Second-hand') ||
+                (currentConditionFilter === 'new' && itemCondition !== 'Second-hand');
+
+            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero && matchesStockTime && matchesStock && matchesCondition;
         });
     },
     toggleSelectAll() {
@@ -8887,6 +9171,22 @@ const app = {
             this.refreshCurrentView();
         } catch (error) {
             console.error('Error in notifyPreparingDiscogs:', error);
+            this.showToast('❌ Error: ' + error.message, 'error');
+        }
+    },
+
+    async cancelOrderDiscogs(saleId) {
+        if (!confirm('¿Estás seguro que deseas cancelar esta orden? Esta acción cambiará el estado a cancelado.')) {
+            return;
+        }
+        try {
+            this.showToast('Cancelando orden...', 'info');
+            await api.cancelOrder(saleId);
+            this.showToast('✅ Orden cancelada correctamente');
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error('Error in cancelOrderDiscogs:', error);
             this.showToast('❌ Error: ' + error.message, 'error');
         }
     },
@@ -12254,8 +12554,8 @@ const app = {
         const isShippable = (s) => !isPickup(s);
 
         // Helper to check if order is active (not closed)
-        // Closed states: 'shipped', 'picked_up', 'delivered', 'fulfilled'
-        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'fulfilled'].includes(s.fulfillment_status);
+        // Closed states: 'shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'
+        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'].includes(s.fulfillment_status);
 
         // Filter Sales
         // 1. Active Pickups (Online + Discogs)
@@ -12374,6 +12674,11 @@ const app = {
                             3. Orden recogida
                         </span>
                     </button>
+
+                    ${status !== 'canceled' && status !== 'picked_up' ? `
+                    <button onclick="app.cancelOrderDiscogs('${s.id}')" class="w-full text-left px-3 py-1.5 mt-1 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border border-transparent hover:border-red-100">
+                        <i class="ph-bold ph-x-circle text-sm"></i> Cancelar orden
+                    </button>` : ''}
                 </div>
             `;
             return `
@@ -12509,6 +12814,11 @@ const app = {
                             3. Orden despachada
                         </span>
                     </button>
+
+                    ${status !== 'canceled' && status !== 'shipped' ? `
+                    <button onclick="app.cancelOrderDiscogs('${s.id}')" class="w-full text-left px-3 py-1.5 mt-1 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border border-transparent hover:border-red-100">
+                        <i class="ph-bold ph-x-circle text-sm"></i> Cancelar orden
+                    </button>` : ''}
                 </div>
             `;
 

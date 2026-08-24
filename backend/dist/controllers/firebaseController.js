@@ -42,12 +42,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.markAsPickedUp = exports.notifyReadyForPickup = exports.markAsDispatched = exports.notifyShipped = exports.updateTrackingNumber = exports.notifyPreparing = exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
+exports.markAsPickedUp = exports.notifyReadyForPickup = exports.markAsDispatched = exports.notifyShipped = exports.updateTrackingNumber = exports.cancelOrder = exports.notifyPreparing = exports.updateSaleValue = exports.updateFulfillmentStatus = exports.confirmLocalPayment = exports.getSaleById = exports.getSales = exports.createSale = exports.releaseStock = exports.reserveStock = exports.deleteProduct = exports.updateProduct = exports.createProduct = exports.listProducts = exports.getAllProducts = void 0;
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
 const admin = __importStar(require("firebase-admin"));
 const vatCalculator_1 = require("../services/vatCalculator");
 const invoiceService_1 = require("../services/invoiceService");
 const mailService_1 = require("../services/mailService");
+const discogsService_1 = require("../services/discogsService");
 const normalizeProduct = (data, id) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     return Object.assign(Object.assign({}, data), { id, 
@@ -192,7 +193,7 @@ const releaseStock = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.releaseStock = releaseStock;
 const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { items, channel, totalAmount, paymentMethod, customerName, customerEmail } = req.body;
+    const { items, channel, totalAmount, paymentMethod, customerName, customerEmail, discountPercent, discountAmount } = req.body;
     // items: [{ productId, qty, priceAtSale, album }]
     try {
         const db = (0, firebaseAdmin_1.getDb)();
@@ -210,8 +211,11 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 normalized.album = item.album;
             return normalized;
         });
+        // Discogs listings to remove after the sale commits (reset on each tx retry).
+        const discogsListingsToRemove = [];
         const saleId = yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
             let calculatedTotal = 0;
+            discogsListingsToRemove.length = 0;
             // 1. Validate all items have enough stock AND calculate total
             for (const item of normalizedItems) {
                 if (!item.productId) {
@@ -233,6 +237,11 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 item.costAtSale = productData.cost || 0; // Store cost for profit calculation
                 item.productCondition = productData.product_condition || 'Second-hand'; // Store for VAT calculation
                 item.album = productData.album || item.album || 'Unknown'; // Ensure album name is stored
+                // If this item is listed on Discogs and now sells out, queue listing removal
+                // so the Discogs inventory sync can't re-inflate its stock.
+                if (productData.discogs_listing_id && currentStock - item.qty <= 0) {
+                    discogsListingsToRemove.push(String(productData.discogs_listing_id));
+                }
                 calculatedTotal += price * item.qty;
             }
             // 2. Decrement stock and Prepare Sale document
@@ -264,16 +273,22 @@ const createSale = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 paymentMethod: paymentMethod || 'CASH',
                 customerName: customerName || null,
                 customerEmail: customerEmail || null,
+                discount_percent: discountPercent || 0,
+                discount_amount: discountAmount || 0,
                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
                 status: 'completed'
             });
             return saleRef.id;
         }));
         res.json({ success: true, saleId });
+        // Sync sold-out items to Discogs by removing their listings (non-blocking)
+        if (discogsListingsToRemove.length > 0) {
+            (0, discogsService_1.removeDiscogsListings)(discogsListingsToRemove).catch(e => console.error('⚠️ Discogs listing removal failed for POS sale:', e.message));
+        }
         // Generate invoice in background (non-blocking)
         const finalTotal = totalAmount || normalizedItems.reduce((sum, i) => sum + (i.priceAtSale * i.qty), 0);
         setTimeout(() => {
-            const invoiceData = (0, invoiceService_1.buildInvoiceFromPOSSale)(saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName);
+            const invoiceData = (0, invoiceService_1.buildInvoiceFromPOSSale)(saleId, normalizedItems, channel, finalTotal, paymentMethod, customerName, discountPercent, discountAmount);
             (0, invoiceService_1.generateInvoice)(invoiceData).catch(e => console.error('⚠️ Invoice generation failed for POS sale:', e.message));
         }, 1);
         // Send sale notification email to owner (non-blocking)
@@ -462,6 +477,33 @@ const notifyPreparing = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.notifyPreparing = notifyPreparing;
+const cancelOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const db = (0, firebaseAdmin_1.getDb)();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = yield saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        // Update status in Firestore
+        yield saleRef.update({
+            fulfillment_status: 'canceled',
+            status: 'canceled', // also update the global sale status if needed
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'canceled',
+                timestamp: new Date().toISOString(),
+                note: 'Order has been canceled.'
+            })
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+exports.cancelOrder = cancelOrder;
 const updateTrackingNumber = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;

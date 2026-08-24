@@ -21,6 +21,7 @@ const health_1 = __importDefault(require("./routes/health"));
 const webhookRoutes_1 = require("./routes/webhookRoutes");
 const errorHandler_1 = require("./middlewares/errorHandler");
 const labelPrintRoutes_1 = __importDefault(require("./routes/labelPrintRoutes"));
+const reportRoutes_1 = __importDefault(require("./routes/reportRoutes"));
 const app = (0, express_1.default)();
 const allowedOrigins = [
     'http://localhost:5173',
@@ -60,6 +61,7 @@ app.use('/api', labelPrintRoutes_1.default);
 // Health check endpoint
 app.use('/api', health_1.default);
 app.use('/api', shippingRoutes_1.default); // Added to support /api/ship-order
+app.use('/api/reports', reportRoutes_1.default);
 app.get('/', (req, res) => {
     res.send("<h1>El Cuartito API is running 🎵</h1><p>Go to <a href='/records/online'>/records/online</a> to see products.</p>");
 });

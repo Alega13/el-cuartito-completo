@@ -41,6 +41,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getTracklist = exports.searchRelease = exports.getListingById = exports.refreshMetadata = exports.bulkImport = exports.getReleaseById = exports.getPriceSuggestions = exports.deleteListing = exports.updateListing = exports.createListing = exports.syncOrders = exports.getSyncStatus = exports.syncInventory = void 0;
 const discogsService_1 = require("../services/discogsService");
@@ -153,8 +164,12 @@ const syncInventory = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                         result.salesDetected++;
                     }
                     else {
-                        // No sale detected, just update product data
-                        yield db.collection('products').doc(docId).update(productData);
+                        // No Discogs-side sale. Update metadata but NEVER let Discogs raise the
+                        // local stock: local/online sales lower stock first and the Discogs listing
+                        // lags until it's removed, so trusting Discogs here would undo real sales.
+                        // Stock only ever decreases — via this sale-detection branch or local sales.
+                        const _a = productData, { stock } = _a, metadataOnly = __rest(_a, ["stock"]);
+                        yield db.collection('products').doc(docId).update(metadataOnly);
                     }
                     result.updated++;
                     console.log(`Updated: ${product.artist} - ${product.album}`);

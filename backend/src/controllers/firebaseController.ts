@@ -531,6 +531,35 @@ export const notifyPreparing = async (req: Request, res: Response) => {
     }
 };
 
+export const cancelOrder = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        // Update status in Firestore
+        await saleRef.update({
+            fulfillment_status: 'canceled',
+            status: 'canceled', // also update the global sale status if needed
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'canceled',
+                timestamp: new Date().toISOString(),
+                note: 'Order has been canceled.'
+            })
+        });
+
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export const updateTrackingNumber = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;

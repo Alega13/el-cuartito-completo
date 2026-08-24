@@ -12,6 +12,7 @@ router.patch('/:id/fulfillment', isAdmin, firebaseController.updateFulfillmentSt
 router.patch('/:id/value', isAdmin, firebaseController.updateSaleValue);
 
 router.post('/:id/notify-preparing', isAdmin, firebaseController.notifyPreparing);
+router.post('/:id/cancel-order', isAdmin, firebaseController.cancelOrder);
 router.post('/:id/update-tracking', isAdmin, firebaseController.updateTrackingNumber);
 router.post('/:id/notify-shipped', isAdmin, firebaseController.notifyShipped);
 router.post('/:id/mark-dispatched', isAdmin, firebaseController.markAsDispatched);

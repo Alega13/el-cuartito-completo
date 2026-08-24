@@ -53,6 +53,7 @@ const admin = __importStar(require("firebase-admin"));
 const mailService_1 = require("../services/mailService");
 const invoiceService_1 = require("../services/invoiceService");
 const mailService_2 = require("../services/mailService");
+const discogsService_1 = require("../services/discogsService");
 // Initialize Stripe only if key exists
 const stripe = env_1.default.STRIPE_SECRET_KEY && env_1.default.STRIPE_SECRET_KEY !== 'sk_test_mock'
     ? new stripe_1.default(env_1.default.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' })
@@ -83,9 +84,12 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
             console.log('Payment succeeded for sale:', saleId);
             if (saleId) {
                 const db = (0, firebaseAdmin_1.getDb)();
+                // Discogs listings to remove after commit (reset on each tx retry).
+                const discogsListingsToRemove = [];
                 // Confirm sale and deduct stock in transaction
                 yield db.runTransaction((transaction) => __awaiter(void 0, void 0, void 0, function* () {
                     var _a, _b, _c, _d, _e, _f, _g;
+                    discogsListingsToRemove.length = 0;
                     const saleRef = db.collection('sales').doc(saleId);
                     const saleDoc = yield transaction.get(saleRef);
                     if (!saleDoc.exists)
@@ -110,6 +114,11 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                             const productRef = db.collection('products').doc(item.productId);
                             const productDoc = yield transaction.get(productRef);
                             if (productDoc.exists) {
+                                const pData = productDoc.data();
+                                // If sold out and listed on Discogs, queue listing removal.
+                                if ((pData === null || pData === void 0 ? void 0 : pData.discogs_listing_id) && ((pData === null || pData === void 0 ? void 0 : pData.stock) || 0) - item.quantity <= 0) {
+                                    discogsListingsToRemove.push(String(pData.discogs_listing_id));
+                                }
                                 transaction.update(productRef, {
                                     stock: admin.firestore.FieldValue.increment(-item.quantity),
                                     updated_at: admin.firestore.FieldValue.serverTimestamp()
@@ -207,6 +216,10 @@ const stripeWebhookHandler = (req, res) => __awaiter(void 0, void 0, void 0, fun
                         console.log('Sale not found or already processed:', saleId);
                     }
                 }));
+                // Sync sold-out items to Discogs by removing their listings (non-blocking)
+                if (discogsListingsToRemove.length > 0) {
+                    (0, discogsService_1.removeDiscogsListings)(discogsListingsToRemove).catch(e => console.error('⚠️ Discogs listing removal failed for online sale:', e.message));
+                }
             }
         }
         else if (event.type === 'payment_intent.payment_failed') {

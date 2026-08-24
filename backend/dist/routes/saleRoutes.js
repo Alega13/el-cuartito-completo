@@ -44,6 +44,7 @@ router.post('/', auth_1.isAdmin, firebaseController.createSale);
 router.patch('/:id/fulfillment', auth_1.isAdmin, firebaseController.updateFulfillmentStatus);
 router.patch('/:id/value', auth_1.isAdmin, firebaseController.updateSaleValue);
 router.post('/:id/notify-preparing', auth_1.isAdmin, firebaseController.notifyPreparing);
+router.post('/:id/cancel-order', auth_1.isAdmin, firebaseController.cancelOrder);
 router.post('/:id/update-tracking', auth_1.isAdmin, firebaseController.updateTrackingNumber);
 router.post('/:id/notify-shipped', auth_1.isAdmin, firebaseController.notifyShipped);
 router.post('/:id/mark-dispatched', auth_1.isAdmin, firebaseController.markAsDispatched);

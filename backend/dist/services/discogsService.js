@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DiscogsService = void 0;
+exports.removeDiscogsListings = removeDiscogsListings;
 const axios_1 = __importDefault(require("axios"));
 class DiscogsService {
     constructor(username, token) {
@@ -388,3 +389,27 @@ class DiscogsService {
     }
 }
 exports.DiscogsService = DiscogsService;
+/**
+ * Removes Discogs marketplace listings after a record sells locally/online,
+ * so the inventory sync can no longer re-inflate the sold item's stock and the
+ * item is no longer advertised on Discogs. Best-effort: failures are logged, not thrown.
+ */
+function removeDiscogsListings(listingIds) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const username = process.env.DISCOGS_USERNAME;
+        const token = process.env.DISCOGS_TOKEN;
+        const ids = [...new Set(listingIds.filter(Boolean))];
+        if (!username || !token || ids.length === 0)
+            return;
+        const service = new DiscogsService(username, token);
+        for (const id of ids) {
+            try {
+                yield service.deleteListing(id);
+                console.log(`🗑️  Removed Discogs listing ${id} after sale`);
+            }
+            catch (e) {
+                console.error(`⚠️ Failed to remove Discogs listing ${id} after sale:`, e.message);
+            }
+        }
+    });
+}

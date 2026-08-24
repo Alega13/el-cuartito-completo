@@ -239,6 +239,19 @@ function generatePDFBuffer(invoiceNumber, sale) {
             doc.text(`${sale.shippingCost.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
             yPos += rowHeight;
         }
+        // Discount row if applicable
+        if (sale.discountAmount && sale.discountAmount > 0) {
+            doc.moveTo(50, yPos).lineTo(50 + pageWidth, yPos).strokeColor('#E2E8F0').lineWidth(0.5).stroke();
+            yPos += 8;
+            doc.fillColor('#dc2626').font('Helvetica-Bold');
+            doc.text('', 50, yPos, { width: 25 });
+            doc.text(`Descuento / Discount (${sale.discountPercent || 0}%)`, 75, yPos, { width: 250 });
+            doc.text('', 335, yPos, { width: 40 });
+            doc.text('', 385, yPos, { width: 70 });
+            doc.text(`-${sale.discountAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+            yPos += rowHeight;
+            doc.font('Helvetica');
+        }
         // ── Total ──
         yPos += 5;
         doc.moveTo(350, yPos).lineTo(50 + pageWidth, yPos).strokeColor(BRAND_ORANGE).lineWidth(2).stroke();
@@ -250,10 +263,9 @@ function generatePDFBuffer(invoiceNumber, sale) {
             totalLabel = 'Total inkl. moms:';
         }
         doc.text(totalLabel, 300, yPos, { width: 155, align: 'right' });
-        // Total sum
-        const calculatedTotal = sale.items.reduce((sum, item) => sum + item.total, 0) + (sale.shippingCost || 0);
+        // Total sum uses sale.totalAmount which already has discount applied
         doc.fillColor(BRAND_ORANGE);
-        doc.text(`${calculatedTotal.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
+        doc.text(`${sale.totalAmount.toFixed(2)} DKK`, 460, yPos, { width: 85, align: 'right' });
         // VAT Breakdown
         if (hasNew) {
             yPos += 14;
@@ -261,7 +273,7 @@ function generatePDFBuffer(invoiceNumber, sale) {
             let vatableAmount = 0;
             if (!hasUsed) {
                 // Scenario A: Everything is new, include shipping in VAT
-                vatableAmount = calculatedTotal;
+                vatableAmount = sale.totalAmount;
             }
             else {
                 // Scenario C: Mixed, only new items
@@ -387,7 +399,7 @@ function generateInvoice(sale) {
 /**
  * Builds invoice data from a POS/manual sale (createSale format)
  */
-function buildInvoiceFromPOSSale(saleId, items, channel, totalAmount, paymentMethod, customerName) {
+function buildInvoiceFromPOSSale(saleId, items, channel, totalAmount, paymentMethod, customerName, discountPercent, discountAmount) {
     const now = new Date();
     return {
         saleId,
@@ -404,6 +416,8 @@ function buildInvoiceFromPOSSale(saleId, items, channel, totalAmount, paymentMet
             productCondition: item.productCondition || item.condition || 'Second-hand',
         })),
         totalAmount,
+        discountPercent: discountPercent || 0,
+        discountAmount: discountAmount || 0,
     };
 }
 /**
