@@ -74,7 +74,7 @@ const Navbar = ({ setSearchQuery }) => {
                                 <a 
                                     href="#catalogue" 
                                     onClick={handleScrollToCatalog} 
-                                    className={`text-[10px] md:text-xs font-bold uppercase tracking-tight hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                    className={`text-sm md:text-xs font-light md:font-bold uppercase tracking-widest md:tracking-tight hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                                 >
                                     SHOP
                                 </a>
@@ -125,12 +125,20 @@ const Navbar = ({ setSearchQuery }) => {
                                 transition={{ duration: 0.2 }}
                                 className="flex flex-col items-end"
                             >
-                                <div className="flex items-start">
-                                    <span className="text-sm md:text-base font-light uppercase tracking-widest text-black mr-3 leading-none">CART</span>
-                                    <div className="w-8 md:w-12 h-8 md:h-12 border-t border-r border-black mt-[5px] md:mt-[6px]"></div>
+                                {/* Mobile: inline CART + number */}
+                                <div className="flex md:hidden items-center gap-2">
+                                    <span className="text-sm font-light uppercase tracking-widest text-black leading-none">CART</span>
+                                    <span className="text-sm font-light leading-none">{totalItems}</span>
                                 </div>
-                                <div className="pr-px mt-1 md:mt-2">
-                                    <span className="text-xs md:text-sm font-bold leading-none inline-block translate-x-1/2">{totalItems}</span>
+                                {/* Desktop: CART with corner lines */}
+                                <div className="hidden md:flex flex-col items-end">
+                                    <div className="flex items-start">
+                                        <span className="text-base font-light uppercase tracking-widest text-black mr-3 leading-none">CART</span>
+                                        <div className="w-12 h-12 border-t border-r border-black mt-[6px]"></div>
+                                    </div>
+                                    <div className="pr-px mt-2">
+                                        <span className="text-sm font-bold leading-none inline-block translate-x-1/2">{totalItems}</span>
+                                    </div>
                                 </div>
                             </motion.div>
                         ) : (
