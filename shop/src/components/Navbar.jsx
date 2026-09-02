@@ -87,7 +87,7 @@ const Navbar = ({ setSearchQuery }) => {
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="miter">
                                     <polyline points="15 18 9 12 15 6"></polyline>
                                 </svg>
-                                <span className="text-[10px] md:text-xs font-bold uppercase tracking-tight">BACK</span>
+                                <span className="text-sm md:text-xs font-light md:font-bold uppercase tracking-widest md:tracking-tight">BACK</span>
                             </button>
                         )}
                     </div>

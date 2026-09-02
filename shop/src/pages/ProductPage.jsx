@@ -219,7 +219,7 @@ const ProductPage = ({ products = [] }) => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                    className="flex flex-col lg:col-span-1 pt-4 lg:pt-10 h-full relative"
+                    className="flex flex-col lg:col-span-1 pt-4 lg:pt-10 h-full relative order-2 lg:order-1"
                 >
                     <h1 className="text-[32px] sm:text-[48px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-4 md:mb-6">
                         {product.album}<br />
@@ -303,7 +303,7 @@ const ProductPage = ({ products = [] }) => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    className="flex flex-col items-center lg:items-end w-full lg:col-span-2"
+                    className="flex flex-col items-center lg:items-end w-full lg:col-span-2 order-1 lg:order-2"
                 >
                     {/* Image */}
                     <div className="w-full aspect-square bg-transparent flex items-center justify-center mb-12 relative max-w-2xl lg:mr-12">
