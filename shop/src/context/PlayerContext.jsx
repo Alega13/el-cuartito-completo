@@ -146,13 +146,24 @@ export const PlayerProvider = ({ children }) => {
 
         if (isPlaying) {
             // Pause
-            if (currentTrack.source === 'itunes' || currentTrack.source === 'bandcamp') audioRef.current?.pause();
-            if (currentTrack.source === 'youtube') youtubePlayerRef.current?.pauseVideo();
+            if (currentTrack.source === 'itunes' || currentTrack.source === 'bandcamp') {
+                audioRef.current?.pause();
+            }
+            if (currentTrack.source === 'youtube') {
+                youtubePlayerRef.current?.pauseVideo();
+            }
             setIsPlaying(false);
         } else {
             // Play
-            if (currentTrack.source === 'itunes' || currentTrack.source === 'bandcamp') audioRef.current?.play();
-            if (currentTrack.source === 'youtube') youtubePlayerRef.current?.playVideo();
+            if (currentTrack.source === 'itunes' || currentTrack.source === 'bandcamp') {
+                const promise = audioRef.current?.play();
+                if (promise !== undefined) {
+                    promise.catch(e => console.log("Audio play error:", e));
+                }
+            }
+            if (currentTrack.source === 'youtube') {
+                youtubePlayerRef.current?.playVideo();
+            }
             setIsPlaying(true);
         }
     };
@@ -201,12 +212,15 @@ export const PlayerProvider = ({ children }) => {
             setCurrentTrack(newTrack);
 
             if (preview.source === 'itunes' || preview.source === 'bandcamp') {
-                setTimeout(() => {
-                    if (audioRef.current) {
-                        audioRef.current.src = preview.url;
-                        audioRef.current.play();
+                if (audioRef.current) {
+                    audioRef.current.src = preview.url;
+                    const promise = audioRef.current.play();
+                    if (promise !== undefined) {
+                        promise.catch(err => {
+                            console.error("Audio play failed:", err);
+                        });
                     }
-                }, 50);
+                }
             } else if (preview.source === 'youtube') {
                 // Handled in useEffect
             }
@@ -214,7 +228,6 @@ export const PlayerProvider = ({ children }) => {
         } else {
             console.log("No audio source found");
             setIsPlaying(false);
-            // Could set an error state here
         }
     };
 
@@ -265,32 +278,54 @@ export const PlayerProvider = ({ children }) => {
     // YouTube Player Logic
     useEffect(() => {
         if (currentTrack?.source === 'youtube' && window.YT) {
-            if (youtubePlayerRef.current && youtubePlayerRef.current.loadVideoById) {
-                youtubePlayerRef.current.loadVideoById(currentTrack.url);
+            if (youtubePlayerRef.current && typeof youtubePlayerRef.current.loadVideoById === 'function') {
+                try {
+                    youtubePlayerRef.current.loadVideoById(currentTrack.url);
+                    youtubePlayerRef.current.playVideo();
+                } catch (e) {
+                    console.error("YouTube load error:", e);
+                }
             } else {
-                new window.YT.Player('hidden-youtube-player-global', {
-                    height: '0',
-                    width: '0',
-                    videoId: currentTrack.url,
-                    playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'fs': 0 },
-                    events: {
-                        'onReady': (event) => {
-                            youtubePlayerRef.current = event.target;
-                            event.target.playVideo();
+                try {
+                    new window.YT.Player('hidden-youtube-player-global', {
+                        height: '0',
+                        width: '0',
+                        videoId: currentTrack.url,
+                        playerVars: { 
+                            'autoplay': 1, 
+                            'playsinline': 1, 
+                            'enablejsapi': 1, 
+                            'controls': 0, 
+                            'disablekb': 1, 
+                            'fs': 0 
                         },
-                        'onStateChange': (event) => {
-                            if (event.data === window.YT.PlayerState.PLAYING) {
-                                setIsPlaying(true);
-                                setDuration(youtubePlayerRef.current.getDuration());
-                            } else if (event.data === window.YT.PlayerState.PAUSED) {
-                                setIsPlaying(false);
-                            } else if (event.data === window.YT.PlayerState.ENDED) {
-                                setIsPlaying(false);
-                                // Auto next?
+                        events: {
+                            'onReady': (event) => {
+                                youtubePlayerRef.current = event.target;
+                                try {
+                                    event.target.playVideo();
+                                } catch (err) {
+                                    console.error("YT playVideo error:", err);
+                                }
+                            },
+                            'onStateChange': (event) => {
+                                if (event.data === window.YT.PlayerState.PLAYING) {
+                                    setIsPlaying(true);
+                                    if (youtubePlayerRef.current && typeof youtubePlayerRef.current.getDuration === 'function') {
+                                        setDuration(youtubePlayerRef.current.getDuration());
+                                    }
+                                } else if (event.data === window.YT.PlayerState.PAUSED) {
+                                    setIsPlaying(false);
+                                } else if (event.data === window.YT.PlayerState.ENDED) {
+                                    setIsPlaying(false);
+                                    playNext();
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                } catch (e) {
+                    console.error("YouTube Player init error:", e);
+                }
             }
         }
     }, [currentTrack?.url, currentTrack?.source]);
