@@ -221,12 +221,12 @@ const ProductPage = ({ products = [] }) => {
                     transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                     className="flex flex-col lg:col-span-1 pt-4 lg:pt-10 h-full relative order-2 lg:order-1"
                 >
-                    <h1 className="text-[32px] sm:text-[48px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-4 md:mb-6">
+                    <h1 className="hidden lg:block text-[32px] sm:text-[48px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-4 md:mb-6">
                         {product.album}<br />
                         <span className="font-light text-black/70">{product.artist}</span>
                     </h1>
 
-                    <div className="flex items-center gap-4 mb-8 md:mb-12">
+                    <div className="hidden lg:flex items-center gap-4 mb-8 md:mb-12">
                         {product.is_rsd_discount ? (
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl font-medium text-black">{Math.round(product.price * 0.9)} DKK</span>
@@ -325,13 +325,21 @@ const ProductPage = ({ products = [] }) => {
                     className="flex flex-col items-center lg:items-end w-full lg:col-span-2 order-1 lg:order-2"
                 >
                     {/* Image */}
-                    <div className="w-full aspect-square bg-transparent flex items-center justify-center mb-12 relative max-w-2xl lg:mr-12">
+                    <div className="w-full aspect-square bg-transparent flex items-center justify-center mb-6 md:mb-12 relative max-w-2xl lg:mr-12">
                         <img
                             src={imageSrc}
                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                             alt={product.album}
                             className="w-[85%] h-[85%] object-cover shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
                         />
+                    </div>
+
+                    {/* Album & Artist - Mobile Only (between Image and Cart bar divider line) */}
+                    <div className="w-full lg:hidden mb-6 text-left">
+                        <h1 className="text-[32px] sm:text-[48px] font-bold tracking-tighter leading-[0.9] text-black">
+                            {product.album}<br />
+                            <span className="font-light text-black/70">{product.artist}</span>
+                        </h1>
                     </div>
 
                     {/* Add to Cart - Sticky Below Image */}
