@@ -468,7 +468,7 @@ const ProductPage = ({ products = [] }) => {
                                                     : 'bg-transparent text-black border-black hover:bg-black hover:text-white'
                                         }`}
                                     >
-                                        {addedToCart ? 'IN CART' : 'IN CART'}
+                                        {addedToCart ? 'ADDED TO CART' : 'ADD TO CART'}
                                     </button>
                                     </>
                                 ) : (
