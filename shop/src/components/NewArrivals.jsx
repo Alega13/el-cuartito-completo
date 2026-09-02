@@ -20,9 +20,9 @@ const NewArrivals = ({ products }) => {
     };
 
     return (
-        <section className="bg-[#F3F3F3] pb-12 relative px-10 md:px-20 overflow-hidden">
+        <section className="bg-[#F3F3F3] pb-12 relative px-4 md:px-20 overflow-hidden">
             {/* Top Line & Title */}
-            <div className="border-t border-black pt-2 mb-12 md:mb-20">
+            <div className="border-t border-black pt-2 mb-8 md:mb-20">
                 <h2 className="text-[10px] font-bold uppercase tracking-widest text-black">
                     NEW ARRIVALS
                 </h2>
@@ -37,7 +37,7 @@ const NewArrivals = ({ products }) => {
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: '-100%', opacity: 0 }}
                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                        className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-10 w-full"
+                        className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-10 w-full"
                     >
                         {displayProducts.map((product) => (
                             <Link 
@@ -45,7 +45,7 @@ const NewArrivals = ({ products }) => {
                                 key={product.id}
                                 className="flex flex-col group"
                             >
-                                <div className="w-full aspect-square mb-8 flex items-center justify-center p-8 md:p-12 lg:p-16">
+                                <div className="w-full aspect-square mb-4 md:mb-8 flex items-center justify-center p-3 md:p-12 lg:p-16">
                                     <img
                                         src={product.cover_image || product.image || defaultImage}
                                         alt={product.album}
@@ -82,7 +82,7 @@ const NewArrivals = ({ products }) => {
             </div>
             
             {/* Bottom Line (separating next section) */}
-            <div className="border-t border-black mt-24"></div>
+            <div className="border-t border-black mt-12 md:mt-24"></div>
         </section>
     );
 };

@@ -62,7 +62,7 @@ const GlobalPlayer = () => {
                         />
                     </div>
 
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-4">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 sm:gap-4">
                         {/* Track Info */}
                         <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
                             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-black/10 rounded-sm overflow-hidden flex-shrink-0">

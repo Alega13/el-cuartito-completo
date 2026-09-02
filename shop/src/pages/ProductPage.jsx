@@ -195,7 +195,7 @@ const ProductPage = ({ products = [] }) => {
     const seoDescription = `Buy ${product.album} by ${product.artist} on vinyl. ${product.genre ? `Genre: ${product.genre}.` : ''} Condition: ${product.status || 'VG'}. Available at El Cuartito Records, Copenhagen.`;
 
     return (
-        <div className="bg-[#F3F3F3] min-h-screen pt-32 pb-40 px-6 md:px-12 lg:px-20">
+        <div className="bg-[#F3F3F3] min-h-screen pt-24 md:pt-32 pb-20 md:pb-40 px-4 md:px-12 lg:px-20">
             {/* Dynamic SEO */}
             <SEO
                 title={seoTitle}
@@ -221,12 +221,12 @@ const ProductPage = ({ products = [] }) => {
                     transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                     className="flex flex-col lg:col-span-1 pt-4 lg:pt-10 h-full relative"
                 >
-                    <h1 className="text-[42px] sm:text-[60px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-6">
+                    <h1 className="text-[32px] sm:text-[48px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-4 md:mb-6">
                         {product.album}<br />
                         <span className="font-light text-black/70">{product.artist}</span>
                     </h1>
 
-                    <div className="flex items-center gap-4 mb-12">
+                    <div className="flex items-center gap-4 mb-8 md:mb-12">
                         {product.is_rsd_discount ? (
                             <div className="flex items-center gap-3">
                                 <span className="text-2xl font-medium text-black">{Math.round(product.price * 0.9)} DKK</span>
@@ -242,7 +242,7 @@ const ProductPage = ({ products = [] }) => {
 
                     <div ref={descRef} className="lg:sticky lg:top-0 pb-10">
                         {/* Adjust padding to align border-t with hamburger menu vertically when stuck */}
-                        <div className="border-t border-transparent w-full max-w-sm pt-8 mb-4 mt-[56px] transition-all"></div>
+                        <div className="border-t border-transparent w-full max-w-sm pt-6 md:pt-8 mb-4 mt-8 md:mt-[56px] transition-all"></div>
 
                     <div className="mb-4">
                         <h2 className={`font-semibold tracking-normal text-black mb-6 uppercase transition-all duration-300 ${isDescSticky ? 'text-2xl' : 'text-sm'}`}>Description</h2>
@@ -316,7 +316,7 @@ const ProductPage = ({ products = [] }) => {
                     </div>
 
                     {/* Add to Cart - Sticky Below Image */}
-                    <div ref={cartRef} className="w-full pb-8 border-b lg:border-b-0 border-t border-black/20 pt-8 mb-12 lg:sticky lg:top-0 bg-[#F3F3F3] z-30 transition-colors duration-300 relative">
+                    <div ref={cartRef} className="w-full pb-6 md:pb-8 border-b lg:border-b-0 border-t border-black/20 pt-6 md:pt-8 mb-8 md:mb-12 lg:sticky lg:top-0 bg-[#F3F3F3] z-30 transition-colors duration-300 relative">
                         {/* Animated Bottom Line */}
                         <motion.div 
                             className="absolute bottom-0 right-0 h-px bg-black hidden lg:block origin-right"
@@ -414,16 +414,18 @@ const ProductPage = ({ products = [] }) => {
                             )}
 
                             {/* Right side */}
-                            <div className="flex flex-row items-center justify-end gap-4 md:gap-8 flex-nowrap shrink-0 ml-auto">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 md:gap-8 flex-wrap sm:flex-nowrap shrink-0 ml-auto w-full sm:w-auto">
                                 {product.stock > 0 ? (
                                     <>
-                                        <div className="flex flex-col text-right mr-4 sm:mr-8 shrink-0">
-                                            <span className="font-bold text-xs sm:text-sm tracking-widest uppercase truncate max-w-[200px]">{product.album}</span>
-                                            <span className="text-[9px] sm:text-[10px] text-black/50 uppercase tracking-widest font-light truncate max-w-[200px] mt-0.5">{product.artist}</span>
-                                        </div>
-                                        <span className="font-bold text-sm sm:text-lg tracking-widest uppercase shrink-0">
+                                        <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:text-right gap-2 sm:mr-8 shrink-0">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-xs sm:text-sm tracking-widest uppercase truncate max-w-[180px]">{product.album}</span>
+                                                <span className="text-[9px] sm:text-[10px] text-black/50 uppercase tracking-widest font-light truncate max-w-[180px] mt-0.5">{product.artist}</span>
+                                            </div>
+                                            <span className="font-bold text-sm sm:text-lg tracking-widest uppercase shrink-0">
                                             {product.is_rsd_discount ? Math.round(product.price * 0.9) : product.price} DKK
-                                        </span>
+                                            </span>
+                                        </div>
                                         <button
                                         onClick={() => {
                                             for(let i=0; i<quantity; i++) addToCart(product);
@@ -431,7 +433,7 @@ const ProductPage = ({ products = [] }) => {
                                             setTimeout(() => setAddedToCart(false), 2000);
                                         }}
                                         disabled={addedToCart}
-                                        className={`w-full sm:w-auto px-8 md:px-24 py-6 md:py-10 font-bold text-sm sm:text-lg tracking-widest uppercase transition-all border-2 shrink-0 ${
+                                        className={`w-full sm:w-auto px-6 md:px-24 py-4 md:py-10 font-bold text-xs sm:text-lg tracking-widest uppercase transition-all border-2 shrink-0 ${
                                             addedToCart
                                                 ? 'bg-black text-white border-black'
                                                 : isCartSticky 
@@ -443,7 +445,7 @@ const ProductPage = ({ products = [] }) => {
                                     </button>
                                     </>
                                 ) : (
-                                    <div className="px-24 py-10 border-2 border-red-200 bg-red-50 text-red-600 font-bold text-lg tracking-widest uppercase text-center w-full">
+                                    <div className="px-6 md:px-24 py-6 md:py-10 border-2 border-red-200 bg-red-50 text-red-600 font-bold text-sm md:text-lg tracking-widest uppercase text-center w-full">
                                         OUT OF STOCK
                                     </div>
                                 )}

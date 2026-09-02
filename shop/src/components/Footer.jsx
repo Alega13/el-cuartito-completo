@@ -22,8 +22,8 @@ const Footer = () => {
 
     return (
         <footer className="bg-background border-t border-black/10 mt-32">
-            <div className="max-w-7xl mx-auto px-6 py-16">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
+            <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-16">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 mb-12 md:mb-16">
                     {/* INDEX */}
                     <div>
                         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-6">Index</h3>
@@ -69,7 +69,7 @@ const Footer = () => {
 
                 {/* Large Brand Name */}
                 <div className="flex items-end justify-between border-t border-black/10 pt-8">
-                    <h2 className="text-6xl md:text-8xl font-bold tracking-tighter">
+                    <h2 className="text-4xl md:text-8xl font-bold tracking-tighter">
                         EL CUARTITO
                     </h2>
                     <div className="text-xs text-black/40 text-right">

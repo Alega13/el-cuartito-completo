@@ -25,11 +25,11 @@ const CartDrawer = ({ isOpen, onClose }) => {
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}
-                        className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white z-[110] flex flex-col pt-6 pb-0"
+                        className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white z-[110] flex flex-col pt-4 md:pt-6 pb-0"
                     >
                         {/* Top Title & Close Button */}
-                        <div className="flex justify-between items-start px-8 mb-4">
-                            <h2 className="text-4xl font-bold tracking-tighter uppercase mt-2">YOUR CART</h2>
+                        <div className="flex justify-between items-start px-4 md:px-8 mb-4">
+                            <h2 className="text-2xl md:text-4xl font-bold tracking-tighter uppercase mt-2">YOUR CART</h2>
                             <button
                                 onClick={onClose}
                                 className="text-black hover:opacity-50 transition-opacity"

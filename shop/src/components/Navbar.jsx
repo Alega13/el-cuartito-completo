@@ -65,7 +65,7 @@ const Navbar = ({ setSearchQuery }) => {
 
     return (
         <>
-            <nav className={`fixed top-0 left-0 right-0 z-50 w-full px-10 py-6 md:px-20 md:py-8 transition-colors duration-300 text-black ${!hasScrolled ? 'bg-[#F3F3F3]' : 'bg-transparent pointer-events-none'}`}>
+            <nav className={`fixed top-0 left-0 right-0 z-50 w-full px-4 py-4 md:px-20 md:py-8 transition-colors duration-300 text-black ${!hasScrolled ? 'bg-[#F3F3F3]' : 'bg-transparent pointer-events-none'}`}>
                 <div className="flex items-center justify-between">
                     {/* Left: SHOP or BACK */}
                     <div className="flex items-center gap-4 flex-1">
@@ -74,7 +74,7 @@ const Navbar = ({ setSearchQuery }) => {
                                 <a 
                                     href="#catalogue" 
                                     onClick={handleScrollToCatalog} 
-                                    className={`hidden md:block text-xs font-bold uppercase tracking-tight hover:opacity-60 transition-opacity duration-300 ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
+                                    className={`text-[10px] md:text-xs font-bold uppercase tracking-tight hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                                 >
                                     SHOP
                                 </a>
@@ -82,12 +82,12 @@ const Navbar = ({ setSearchQuery }) => {
                         ) : (
                             <button
                                 onClick={() => navigate(-1)}
-                                className={`flex items-center gap-1 hover:opacity-60 transition-opacity duration-300 pointer-events-auto -ml-4 md:-ml-10`}
+                                className={`flex items-center gap-1 hover:opacity-60 transition-opacity duration-300 pointer-events-auto`}
                             >
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="miter">
                                     <polyline points="15 18 9 12 15 6"></polyline>
                                 </svg>
-                                <span className="text-xs font-bold uppercase tracking-tight">BACK</span>
+                                <span className="text-[10px] md:text-xs font-bold uppercase tracking-tight">BACK</span>
                             </button>
                         )}
                     </div>
@@ -98,7 +98,7 @@ const Navbar = ({ setSearchQuery }) => {
                             to="/" 
                             className={`hover:opacity-80 transition-opacity duration-300 ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
                         >
-                            <img src={logo} alt="El Cuartito" className="h-8 md:h-10 w-auto object-contain" />
+                            <img src={logo} alt="El Cuartito" className="h-6 md:h-10 w-auto object-contain" />
                         </Link>
                     </div>
 
@@ -113,7 +113,7 @@ const Navbar = ({ setSearchQuery }) => {
             {!isCheckout && (
                 <button
                     onClick={() => setIsCartOpen(true)}
-                    className="fixed right-10 md:right-16 top-8 md:top-10 z-50 hover:opacity-60 transition-opacity"
+                    className="fixed right-4 md:right-16 top-5 md:top-10 z-50 hover:opacity-60 transition-opacity"
                 >
                     <AnimatePresence mode="wait">
                         {!hasScrolled ? (

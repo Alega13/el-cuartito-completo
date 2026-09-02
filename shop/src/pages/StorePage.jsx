@@ -166,18 +166,18 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
     }
 
     return (
-        <div id="catalogue" className="pb-20 px-10 md:px-20 w-full">
+        <div id="catalogue" className="pb-20 px-4 md:px-20 w-full">
 
             {/* Header Area */}
-            <header className="sticky top-0 z-40 bg-[#F3F3F3] pb-6 flex flex-col gap-8 pt-16 md:pt-20 -mx-10 px-10 md:-mx-20 md:px-20 relative">
+            <header className="sticky top-0 z-40 bg-[#F3F3F3] pb-4 md:pb-6 flex flex-col gap-4 md:gap-8 pt-12 md:pt-20 -mx-4 px-4 md:-mx-20 md:px-20 relative">
                 {/* CATALOGUE TITLE */}
                 <div className="absolute top-8 md:top-10 left-10 md:left-20 flex items-center">
-                    <h2 className="text-[32px] md:text-[42px] leading-none font-bold uppercase tracking-widest text-black mt-[-4px] md:mt-[-6px]">
+                    <h2 className="text-[22px] md:text-[42px] leading-none font-bold uppercase tracking-widest text-black mt-[-4px] md:mt-[-6px]">
                         CATALOG
                     </h2>
                 </div>
                 
-                <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8 xl:gap-12">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end justify-between xl:gap-12">
                 {/* LEFT: FILTERS + CATEGORIES */}
                 <div className="flex flex-col items-start gap-4 shrink-0">
                     <div className="flex flex-wrap items-center gap-6 text-xs font-light uppercase tracking-widest text-black">
@@ -226,7 +226,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                             type="text" 
                             value={localSearch}
                             onChange={(e) => setLocalSearch(e.target.value)}
-                            className="flex-1 bg-transparent border-none outline-none text-xl lg:text-2xl placeholder-black/30"
+                            className="flex-1 bg-transparent border-none outline-none text-base md:text-xl lg:text-2xl placeholder-black/30"
                             placeholder="Search..."
                         />
                     </div>
@@ -243,7 +243,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                 </div>
 
                 {/* RIGHT: SORT DROPDOWN */}
-                <div className="flex items-center text-[10px] font-bold uppercase tracking-widest text-black shrink-0 pr-10 md:pr-16">
+                <div className="flex items-center text-[10px] font-bold uppercase tracking-widest text-black shrink-0 pr-4 md:pr-16">
                     <div className="relative group z-30 flex items-center gap-1">
                         <select
                             value={sortOption}
@@ -293,7 +293,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                         </div>
                     ) : (
                         <>
-                            <div className={`grid grid-cols-2 ${showMobileFilters ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-y-20 lg:gap-y-24 gap-x-8 md:gap-x-16 lg:gap-x-20`}>
+                            <div className={`grid grid-cols-2 ${showMobileFilters ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-y-12 md:gap-y-20 lg:gap-y-24 gap-x-4 md:gap-x-16 lg:gap-x-20`}>
                                 {paginatedProducts.map(product => (
                                     <ProductCard
                                         key={product.id}

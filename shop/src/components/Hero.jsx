@@ -48,11 +48,11 @@ const Hero = ({ products }) => {
     };
 
     return (
-        <section className="relative min-h-screen bg-[#F3F3F3] flex flex-col justify-center px-10 md:px-20 pt-24 pb-12">
+        <section className="relative min-h-[85vh] md:min-h-screen bg-[#F3F3F3] flex flex-col justify-center px-6 md:px-20 pt-20 md:pt-24 pb-8 md:pb-12">
             <AnimatePresence mode="wait">
                 <motion.div
                     key={product.id}
-                    className="w-full h-full flex flex-col md:grid md:grid-cols-12 gap-8 items-center justify-center flex-1 cursor-pointer"
+                    className="w-full h-full flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-8 items-center justify-center flex-1 cursor-pointer"
                     initial="enter"
                     animate="center"
                     exit="exit"
@@ -65,19 +65,19 @@ const Hero = ({ products }) => {
                             src={product.cover_image || defaultImage}
                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                             alt={product.album}
-                            className="w-[80%] md:w-[70%] max-h-[70vh] object-contain drop-shadow-xl"
+                            className="w-[75%] md:w-[70%] max-h-[50vh] md:max-h-[70vh] object-contain drop-shadow-xl"
                         />
                     </div>
 
                     {/* Text Section - Far right */}
-                    <div className="w-full md:col-span-3 flex flex-col items-start justify-center">
-                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-[0.95] text-black mb-2">
+                    <div className="w-full md:col-span-3 flex flex-col items-center md:items-start justify-center text-center md:text-left">
+                        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-[0.95] text-black mb-2">
                             {product.album}
                         </h1>
-                        <h2 className="text-lg md:text-xl font-light text-black/70 mb-1">
+                        <h2 className="text-base md:text-xl font-light text-black/70 mb-1">
                             {product.artist}
                         </h2>
-                        <p className="text-[10px] font-bold uppercase text-black/40 tracking-widest mb-6">
+                        <p className="text-[10px] font-bold uppercase text-black/40 tracking-widest mb-4 md:mb-6">
                             {product.label || 'EL CUARTITO'}
                         </p>
                         <p className="text-xs font-bold text-black/50">
