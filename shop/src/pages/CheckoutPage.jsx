@@ -34,7 +34,7 @@ const CheckoutPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen">
             <CheckoutWizard cart={cartItems} onSuccess={handleSuccess} />
         </div>
     );

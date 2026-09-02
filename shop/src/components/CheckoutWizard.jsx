@@ -27,7 +27,6 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
             return;
         }
 
-
         setIsProcessing(true);
         setMessage(null);
 
@@ -35,8 +34,7 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
         onSuccess(saleId, "pending", true);
 
         const returnUrl = `${window.location.origin}/checkout/success?saleId=${saleId}`;
-        console.log('🔥 STRIPE RETURN URL:', returnUrl);
-
+        
         const { error, paymentIntent } = await stripe.confirmPayment({
             elements,
             confirmParams: {
@@ -51,7 +49,6 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
             setMessage("Payment successful! Your order is being processed...");
             setTimeout(() => {
-                // Pass clientSecret so the success page can verify the payment
                 onSuccess(saleId, paymentIntent.id, false, clientSecret);
             }, 500);
             setIsProcessing(false);
@@ -62,62 +59,55 @@ const PaymentStep = ({ clientSecret, saleId, onSuccess, onBack, shippingData }) 
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-10">
             <div>
-                <h2 className="text-2xl font-bold mb-2">Payment</h2>
-                <p className="text-gray-600">Complete your purchase</p>
+                <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">Step 3</p>
+                <h2 className="text-[28px] font-normal tracking-tight text-[#1a1a1a]">Payment</h2>
             </div>
 
-            {/* Shipping Summary */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold mb-2">Shipping to:</h3>
-                <p className="text-sm">
+            {/* Shipping Summary block */}
+            <div className="border-t border-b border-gray-200 py-6">
+                <div className="flex justify-between items-start mb-2">
+                    <span className="text-[11px] font-bold tracking-widest text-gray-400 uppercase">Deliver to</span>
+                    <button type="button" onClick={onBack} className="text-[11px] text-[#1a1a1a] hover:text-gray-500 uppercase tracking-widest">Edit</button>
+                </div>
+                <p className="text-[15px] text-[#1a1a1a]">
                     {shippingData?.address?.street}, {shippingData?.address?.city} {shippingData?.address?.postalCode}
                 </p>
-                <p className="text-sm text-gray-600 mt-1">
-                    {shippingData?.shippingMethod?.method} - {shippingData?.shippingMethod?.estimatedDays}{typeof shippingData?.shippingMethod?.estimatedDays === 'number' ? ' days' : ''}
+                <p className="text-[13px] text-gray-500 mt-1">
+                    {shippingData?.shippingMethod?.method} 
+                    {shippingData?.shippingMethod?.id !== 'local_pickup' && ` — ${shippingData?.shippingMethod?.estimatedDays}${typeof shippingData?.shippingMethod?.estimatedDays === 'number' ? ' days' : ''}`}
                 </p>
             </div>
-
-            {/* Local Pickup Notice */}
-            {shippingData?.shippingMethod?.id === 'local_pickup' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p className="text-sm text-amber-800">
-                        📧 You will receive an email when your order is ready for pickup.
-                    </p>
-                </div>
-            )}
-
 
             <div className="min-h-[200px]">
                 <PaymentElement />
             </div>
 
             {message && (
-                <div className={`
-                    p-4 rounded-lg
-                    ${message.includes('successful') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}
-                `}>
+                <div className="text-red-500 text-[13px] mt-4">
                     {message}
                 </div>
             )}
 
-            <div className="flex gap-4">
-                <button
-                    type="button"
-                    onClick={onBack}
-                    disabled={isProcessing}
-                    className="flex-1 border-2 border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                    Back
-                </button>
+            <div className="pt-8">
                 <button
                     type="submit"
                     disabled={!stripe || isProcessing}
-                    className="flex-1 bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="w-full py-5 text-[13px] font-bold tracking-widest uppercase transition-colors
+                    bg-[#1a1a1a] text-white hover:bg-black disabled:bg-[#e5e5e5] disabled:text-gray-400 disabled:cursor-not-allowed"
                 >
-                    {isProcessing ? 'Processing...' : 'Pay Now'}
+                    {isProcessing ? 'Processing...' : 'Complete Purchase'}
                 </button>
+                <div className="text-center mt-4">
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="text-[13px] text-gray-400 hover:text-[#1a1a1a] transition-colors"
+                    >
+                        ← Return to shipping
+                    </button>
+                </div>
             </div>
         </form>
     );
@@ -131,6 +121,7 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
     const [clientSecret, setClientSecret] = useState(null);
     const [saleId, setSaleId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [temporaryShippingMethod, setTemporaryShippingMethod] = useState(null);
     
     // Coupon state
     const [couponCode, setCouponCode] = useState('');
@@ -219,13 +210,17 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 pt-32 pb-8">
+        <div className="min-h-screen font-sans text-[#1a1a1a]">
+            {/* Header */}
+            <div className="text-center text-[10px] tracking-widest text-gray-400 uppercase pt-12 pb-2">
+                EL CUARTITO RECORDS
+            </div>
 
             <StepIndicator currentStep={currentStep} steps={steps} />
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <div className="flex flex-col md:flex-row max-w-6xl mx-auto px-4 sm:px-8 pb-32">
                 {/* Left: Step Content */}
-                <div className="lg:col-span-2">
+                <div className="flex-1 md:pr-16 lg:pr-24">
                     {currentStep === 1 && (
                         <CustomerDetailsStep
                             initialData={customerData}
@@ -238,11 +233,40 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
                             cart={cart}
                             onShippingSelected={handleShippingSelected}
                             onBack={() => setCurrentStep(1)}
+                            onMethodChange={setTemporaryShippingMethod}
                         />
                     )}
 
                     {currentStep === 3 && clientSecret && (
-                        <Elements stripe={stripePromise} options={{ clientSecret }}>
+                        <Elements stripe={stripePromise} options={{ 
+                            clientSecret,
+                            appearance: {
+                                theme: 'flat',
+                                variables: {
+                                    colorPrimary: '#1a1a1a',
+                                    colorBackground: '#f3f3f3',
+                                    colorText: '#1a1a1a',
+                                    colorDanger: '#df1b41',
+                                    fontFamily: 'system-ui, sans-serif',
+                                    spacingUnit: '4px',
+                                    borderRadius: '0px',
+                                },
+                                rules: {
+                                    '.Input': {
+                                        borderTop: 'none',
+                                        borderLeft: 'none',
+                                        borderRight: 'none',
+                                        borderBottom: '1px solid #e5e7eb',
+                                        boxShadow: 'none',
+                                        backgroundColor: 'transparent'
+                                    },
+                                    '.Input:focus': {
+                                        borderBottomColor: '#1a1a1a',
+                                        boxShadow: 'none',
+                                    }
+                                }
+                            }
+                        }}>
                             <PaymentStep
                                 clientSecret={clientSecret}
                                 saleId={saleId}
@@ -255,11 +279,11 @@ const CheckoutWizard = ({ cart, onSuccess }) => {
                 </div>
 
                 {/* Right: Order Summary */}
-                <div className="lg:col-span-1">
+                <div className="w-full md:w-[400px] border-t md:border-t-0 md:border-l border-gray-200 mt-16 md:mt-0 pt-8 md:pt-0 md:pl-12 lg:pl-16">
                     <OrderSummary
                         cart={cart}
-                        shippingCost={shippingData?.shippingMethod?.price || 0}
-                        showShipping={currentStep >= 2 && !!shippingData}
+                        shippingCost={(shippingData?.shippingMethod?.price ?? temporaryShippingMethod?.price) || 0}
+                        showShipping={currentStep >= 2 && (!!shippingData || !!temporaryShippingMethod)}
                         customerEmail={customerData?.email}
                         couponCode={couponCode}
                         setCouponCode={setCouponCode}

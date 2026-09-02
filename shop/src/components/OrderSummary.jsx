@@ -33,13 +33,13 @@ const OrderSummary = ({
                 if (setCouponCode) setCouponCode(result.code);
                 if (setDiscountPercentage) setDiscountPercentage(result.discount_percentage);
                 if (setIsCouponValid) setIsCouponValid(true);
-                setCouponMessage({ text: `¡Cupón de ${result.discount_percentage}% aplicado!`, type: 'success' });
+                setCouponMessage({ text: `Discount of ${result.discount_percentage}% applied`, type: 'success' });
             }
         } catch (error) {
             if (setCouponCode) setCouponCode('');
             if (setDiscountPercentage) setDiscountPercentage(0);
             if (setIsCouponValid) setIsCouponValid(false);
-            const msg = error.response?.data?.error || 'Error al validar cupón';
+            const msg = error.response?.data?.error || 'Invalid code';
             setCouponMessage({ text: msg, type: 'error' });
         } finally {
             setIsValidating(false);
@@ -55,54 +55,55 @@ const OrderSummary = ({
     };
 
     return (
-        <div className="bg-gray-50 rounded-xl p-6 sticky top-6">
-            <h3 className="text-lg font-bold mb-4">Order Summary</h3>
+        <div className="w-full">
+            <h3 className="text-[11px] font-bold tracking-widest uppercase text-gray-400 mb-8">Order Summary</h3>
 
             {/* Cart Items */}
-            <div className="space-y-3 mb-4">
+            <div className="space-y-6 mb-8">
                 {cart.map((item, index) => (
-                    <div key={index} className="flex gap-3 pb-3 border-b border-gray-200">
+                    <div key={index} className="flex gap-4">
                         <img
                             src={item.cover_image || item.coverImage || '/default-vinyl.png'}
                             alt={item.album}
-                            className="w-16 h-16 object-cover rounded"
+                            className="w-16 h-16 object-cover bg-gray-100"
                         />
-                        <div className="flex-1">
-                            <p className="font-semibold text-sm">{item.artist}</p>
-                            <p className="text-xs text-gray-600">{item.album}</p>
-                            <p className="text-xs text-gray-500">Quantity: {item.quantity}</p>
+                        <div className="flex-1 min-w-0 pr-4">
+                            <p className="font-medium text-[15px] truncate text-[#1a1a1a]">{item.album}</p>
+                            <p className="text-[13px] text-gray-400 truncate mt-0.5">{item.artist}</p>
                         </div>
-                        <div className="text-right">
-                            <p className="font-bold">{item.price * item.quantity} DKK</p>
+                        <div className="text-right flex-shrink-0">
+                            <p className="font-medium text-[15px] text-[#1a1a1a]">{(item.price * item.quantity).toFixed(2)} DKK</p>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Discount Section (Only show if we have customer email) */}
+            <div className="border-b border-gray-200 mb-8"></div>
+
+            {/* Discount Section */}
             {customerEmail && (
-                <div className="py-4 border-b border-gray-300">
-                    <p className="text-sm font-semibold mb-2">Discount Coupon</p>
+                <div className="mb-8">
+                    <h3 className="text-[11px] font-bold tracking-widest uppercase text-gray-400 mb-4">Discount Code</h3>
                     {isCouponValid ? (
-                        <div className="flex items-center justify-between bg-green-50 p-3 rounded border border-green-200">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <span className="font-bold text-green-700">{couponCode}</span>
-                                <p className="text-xs text-green-600">-{discountPercentage}% applied</p>
+                                <span className="font-medium text-[15px] text-[#1a1a1a]">{couponCode}</span>
+                                <p className="text-[13px] text-gray-500">-{discountPercentage}% applied</p>
                             </div>
                             <button 
                                 onClick={handleRemoveCoupon}
-                                className="text-red-500 text-xs hover:underline"
+                                className="text-[13px] text-gray-400 hover:text-[#1a1a1a] transition-colors"
                             >
                                 Remove
                             </button>
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            <div className="flex gap-2">
+                            <div className="flex border-b border-gray-200 pb-2">
                                 <input 
                                     type="text" 
-                                    placeholder="Enter code" 
-                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm uppercase"
+                                    placeholder="ENTER CODE" 
+                                    className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-gray-300 uppercase tracking-wide"
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value.toUpperCase())}
                                     disabled={isValidating}
@@ -110,13 +111,13 @@ const OrderSummary = ({
                                 <button 
                                     onClick={handleApplyCoupon}
                                     disabled={isValidating || !inputValue.trim()}
-                                    className="bg-black text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+                                    className="text-[13px] text-gray-300 hover:text-[#1a1a1a] transition-colors disabled:opacity-50 ml-4"
                                 >
-                                    {isValidating ? '...' : 'Apply'}
+                                    Apply
                                 </button>
                             </div>
                             {couponMessage.text && (
-                                <p className={`text-xs ${couponMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>
+                                <p className={`text-[11px] ${couponMessage.type === 'error' ? 'text-red-500' : 'text-[#1a1a1a]'}`}>
                                     {couponMessage.text}
                                 </p>
                             )}
@@ -126,47 +127,34 @@ const OrderSummary = ({
             )}
 
             {/* Totals */}
-            <div className="space-y-2 pt-4">
-                <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Items:</span>
-                    <span className="font-medium">{itemsTotal} DKK</span>
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <span className="text-[15px] text-gray-500">Subtotal</span>
+                    <span className="font-medium text-[15px] text-[#1a1a1a]">{itemsTotal.toFixed(2)} DKK</span>
                 </div>
 
                 {isCouponValid && (
-                    <div className="flex justify-between text-sm text-green-600">
-                        <span>Discount ({discountPercentage}%):</span>
-                        <span className="font-medium">- {discountAmount.toFixed(2)} DKK</span>
+                    <div className="flex justify-between items-center text-gray-500">
+                        <span className="text-[15px]">Discount</span>
+                        <span className="font-medium text-[15px]">- {discountAmount.toFixed(2)} DKK</span>
                     </div>
                 )}
 
-                {showShipping && (
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Shipping:</span>
-                        <span className="font-medium">
-                            {shippingCost === 0 ? (
-                                <span className="text-green-600 font-bold">FREE</span>
-                            ) : (
-                                `${shippingCost} DKK`
-                            )}
-                        </span>
-                    </div>
-                )}
-
-                <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300">
-                    <span>Total:</span>
-                    <div className="text-right">
-                        {isCouponValid && (
-                            <span className="text-sm line-through text-gray-400 mr-2 font-normal">
-                                {(itemsTotal + shippingCost).toFixed(2)} DKK
-                            </span>
+                <div className="flex justify-between items-center">
+                    <span className="text-[15px] text-gray-500">Shipping</span>
+                    <span className={`text-[13px] ${showShipping ? 'text-[#1a1a1a]' : 'text-gray-400'}`}>
+                        {showShipping ? (
+                            shippingCost === 0 ? <span className="font-bold text-orange-500 text-[15px]">FREE</span> : <span className="font-medium text-[15px]">{shippingCost.toFixed(2)} DKK</span>
+                        ) : (
+                            'Calculated next step'
                         )}
-                        <span>{finalTotal.toFixed(2)} DKK</span>
-                    </div>
+                    </span>
                 </div>
 
-                {!showShipping && (
-                    <p className="text-xs text-gray-500 italic">+ Shipping (calculated in next step)</p>
-                )}
+                <div className="pt-6 mt-6 border-t border-[#1a1a1a] flex justify-between items-center">
+                    <span className="font-medium text-[15px] text-[#1a1a1a]">Total</span>
+                    <span className="font-medium text-[15px] text-[#1a1a1a]">{finalTotal.toFixed(2)} DKK</span>
+                </div>
             </div>
         </div>
     );

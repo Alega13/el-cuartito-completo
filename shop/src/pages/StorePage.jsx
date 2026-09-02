@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
-import { Filter, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Filter, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import Fuse from 'fuse.js';
 
 const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCollection }) => {
     // New Filter State
     const [selectedFilters, setSelectedFilters] = useState({
+        availability: [],
         genre: [],
         label: [],
         condition: [],
@@ -36,6 +37,31 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         };
     }, [products]);
 
+    const filterCounts = useMemo(() => {
+        const counts = {
+            availability: {},
+            genre: {},
+            label: {},
+            year: {},
+            condition: {},
+            format: {}
+        };
+        products.forEach(p => {
+            if (p.stock !== 0) counts.availability['In stock'] = (counts.availability['In stock'] || 0) + 1;
+            
+            const productGenres = [p.genre, p.genre2, p.genre3, p.genre4, p.genre5].filter(Boolean);
+            productGenres.forEach(g => { counts.genre[g] = (counts.genre[g] || 0) + 1; });
+            
+            if (p.label) counts.label[p.label] = (counts.label[p.label] || 0) + 1;
+            if (p.year) counts.year[p.year?.toString()] = (counts.year[p.year?.toString()] || 0) + 1;
+            if (p.status) counts.condition[p.status] = (counts.condition[p.status] || 0) + 1;
+            
+            // Format is mocked in UI, just count them as LP for now if undefined
+            counts.format['LP'] = (counts.format['LP'] || 0) + 1;
+        });
+        return counts;
+    }, [products]);
+
     // Handle Filter Changes
     const handleFilterChange = (type, value) => {
         setSelectedFilters(prev => {
@@ -49,6 +75,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
 
     const clearFilters = () => {
         setSelectedFilters({
+            availability: [],
             genre: [],
             label: [],
             condition: [],
@@ -75,6 +102,10 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
             if (collectionFilter && (!product.collection || !product.collection.toLowerCase().includes(collectionFilter.toLowerCase()))) return false;
 
             // Sidebar Filters
+            if (selectedFilters.availability?.length > 0) {
+                if (selectedFilters.availability.includes('In stock') && product.stock === 0) return false;
+            }
+
             if (selectedFilters.genre.length > 0) {
                 const productGenres = [product.genre, product.genre2, product.genre3, product.genre4, product.genre5].filter(Boolean);
                 if (!selectedFilters.genre.some(g => productGenres.includes(g))) return false;
@@ -135,72 +166,120 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
     }
 
     return (
-        <div id="catalogue" className="pt-32 pb-20 px-4 md:px-8 max-w-[1600px] mx-auto">
+        <div id="catalogue" className="pb-20 px-10 md:px-20 w-full">
 
             {/* Header Area */}
-            <header className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl md:text-5xl font-light tracking-tight mb-2">Catalog</h1>
-                    <p className="text-black/60 font-medium max-w-md">
-                        Curated selection of electronic sounds. {filteredProducts.length} releases found.
-                    </p>
+            <header className="sticky top-0 z-40 bg-[#F3F3F3] pb-6 flex flex-col gap-8 pt-16 md:pt-20 -mx-10 px-10 md:-mx-20 md:px-20 relative">
+                {/* CATALOGUE TITLE */}
+                <div className="absolute top-8 md:top-10 left-10 md:left-20 flex items-center">
+                    <h2 className="text-[32px] md:text-[42px] leading-none font-bold uppercase tracking-widest text-black mt-[-4px] md:mt-[-6px]">
+                        CATALOG
+                    </h2>
                 </div>
-
-                <div className="flex items-center gap-4">
-                    {/* Sort Dropdown */}
-                    <div className="relative group z-30">
-                        <div className="flex items-center gap-2 cursor-pointer py-2 px-4 rounded-full border border-black/10 hover:border-black/30 bg-white transition-all">
-                            <ArrowUpDown size={14} className="text-black/50" />
-                            <select
-                                value={sortOption}
-                                onChange={(e) => setSortOption(e.target.value)}
-                                className="text-xs font-bold uppercase tracking-widest bg-transparent border-none outline-none appearance-none cursor-pointer pr-4"
+                
+                <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8 xl:gap-12">
+                {/* LEFT: FILTERS + CATEGORIES */}
+                <div className="flex flex-col items-start gap-4 shrink-0">
+                    <div className="flex flex-wrap items-center gap-6 text-xs font-light uppercase tracking-widest text-black">
+                        <div className="flex flex-col items-start relative">
+                            <button 
+                                onClick={() => setShowMobileFilters(!showMobileFilters)} 
+                                className="flex items-center gap-1 hover:opacity-50 transition-opacity"
                             >
-                                <option value="newest">Newest First</option>
-                                <option value="price-asc">Price: Low to High</option>
-                                <option value="price-desc">Price: High to Low</option>
-                                <option value="year-desc">Year: Newest</option>
-                                <option value="year-asc">Year: Oldest</option>
-                            </select>
+                                FILTERS <span className="ml-1 text-[8px]">{showMobileFilters ? '✕' : '▼'}</span>
+                            </button>
+                            {showMobileFilters && (
+                                <button 
+                                    onClick={clearFilters} 
+                                    className="text-[9px] text-black/40 hover:text-black capitalize font-normal tracking-normal absolute top-full left-0 mt-1"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                        </div>
+                        
+                        <div className="hidden md:flex flex-wrap items-baseline gap-6 text-black/40 text-xs font-light uppercase tracking-widest">
+                            <button className="text-black transition-colors hover:opacity-50">ALL</button>
+                            <button className="text-black transition-colors">VINYL <sup className="text-[9px] ml-0.5">{filteredProducts.length}</sup></button>
+                            
+                            {/* Active Filters */}
+                            {Object.entries(selectedFilters).flatMap(([key, values]) => 
+                                values.map(val => (
+                                    <button 
+                                        key={`${key}-${val}`} 
+                                        onClick={() => handleFilterChange(key, val)}
+                                        className="text-black transition-colors hover:text-black/50 flex items-center gap-1"
+                                    >
+                                        {val} <X size={8} strokeWidth={3} className="ml-0.5" />
+                                    </button>
+                                ))
+                            )}
                         </div>
                     </div>
+                </div>
 
-                    <button
-                        onClick={() => setShowMobileFilters(true)}
-                        className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-black text-white px-5 py-2.5 rounded-full md:hidden hover:bg-neutral-800 transition-colors"
-                    >
-                        <Filter size={14} />
-                        Filters
-                    </button>
+                {/* MIDDLE: BIG SEARCH BAR */}
+                <div className="flex-1 w-full flex items-center">
+                    <div className="flex-1 flex items-center border-b border-black/40 pb-2">
+                        <Search className="w-6 h-6 text-black/50 mr-4 shrink-0" strokeWidth={1.5} />
+                        <input 
+                            type="text" 
+                            value={localSearch}
+                            onChange={(e) => setLocalSearch(e.target.value)}
+                            className="flex-1 bg-transparent border-none outline-none text-xl lg:text-2xl placeholder-black/30"
+                            placeholder="Search..."
+                        />
+                    </div>
+                    <div className="w-[48px] flex justify-center shrink-0 ml-2">
+                        {localSearch && (
+                            <button 
+                                onClick={() => setLocalSearch('')} 
+                                className="text-black/40 hover:text-black transition-colors"
+                            >
+                                <X className="w-7 h-7" strokeWidth={1} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* RIGHT: SORT DROPDOWN */}
+                <div className="flex items-center text-[10px] font-bold uppercase tracking-widest text-black shrink-0 pr-10 md:pr-16">
+                    <div className="relative group z-30 flex items-center gap-1">
+                        <select
+                            value={sortOption}
+                            onChange={(e) => setSortOption(e.target.value)}
+                            className="bg-transparent border-none outline-none appearance-none cursor-pointer pr-4 hover:opacity-50 transition-opacity"
+                        >
+                            <option value="newest">FEATURED</option>
+                            <option value="price-asc">Price: Low to High</option>
+                            <option value="price-desc">Price: High to Low</option>
+                            <option value="year-desc">Year: Newest</option>
+                            <option value="year-asc">Year: Oldest</option>
+                        </select>
+                        <span className="pointer-events-none absolute right-0 text-[8px]">▼</span>
+                    </div>
+                </div>
                 </div>
             </header>
 
-            <div className="flex gap-12">
-                {/* Advanced Sidebar */}
-                <FilterSidebar
-                    filters={filters}
-                    selectedFilters={selectedFilters}
-                    onFilterChange={handleFilterChange}
-                    onClearFilters={clearFilters}
-                    showMobile={showMobileFilters}
-                    onCloseMobile={() => setShowMobileFilters(false)}
-                />
+            <div className="flex flex-col md:flex-row gap-8 md:gap-16">
+                {showMobileFilters && (
+                    <div className="w-full md:w-56 shrink-0">
+                        <FilterSidebar
+                            filters={filters}
+                            selectedFilters={selectedFilters}
+                            filterCounts={filterCounts}
+                            onFilterChange={handleFilterChange}
+                            onClearFilters={clearFilters}
+                            showMobile={showMobileFilters}
+                            onCloseMobile={() => setShowMobileFilters(false)}
+                        />
+                    </div>
+                )}
 
                 {/* Product Grid */}
                 <div className="flex-1 min-w-0">
-                    {/* Search Bar */}
-                    <div className="mb-10 max-w-md">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-3">
-                            Search Everything
-                        </div>
-                        <input
-                            type="text"
-                            value={localSearch}
-                            onChange={(e) => setLocalSearch(e.target.value)}
-                            placeholder="Search artist, album, label..."
-                            className="w-full px-4 py-3 text-sm bg-black/5 border border-transparent rounded-lg focus:bg-white focus:border-black/10 outline-none transition-all"
-                        />
-                    </div>
+                    {/* Search Bar Removed from here */}
                     {filteredProducts.length === 0 ? (
                         <div className="py-20 text-center border-t border-black/5">
                             <h3 className="text-xl font-bold mb-2">No matches found</h3>
@@ -214,7 +293,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                         </div>
                     ) : (
                         <>
-                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-y-10 gap-x-6 md:gap-x-8">
+                            <div className={`grid grid-cols-2 ${showMobileFilters ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-y-20 lg:gap-y-24 gap-x-8 md:gap-x-16 lg:gap-x-20`}>
                                 {paginatedProducts.map(product => (
                                     <ProductCard
                                         key={product.id}

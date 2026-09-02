@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FilterGroup = ({ title, items, selected, onToggle, isOpenDefault = false }) => {
+const FilterGroup = ({ title, items, selected, onToggle, counts = {}, isOpenDefault = false }) => {
     const [isOpen, setIsOpen] = useState(isOpenDefault);
 
     return (
@@ -24,23 +24,20 @@ const FilterGroup = ({ title, items, selected, onToggle, isOpenDefault = false }
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                     >
-                        <div className="space-y-1 pt-2">
+                        <div className="space-y-0.5 pt-2">
                             {items.map(item => (
                                 <button
                                     key={item}
                                     onClick={() => onToggle(item)}
-                                    className={`flex items-center gap-3 w-full text-left py-1.5 px-2 rounded-md transition-all text-sm group ${selected.includes(item)
-                                        ? 'bg-accent/5 text-accent font-medium'
-                                        : 'text-black/60 hover:bg-black/5 hover:text-black'
+                                    className={`flex items-baseline w-full text-left py-1 transition-all text-xs ${selected.includes(item)
+                                        ? 'text-black font-bold'
+                                        : 'text-black/60 hover:text-black font-medium'
                                         }`}
                                 >
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selected.includes(item)
-                                        ? 'bg-accent border-accent text-white'
-                                        : 'border-black/20 group-hover:border-black/40'
-                                        }`}>
-                                        {selected.includes(item) && <Check size={10} strokeWidth={4} />}
-                                    </div>
-                                    <span className="truncate">{item}</span>
+                                    <span className="truncate leading-tight">{item}</span>
+                                    {counts[item] !== undefined && (
+                                        <sup className="ml-[2px] text-[8px] opacity-60 font-normal leading-none">{counts[item]}</sup>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -54,6 +51,7 @@ const FilterGroup = ({ title, items, selected, onToggle, isOpenDefault = false }
 const FilterSidebar = ({
     filters,
     selectedFilters,
+    filterCounts,
     onFilterChange,
     onClearFilters,
     showMobile,
@@ -75,9 +73,19 @@ const FilterSidebar = ({
             </div>
 
             <FilterGroup
+                title="Availability"
+                items={['In stock']}
+                selected={selectedFilters.availability || []}
+                counts={filterCounts?.availability}
+                onToggle={(val) => onFilterChange('availability', val)}
+                isOpenDefault={true}
+            />
+
+            <FilterGroup
                 title="Genre"
                 items={filters.genres}
                 selected={selectedFilters.genre}
+                counts={filterCounts?.genre}
                 onToggle={(val) => onFilterChange('genre', val)}
                 isOpenDefault={true}
             />
@@ -85,7 +93,8 @@ const FilterSidebar = ({
             <FilterGroup
                 title="Format"
                 items={['LP', '12"', '7"']}
-                selected={selectedFilters.format || []} // Use format instead of condition for now as it's more requested
+                selected={selectedFilters.format || []}
+                counts={filterCounts?.format}
                 onToggle={(val) => onFilterChange('format', val)}
                 isOpenDefault={true}
             />
@@ -94,6 +103,7 @@ const FilterSidebar = ({
                 title="Label"
                 items={filters.labels}
                 selected={selectedFilters.label}
+                counts={filterCounts?.label}
                 onToggle={(val) => onFilterChange('label', val)}
             />
 
@@ -101,6 +111,7 @@ const FilterSidebar = ({
                 title="Condition"
                 items={['New', 'Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
                 selected={selectedFilters.condition}
+                counts={filterCounts?.condition}
                 onToggle={(val) => onFilterChange('condition', val)}
             />
 
@@ -108,6 +119,7 @@ const FilterSidebar = ({
                 title="Release Year"
                 items={filters.years}
                 selected={selectedFilters.year}
+                counts={filterCounts?.year}
                 onToggle={(val) => onFilterChange('year', val)}
             />
         </div>
@@ -141,9 +153,18 @@ const FilterSidebar = ({
 
                         <div className="space-y-2">
                             <FilterGroup
+                                title="Availability"
+                                items={['In stock']}
+                                selected={selectedFilters.availability || []}
+                                counts={filterCounts?.availability}
+                                onToggle={(val) => onFilterChange('availability', val)}
+                                isOpenDefault={true}
+                            />
+                            <FilterGroup
                                 title="Genre"
                                 items={filters.genres}
                                 selected={selectedFilters.genre}
+                                counts={filterCounts?.genre}
                                 onToggle={(val) => onFilterChange('genre', val)}
                                 isOpenDefault={true}
                             />
@@ -151,18 +172,21 @@ const FilterSidebar = ({
                                 title="Label"
                                 items={filters.labels}
                                 selected={selectedFilters.label}
+                                counts={filterCounts?.label}
                                 onToggle={(val) => onFilterChange('label', val)}
                             />
                             <FilterGroup
                                 title="Condition"
                                 items={['New', 'Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
                                 selected={selectedFilters.condition}
+                                counts={filterCounts?.condition}
                                 onToggle={(val) => onFilterChange('condition', val)}
                             />
                             <FilterGroup
                                 title="Release Year"
                                 items={filters.years}
                                 selected={selectedFilters.year}
+                                counts={filterCounts?.year}
                                 onToggle={(val) => onFilterChange('year', val)}
                             />
                         </div>

@@ -8,8 +8,7 @@ import RecordStoreWeek from './components/RecordStoreWeek';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 
-import CatalogPage from './pages/CatalogPage';
-import ListeningRoomPage from './pages/ListeningRoomPage';
+
 import CheckoutPage from './pages/CheckoutPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import SuccessPage from './pages/SuccessPage';
@@ -140,7 +139,6 @@ function App() {
   // Determine if we're on product page (full mode) or elsewhere (mini mode)
   // Check if pathname starts with /product/
   const isOnProductPage = location.pathname.startsWith('/product/');
-  const isListeningPage = location.pathname === '/listening';
   const isAbout = location.pathname === '/about';
 
   return (
@@ -172,16 +170,10 @@ function App() {
             </>
           } />
 
-          <Route path="/catalog" element={
-            <CatalogPage products={products} />
-          } />
+
 
           <Route path="/product/:productId" element={
             <ProductPage products={products} />
-          } />
-
-          <Route path="/listening" element={
-            <ListeningRoomPage products={products} />
           } />
 
           <Route path="/checkout" element={
@@ -217,18 +209,7 @@ function App() {
         </Routes>
       </main>
 
-      {/* Global Mini Vinyl Player (shows when not on product page or listening room) */}
-      {!isOnProductPage && !isListeningPage && showSidePlayer && (
-        <VinylSidePlayer
-          product={currentProduct}
-          isVisible={showSidePlayer}
-          onClose={() => setShowSidePlayer(false)}
-          isMini={true}
-          onExpand={handleExpandPlayer}
-        />
-      )}
-
-      {/* Fly Animation for Listening Room */}
+      {/* Fly Animation */}
       <FlyAnimation animation={flyAnimation} onComplete={clearFlyAnimation} />
 
       {/* Toast Notification */}
@@ -238,8 +219,7 @@ function App() {
         onComplete={() => setShowToast(false)}
       />
 
-      {!isAbout && !isListeningPage && <Footer />}
-      {!isListeningPage && <GlobalPlayer />}
+      {!isAbout && <Footer />}
     </div>
   );
 }

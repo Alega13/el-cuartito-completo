@@ -1,21 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, ExternalLink, Disc3, ShoppingCart, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { Play, Pause, ExternalLink, Disc3, ShoppingCart, Check, SkipForward } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { useCart } from '../context/CartContext';
 import defaultImage from '../assets/default-vinyl.png';
 import ProductCard from '../components/ProductCard';
-import VinylSidePlayer from '../components/VinylSidePlayer';
 import SEO from '../components/SEO';
 
 
 const ProductPage = ({ products = [] }) => {
     const { productId } = useParams();
     const navigate = useNavigate();
-    const { playTrack, currentTrack, isPlaying, currentProduct, showSidePlayer, setShowSidePlayer } = usePlayer();
+    const { playTrack, togglePlay, playNext, currentTrack, isPlaying, currentProduct, currentTime, duration, handleSeek, volume, handleVolume } = usePlayer();
     const { addToCart, cartItems } = useCart();
     const [addedToCart, setAddedToCart] = useState(false);
+    const [quantity, setQuantity] = useState(1);
+    const [isCartSticky, setIsCartSticky] = useState(false);
+    const [isDescSticky, setIsDescSticky] = useState(false);
+    const cartRef = useRef(null);
+    const descRef = useRef(null);
+    const { scrollY } = useScroll();
+    const cartLineWidth = useTransform(scrollY, [100, 800], ["0%", "100%"]);
+
+    // Drag states for custom sliders
+    const isDraggingSeek = useRef(false);
+    const isDraggingVolume = useRef(false);
 
     // Find product from URL params or use the passed product (if any - handling legacy)
     const urlProduct = productId ? products.find(p => p.id === productId || p.id === parseInt(productId)) : null;
@@ -52,6 +62,22 @@ const ProductPage = ({ products = [] }) => {
     const [loadingTracks, setLoadingTracks] = useState(true);
     const [discogsVideos, setDiscogsVideos] = useState([]);
     // Watch ID changes
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (cartRef.current) {
+                const { top } = cartRef.current.getBoundingClientRect();
+                setIsCartSticky(top <= 1);
+            }
+            if (descRef.current) {
+                const { top } = descRef.current.getBoundingClientRect();
+                setIsDescSticky(top <= 1);
+            }
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     useEffect(() => {
         // Find the product fresh each time - this ensures we get the latest data
@@ -114,8 +140,8 @@ const ProductPage = ({ products = [] }) => {
     const getRecommendations = () => {
         if (!product || !products || products.length === 0) return [];
 
-        // Exclude current
-        const otherProducts = products.filter(p => p.id !== product.id);
+        // Exclude current and out of stock
+        const otherProducts = products.filter(p => p.id !== product.id && p.stock > 0);
 
         // Priority 1: Same Artist
         const sameArtist = otherProducts.filter(p => p.artist?.toLowerCase() === product.artist?.toLowerCase());
@@ -127,7 +153,7 @@ const ProductPage = ({ products = [] }) => {
         );
 
         // Combine and limit
-        const recommendations = [...sameArtist, ...sameGenre].slice(0, 4);
+        const recommendations = [...sameArtist, ...sameGenre].slice(0, 20);
         return recommendations;
     };
 
@@ -153,10 +179,6 @@ const ProductPage = ({ products = [] }) => {
     const onPlayClick = (track, index) => {
         const trackData = { ...track, index };
         playTrack(trackData, product, tracks, discogsVideos);
-        // Auto-open vinyl player when playing
-        if (!showSidePlayer) {
-            setShowSidePlayer(true);
-        }
     };
 
     const handleRecommendationClick = (recProduct) => {
@@ -166,16 +188,14 @@ const ProductPage = ({ products = [] }) => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleVinylPlayerToggle = () => {
-        setShowSidePlayer(!showSidePlayer);
-    };
+
 
     // SEO data
     const seoTitle = `${product.artist} - ${product.album}`;
     const seoDescription = `Buy ${product.album} by ${product.artist} on vinyl. ${product.genre ? `Genre: ${product.genre}.` : ''} Condition: ${product.status || 'VG'}. Available at El Cuartito Records, Copenhagen.`;
 
     return (
-        <div className="pt-32 pb-40 px-6 max-w-7xl mx-auto">
+        <div className="bg-[#F3F3F3] min-h-screen pt-32 pb-40 px-6 md:px-12 lg:px-20">
             {/* Dynamic SEO */}
             <SEO
                 title={seoTitle}
@@ -185,52 +205,51 @@ const ProductPage = ({ products = [] }) => {
                 type="product"
             />
 
-            {/* Listen on Vinyl Button - Floating */}
-            <AnimatePresence>
-                {!showSidePlayer && (
-                    <motion.button
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        onClick={handleVinylPlayerToggle}
-                        className="fixed top-24 right-4 sm:right-6 z-50 flex items-center gap-2 bg-black text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-full shadow-lg hover:bg-black/80 transition-all hover:scale-105"
-                    >
-                        <Disc3 size={16} className="animate-spin-slow" />
-                        <span className="text-[10px] sm:text-xs md:text-sm font-bold uppercase tracking-wider">Listen on Vinyl</span>
-                    </motion.button>
-                )}
-            </AnimatePresence>
 
-            {/* Main Layout - Responsive Grid */}
+
             <motion.div
-                className={`grid grid-cols-1 ${showSidePlayer ? 'lg:grid-cols-[1fr_1fr_380px]' : 'lg:grid-cols-2'} gap-8 lg:gap-12`}
+                className="grid grid-cols-1 lg:grid-cols-3 gap-12 lg:gap-24"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
             >
-                {/* Left Column: Tracklist & Info */}
+                {/* Left Column: Details */}
                 <motion.div
                     key={product.id + "-info"}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.6 }}
-                    className="space-y-12 order-2 lg:order-1"
+                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex flex-col lg:col-span-1 pt-4 lg:pt-10 h-full relative"
                 >
-                    <div>
-                        <div className="flex items-center gap-4 mb-2">
-                            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tighter uppercase leading-none">
-                                {product.artist}
-                            </h1>
-                        </div>
-                        <p className="text-lg sm:text-xl lg:text-2xl font-medium text-black/60 flex items-center gap-3">
-                            {product.album}
-                            {product.is_rsd_discount && (
-                                <span className="inline-flex items-center bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-orange-500/30 animate-pulse">
+                    <h1 className="text-[42px] sm:text-[60px] lg:text-[70px] xl:text-[85px] font-bold tracking-tighter leading-[0.9] text-black mb-6">
+                        {product.album}<br />
+                        <span className="font-light text-black/70">{product.artist}</span>
+                    </h1>
+
+                    <div className="flex items-center gap-4 mb-12">
+                        {product.is_rsd_discount ? (
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl font-medium text-black">{Math.round(product.price * 0.9)} DKK</span>
+                                <span className="text-xl text-black/40 line-through">{product.price} DKK</span>
+                                <span className="text-xs font-bold bg-black text-white px-2 py-1 uppercase tracking-widest">
                                     RSD -10%
                                 </span>
-                            )}
+                            </div>
+                        ) : (
+                            <span className="text-2xl font-medium text-black">{product.price} DKK</span>
+                        )}
+                    </div>
+
+                    <div ref={descRef} className="lg:sticky lg:top-0 pb-10">
+                        {/* Adjust padding to align border-t with hamburger menu vertically when stuck */}
+                        <div className="border-t border-transparent w-full max-w-sm pt-8 mb-4 mt-[56px] transition-all"></div>
+
+                    <div className="mb-4">
+                        <h2 className={`font-semibold tracking-normal text-black mb-6 uppercase transition-all duration-300 ${isDescSticky ? 'text-2xl' : 'text-sm'}`}>Description</h2>
+                        <p className="text-[17px] md:text-[19px] leading-[1.3] tracking-tight text-black max-w-md font-medium">
+                            {product.description || `Condition: ${product.status}. This release is part of the El Cuartito curated collection. Shipping from Copenhaguen.`}
                         </p>
-                        <div className="mt-4 lg:mt-6 flex flex-wrap gap-x-4 gap-y-2 text-[10px] font-bold uppercase tracking-widest text-black/40">
+                        <div className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-[14px] font-medium tracking-tight text-black">
                             <span>{product.label || 'Indie Label'}</span>
                             <span>—</span>
                             <span>{product.year || '2024'}</span>
@@ -239,172 +258,221 @@ const ProductPage = ({ products = [] }) => {
                         </div>
                     </div>
 
-                    <div className="space-y-6">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-black/40">Tracklist</h2>
-                        <div className="divide-y divide-black/5">
-                            {loadingTracks ? (
-                                <p className="text-xs text-black/40 py-4 italic">Fetching tracks from Discogs...</p>
-                            ) : tracks.length > 0 ? (
-                                tracks.map((track, index) => {
-                                    const isCurrent = currentTrack?.index === index && currentProduct?.id === product.id;
+                    {tracks.length > 0 && (
+                        <>
+                            <div className="border-t border-black w-full max-w-sm pt-8 my-8"></div>
+                            <div className="mb-4 w-full max-w-md">
+                                <h2 className="text-sm font-semibold tracking-normal text-black mb-6 uppercase">Tracklist</h2>
+                                <div className="divide-y divide-black/10">
+                                    {tracks.map((track, index) => {
+                                        const isCurrent = currentTrack?.index === index && currentProduct?.id === product.id;
 
-                                    return (
-                                        <div key={track.position || index} className="group py-4 flex items-center justify-between hover:bg-black/[0.02] transition-colors px-2 -mx-2">
-                                            <div className="flex items-center gap-4 flex-1">
-                                                <button
-                                                    onClick={() => onPlayClick(track, index)}
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isCurrent
-                                                        ? 'bg-accent text-white scale-110'
-                                                        : 'bg-black/5 text-black/40 group-hover:bg-black/10 group-hover:text-black group-hover:scale-110'
-                                                        }`}
-                                                >
-                                                    {isCurrent && isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
-                                                </button>
-                                                <span className="text-[10px] font-bold text-black/20 w-6">{track.position}</span>
-                                                <span className={`text-sm font-medium transition-colors ${isCurrent ? 'text-accent' : ''}`}>
-                                                    {track.title}
-                                                </span>
+                                        return (
+                                            <div key={track.position || index} className="group py-3 flex items-center justify-between hover:bg-black/5 transition-colors -mx-4 px-4 rounded-sm">
+                                                <div className="flex items-center gap-4 flex-1">
+                                                    <button
+                                                        onClick={() => onPlayClick(track, index)}
+                                                        className={`flex items-center justify-center transition-all ${isCurrent
+                                                            ? 'text-black scale-110'
+                                                            : 'text-black/50 group-hover:text-black'
+                                                            }`}
+                                                    >
+                                                        {isCurrent && isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+                                                    </button>
+                                                    <span className="text-[10px] font-bold text-black/30 w-6">{track.position}</span>
+                                                    <span className={`text-sm font-medium transition-colors ${isCurrent ? 'text-black font-bold' : 'text-black/80'}`}>
+                                                        {track.title}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-bold tracking-wider text-black/40">{track.duration}</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xs text-black/40">{track.duration}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <p className="text-xs text-black/40 py-4 italic">No tracklist found for this release.</p>
-                            )}
-                        </div>
-                        {tracks.length > 0 && (
-                            <p className="text-[10px] text-black/30 italic mt-2">
-                                Tracks shown may not be matched correctly. We recommend double-checking before purchase.
-                            </p>
-                        )}
-                    </div>
-
-                    <div className="space-y-4">
-                        <h2 className="text-sm font-bold uppercase tracking-widest text-black/40">Information</h2>
-                        <p className="text-sm leading-relaxed text-black/60 max-w-md">
-                            {product.description || `Condition: ${product.status}. This release is part of the El Cuartito curated collection. Shipping from Copenhaguen.`}
-                        </p>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
                     </div>
                 </motion.div>
 
-                {/* Album Artwork Column */}
+                {/* Right Column: Visuals & Action */}
                 <motion.div
                     key={product.id + "-art"}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-                    className="order-1 lg:order-2 w-full max-w-[400px] lg:max-w-none mx-auto"
+                    className="flex flex-col items-center lg:items-end w-full lg:col-span-2"
                 >
-                    <div className="aspect-square bg-white shadow-2xl rounded-sm overflow-hidden border border-black/5">
+                    {/* Image */}
+                    <div className="w-full aspect-square bg-transparent flex items-center justify-center mb-12 relative max-w-2xl lg:mr-12">
                         <img
                             src={imageSrc}
                             onError={(e) => { e.currentTarget.src = defaultImage; }}
                             alt={product.album}
-                            className="w-full h-full object-cover"
+                            className="w-[85%] h-[85%] object-cover shadow-[0_20px_50px_rgba(0,0,0,0.3)]"
                         />
                     </div>
-                </motion.div>
 
-                {/* Right Column: Vinyl Player (Conditional) */}
-                <AnimatePresence>
-                    {showSidePlayer && (
-                        <motion.div
-                            initial={{ opacity: 0, width: 0 }}
-                            animate={{ opacity: 1, width: 'auto' }}
-                            exit={{ opacity: 0, width: 0 }}
-                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                            className="order-3 hidden lg:block"
-                        >
-                            <div className="sticky top-32">
-                                <VinylSidePlayer
-                                    product={product}
-                                    isVisible={showSidePlayer}
-                                    onClose={() => setShowSidePlayer(false)}
-                                />
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </motion.div>
+                    {/* Add to Cart - Sticky Below Image */}
+                    <div ref={cartRef} className="w-full pb-8 border-b lg:border-b-0 border-t border-black/20 pt-8 mb-12 lg:sticky lg:top-0 bg-[#F3F3F3] z-30 transition-colors duration-300 relative">
+                        {/* Animated Bottom Line */}
+                        <motion.div 
+                            className="absolute bottom-0 right-0 h-px bg-black hidden lg:block origin-right"
+                            style={{ width: cartLineWidth }}
+                        />
+                        <div className="flex flex-row items-center w-full lg:pr-12">
+                            {/* Left side: Mini Player & Volume */}
+                            {currentTrack && (
+                                <>
+                                    <div className="hidden lg:flex items-center gap-4 shrink-0 min-w-0 pr-8">
+                                        <button 
+                                            onClick={() => togglePlay()}
+                                            className="text-black shrink-0 flex items-center justify-center transition-transform hover:scale-110"
+                                        >
+                                            {isPlaying ? (
+                                                <svg width="84" height="84" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M5 4h5v16H5zm9 0h5v16h-5z" />
+                                                </svg>
+                                            ) : (
+                                                <svg width="84" height="84" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M6 3v18l15-9z" />
+                                                </svg>
+                                            )}
+                                        </button>
 
-            {/* Recommendations Section */}
-            {recommendations.length > 0 && (
-                <div className="mt-32 border-t border-black/5 pt-12">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-black/40 mb-8">You Might Also Like</h2>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-12 md:gap-x-8">
-                        {recommendations.map(rec => (
-                            <div key={rec.id} onClick={() => handleRecommendationClick(rec)} className="cursor-pointer">
-                                <ProductCard product={{
-                                    ...rec,
-                                    image: rec.cover_image,
-                                    title: rec.album,
-                                    // ensure ProductCard expects correct props
-                                }} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+                                        <div className="flex flex-col justify-center min-w-[200px] max-w-[250px]">
+                                            <span className="text-xs font-bold tracking-widest uppercase truncate w-full mb-2">
+                                                {currentTrack.title}
+                                            </span>
+                                            {/* Progress Bar */}
+                                            <div 
+                                                className="w-full h-[2px] bg-black/10 relative cursor-pointer group touch-none"
+                                                onPointerDown={(e) => {
+                                                    isDraggingSeek.current = true;
+                                                    e.currentTarget.setPointerCapture(e.pointerId);
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    let x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                                                    handleSeek((x / rect.width) * duration);
+                                                }}
+                                                onPointerMove={(e) => {
+                                                    if (!isDraggingSeek.current) return;
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    let x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                                                    handleSeek((x / rect.width) * duration);
+                                                }}
+                                                onPointerUp={(e) => {
+                                                    isDraggingSeek.current = false;
+                                                    e.currentTarget.releasePointerCapture(e.pointerId);
+                                                }}
+                                            >
+                                                <div 
+                                                    className="absolute top-0 left-0 bottom-0 bg-black transition-all group-hover:h-[4px] group-hover:-top-[1px]" 
+                                                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
 
-            {/* Bottom Fixed Container: ADD TO CART */}
-            <div
-                className="fixed left-0 right-0 z-[80] safe-area-bottom transition-all duration-300"
-                style={{
-                    bottom: currentTrack ? '72px' : '0px'
-                }}
-            >
-                <div className="bg-white/95 backdrop-blur-sm border-t border-black/5 px-6 py-4 md:px-10">
-                    <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-                        <div className="flex flex-col min-w-fit">
-                            <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-0.5">Vinyl 12"</span>
-                            {product.is_rsd_discount ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-black/40 line-through">DKK {product.price}</span>
-                                    <span className="text-base sm:text-lg font-bold text-orange-600">DKK {Math.round(product.price * 0.9)}</span>
-                                </div>
-                            ) : (
-                                <span className="text-base sm:text-lg font-bold">DKK {product.price}</span>
+                                        <button 
+                                            onClick={() => playNext(tracks, product, discogsVideos)}
+                                            className="text-black hover:scale-110 transition-transform ml-2"
+                                        >
+                                            <SkipForward size={16} fill="black" />
+                                        </button>
+                                    </div>
+
+                                    {/* Center: Vertical Volume / Divider Line */}
+                                    <div className="hidden lg:flex flex-1 items-center justify-center">
+                                        <div 
+                                            className="h-16 w-[1px] bg-black/20 relative group cursor-pointer touch-none"
+                                            onPointerDown={(e) => {
+                                                isDraggingVolume.current = true;
+                                                e.currentTarget.setPointerCapture(e.pointerId);
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                let y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+                                                handleVolume(1 - (y / rect.height));
+                                            }}
+                                            onPointerMove={(e) => {
+                                                if (!isDraggingVolume.current) return;
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                let y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+                                                handleVolume(1 - (y / rect.height));
+                                            }}
+                                            onPointerUp={(e) => {
+                                                isDraggingVolume.current = false;
+                                                e.currentTarget.releasePointerCapture(e.pointerId);
+                                            }}
+                                        >
+                                            <div 
+                                                className="absolute bottom-0 left-[-1px] right-[-1px] bg-black transition-all group-hover:left-[-2px] group-hover:right-[-2px]"
+                                                style={{ height: `${volume * 100}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </>
                             )}
-                        </div>
-                        {product.stock > 0 ? (
-                            <button
-                                onClick={() => {
-                                    addToCart(product);
-                                    setAddedToCart(true);
-                                    setTimeout(() => setAddedToCart(false), 2000);
-                                }}
-                                disabled={addedToCart}
-                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 sm:px-10 py-3 sm:py-3.5 rounded-full font-bold text-[11px] sm:text-xs tracking-widest transition-all ${addedToCart
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-black text-white hover:bg-black/80'
-                                    }`}
-                            >
-                                {addedToCart ? (
+
+                            {/* Right side */}
+                            <div className="flex flex-row items-center justify-end gap-4 md:gap-8 flex-nowrap shrink-0 ml-auto">
+                                {product.stock > 0 ? (
                                     <>
-                                        <Check size={16} />
-                                        ADDED
+                                        <div className="flex flex-col text-right mr-4 sm:mr-8 shrink-0">
+                                            <span className="font-bold text-xs sm:text-sm tracking-widest uppercase truncate max-w-[200px]">{product.album}</span>
+                                            <span className="text-[9px] sm:text-[10px] text-black/50 uppercase tracking-widest font-light truncate max-w-[200px] mt-0.5">{product.artist}</span>
+                                        </div>
+                                        <span className="font-bold text-sm sm:text-lg tracking-widest uppercase shrink-0">
+                                            {product.is_rsd_discount ? Math.round(product.price * 0.9) : product.price} DKK
+                                        </span>
+                                        <button
+                                        onClick={() => {
+                                            for(let i=0; i<quantity; i++) addToCart(product);
+                                            setAddedToCart(true);
+                                            setTimeout(() => setAddedToCart(false), 2000);
+                                        }}
+                                        disabled={addedToCart}
+                                        className={`w-full sm:w-auto px-8 md:px-24 py-6 md:py-10 font-bold text-sm sm:text-lg tracking-widest uppercase transition-all border-2 shrink-0 ${
+                                            addedToCart
+                                                ? 'bg-black text-white border-black'
+                                                : isCartSticky 
+                                                    ? 'bg-black text-white border-black hover:bg-transparent hover:text-black' 
+                                                    : 'bg-transparent text-black border-black hover:bg-black hover:text-white'
+                                        }`}
+                                    >
+                                        {addedToCart ? 'IN CART' : 'IN CART'}
+                                    </button>
                                     </>
                                 ) : (
-                                    <>
-                                        <ShoppingCart size={16} />
-                                        ADD TO CART
-                                    </>
+                                    <div className="px-24 py-10 border-2 border-red-200 bg-red-50 text-red-600 font-bold text-lg tracking-widest uppercase text-center w-full">
+                                        OUT OF STOCK
+                                    </div>
                                 )}
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-3 text-right">
-                                <div className="max-w-xs">
-                                    <p className="text-xs sm:text-sm font-bold text-red-600 leading-tight uppercase tracking-tight">Out of Stock</p>
-                                </div>
                             </div>
-                        )}
+                        </div>
                     </div>
-                </div>
-            </div>
+                    
+                    {/* Recommendations Section in Right Column */}
+                    {recommendations.length > 0 && (
+                        <div className="w-full mt-24">
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-black/50 mb-8 lg:sticky lg:top-[174px] bg-[#F3F3F3] z-20 pt-4 pb-4">
+                                You Might Also Like
+                            </h3>
+                            <div className="grid grid-cols-2 gap-8 sm:gap-16">
+                                {recommendations.map(rec => (
+                                    <div key={rec.id} onClick={() => handleRecommendationClick(rec)} className="cursor-pointer">
+                                        <ProductCard product={{
+                                            ...rec,
+                                            image: rec.cover_image,
+                                            title: rec.album,
+                                        }} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </motion.div>
 
+            </motion.div>
         </div>
     );
 };

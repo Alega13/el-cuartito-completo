@@ -54,75 +54,61 @@ const ProductCard = ({ product }) => {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="group cursor-pointer"
+                className="group cursor-pointer flex flex-col"
             >
-                <div className="aspect-square overflow-hidden bg-gray-100 rounded-sm mb-4 relative">
+                <div className="w-full aspect-square mb-6 flex items-center justify-center p-6 md:p-8 lg:p-10">
                     <img
                         src={imageSrc}
                         alt={product.title}
                         loading="lazy"
                         decoding="async"
                         onError={(e) => { e.currentTarget.src = defaultImage; }}
-                        className={`w-full h-full object-cover transition-all duration-500 ${product.stock === 0 ? 'grayscale opacity-50' : 'grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105'}`}
+                        className={`w-full h-full object-contain mix-blend-multiply drop-shadow-xl transition-transform duration-500 ${product.stock === 0 ? 'grayscale opacity-50' : 'group-hover:scale-105'}`}
                     />
-                    {product.stock === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="bg-black/80 text-white text-[10px] font-bold tracking-[0.2em] uppercase px-3 py-1.5 rounded-sm">
-                                Sin Stock
-                            </span>
-                        </div>
-                    )}
-
-                    {/* RSD Badge */}
-                    {isRSD && (
-                        <div className="absolute top-2.5 left-2.5 z-10 bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-orange-500/30 animate-pulse">
-                            RSD
-                        </div>
-                    )}
-
-                    {/* Actions Overlay */}
-                    <div className="absolute bottom-3 right-3 flex gap-2 z-10">
-                        {/* Save to Listening Room button */}
-                        <button
-                            onClick={handleSaveClick}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 shadow-md ${isSelected
-                                ? 'bg-black text-white'
-                                : 'bg-white/95 text-black/70 hover:bg-black hover:text-white'
-                                } hover:scale-110`}
-                            title={isSelected ? 'Remove from Listening Room' : 'Save to Listening Room'}
-                        >
-                            {isSelected ? <Check size={16} /> : <Headphones size={16} />}
-                        </button>
-
-                        {/* Add to Cart button */}
-                        {product.stock > 0 && (
-                            <button
-                                onClick={handleAddToCart}
-                                className="w-9 h-9 rounded-full bg-white/95 text-black/70 hover:bg-black hover:text-white flex items-center justify-center transition-all duration-300 shadow-md hover:scale-110"
-                                title="Add to Cart"
-                            >
-                                <ShoppingBag size={16} />
-                            </button>
-                        )}
-
-                    </div>
                 </div>
-                <div className="space-y-1">
-                    <div className="flex justify-between items-start">
-                        <h3 className="text-sm font-semibold uppercase tracking-tight">{product.artist}</h3>
-                        {product.price && (
-                            isRSD ? (
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-black/40 line-through">DKK {originalPrice}</span>
-                                    <span className="text-sm font-bold text-orange-600">DKK {discountedPrice}</span>
-                                </div>
-                            ) : (
-                                <span className="text-sm font-bold">DKK {product.price}</span>
-                            )
+                
+                <div className="flex flex-col">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+                        {product.stock === 0 ? (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-red-500/70">
+                                OUT OF STOCK
+                            </span>
+                        ) : product.status === 'New' ? (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-black/40">
+                                BRAND NEW
+                            </span>
+                        ) : isRSD ? (
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-orange-500">
+                                RSD
+                            </span>
+                        ) : null}
+                        
+                        {product.label && (
+                            <>
+                                {(product.stock === 0 || product.status === 'New' || isRSD) && (
+                                    <span className="text-[9px] text-black/20">•</span>
+                                )}
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-black/60">
+                                    {product.label}
+                                </span>
+                            </>
                         )}
                     </div>
-                    <p className="text-sm text-black/60">{product.title}</p>
-                    <p className="text-xs text-black/40 mt-2">{product.label} — {product.year}</p>
+                    
+                    <h3 className="text-sm md:text-base font-bold text-black tracking-tight leading-tight mb-1">
+                        {product.title}
+                    </h3>
+                    
+                    {product.price && (
+                        isRSD ? (
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-black/40 line-through">{originalPrice} DKK</span>
+                                <span className="text-xs font-bold text-orange-600">{discountedPrice} DKK</span>
+                            </div>
+                        ) : (
+                            <span className="text-xs font-bold text-black/50">{product.price} DKK</span>
+                        )
+                    )}
                 </div>
             </motion.div>
         </Link>

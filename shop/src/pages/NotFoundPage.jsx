@@ -54,17 +54,6 @@ const NotFoundPage = () => {
                         Browse Catalog
                     </Link>
                 </div>
-
-                {/* Listening Room Link */}
-                <div className="mt-8 pt-8 border-t border-black/10">
-                    <Link
-                        to="/listening"
-                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-black/40 hover:text-black transition-colors"
-                    >
-                        <Disc3 size={14} className="animate-spin" style={{ animationDuration: '2s' }} />
-                        Or discover something new in the Listening Room
-                    </Link>
-                </div>
             </div>
         </div>
     );

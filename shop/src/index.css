@@ -7,7 +7,7 @@
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #f8f8f8;
+  background-color: #F3F3F3;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,7 +17,7 @@
 
 /* Custom theme colors for Tailwind 4 */
 @theme {
-  --color-background: #f8f8f8;
+  --color-background: #F3F3F3;
   --color-accent: #ea580c;
 }
 
@@ -27,7 +27,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: #000;
-  background-color: #f8f8f8;
+  background-color: #F3F3F3;
 }
 
 #root {

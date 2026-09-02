@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
 import { useCart, getItemPrice } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
@@ -19,50 +18,50 @@ const CartDrawer = ({ isOpen, onClose }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100]"
+                        className="fixed inset-0 bg-black/20 z-[100]"
                     />
                     <motion.div
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white/90 backdrop-blur-xl z-[110] shadow-2xl p-8 flex flex-col"
+                        transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}
+                        className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-white z-[110] flex flex-col pt-6 pb-0"
                     >
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <ShoppingBag size={20} />
-                                <h2 className="text-xl font-bold tracking-tighter uppercase">Your Basket</h2>
-                            </div>
+                        {/* Top Title & Close Button */}
+                        <div className="flex justify-between items-start px-8 mb-4">
+                            <h2 className="text-4xl font-bold tracking-tighter uppercase mt-2">YOUR CART</h2>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-black/5 rounded-full transition-colors"
+                                className="text-black hover:opacity-50 transition-opacity"
                             >
-                                <X size={20} />
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5" strokeLinecap="square" strokeLinejoin="miter">
+                                    <path d="M4 4l16 16m0-16L4 20" />
+                                </svg>
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto -mx-2 px-2">
+                        {/* Top Divider */}
+                        <div className="px-8 mb-12">
+                            <div className="w-full h-px bg-black"></div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto px-8">
                             {cartItems.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
-                                    <div className="w-16 h-16 bg-black/5 rounded-full flex items-center justify-center text-black/20">
-                                        <ShoppingBag size={32} />
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm tracking-widest uppercase mb-1">Basket is empty</p>
-                                        <p className="text-sm text-black/40">Discover our catalogue to find your next favorite sound.</p>
-                                    </div>
+                                    <p className="font-normal text-lg mb-1">Basket is empty</p>
                                     <button
                                         onClick={onClose}
-                                        className="mt-6 border-b-2 border-black pb-1 text-xs font-bold tracking-[0.2em] uppercase hover:text-accent hover:border-accent transition-all"
+                                        className="mt-6 border-b border-black pb-1 text-sm font-normal uppercase hover:text-black/50 transition-all"
                                     >
                                         Go shopping
                                     </button>
                                 </div>
                             ) : (
-                                <div className="space-y-6">
+                                <div className="space-y-12">
                                     {cartItems.map((item) => (
-                                        <div key={item.id} className="flex gap-4 group">
-                                            <div className="w-20 h-20 bg-black/5 rounded-sm overflow-hidden flex-shrink-0">
+                                        <div key={item.id} className="flex items-start gap-8">
+                                            {/* Image */}
+                                            <div className="w-24 h-24 bg-black/5 flex-shrink-0">
                                                 <img
                                                     src={item.cover_image || defaultImage}
                                                     onError={(e) => { e.currentTarget.src = defaultImage; }}
@@ -70,34 +69,29 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                                     className="w-full h-full object-cover"
                                                 />
                                             </div>
-                                            <div className="flex-1 flex flex-col justify-between py-1">
-                                                <div>
-                                                    <div className="flex justify-between items-start">
-                                                        <h3 className="text-xs font-bold uppercase tracking-tight truncate max-w-[150px]">{item.artist}</h3>
-                                                        {item.is_rsd_discount ? (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[10px] text-black/30 line-through">DKK {item.price * item.quantity}</span>
-                                                                <span className="text-xs font-bold text-orange-600 tracking-tighter">DKK {getItemPrice(item) * item.quantity}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-xs font-bold tracking-tighter">DKK {item.price * item.quantity}</span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-[10px] text-black/60 truncate max-w-[180px]">{item.album}</p>
-                                                </div>
+                                            
+                                            {/* Details */}
+                                            <div className="flex-1 flex flex-col pt-1">
+                                                <h3 className="text-[17px] font-normal leading-tight mb-1">{item.album}</h3>
+                                                <p className="text-[15px] text-black/50 mb-0.5">{item.artist}</p>
+                                                <p className="text-[13px] text-black/30 uppercase tracking-widest">{item.label}</p>
 
-                                                <div className="flex items-center justify-between mt-2">
-                                                    <div className="text-[10px] text-black/50 font-medium">
-                                                        Single Item
-                                                    </div>
+                                                {/* Controls */}
+                                                <div className="flex items-center gap-6 mt-auto">
                                                     <button
                                                         onClick={() => removeFromCart(item.id)}
-                                                        className="text-black/40 hover:text-red-500 transition-colors flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider"
+                                                        className="text-[13px] text-black/50 hover:text-black transition-colors uppercase tracking-widest"
                                                     >
-                                                        <Trash2 size={12} />
                                                         Remove
                                                     </button>
                                                 </div>
+                                            </div>
+
+                                            {/* Price */}
+                                            <div className="text-right pt-1">
+                                                <span className="text-[17px] font-normal tracking-wide">
+                                                    {getItemPrice(item)} DKK
+                                                </span>
                                             </div>
                                         </div>
                                     ))}
@@ -105,32 +99,31 @@ const CartDrawer = ({ isOpen, onClose }) => {
                             )}
                         </div>
 
-                        <div className="pt-8 border-t border-black/5 space-y-4">
-                            <div className="flex justify-between items-end">
-                                <span className="text-xs font-bold text-black/40 uppercase tracking-widest">Subtotal</span>
-                                <span className="text-xl font-bold tracking-tighter">DKK {subtotal}</span>
-                            </div>
-
-                            {cartItems.length > 0 && (
-                                <div className="bg-green-50 border border-green-100 rounded-sm p-3 text-center">
-                                    <p className="text-[10px] text-green-900 leading-relaxed">
-                                        Secure checkout with Stripe. Shipping calculated at checkout.
-                                    </p>
+                        {/* Bottom Section */}
+                        {cartItems.length > 0 && (
+                            <div className="mt-auto">
+                                <div className="px-8 pb-8 flex flex-col gap-2">
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-[17px] font-normal">Subtotal (DKK)</span>
+                                        <span className="text-2xl font-normal tracking-wide">{subtotal} DKK</span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-[17px] font-normal">Shipping</span>
+                                        <span className="text-[17px] font-normal text-black/50">Enter shipping address</span>
+                                    </div>
                                 </div>
-                            )}
 
-                            <button
-                                onClick={() => {
-                                    onClose();
-                                    navigate('/checkout');
-                                }}
-                                disabled={cartItems.length === 0}
-                                className={`w-full bg-black text-white py-4 rounded-sm font-bold text-sm tracking-widest uppercase hover:bg-black/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-                            >
-                                Proceed to Checkout
-                                <ArrowRight size={16} />
-                            </button>
-                        </div>
+                                <button
+                                    onClick={() => {
+                                        onClose();
+                                        navigate('/checkout');
+                                    }}
+                                    className="w-full bg-black text-white py-8 text-2xl font-normal uppercase hover:bg-black/90 transition-colors flex items-center justify-center"
+                                >
+                                    Checkout
+                                </button>
+                            </div>
+                        )}
                     </motion.div>
                 </>
             )}

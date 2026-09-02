@@ -48,44 +48,41 @@ const Hero = ({ products }) => {
     };
 
     return (
-        <section className="relative min-h-[80vh] lg:h-screen flex items-center px-4 sm:px-6 overflow-hidden py-24 lg:py-0">
+        <section className="relative min-h-screen bg-[#F3F3F3] flex flex-col justify-center px-10 md:px-20 pt-24 pb-12">
             <AnimatePresence mode="wait">
                 <motion.div
                     key={product.id}
-                    className="max-w-7xl mx-auto w-full flex flex-col lg:grid lg:grid-cols-2 gap-8 lg:gap-12 items-center"
+                    className="w-full h-full flex flex-col md:grid md:grid-cols-12 gap-8 items-center justify-center flex-1 cursor-pointer"
                     initial="enter"
                     animate="center"
                     exit="exit"
                     variants={slideVariants}
+                    onClick={() => navigate(`/product/${product.id}`)}
                 >
-                    {/* Image Section - Shows on top for mobile */}
-                    <div className="relative order-1 lg:order-2 w-full flex justify-center lg:block">
-                        <div className="aspect-square relative z-10 w-[70%] sm:w-[60%] lg:w-[80%] lg:ml-auto">
-                            <img
-                                src={product.cover_image || defaultImage}
-                                onError={(e) => { e.currentTarget.src = defaultImage; }}
-                                alt={product.album}
-                                className="w-full h-full object-cover shadow-2xl grayscale-[0.3]"
-                            />
-                        </div>
-                        {/* Decorative Circles - Hidden on mobile for cleaner look */}
-                        <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border border-black/5 rounded-full -z-0"></div>
-                        <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] border border-black/[0.02] rounded-full -z-0"></div>
+                    {/* Image Section - Takes up majority of space */}
+                    <div className="w-full md:col-span-7 md:col-start-2 flex justify-center items-center">
+                        <img
+                            src={product.cover_image || defaultImage}
+                            onError={(e) => { e.currentTarget.src = defaultImage; }}
+                            alt={product.album}
+                            className="w-[80%] md:w-[70%] max-h-[70vh] object-contain drop-shadow-xl"
+                        />
                     </div>
 
-                    {/* Text Section */}
-                    <div className="order-2 lg:order-1 text-center lg:text-left">
-                        <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-black/40 mb-4 lg:mb-6">Our Choice of the Week</h2>
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-light tracking-tight leading-[0.95] mb-6 lg:mb-8">
-                            {product.album} <br />
-                            <span className="text-black/60">{product.artist}</span>
+                    {/* Text Section - Far right */}
+                    <div className="w-full md:col-span-3 flex flex-col items-start justify-center">
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter leading-[0.95] text-black mb-2">
+                            {product.album}
                         </h1>
-                        <button
-                            onClick={() => navigate(`/product/${product.id}`)}
-                            className="border-b-2 border-black pb-2 font-bold text-xs sm:text-sm tracking-widest hover:text-accent hover:border-accent transition-all"
-                        >
-                            DISCOVER THE SOUND
-                        </button>
+                        <h2 className="text-lg md:text-xl font-light text-black/70 mb-1">
+                            {product.artist}
+                        </h2>
+                        <p className="text-[10px] font-bold uppercase text-black/40 tracking-widest mb-6">
+                            {product.label || 'EL CUARTITO'}
+                        </p>
+                        <p className="text-xs font-bold text-black/50">
+                            {product.price ? `${product.price} DKK` : '40 DKK'}
+                        </p>
                     </div>
                 </motion.div>
             </AnimatePresence>

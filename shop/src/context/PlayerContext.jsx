@@ -21,9 +21,10 @@ export const PlayerProvider = ({ children }) => {
     const [activeVideos, setActiveVideos] = useState([]); // Store videos for current release
     const [previews, setPreviews] = useState({}); // Cache: { trackIndex: { url, source } }
 
-    // Progress
+    // Progress and Volume
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1); // 0.0 to 1.0
 
     // Side Player visibility (global)
     const [showSidePlayer, setShowSidePlayer] = useState(false);
@@ -242,6 +243,16 @@ export const PlayerProvider = ({ children }) => {
         setCurrentTime(newTime);
     };
 
+    const handleVolume = (newVolume) => {
+        setVolume(newVolume);
+        if (audioRef.current) {
+            audioRef.current.volume = newVolume;
+        }
+        if (youtubePlayerRef.current && typeof youtubePlayerRef.current.setVolume === 'function') {
+            youtubePlayerRef.current.setVolume(newVolume * 100);
+        }
+    };
+
     const closePlayer = () => {
         stopAll();
         setCurrentTrack(null);
@@ -310,6 +321,8 @@ export const PlayerProvider = ({ children }) => {
             playNext,
             playPrev,
             handleSeek,
+            handleVolume,
+            volume,
             closePlayer,
             showSidePlayer,
             setShowSidePlayer,

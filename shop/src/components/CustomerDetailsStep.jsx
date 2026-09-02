@@ -39,101 +39,93 @@ const CustomerDetailsStep = ({ initialData, onContinue }) => {
         }
     };
 
+    const inputClasses = (error) => `
+        w-full py-3 bg-transparent border-b outline-none text-[15px] transition-colors
+        placeholder:text-gray-300
+        ${error ? 'border-red-500' : 'border-gray-200 focus:border-[#1a1a1a]'}
+    `;
+
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-10">
             <div>
-                <h2 className="text-2xl font-bold mb-2">Your Details</h2>
-                <p className="text-gray-600">Enter your contact information</p>
+                <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">Step 1</p>
+                <h2 className="text-[28px] font-normal tracking-tight text-[#1a1a1a]">Contact Information</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
-                    <label className="block text-sm font-medium mb-1">
-                        First Name *
+                    <label className="block text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-1">
+                        First Name
                     </label>
                     <input
                         type="text"
                         value={customerData.firstName}
                         onChange={(e) => setCustomerData({ ...customerData, firstName: e.target.value })}
-                        className={`
-                            w-full px-4 py-3 border rounded-lg 
-                            focus:ring-2 focus:ring-orange-500 focus:border-transparent
-                            ${errors.firstName ? 'border-red-500' : 'border-gray-300'}
-                        `}
+                        className={inputClasses(errors.firstName)}
                         placeholder="John"
                     />
                     {errors.firstName && (
-                        <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+                        <p className="text-red-500 text-[11px] mt-2">{errors.firstName}</p>
                     )}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">
-                        Last Name *
+                    <label className="block text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-1">
+                        Last Name
                     </label>
                     <input
                         type="text"
                         value={customerData.lastName}
                         onChange={(e) => setCustomerData({ ...customerData, lastName: e.target.value })}
-                        className={`
-                            w-full px-4 py-3 border rounded-lg 
-                            focus:ring-2 focus:ring-orange-500 focus:border-transparent
-                            ${errors.lastName ? 'border-red-500' : 'border-gray-300'}
-                        `}
+                        className={inputClasses(errors.lastName)}
                         placeholder="Doe"
                     />
                     {errors.lastName && (
-                        <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
+                        <p className="text-red-500 text-[11px] mt-2">{errors.lastName}</p>
                     )}
                 </div>
             </div>
 
             <div>
-                <label className="block text-sm font-medium mb-1">
-                    Email *
+                <label className="block text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-1">
+                    Email
                 </label>
                 <input
                     type="email"
                     value={customerData.email}
                     onChange={(e) => setCustomerData({ ...customerData, email: e.target.value })}
-                    className={`
-                        w-full px-4 py-3 border rounded-lg 
-                        focus:ring-2 focus:ring-orange-500 focus:border-transparent
-                        ${errors.email ? 'border-red-500' : 'border-gray-300'}
-                    `}
+                    className={inputClasses(errors.email)}
                     placeholder="john@example.com"
                 />
                 {errors.email && (
-                    <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                    <p className="text-red-500 text-[11px] mt-2">{errors.email}</p>
                 )}
             </div>
 
             <div>
-                <label className="block text-sm font-medium mb-1">
-                    Phone *
+                <label className="block text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-1">
+                    Phone
                 </label>
                 <input
                     type="tel"
                     value={customerData.phone}
                     onChange={(e) => setCustomerData({ ...customerData, phone: e.target.value })}
-                    className={`
-                        w-full px-4 py-3 border rounded-lg 
-                        focus:ring-2 focus:ring-orange-500 focus:border-transparent
-                        ${errors.phone ? 'border-red-500' : 'border-gray-300'}
-                    `}
+                    className={inputClasses(errors.phone)}
                     placeholder="+45 12 34 56 78"
                 />
                 {errors.phone && (
-                    <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                    <p className="text-red-500 text-[11px] mt-2">{errors.phone}</p>
                 )}
             </div>
 
-            <button
-                type="submit"
-                className="w-full bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-            >
-                Continue to Shipping
-            </button>
+            <div className="pt-8">
+                <button
+                    type="submit"
+                    className="w-full bg-[#1a1a1a] text-white py-5 text-[13px] font-bold tracking-widest uppercase hover:bg-black transition-colors"
+                >
+                    Continue to Shipping
+                </button>
+            </div>
         </form>
     );
 };

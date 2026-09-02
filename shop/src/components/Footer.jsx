@@ -1,7 +1,25 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 const Footer = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleScrollToCatalog = (e) => {
+        if (e) e.preventDefault();
+        
+        if (location.pathname !== '/') {
+            navigate('/');
+            setTimeout(() => {
+                const el = document.getElementById('catalogue');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        } else {
+            const el = document.getElementById('catalogue');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     return (
         <footer className="bg-background border-t border-black/10 mt-32">
             <div className="max-w-7xl mx-auto px-6 py-16">
@@ -11,8 +29,11 @@ const Footer = () => {
                         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-6">Index</h3>
                         <ul className="space-y-3">
                             <li><Link to="/" className="text-sm hover:opacity-60 transition-opacity">Home</Link></li>
-                            <li><Link to="/catalog" className="text-sm hover:opacity-60 transition-opacity">Catalog</Link></li>
-                            <li><Link to="/collections" className="text-sm hover:opacity-60 transition-opacity">Collections</Link></li>
+                            <li>
+                                <a href="#catalogue" onClick={handleScrollToCatalog} className="text-sm hover:opacity-60 transition-opacity cursor-pointer">
+                                    Catalog
+                                </a>
+                            </li>
                             <li><Link to="/about" className="text-sm hover:opacity-60 transition-opacity">About</Link></li>
                         </ul>
                     </div>
