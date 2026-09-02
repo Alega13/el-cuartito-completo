@@ -104,10 +104,7 @@ const GlobalPlayer = () => {
                                                 playlist.map((track, idx) => {
                                                     const isTrackCurrent = currentTrack.index === track.index;
                                                     return (
-                                                        <div key={idx} className={`px-4 py-3 flex items-center gap-3 text-sm cursor-pointer hover:bg-black/5 ${isTrackCurrent ? 'font-bold' : ''}`} onClick={() => {
-                                                            // We can't directly play a track from here without the full product context
-                                                            // But they can just see the list. Or we can just let them read it.
-                                                        }}>
+                                                        <div key={idx} className={`px-4 py-3 flex items-center gap-3 text-sm cursor-pointer hover:bg-black/5 ${isTrackCurrent ? 'font-bold' : ''}`}>
                                                             <span className="text-[10px] text-black/30 w-4">{track.position}</span>
                                                             <span className="truncate flex-1">{track.title}</span>
                                                             {isTrackCurrent && <Play size={10} fill="currentColor" className="text-black" />}
@@ -122,32 +119,35 @@ const GlobalPlayer = () => {
                                 )}
                             </AnimatePresence>
 
-                            <button onClick={() => setShowTracklist(!showTracklist)} className={`p-1 transition-colors ${showTracklist ? 'text-black' : 'text-black/60 hover:text-black'}`}>
+                            {/* Tracklist Button (Desktop only) */}
+                            <button onClick={() => setShowTracklist(!showTracklist)} className={`hidden sm:block p-1 transition-colors ${showTracklist ? 'text-black' : 'text-black/60 hover:text-black'}`}>
                                 <List size={18} />
                             </button>
 
-                            <div className="flex items-center gap-2 sm:gap-4">
-                                <button onClick={playPrev} className="p-1 text-black/60 hover:text-black transition-colors">
-                                    <SkipBack size={18} fill="currentColor" />
-                                </button>
+                            {/* Prev Button (Desktop only) */}
+                            <button onClick={playPrev} className="hidden sm:block p-1 text-black/60 hover:text-black transition-colors">
+                                <SkipBack size={18} fill="currentColor" />
+                            </button>
 
-                                <button onClick={playNext} className="p-1 text-black/60 hover:text-black transition-colors">
-                                    <SkipForward size={18} fill="currentColor" />
-                                </button>
-                            </div>
-
+                            {/* Play / Pause Button */}
                             <button
                                 onClick={togglePlay}
-                                className="w-9 h-9 sm:w-10 sm:h-10 text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0"
+                                className="w-8 h-8 sm:w-10 sm:h-10 text-black flex items-center justify-center hover:scale-105 transition-transform shrink-0"
                             >
                                 {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
                             </button>
 
+                            {/* Next Button */}
+                            <button onClick={playNext} className="p-1 text-black/60 hover:text-black transition-colors">
+                                <SkipForward size={18} fill="currentColor" />
+                            </button>
+
                             <div className="hidden sm:block w-px h-6 bg-black/20 mx-2" />
 
+                            {/* Close Button */}
                             <button
                                 onClick={closePlayer}
-                                className="p-1 text-black/40 hover:text-black transition-colors"
+                                className="p-1 text-black/40 hover:text-black transition-colors ml-1 sm:ml-0"
                             >
                                 <X size={18} />
                             </button>
