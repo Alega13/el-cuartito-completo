@@ -294,6 +294,25 @@ const ProductPage = ({ products = [] }) => {
                             </div>
                         </>
                     )}
+                    {recommendations.length > 0 && (
+                        <div className="w-full mt-12 md:mt-16">
+                            <div className="border-t border-black/10 w-full max-w-sm pt-4 mb-8"></div>
+                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-black/50 mb-6">
+                                You Might Also Like
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 sm:gap-12">
+                                {recommendations.map(rec => (
+                                    <div key={rec.id} onClick={() => handleRecommendationClick(rec)} className="cursor-pointer">
+                                        <ProductCard product={{
+                                            ...rec,
+                                            image: rec.cover_image,
+                                            title: rec.album,
+                                        }} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     </div>
                 </motion.div>
 
@@ -418,7 +437,7 @@ const ProductPage = ({ products = [] }) => {
                                 {product.stock > 0 ? (
                                     <>
                                         <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:text-right gap-2 sm:mr-8 shrink-0">
-                                            <div className="flex flex-col">
+                                            <div className="hidden sm:flex flex-col">
                                                 <span className="font-bold text-xs sm:text-sm tracking-widest uppercase truncate max-w-[180px]">{product.album}</span>
                                                 <span className="text-[9px] sm:text-[10px] text-black/50 uppercase tracking-widest font-light truncate max-w-[180px] mt-0.5">{product.artist}</span>
                                             </div>
@@ -453,25 +472,6 @@ const ProductPage = ({ products = [] }) => {
                         </div>
                     </div>
                     
-                    {/* Recommendations Section in Right Column */}
-                    {recommendations.length > 0 && (
-                        <div className="w-full mt-24">
-                            <h3 className="text-[10px] font-bold uppercase tracking-widest text-black/50 mb-8 lg:sticky lg:top-[174px] bg-[#F3F3F3] z-20 pt-4 pb-4">
-                                You Might Also Like
-                            </h3>
-                            <div className="grid grid-cols-2 gap-8 sm:gap-16">
-                                {recommendations.map(rec => (
-                                    <div key={rec.id} onClick={() => handleRecommendationClick(rec)} className="cursor-pointer">
-                                        <ProductCard product={{
-                                            ...rec,
-                                            image: rec.cover_image,
-                                            title: rec.album,
-                                        }} />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </motion.div>
 
             </motion.div>
