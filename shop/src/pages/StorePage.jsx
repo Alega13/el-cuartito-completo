@@ -169,51 +169,67 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         <div id="catalogue" className="pb-20 px-4 md:px-20 w-full">
 
             {/* Header Area */}
-            <header className="sticky top-0 z-40 bg-[#F3F3F3] pb-4 md:pb-6 flex flex-col gap-4 md:gap-8 pt-12 md:pt-20 -mx-4 px-4 md:-mx-20 md:px-20 relative">
-                {/* CATALOGUE TITLE */}
-                <div className="absolute top-8 md:top-10 left-10 md:left-20 flex items-center">
-                    <h2 className="text-[22px] md:text-[42px] leading-none font-bold uppercase tracking-widest text-black mt-[-4px] md:mt-[-6px]">
-                        CATALOG
-                    </h2>
-                </div>
-                
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-end justify-between xl:gap-12">
-                {/* LEFT: FILTERS + CATEGORIES */}
-                <div className="flex flex-col items-start gap-4 shrink-0">
-                    <div className="flex flex-wrap items-center gap-6 text-xs font-light uppercase tracking-widest text-black">
-                        <div className="flex flex-col items-start relative">
-                            <button 
-                                onClick={() => setShowMobileFilters(!showMobileFilters)} 
-                                className="flex items-center gap-1 hover:opacity-50 transition-opacity"
-                            >
-                                FILTERS <span className="ml-1 text-[8px]">{showMobileFilters ? '✕' : '▼'}</span>
-                            </button>
-                            {showMobileFilters && (
+            <header className="sticky top-0 z-40 bg-[#F3F3F3] pb-4 md:pb-6 flex flex-col gap-4 md:gap-6 pt-6 md:pt-12 -mx-4 px-4 md:-mx-20 md:px-20 relative">
+                {/* Top Row: CATALOG Title + FILTERS + Desktop SORT */}
+                <div className="flex items-baseline justify-between gap-4">
+                    <div className="flex items-baseline gap-4 md:gap-8">
+                        <h2 className="text-[22px] md:text-[42px] leading-none font-bold uppercase tracking-widest text-black">
+                            CATALOG
+                        </h2>
+
+                        <div className="flex items-center gap-4 text-xs font-light uppercase tracking-widest text-black">
+                            <div className="flex items-center gap-2 relative">
                                 <button 
-                                    onClick={clearFilters} 
-                                    className="text-[9px] text-black/40 hover:text-black capitalize font-normal tracking-normal absolute top-full left-0 mt-1"
+                                    onClick={() => setShowMobileFilters(!showMobileFilters)} 
+                                    className="flex items-center gap-1 hover:opacity-50 transition-opacity"
                                 >
-                                    Reset
+                                    FILTERS <span className="ml-1 text-[8px]">{showMobileFilters ? '✕' : '▼'}</span>
                                 </button>
-                            )}
-                        </div>
-                        
-                        <div className="hidden md:flex flex-wrap items-baseline gap-6 text-black/40 text-xs font-light uppercase tracking-widest">
-                            <button className="text-black transition-colors hover:opacity-50">ALL</button>
-                            <button className="text-black transition-colors">VINYL <sup className="text-[9px] ml-0.5">{filteredProducts.length}</sup></button>
-                            
-                            {/* Active Filters */}
-                            {Object.entries(selectedFilters).flatMap(([key, values]) => 
-                                values.map(val => (
+                                {showMobileFilters && (
                                     <button 
-                                        key={`${key}-${val}`} 
-                                        onClick={() => handleFilterChange(key, val)}
-                                        className="text-black transition-colors hover:text-black/50 flex items-center gap-1"
+                                        onClick={clearFilters} 
+                                        className="text-[9px] text-black/40 hover:text-black capitalize font-normal tracking-normal ml-2"
                                     >
-                                        {val} <X size={8} strokeWidth={3} className="ml-0.5" />
+                                        Reset
                                     </button>
-                                ))
-                            )}
+                                )}
+                            </div>
+                            
+                            <div className="hidden md:flex flex-wrap items-baseline gap-6 text-black/40 text-xs font-light uppercase tracking-widest">
+                                <button className="text-black transition-colors hover:opacity-50">ALL</button>
+                                <button className="text-black transition-colors">VINYL <sup className="text-[9px] ml-0.5">{filteredProducts.length}</sup></button>
+                                
+                                {/* Active Filters */}
+                                {Object.entries(selectedFilters).flatMap(([key, values]) => 
+                                    values.map(val => (
+                                        <button 
+                                            key={`${key}-${val}`} 
+                                            onClick={() => handleFilterChange(key, val)}
+                                            className="text-black transition-colors hover:text-black/50 flex items-center gap-1"
+                                        >
+                                            {val} <X size={8} strokeWidth={3} className="ml-0.5" />
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* RIGHT: SORT DROPDOWN (DESKTOP ONLY) */}
+                    <div className="hidden md:flex items-center text-[10px] font-bold uppercase tracking-widest text-black shrink-0 pr-4 md:pr-16">
+                        <div className="relative group z-30 flex items-center gap-1">
+                            <select
+                                value={sortOption}
+                                onChange={(e) => setSortOption(e.target.value)}
+                                className="bg-transparent border-none outline-none appearance-none cursor-pointer pr-4 hover:opacity-50 transition-opacity"
+                            >
+                                <option value="newest">FEATURED</option>
+                                <option value="price-asc">Price: Low to High</option>
+                                <option value="price-desc">Price: High to Low</option>
+                                <option value="year-desc">Year: Newest</option>
+                                <option value="year-asc">Year: Oldest</option>
+                            </select>
+                            <span className="pointer-events-none absolute right-0 text-[8px]">▼</span>
                         </div>
                     </div>
                 </div>
@@ -240,25 +256,6 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                             </button>
                         )}
                     </div>
-                </div>
-
-                {/* RIGHT: SORT DROPDOWN */}
-                <div className="flex items-center text-[10px] font-bold uppercase tracking-widest text-black shrink-0 pr-4 md:pr-16">
-                    <div className="relative group z-30 flex items-center gap-1">
-                        <select
-                            value={sortOption}
-                            onChange={(e) => setSortOption(e.target.value)}
-                            className="bg-transparent border-none outline-none appearance-none cursor-pointer pr-4 hover:opacity-50 transition-opacity"
-                        >
-                            <option value="newest">FEATURED</option>
-                            <option value="price-asc">Price: Low to High</option>
-                            <option value="price-desc">Price: High to Low</option>
-                            <option value="year-desc">Year: Newest</option>
-                            <option value="year-asc">Year: Oldest</option>
-                        </select>
-                        <span className="pointer-events-none absolute right-0 text-[8px]">▼</span>
-                    </div>
-                </div>
                 </div>
             </header>
 

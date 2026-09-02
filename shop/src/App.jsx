@@ -209,6 +209,9 @@ function App() {
         </Routes>
       </main>
 
+      {/* Global Bottom Audio Player */}
+      <GlobalPlayer />
+
       {/* Fly Animation */}
       <FlyAnimation animation={flyAnimation} onComplete={clearFlyAnimation} />
 
