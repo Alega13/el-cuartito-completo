@@ -48,33 +48,6 @@ const AboutPage = () => {
                 url="/about"
             />
 
-            {/* Persistent Navigation Bar */}
-            <header className="fixed top-0 left-0 right-0 z-50 px-6 md:px-12 py-6 flex items-center justify-between mix-blend-difference pointer-events-auto">
-                <Link
-                    to="/"
-                    className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white hover:opacity-50 transition-opacity"
-                >
-                    <ArrowLeft size={14} />
-                    SHOP
-                </Link>
-
-                <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-widest text-white">
-                    <button
-                        onClick={() => {
-                            if (containerRef.current) {
-                                containerRef.current.scrollTo({
-                                    top: containerRef.current.clientHeight * 3,
-                                    behavior: 'smooth'
-                                });
-                            }
-                        }}
-                        className="hover:opacity-50 transition-opacity uppercase"
-                    >
-                        VISIT US
-                    </button>
-                </div>
-            </header>
-
             {/* Fixed Background Media Layer with Fade Transitions */}
             <div className="fixed inset-0 w-full h-full z-0 bg-black pointer-events-none">
                 {/* Background 0: Fachada Image (IMAGENFACHADA1.JPG / image_0_fachada.jpg) */}
@@ -86,7 +59,7 @@ const AboutPage = () => {
                     <img
                         src={MEDIA_ASSETS.FACHADA_1}
                         alt="Fachada"
-                        className="w-full h-full object-cover rounded-none filter grayscale contrast-125 brightness-75"
+                        className="w-full h-full object-cover object-top md:object-[center_20%] rounded-none filter grayscale contrast-125 brightness-75"
                     />
                     <div className="absolute inset-0 bg-black/50" />
                 </div>
@@ -134,7 +107,7 @@ const AboutPage = () => {
                         loop
                         muted
                         playsInline
-                        className="w-full h-full object-cover rounded-none filter grayscale contrast-125 brightness-75"
+                        className="w-full h-full object-cover object-top md:object-[center_25%] rounded-none filter grayscale contrast-125 brightness-75"
                     />
                     <div className="absolute inset-0 bg-black/50" />
                 </div>
@@ -146,11 +119,11 @@ const AboutPage = () => {
                 className="w-full h-full overflow-y-scroll snap-y snap-mandatory relative z-10 scroll-smooth"
             >
                 {/* SECTION 0: FACHADA & TITLE */}
-                <section className="w-full h-screen snap-start flex flex-col justify-center px-6 md:px-20 max-w-5xl">
-                    <h1 className="text-5xl md:text-8xl font-black uppercase tracking-tighter text-white mb-8 border-b-2 border-white pb-4">
+                <section className="w-full h-screen snap-start flex flex-col justify-center items-end text-right px-6 md:px-20 max-w-5xl ml-auto">
+                    <h1 className="text-5xl md:text-8xl font-black uppercase tracking-tighter text-white mb-8 border-b-2 border-white pb-4 w-full text-right">
                         ABOUT US...
                     </h1>
-                    <div className="space-y-6 text-lg md:text-2xl font-bold leading-snug text-white max-w-3xl uppercase tracking-tight">
+                    <div className="space-y-6 text-lg md:text-2xl font-bold leading-snug text-white max-w-3xl uppercase tracking-tight flex flex-col items-end text-right">
                         <p>
                             <strong>EL CUARTITO RECORDS</strong> IS A RECORD STORE AND CREATIVE SPACE BASED IN COPENHAGEN — A SMALL ROOM BUILT AROUND SOUND, CULTURE, AND CONNECTION.
                         </p>
@@ -160,10 +133,10 @@ const AboutPage = () => {
                     </div>
                 </section>
 
-                {/* SECTION 1: INTERIOR */}
-                <section className="w-full h-screen snap-start flex flex-col justify-center px-6 md:px-20 max-w-5xl">
-                    <div className="space-y-8 text-lg md:text-2xl font-bold leading-snug text-white max-w-3xl">
-                        <p className="uppercase tracking-tight border-l-4 border-white pl-6 py-2">
+                {/* SECTION 1: INTERIOR (First line starts at middle of screen (45vh) downwards on mobile, centered at bottom on PC) */}
+                <section className="w-full h-screen snap-start flex flex-col justify-start md:justify-end items-start md:items-center text-left md:text-center pt-[45vh] md:pt-0 pb-10 md:pb-24 px-6 md:px-20 max-w-5xl mx-auto">
+                    <div className="space-y-6 text-lg md:text-2xl font-bold leading-snug text-white max-w-3xl flex flex-col items-start md:items-center md:translate-x-12">
+                        <p className="uppercase tracking-tight border-l-4 md:border-l-0 md:border-b-2 border-white pl-6 md:pl-0 pb-0 md:pb-4">
                             MORE THAN A STORE, IT'S A MEETING POINT — A PLACE TO LISTEN, TALK, AND BE PART OF A COMMUNITY THAT VALUES THE BEAUTY OF ANALOG AND THE RITUAL OF PLAYING VINYL.
                         </p>
                         <p className="text-white/80 font-normal text-base md:text-xl leading-relaxed">
@@ -230,6 +203,14 @@ const AboutPage = () => {
                             className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
                         >
                             OPEN IN MAPS ↗
+                        </a>
+                        <a
+                            href="https://www.instagram.com/el.cuartito.records/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
+                        >
+                            INSTAGRAM ↗
                         </a>
                     </div>
                 </section>

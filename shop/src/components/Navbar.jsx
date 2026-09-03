@@ -20,6 +20,7 @@ const Navbar = ({ setSearchQuery }) => {
     const navigate = useNavigate();
     const { navTargetRef } = useSelections();
 
+    const isDarkPage = location.pathname === '/about' || location.pathname === '/shipping';
     const isAbout = location.pathname === '/about';
     const isHome = location.pathname === '/';
     const isCheckout = location.pathname.startsWith('/checkout');
@@ -63,9 +64,12 @@ const Navbar = ({ setSearchQuery }) => {
         }
     };
 
+    const navTextColor = isDarkPage ? 'text-[#F3F3F3]' : 'text-black';
+    const cornerBorderColor = isDarkPage ? 'border-[#F3F3F3]' : 'border-black';
+
     return (
         <>
-            <nav className={`fixed top-0 left-0 right-0 z-50 w-full px-4 py-4 md:px-20 md:py-8 transition-colors duration-300 text-black ${!hasScrolled ? 'bg-[#F3F3F3]' : 'bg-transparent pointer-events-none'}`}>
+            <nav className={`fixed top-0 left-0 right-0 z-50 w-full px-4 py-4 md:px-20 md:py-8 transition-colors duration-300 bg-transparent ${hasScrolled ? 'pointer-events-none' : ''}`}>
                 <div className="flex items-center justify-between">
                     {/* Left: SHOP or BACK */}
                     <div className="flex items-center gap-4 flex-1">
@@ -74,7 +78,7 @@ const Navbar = ({ setSearchQuery }) => {
                                 <a 
                                     href="#catalogue" 
                                     onClick={handleScrollToCatalog} 
-                                    className={`text-sm md:text-xs font-light md:font-bold uppercase tracking-widest md:tracking-tight hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                                 >
                                     SHOP
                                 </a>
@@ -82,12 +86,12 @@ const Navbar = ({ setSearchQuery }) => {
                         ) : (
                             <button
                                 onClick={() => navigate(-1)}
-                                className={`flex items-center gap-1 hover:opacity-60 transition-opacity duration-300 pointer-events-auto`}
+                                className={`flex items-center gap-1 ${navTextColor} hover:opacity-60 transition-opacity duration-300 pointer-events-auto`}
                             >
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" strokeLinejoin="miter">
                                     <polyline points="15 18 9 12 15 6"></polyline>
                                 </svg>
-                                <span className="text-sm md:text-xs font-light md:font-bold uppercase tracking-widest md:tracking-tight">BACK</span>
+                                <span className={`text-sm md:text-xs font-light md:font-bold uppercase tracking-widest md:tracking-tight ${navTextColor}`}>BACK</span>
                             </button>
                         )}
                     </div>
@@ -102,7 +106,7 @@ const Navbar = ({ setSearchQuery }) => {
                         </Link>
                     </div>
 
-                    {/* Right: Empty for now (Search removed) */}
+                    {/* Right: Empty */}
                     <div className="flex items-center gap-6 flex-1 justify-end">
                         
                     </div>
@@ -127,17 +131,17 @@ const Navbar = ({ setSearchQuery }) => {
                             >
                                 {/* Mobile: inline CART + number */}
                                 <div className="flex md:hidden items-center gap-2">
-                                    <span className="text-sm font-light uppercase tracking-widest text-black leading-none">CART</span>
-                                    <span className="text-sm font-light leading-none">{totalItems}</span>
+                                    <span className={`text-sm font-light uppercase tracking-widest ${navTextColor} leading-none`}>CART</span>
+                                    <span className={`text-sm font-light leading-none ${navTextColor}`}>{totalItems}</span>
                                 </div>
                                 {/* Desktop: CART with corner lines */}
                                 <div className="hidden md:flex flex-col items-end">
                                     <div className="flex items-start">
-                                        <span className="text-base font-light uppercase tracking-widest text-black mr-3 leading-none">CART</span>
-                                        <div className="w-12 h-12 border-t border-r border-black mt-[6px]"></div>
+                                        <span className={`text-base font-light uppercase tracking-widest ${navTextColor} mr-3 leading-none`}>CART</span>
+                                        <div className={`w-12 h-12 border-t border-r ${cornerBorderColor} mt-[6px]`}></div>
                                     </div>
                                     <div className="pr-px mt-2">
-                                        <span className="text-sm font-bold leading-none inline-block translate-x-1/2">{totalItems}</span>
+                                        <span className={`text-sm font-bold leading-none inline-block translate-x-1/2 ${navTextColor}`}>{totalItems}</span>
                                     </div>
                                 </div>
                             </motion.div>
@@ -151,13 +155,13 @@ const Navbar = ({ setSearchQuery }) => {
                                 className="flex flex-col items-center gap-4"
                             >
                                 <span 
-                                    className="text-sm md:text-base font-light uppercase tracking-widest text-black" 
+                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor}`} 
                                     style={{ writingMode: 'vertical-rl' }}
                                 >
                                     CART
                                 </span>
-                                <div className="h-6 border-l border-black"></div>
-                                <span className="text-sm md:text-base font-light leading-none">{totalItems}</span>
+                                <div className={`h-6 border-l ${cornerBorderColor}`}></div>
+                                <span className={`text-sm md:text-base font-light leading-none ${navTextColor}`}>{totalItems}</span>
                             </motion.div>
                         )}
                     </AnimatePresence>
