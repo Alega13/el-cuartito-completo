@@ -77,6 +77,12 @@ export const subscribeEmail = async (req: Request, res: Response): Promise<void>
         const normalizedEmail = email.trim().toLowerCase();
         const db = getDb();
         const subscriberRef = db.collection('subscribers').doc(normalizedEmail);
+        const existingDoc = await subscriberRef.get();
+
+        if (existingDoc.exists && existingDoc.data()?.active === true) {
+            res.status(400).json({ success: false, error: 'This email is already subscribed to the newsletter.' });
+            return;
+        }
 
         await subscriberRef.set({
             email: normalizedEmail,

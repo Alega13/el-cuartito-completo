@@ -75,6 +75,7 @@ const getCustomers = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.getCustomers = getCustomers;
 const subscribeEmail = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const { email } = req.body;
         if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -84,6 +85,11 @@ const subscribeEmail = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const normalizedEmail = email.trim().toLowerCase();
         const db = (0, firebaseAdmin_1.getDb)();
         const subscriberRef = db.collection('subscribers').doc(normalizedEmail);
+        const existingDoc = yield subscriberRef.get();
+        if (existingDoc.exists && ((_a = existingDoc.data()) === null || _a === void 0 ? void 0 : _a.active) === true) {
+            res.status(400).json({ success: false, error: 'This email is already subscribed to the newsletter.' });
+            return;
+        }
         yield subscriberRef.set({
             email: normalizedEmail,
             active: true,
