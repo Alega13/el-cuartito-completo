@@ -75,27 +75,6 @@ const ProductCard = ({ product }) => {
                         onError={(e) => { e.currentTarget.src = defaultImage; }}
                         className={`w-full h-full object-contain mix-blend-multiply drop-shadow-xl transition-transform duration-500 ${product.stock === 0 ? 'grayscale opacity-50' : 'group-hover:scale-105'}`}
                     />
-
-                    {/* Wishlist Heart Button */}
-                    <button
-                        onClick={handleWishlistToggle}
-                        className="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                        aria-label="Add to wishlist"
-                    >
-                        <svg
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill={isWishlisted ? '#F2610E' : 'none'}
-                            stroke={isWishlisted ? '#F2610E' : '#000'}
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className={`transition-transform duration-200 ${heartAnimating ? 'scale-125' : 'scale-100'}`}
-                        >
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                    </button>
                 </div>
                 
                 <div className="flex flex-col">

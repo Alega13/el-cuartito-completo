@@ -210,10 +210,10 @@ function App() {
             <AboutPage />
           } />
           <Route path="/login" element={
-            <LoginPage />
+            <Navigate to="/" replace />
           } />
           <Route path="/account" element={
-            <AccountPage />
+            <Navigate to="/" replace />
           } />
           <Route path="/admin/customers" element={
             <AdminCustomersPage />
