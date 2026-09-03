@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import logo from '../assets/logo.png';
 
 const Footer = () => {
     const navigate = useNavigate();
@@ -105,41 +106,9 @@ const Footer = () => {
                             </button>
                         </form>
 
-                        {/* Gramophone & Dog Illustration */}
+                        {/* El Cuartito Logo */}
                         <div className="pt-4 flex justify-end">
-                            <svg className="w-32 h-28 md:w-40 md:h-32 text-black" viewBox="0 0 160 120" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                {/* Gramophone Base */}
-                                <rect x="15" y="85" width="55" height="18" rx="2" fill="none" stroke="currentColor" strokeWidth="3" />
-                                <line x1="15" y1="94" x2="70" y2="94" strokeWidth="2" />
-                                <circle cx="30" cy="94" r="2" fill="currentColor" />
-                                <circle cx="55" cy="94" r="2" fill="currentColor" />
-
-                                {/* Turntable platter & Record */}
-                                <ellipse cx="42.5" cy="83" rx="24" ry="4" fill="currentColor" />
-                                <ellipse cx="42.5" cy="83" rx="6" ry="1" fill="#F3F3F3" />
-                                
-                                {/* Tonearm / Horn Stem */}
-                                <path d="M42.5 83 L42.5 70 Q42.5 60 55 55 L70 50" fill="none" strokeWidth="3" />
-
-                                {/* Gramophone Horn */}
-                                <path d="M70 50 L95 25 Q105 15 90 40 Q80 55 70 50" fill="none" strokeWidth="3" />
-                                <ellipse cx="95" cy="30" rx="14" ry="22" transform="rotate(-30 95 30)" fill="none" strokeWidth="3" />
-
-                                {/* Dog Listening */}
-                                <g transform="translate(100, 45)">
-                                    {/* Dog Body */}
-                                    <path d="M25 60 Q20 35 30 25 Q35 20 40 25 Q45 30 42 45 L45 60 L25 60 Z" fill="none" strokeWidth="3" />
-                                    {/* Dog Head & Ear */}
-                                    <circle cx="28" cy="18" r="10" fill="none" strokeWidth="3" />
-                                    <path d="M20 16 Q14 20 18 28" fill="none" strokeWidth="3" /> {/* Snout */}
-                                    <path d="M18 20 L12 22" fill="none" strokeWidth="3" />
-                                    <circle cx="16" cy="21" r="1.5" fill="currentColor" /> {/* Nose */}
-                                    <circle cx="26" cy="15" r="1.5" fill="currentColor" /> {/* Eye */}
-                                    <path d="M33 12 Q38 8 36 18" fill="none" strokeWidth="3" /> {/* Ear */}
-                                    {/* Dog Front Paws */}
-                                    <path d="M22 45 L20 60 M28 45 L27 60" fill="none" strokeWidth="3" />
-                                </g>
-                            </svg>
+                            <img src={logo} alt="El Cuartito" className="h-12 md:h-16 w-auto object-contain" />
                         </div>
                     </div>
                 </div>

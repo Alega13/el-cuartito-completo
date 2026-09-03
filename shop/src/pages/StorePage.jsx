@@ -312,19 +312,19 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                                 ))}
                             </div>
 
-                            {/* Pagination Controls */}
+                            {/* Minimalist Pagination Controls */}
                             {totalPages > 1 && (
-                                <div className="flex items-center justify-center gap-4 mt-12 pt-8 border-t border-black/5">
+                                <div className="flex items-center justify-center gap-6 mt-16 pt-8 border-t border-black/10">
                                     <button
                                         onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                                         disabled={currentPage === 1}
-                                        className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        className="flex items-center gap-1.5 text-xs font-light uppercase tracking-widest text-black hover:opacity-50 disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
                                     >
                                         <ChevronLeft size={14} />
-                                        Prev
+                                        PREV
                                     </button>
 
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                             let pageNum;
                                             if (totalPages <= 5) {
@@ -340,9 +340,9 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                                                 <button
                                                     key={pageNum}
                                                     onClick={() => handlePageChange(pageNum)}
-                                                    className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${currentPage === pageNum
-                                                        ? 'bg-black text-white'
-                                                        : 'hover:bg-black/5'
+                                                    className={`px-2 py-0.5 text-xs transition-all ${currentPage === pageNum
+                                                        ? 'font-bold text-black border-b border-black'
+                                                        : 'text-black/40 hover:text-black font-light'
                                                         }`}
                                                 >
                                                     {pageNum}
@@ -354,9 +354,9 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                                     <button
                                         onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                                         disabled={currentPage === totalPages}
-                                        className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                        className="flex items-center gap-1.5 text-xs font-light uppercase tracking-widest text-black hover:opacity-50 disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
                                     >
-                                        Next
+                                        NEXT
                                         <ChevronRight size={14} />
                                     </button>
                                 </div>
