@@ -27,14 +27,14 @@ const SHIPPING_ZONES: ShippingZone[] = [
             {
                 id: 'dk_parcel_shop',
                 method: 'Parcel Shop (DAO/GLS)',
-                price: 45,
+                price: 70,
                 estimatedDays: '2-3',
                 description: 'Recoger en punto de recogida cercano'
             },
             {
                 id: 'dk_home_delivery',
                 method: 'Home Delivery',
-                price: 89,
+                price: 114,
                 estimatedDays: '1-2',
                 description: 'Entrega a domicilio'
             }
@@ -47,7 +47,7 @@ const SHIPPING_ZONES: ShippingZone[] = [
             {
                 id: 'nordic_standard',
                 method: 'Nordic Standard',
-                price: 75,
+                price: 100,
                 estimatedDays: '3-5',
                 description: 'Envío estándar a países nórdicos'
             }
@@ -68,14 +68,14 @@ const SHIPPING_ZONES: ShippingZone[] = [
             {
                 id: 'eu_standard',
                 method: 'EU Standard',
-                price: 95,
+                price: 120,
                 estimatedDays: '5-7',
                 description: 'Envío estándar a la UE'
             },
             {
                 id: 'eu_express',
                 method: 'EU Express',
-                price: 165,
+                price: 190,
                 estimatedDays: '2-4',
                 description: 'Envío express a la UE'
             }
@@ -119,9 +119,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
 
         if (isDenmark) {
             // DAO Shop Pickup
-            // 1 vinyl: 50kr
-            // 2-4 vinyls: 55kr
-            let daoPickupPrice = itemCount <= 1 ? 50 : 55;
+            // 1 vinyl: 75kr (50 + 25)
+            // 2-4 vinyls: 80kr (55 + 25)
+            let daoPickupPrice = itemCount <= 1 ? 75 : 80;
             rates.push({
                 id: 'dao_pickup',
                 method: 'DAO Parcel Shop (Pickup)',
@@ -131,9 +131,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
             });
 
             // DAO Home Delivery
-            // 1 vinyl: 60kr
-            // 2-4 vinyls: 70kr
-            let daoHomePrice = itemCount <= 1 ? 60 : 70;
+            // 1 vinyl: 85kr (60 + 25)
+            // 2-4 vinyls: 95kr (70 + 25)
+            let daoHomePrice = itemCount <= 1 ? 85 : 95;
             rates.push({
                 id: 'dao_home',
                 method: 'DAO Home Delivery',
@@ -143,9 +143,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
             });
 
             // GLS Pickup
-            // 1 vinyl: 50kr
-            // 2-7 vinyls: 70kr
-            let glsPickupPrice = itemCount <= 1 ? 50 : 70;
+            // 1 vinyl: 75kr (50 + 25)
+            // 2-7 vinyls: 95kr (70 + 25)
+            let glsPickupPrice = itemCount <= 1 ? 75 : 95;
             rates.push({
                 id: 'gls_pickup',
                 method: 'GLS Parcel Shop (Pickup)',
@@ -155,9 +155,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
             });
 
             // GLS Home Delivery
-            // 1 vinyl: 80kr
-            // 2-7 vinyls: 100kr
-            let glsHomePrice = itemCount <= 1 ? 80 : 100;
+            // 1 vinyl: 105kr (80 + 25)
+            // 2-7 vinyls: 125kr (100 + 25)
+            let glsHomePrice = itemCount <= 1 ? 105 : 125;
             rates.push({
                 id: 'gls_home',
                 method: 'GLS Home Delivery',
@@ -168,9 +168,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
 
         } else if (isEU) {
             // EU GLS Pickup
-            // 1 vinyl: 105kr
-            // 2-7 vinyls: 130kr
-            let euPickupPrice = itemCount <= 1 ? 105 : 130;
+            // 1 vinyl: 130kr (105 + 25)
+            // 2-7 vinyls: 155kr (130 + 25)
+            let euPickupPrice = itemCount <= 1 ? 130 : 155;
             rates.push({
                 id: 'eu_gls_pickup',
                 method: 'GLS International (Pickup)',
@@ -180,9 +180,9 @@ export const calculateShipping = async (req: Request, res: Response) => {
             });
 
             // EU GLS Home Delivery
-            // 1 vinyl: 120kr
-            // 2-7 vinyls: 150kr
-            let euHomePrice = itemCount <= 1 ? 120 : 150;
+            // 1 vinyl: 145kr (120 + 25)
+            // 2-7 vinyls: 175kr (150 + 25)
+            let euHomePrice = itemCount <= 1 ? 145 : 175;
             rates.push({
                 id: 'eu_gls_home',
                 method: 'GLS International (Home)',
@@ -197,7 +197,7 @@ export const calculateShipping = async (req: Request, res: Response) => {
             rates.push({
                 id: 'intl_standard',
                 method: 'International Standard',
-                price: 150,
+                price: 175,
                 estimatedDays: '7-10',
                 description: 'Envío internacional estándar'
             });

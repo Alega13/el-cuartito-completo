@@ -20,6 +20,8 @@ const Navbar = ({ setSearchQuery }) => {
     const navigate = useNavigate();
     const { navTargetRef } = useSelections();
 
+    const [isShopMenuOpen, setIsShopMenuOpen] = useState(false);
+
     const isDarkPage = location.pathname === '/about' || location.pathname === '/shipping';
     const isAbout = location.pathname === '/about';
     const isHome = location.pathname === '/';
@@ -74,15 +76,46 @@ const Navbar = ({ setSearchQuery }) => {
                     {/* Left: SHOP or BACK */}
                     <div className="flex items-center gap-4 flex-1">
                         {!isBackMode ? (
-                            <>
+                            <div 
+                                className="relative pointer-events-auto"
+                                onMouseEnter={() => setIsShopMenuOpen(true)}
+                                onMouseLeave={() => setIsShopMenuOpen(false)}
+                            >
                                 <a 
                                     href="#catalogue" 
                                     onClick={handleScrollToCatalog} 
-                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-300 pointer-events-auto ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-300 block ${hasScrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                                 >
                                     SHOP
                                 </a>
-                            </>
+
+                                <AnimatePresence>
+                                    {isShopMenuOpen && !hasScrolled && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 4 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 4 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="absolute top-full left-0 pt-3 flex flex-col space-y-3 whitespace-nowrap z-50 bg-transparent"
+                                        >
+                                            <Link
+                                                to="/about"
+                                                onClick={() => setIsShopMenuOpen(false)}
+                                                className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block`}
+                                            >
+                                                ABOUT US
+                                            </Link>
+                                            <Link
+                                                to="/shipping"
+                                                onClick={() => setIsShopMenuOpen(false)}
+                                                className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block`}
+                                            >
+                                                SHIPPING & RETURNS
+                                            </Link>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         ) : (
                             <button
                                 onClick={() => navigate(-1)}

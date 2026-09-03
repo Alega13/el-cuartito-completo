@@ -116,7 +116,7 @@ const AboutPage = () => {
             {/* Fullscreen Sequential Scroll Container */}
             <div
                 ref={containerRef}
-                className="w-full h-full overflow-y-scroll snap-y snap-mandatory relative z-10 scroll-smooth"
+                className="w-full h-full overflow-y-scroll snap-y snap-mandatory relative z-10 scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             >
                 {/* SECTION 0: FACHADA & TITLE */}
                 <section className="w-full h-screen snap-start flex flex-col justify-center items-end text-right px-6 md:px-20 max-w-5xl ml-auto">
@@ -200,17 +200,25 @@ const AboutPage = () => {
                             href="https://maps.app.goo.gl/48xxSz6pB9ECxpkE8"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
+                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none inline-flex items-center gap-2"
                         >
-                            OPEN IN MAPS ↗
+                            <span>OPEN IN MAPS</span>
+                            <svg className="w-3.5 h-3.5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+                                <line x1="7" y1="17" x2="17" y2="7" />
+                                <polyline points="7 7 17 7 17 17" />
+                            </svg>
                         </a>
                         <a
                             href="https://www.instagram.com/el.cuartito.records/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
+                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none inline-flex items-center gap-2"
                         >
-                            INSTAGRAM ↗
+                            <span>INSTAGRAM</span>
+                            <svg className="w-3.5 h-3.5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+                                <line x1="7" y1="17" x2="17" y2="7" />
+                                <polyline points="7 7 17 7 17 17" />
+                            </svg>
                         </a>
                     </div>
                 </section>

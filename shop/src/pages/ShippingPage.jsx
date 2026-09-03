@@ -110,7 +110,7 @@ const ShippingPage = () => {
             {/* Fullscreen Sequential Scroll Container */}
             <div
                 ref={containerRef}
-                className="w-full h-full overflow-y-scroll snap-y snap-mandatory relative z-10 scroll-smooth"
+                className="w-full h-full overflow-y-scroll snap-y snap-mandatory relative z-10 scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             >
                 {/* SECTION 0: START (VIDEO 1) */}
                 <section className="w-full h-screen snap-start flex flex-col justify-center items-end text-right px-6 md:px-20 max-w-5xl ml-auto">
@@ -143,19 +143,19 @@ const ShippingPage = () => {
                             <div className="space-y-2.5 text-sm md:text-base font-semibold text-white/90">
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">DAO Shop Pickup</span>
-                                    <span className="font-mono text-white">50 DKK</span>
+                                    <span className="font-mono text-white">75 DKK</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">DAO Home Delivery</span>
-                                    <span className="font-mono text-white">60 DKK</span>
+                                    <span className="font-mono text-white">85 DKK</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">GLS Shop Pickup</span>
-                                    <span className="font-mono text-white">50 DKK</span>
+                                    <span className="font-mono text-white">75 DKK</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">GLS Home Delivery</span>
-                                    <span className="font-mono text-white">80 DKK</span>
+                                    <span className="font-mono text-white">105 DKK</span>
                                 </div>
                             </div>
                         </div>
@@ -169,11 +169,11 @@ const ShippingPage = () => {
                             <div className="space-y-2.5 text-sm md:text-base font-semibold text-white/90">
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">GLS Intl Pickup</span>
-                                    <span className="font-mono text-white">105 DKK</span>
+                                    <span className="font-mono text-white">130 DKK</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="uppercase tracking-wider">GLS Intl Home</span>
-                                    <span className="font-mono text-white">120 DKK</span>
+                                    <span className="font-mono text-white">145 DKK</span>
                                 </div>
                             </div>
                             <p className="text-[11px] text-white/60 uppercase tracking-widest pt-2 leading-relaxed">
@@ -222,17 +222,25 @@ const ShippingPage = () => {
                         </Link>
                         <a
                             href="mailto:el.cuartito.cph@gmail.com"
-                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
+                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none inline-flex items-center gap-2"
                         >
-                            CONTACT US ↗
+                            <span>CONTACT US</span>
+                            <svg className="w-3.5 h-3.5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+                                <line x1="7" y1="17" x2="17" y2="7" />
+                                <polyline points="7 7 17 7 17 17" />
+                            </svg>
                         </a>
                         <a
                             href="https://www.instagram.com/el.cuartito.records/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none"
+                            className="border-2 border-white px-6 py-3 hover:bg-white hover:text-black transition-colors rounded-none inline-flex items-center gap-2"
                         >
-                            INSTAGRAM ↗
+                            <span>INSTAGRAM</span>
+                            <svg className="w-3.5 h-3.5 stroke-current fill-none" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+                                <line x1="7" y1="17" x2="17" y2="7" />
+                                <polyline points="7 7 17 7 17 17" />
+                            </svg>
                         </a>
                     </div>
                 </section>
