@@ -29,8 +29,8 @@
 
 body {
   margin: 0;
-  display: flex;
-  min-width: 320px;
+  padding: 0;
+  width: 100%;
   min-height: 100vh;
   color: #000;
   background-color: #F3F3F3;
@@ -38,6 +38,7 @@ body {
 
 #root {
   width: 100%;
+  min-height: 100vh;
 }
 
 /* Hide scrollbar globally across all browsers while retaining scroll functionality */

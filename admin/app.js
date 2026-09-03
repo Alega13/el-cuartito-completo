@@ -676,6 +676,356 @@ const app = {
             case 'contabilidad': this.renderContabilidad(container); break;
             case 'facturasManual': this.renderFacturasManual(container); break;
             case 'extraIncome': this.renderExtraIncome(container); break;
+            case 'newsletter': this.renderNewsletter(container); break;
+        }
+    },
+
+    async renderNewsletter(container) {
+        if (!this.state.newsletterSelectedIds) {
+            this.state.newsletterSelectedIds = [];
+        }
+
+        let subscriberCount = 0;
+        let subscribersList = [];
+        try {
+            const snap = await db.collection('subscribers').where('active', '==', true).get();
+            subscriberCount = snap.size;
+            subscribersList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+            console.warn('Could not fetch subscribers count:', err);
+        }
+        this.state.subscribersList = subscribersList;
+
+        let products = (this.state.inventory && this.state.inventory.length > 0)
+            ? [...this.state.inventory]
+            : [...(this.state.products || [])];
+
+        if (products.length === 0) {
+            try {
+                const snap = await db.collection('products').get();
+                products = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this.state.inventory = products;
+            } catch (e) {
+                console.warn("Could not fetch products for newsletter:", e);
+            }
+        }
+
+        // Sort products newest first (by created_at, createdAt, timestamp, quickId, or SKU)
+        const getProductTime = (p) => {
+            if (p.created_at) {
+                const t = new Date(p.created_at).getTime();
+                if (!isNaN(t)) return t;
+            }
+            if (p.createdAt) {
+                const t = new Date(p.createdAt).getTime();
+                if (!isNaN(t)) return t;
+            }
+            if (p.timestamp) {
+                if (typeof p.timestamp.seconds === 'number') return p.timestamp.seconds * 1000;
+                const t = new Date(p.timestamp).getTime();
+                if (!isNaN(t)) return t;
+            }
+            if (p.quickId) {
+                const num = parseInt(p.quickId, 10);
+                if (!isNaN(num)) return num;
+            }
+            if (p.sku && p.sku.startsWith('SKU-')) {
+                const num = parseInt(p.sku.replace('SKU-', ''), 10);
+                if (!isNaN(num)) return num;
+            }
+            return 0;
+        };
+
+        products.sort((a, b) => getProductTime(b) - getProductTime(a));
+
+        const selectedProducts = products.filter(p => this.state.newsletterSelectedIds.includes(p.id));
+
+        const html = `
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                <!-- Header -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">Weekly Drops & <span class="text-brand-orange">Newsletter</span></h1>
+                        <p class="text-slate-500 font-medium">Envía las novedades semanales a tus suscriptores de Resend</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div onclick="app.showSubscribersModal()" class="bg-white px-5 py-3 rounded-2xl border border-orange-100 shadow-sm flex items-center gap-3 cursor-pointer hover:border-brand-orange hover:shadow-md transition-all group">
+                            <div class="w-10 h-10 rounded-xl bg-orange-50 text-brand-orange flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <i class="ph-bold ph-users text-xl"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-400 font-bold uppercase flex items-center gap-1">
+                                    Suscriptores Activos
+                                    <i class="ph-bold ph-caret-right text-brand-orange"></i>
+                                </div>
+                                <div class="text-xl font-bold text-brand-dark">${subscriberCount} <span class="text-xs font-normal text-slate-400 underline">(ver lista)</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Left Column: Form & Selected Items -->
+                    <div class="lg:col-span-7 space-y-6">
+                        <!-- Campaign Settings Card -->
+                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
+                            <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
+                                <i class="ph-bold ph-paper-plane-tilt text-brand-orange"></i>
+                                Configuración del Envío
+                            </h2>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Asunto del Email</label>
+                                <input type="text" id="newsletter-subject" 
+                                    value="New This Week — El Cuartito Records" 
+                                    placeholder="Ej: Fresh Drops This Week 🎵"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mensaje de Introducción</label>
+                                <textarea id="newsletter-intro" rows="3"
+                                    placeholder="Mensaje personalizado de introducción..."
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">Fresh drops just landed at El Cuartito Records. Here's what's new this week.</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Selected Vinyls Box -->
+                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
+                                    <i class="ph-bold ph-disc text-brand-orange"></i>
+                                    Discos Seleccionados (${selectedProducts.length})
+                                </h2>
+                                ${selectedProducts.length > 0 ? `
+                                    <button onclick="app.state.newsletterSelectedIds=[]; app.renderNewsletter(document.getElementById('app-content'));" className="text-xs font-bold text-red-500 hover:underline">
+                                        Limpiar Selección
+                                    </button>
+                                ` : ''}
+                            </div>
+
+                            ${selectedProducts.length === 0 ? `
+                                <div class="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+                                    <i class="ph-duotone ph-disc text-4xl text-slate-300 mb-2"></i>
+                                    <p class="text-sm font-medium text-slate-500">No has seleccionado ningún disco aún.</p>
+                                    <p class="text-xs text-slate-400 mt-1">Elige los discos de la lista de la derecha para incluirlos en el drop.</p>
+                                </div>
+                            ` : `
+                                <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
+                                    ${selectedProducts.map(p => `
+                                        <div class="py-3 flex items-center justify-between gap-3">
+                                            <div class="flex items-center gap-3">
+                                                <img src="${p.cover_image || p.image || 'logo.jpg'}" class="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0">
+                                                <div>
+                                                    <div class="text-sm font-bold text-brand-dark leading-tight">${p.title || p.album || 'Sin Título'}</div>
+                                                    <div class="text-xs text-slate-500 uppercase">${p.artist || 'Desconocido'} · DKK ${p.price || 0}</div>
+                                                </div>
+                                            </div>
+                                            <button onclick="app.toggleNewsletterProduct('${p.id}')" class="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
+                                                <i class="ph-bold ph-x text-xs"></i>
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `}
+
+                            <button onclick="app.sendNewsletterDrop()" id="send-drop-btn"
+                                ${selectedProducts.length === 0 || subscriberCount === 0 ? 'disabled' : ''}
+                                class="w-full bg-brand-dark text-white font-bold py-4 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-paper-plane-tilt"></i>
+                                <span>Enviar Weekly Drop a ${subscriberCount} Suscriptores</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Product Picker -->
+                    <div class="lg:col-span-5">
+                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
+                            <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
+                                <i class="ph-bold ph-magnifying-glass text-brand-orange"></i>
+                                Buscar e Incluir Discos (${products.length})
+                            </h2>
+
+                            <input type="text" id="newsletter-product-search" 
+                                oninput="app.filterNewsletterProducts(this.value)"
+                                placeholder="Buscar por título, artista o sello..."
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">
+
+                            <div id="newsletter-product-list" class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                                ${this.renderNewsletterProductList(products, '')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    },
+
+    renderNewsletterProductList(products, query) {
+        let filtered = products;
+        if (query && query.trim()) {
+            const q = query.toLowerCase().trim();
+            filtered = products.filter(p => 
+                (p.title && p.title.toLowerCase().includes(q)) ||
+                (p.album && p.album.toLowerCase().includes(q)) ||
+                (p.artist && p.artist.toLowerCase().includes(q)) ||
+                (p.label && p.label.toLowerCase().includes(q))
+            );
+        }
+
+        const selectedIds = this.state.newsletterSelectedIds || [];
+
+        return filtered.slice(0, 50).map(p => {
+            const isSelected = selectedIds.includes(p.id);
+            return `
+                <div onclick="app.toggleNewsletterProduct('${p.id}')" 
+                    class="p-3 rounded-2xl border ${isSelected ? 'border-brand-orange bg-orange-50/50' : 'border-slate-100 hover:border-slate-200'} cursor-pointer flex items-center justify-between gap-3 transition-all">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <img src="${p.cover_image || p.image || 'logo.jpg'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0">
+                        <div class="truncate">
+                            <div class="text-sm font-bold text-brand-dark truncate">${p.title || p.album || 'Sin Título'}</div>
+                            <div class="text-xs text-slate-500 uppercase truncate">${p.artist || 'Desconocido'} · DKK ${p.price || 0}</div>
+                        </div>
+                    </div>
+                    <div class="w-6 h-6 rounded-lg ${isSelected ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'} flex items-center justify-center shrink-0">
+                        <i class="ph-bold ${isSelected ? 'ph-check' : 'ph-plus'} text-xs"></i>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    filterNewsletterProducts(query) {
+        const listEl = document.getElementById('newsletter-product-list');
+        const products = (this.state.inventory && this.state.inventory.length > 0) ? this.state.inventory : (this.state.products || []);
+        if (listEl) {
+            listEl.innerHTML = this.renderNewsletterProductList(products, query);
+        }
+    },
+
+    async showSubscribersModal() {
+        let subscribers = this.state.subscribersList || [];
+        try {
+            const snap = await db.collection('subscribers').get();
+            subscribers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (err) {
+            console.error('Error fetching subscribers list:', err);
+        }
+
+        const modalOverlay = document.createElement('div');
+        modalOverlay.id = 'subscribers-modal';
+        modalOverlay.className = 'fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn';
+
+        const modalContent = `
+            <div class="bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 relative max-h-[85vh] flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-orange-50 text-brand-orange flex items-center justify-center">
+                            <i class="ph-bold ph-users text-xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold text-brand-dark">Lista de Suscriptores</h2>
+                            <p class="text-xs text-slate-400 font-medium">${subscribers.length} correos registrados</p>
+                        </div>
+                    </div>
+                    <button onclick="document.getElementById('subscribers-modal').remove()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-x text-sm"></i>
+                    </button>
+                </div>
+
+                <div class="overflow-y-auto flex-1 divide-y divide-slate-100 pr-1">
+                    ${subscribers.length === 0 ? `
+                        <div class="p-8 text-center text-slate-400 font-medium">No hay suscriptores registrados aún.</div>
+                    ` : subscribers.map(sub => `
+                        <div class="py-3 flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center uppercase">
+                                    ${(sub.email || 'U')[0]}
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-brand-dark">${sub.email}</div>
+                                    <div class="text-xs text-slate-400">Suscrito: ${sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleDateString() : 'Reciente'}</div>
+                                </div>
+                            </div>
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${sub.active !== false ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">
+                                ${sub.active !== false ? 'ACTIVO' : 'INACTIVO'}
+                            </span>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end">
+                    <button onclick="document.getElementById('subscribers-modal').remove()" class="bg-brand-dark text-white font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800 transition-colors text-sm">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modalOverlay.innerHTML = modalContent;
+        document.body.appendChild(modalOverlay);
+    },
+
+    toggleNewsletterProduct(id) {
+        if (!this.state.newsletterSelectedIds) this.state.newsletterSelectedIds = [];
+        const idx = this.state.newsletterSelectedIds.indexOf(id);
+        if (idx > -1) {
+            this.state.newsletterSelectedIds.splice(idx, 1);
+        } else {
+            this.state.newsletterSelectedIds.push(id);
+        }
+        this.renderNewsletter(document.getElementById('app-content'));
+    },
+
+    async sendNewsletterDrop() {
+        const selectedIds = this.state.newsletterSelectedIds || [];
+        if (selectedIds.length === 0) {
+            alert('Debes seleccionar al menos un disco');
+            return;
+        }
+
+        const subject = document.getElementById('newsletter-subject')?.value || 'New This Week — El Cuartito Records';
+        const intro = document.getElementById('newsletter-intro')?.value || 'Fresh drops just landed at El Cuartito Records.';
+
+        if (!confirm(`¿Estás seguro de enviar este Weekly Drop a todos los suscriptores?`)) {
+            return;
+        }
+
+        const btn = document.getElementById('send-drop-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph-bold ph-spinner animate-spin"></i> Enviando newsletter...';
+        }
+
+        const isLocal = window.location.hostname === 'localhost';
+        const API_URL = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app';
+
+        try {
+            const res = await fetch(`${API_URL}/api/newsletter/send-drop`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productIds: selectedIds,
+                    subject,
+                    intro
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                this.showToast(`🚀 Drop enviado exitosamente a ${data.sentCount} suscriptores`, 'success');
+                this.state.newsletterSelectedIds = [];
+                this.renderNewsletter(document.getElementById('app-content'));
+            } else {
+                throw new Error(data.error || 'Error enviando newsletter');
+            }
+        } catch (err) {
+            console.error('Error sending drop:', err);
+            alert('Error al enviar el newsletter: ' + err.message);
+        } finally {
+            if (btn) btn.disabled = false;
         }
     },
 

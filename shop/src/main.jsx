@@ -6,17 +6,20 @@ import App from './App.jsx'
 import { PlayerProvider } from './context/PlayerContext'
 import { SelectionsProvider } from './context/SelectionsContext'
 import { CartProvider } from './context/CartContext'
+import { AuthProvider } from './context/AuthContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <SelectionsProvider>
-      <PlayerProvider>
-        <CartProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </CartProvider>
-      </PlayerProvider>
-    </SelectionsProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <SelectionsProvider>
+          <PlayerProvider>
+            <CartProvider>
+              <App />
+            </CartProvider>
+          </PlayerProvider>
+        </SelectionsProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>,
 )

@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
+import { useAuth } from '../context/AuthContext';
 
-
+const isLocal = window.location.hostname === 'localhost';
+const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
 
 const ProductCard = ({ product }) => {
+    const { currentUser } = useAuth();
+    const [isWishlisted, setIsWishlisted] = useState(false);
+    const [heartAnimating, setHeartAnimating] = useState(false);
+
     const isValidImage = (url) => {
         if (!url) return false;
         if (typeof url !== 'string') return false;
@@ -21,6 +27,36 @@ const ProductCard = ({ product }) => {
     const isRSD = product.is_rsd_discount;
     const originalPrice = product.price;
     const discountedPrice = isRSD ? Math.round(originalPrice * 0.9) : originalPrice;
+
+    const handleWishlistToggle = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!currentUser) {
+            // Redirect to login if not authenticated
+            window.location.href = '/login';
+            return;
+        }
+
+        setHeartAnimating(true);
+        setTimeout(() => setHeartAnimating(false), 400);
+
+        try {
+            if (isWishlisted) {
+                await fetch(`${API_URL}/api/wishlist/${currentUser.uid}/${product.id}`, { method: 'DELETE' });
+                setIsWishlisted(false);
+            } else {
+                await fetch(`${API_URL}/api/wishlist/${currentUser.uid}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: product.id })
+                });
+                setIsWishlisted(true);
+            }
+        } catch (err) {
+            console.error('Wishlist toggle error:', err);
+        }
+    };
 
     return (
         <Link to={`/product/${product.id}`} className="block">
@@ -39,6 +75,27 @@ const ProductCard = ({ product }) => {
                         onError={(e) => { e.currentTarget.src = defaultImage; }}
                         className={`w-full h-full object-contain mix-blend-multiply drop-shadow-xl transition-transform duration-500 ${product.stock === 0 ? 'grayscale opacity-50' : 'group-hover:scale-105'}`}
                     />
+
+                    {/* Wishlist Heart Button */}
+                    <button
+                        onClick={handleWishlistToggle}
+                        className="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        aria-label="Add to wishlist"
+                    >
+                        <svg
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill={isWishlisted ? '#F2610E' : 'none'}
+                            stroke={isWishlisted ? '#F2610E' : '#000'}
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`transition-transform duration-200 ${heartAnimating ? 'scale-125' : 'scale-100'}`}
+                        >
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                    </button>
                 </div>
                 
                 <div className="flex flex-col">

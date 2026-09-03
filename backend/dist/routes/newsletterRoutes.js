@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const newsletterController_1 = require("../controllers/newsletterController");
+const router = (0, express_1.Router)();
+router.get('/admin/api/customers', newsletterController_1.getCustomers);
+router.get('/admin/customers', newsletterController_1.getCustomers);
+router.get('/api/admin/customers', newsletterController_1.getCustomers);
+router.post('/newsletter/subscribe', newsletterController_1.subscribeEmail);
+router.get('/newsletter/unsubscribe', newsletterController_1.unsubscribeEmail);
+router.post('/newsletter/unsubscribe', newsletterController_1.unsubscribeEmail);
+router.post('/newsletter/send-drop', newsletterController_1.sendDrop);
+exports.default = router;

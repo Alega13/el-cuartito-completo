@@ -4,10 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelections } from '../context/SelectionsContext';
 import { useCart } from '../context/CartContext';
+import { signOut } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { useAuth } from '../context/AuthContext';
 import CartDrawer from './CartDrawer';
 import logo from '../assets/logo.png';
 
 const Navbar = ({ setSearchQuery }) => {
+    const { currentUser } = useAuth();
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const inputRef = useRef(null);
     const [isCartOpen, setIsCartOpen] = useState(false);
@@ -21,10 +25,12 @@ const Navbar = ({ setSearchQuery }) => {
     const { navTargetRef } = useSelections();
 
     const [isShopMenuOpen, setIsShopMenuOpen] = useState(false);
+    const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
 
     const isDarkPage = location.pathname === '/about' || location.pathname === '/shipping';
     const isAbout = location.pathname === '/about';
     const isHome = location.pathname === '/';
+    const isAccount = location.pathname.startsWith('/account');
     const isCheckout = location.pathname.startsWith('/checkout');
     const isBackMode = isCheckout || location.pathname.startsWith('/product');
 
@@ -146,59 +152,157 @@ const Navbar = ({ setSearchQuery }) => {
                 </div>
             </nav>
 
-            {/* A24 Style Fixed Right Edge Cart */}
+            {/* A24 Style Fixed Right Edge Cart & Account */}
             {!isCheckout && (
-                <button
-                    onClick={() => setIsCartOpen(true)}
-                    className="fixed right-4 md:right-16 top-5 md:top-10 z-50 hover:opacity-60 transition-opacity"
-                >
+                <div className="fixed right-4 md:right-16 top-5 md:top-10 z-50 pointer-events-auto">
                     <AnimatePresence mode="wait">
-                        {!hasScrolled ? (
+                        {/* STATE 1: Not scrolled AND not on /account → horizontal "MY ACCOUNT" + corner-angle CART */}
+                        {!hasScrolled && !isAccount && (
                             <motion.div
-                                key="top-cart"
+                                key="top-state"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className="flex flex-col items-end"
+                                className="flex items-baseline gap-5 md:gap-8"
                             >
-                                {/* Mobile: inline CART + number */}
-                                <div className="flex md:hidden items-center gap-2">
-                                    <span className={`text-sm font-light uppercase tracking-widest ${navTextColor} leading-none`}>CART</span>
-                                    <span className={`text-sm font-light leading-none ${navTextColor}`}>{totalItems}</span>
-                                </div>
-                                {/* Desktop: CART with corner lines */}
-                                <div className="hidden md:flex flex-col items-end">
-                                    <div className="flex items-start">
-                                        <span className={`text-base font-light uppercase tracking-widest ${navTextColor} mr-3 leading-none`}>CART</span>
-                                        <div className={`w-12 h-12 border-t border-r ${cornerBorderColor} mt-[6px]`}></div>
-                                    </div>
-                                    <div className="pr-px mt-2">
-                                        <span className={`text-sm font-bold leading-none inline-block translate-x-1/2 ${navTextColor}`}>{totalItems}</span>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="scrolled-cart"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="flex flex-col items-center gap-4"
-                            >
-                                <span 
-                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor}`} 
-                                    style={{ writingMode: 'vertical-rl' }}
+                                {/* MY ACCOUNT / LOGIN text with dropdown */}
+                                <div 
+                                    className="relative"
+                                    onMouseEnter={() => setIsAccountMenuOpen(true)}
+                                    onMouseLeave={() => setIsAccountMenuOpen(false)}
                                 >
-                                    CART
-                                </span>
-                                <div className={`h-6 border-l ${cornerBorderColor}`}></div>
-                                <span className={`text-sm md:text-base font-light leading-none ${navTextColor}`}>{totalItems}</span>
+                                    <Link
+                                        to={currentUser ? "/account" : "/login"}
+                                        className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-300 block`}
+                                    >
+                                        {currentUser ? 'MY ACCOUNT' : 'LOGIN'}
+                                    </Link>
+
+                                    <AnimatePresence>
+                                        {isAccountMenuOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 4 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: 4 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="absolute top-full left-0 pt-3 flex flex-col space-y-3 whitespace-nowrap z-50 bg-transparent text-left"
+                                            >
+                                                {currentUser ? (
+                                                    <>
+                                                        <Link to="/account" onClick={() => setIsAccountMenuOpen(false)} className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block text-left`}>WISHLIST</Link>
+                                                        <button onClick={async () => { setIsAccountMenuOpen(false); await signOut(auth); navigate('/login'); }} className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block text-left w-full`}>LOGOUT</button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Link to="/login" onClick={() => setIsAccountMenuOpen(false)} className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block text-left`}>LOGIN</Link>
+                                                        <Link to="/login" onClick={() => setIsAccountMenuOpen(false)} className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} hover:opacity-60 transition-opacity duration-200 block text-left`}>WISHLIST</Link>
+                                                    </>
+                                                )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* CART with corner angle */}
+                                <button onClick={() => setIsCartOpen(true)} className="hover:opacity-60 transition-opacity">
+                                    {/* Mobile */}
+                                    <div className="flex md:hidden items-center gap-2">
+                                        <span className={`text-sm font-light uppercase tracking-widest ${navTextColor} leading-none`}>CART</span>
+                                        <span className={`text-sm font-light leading-none ${navTextColor}`}>{totalItems}</span>
+                                    </div>
+                                    {/* Desktop */}
+                                    <div className="hidden md:flex flex-col items-end">
+                                        <div className="flex items-start">
+                                            <span className={`text-base font-light uppercase tracking-widest ${navTextColor} mr-3 leading-none`}>CART</span>
+                                            <div className={`w-12 h-12 border-t border-r ${cornerBorderColor} mt-[6px]`}></div>
+                                        </div>
+                                        <div className="pr-px mt-2">
+                                            <span className={`text-sm font-bold leading-none inline-block translate-x-1/2 ${navTextColor}`}>{totalItems}</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* STATE 2: Scrolled (not on /account) → person icon + vertical CART */}
+                        {hasScrolled && !isAccount && (
+                            <motion.div
+                                key="scrolled-state"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex flex-col items-center gap-3"
+                            >
+                                {/* Person icon */}
+                                <Link
+                                    to={currentUser ? "/account" : "/login"}
+                                    className={`${navTextColor} hover:opacity-60 transition-opacity duration-200`}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                </Link>
+                                <div className={`h-4 border-l ${cornerBorderColor}`}></div>
+                                {/* Vertical CART */}
+                                <button onClick={() => setIsCartOpen(true)} className="hover:opacity-60 transition-opacity flex flex-col items-center gap-3">
+                                    <span className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor}`} style={{ writingMode: 'vertical-rl' }}>CART</span>
+                                    <div className={`h-6 border-l ${cornerBorderColor}`}></div>
+                                    <span className={`text-sm md:text-base font-light leading-none ${navTextColor}`}>{totalItems}</span>
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* STATE 3: On /account → horizontal "MY ACCOUNT" + flat inline CART */}
+                        {isAccount && (
+                            <motion.div
+                                key="account-state"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex items-baseline gap-5 md:gap-8"
+                            >
+                                {/* MY ACCOUNT text with dropdown */}
+                                <div 
+                                    className="relative"
+                                    onMouseEnter={() => setIsAccountMenuOpen(true)}
+                                    onMouseLeave={() => setIsAccountMenuOpen(false)}
+                                >
+                                    <Link
+                                        to="/account"
+                                        className={`text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-300 block`}
+                                    >
+                                        MY ACCOUNT
+                                    </Link>
+
+                                    <AnimatePresence>
+                                        {isAccountMenuOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 4 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: 4 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="absolute top-full left-0 pt-3 flex flex-col space-y-3 whitespace-nowrap z-50 bg-transparent text-left"
+                                            >
+                                                <Link to="/account" onClick={() => setIsAccountMenuOpen(false)} className="text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-200 block text-left">WISHLIST</Link>
+                                                <button onClick={async () => { setIsAccountMenuOpen(false); await signOut(auth); navigate('/login'); }} className="text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-200 block text-left w-full">LOGOUT</button>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Flat inline CART (no corner angle) */}
+                                <button onClick={() => setIsCartOpen(true)} className="hover:opacity-60 transition-opacity flex items-baseline gap-2">
+                                    <span className="text-sm md:text-base font-light uppercase tracking-widest text-black leading-none">CART</span>
+                                    <span className="text-sm md:text-base font-light leading-none text-black">{totalItems}</span>
+                                </button>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </button>
+                </div>
             )}
 
             {/* Cart Drawer */}

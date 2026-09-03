@@ -17,6 +17,9 @@ import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import ShippingPage from './pages/ShippingPage';
 import AboutPage from './pages/AboutPage';
+import LoginPage from './pages/LoginPage';
+import AccountPage from './pages/AccountPage';
+import AdminCustomersPage from './pages/AdminCustomersPage';
 import VinylSidePlayer from './components/VinylSidePlayer';
 import FlyAnimation from './components/FlyAnimation';
 import Toast from './components/Toast';
@@ -58,16 +61,20 @@ function App() {
         if (!forceRefresh) {
           const cached = localStorage.getItem(CACHE_KEY);
           if (cached) {
-            const { data, timestamp } = JSON.parse(cached);
-            const isExpired = Date.now() - timestamp > CACHE_EXPIRY_MS;
+            try {
+              const { data, timestamp } = JSON.parse(cached);
+              const isExpired = Date.now() - timestamp > CACHE_EXPIRY_MS;
 
-            if (!isExpired && data?.length > 0) {
-              setProducts(data);
-              setLoading(false);
-              setError(null);
-              // Still fetch in background to update cache
-              fetchProducts(true);
-              return;
+              if (!isExpired && Array.isArray(data) && data.length > 0) {
+                setProducts(data);
+                setLoading(false);
+                setError(null);
+                // Still fetch in background to update cache
+                fetchProducts(true);
+                return;
+              }
+            } catch (e) {
+              localStorage.removeItem(CACHE_KEY);
             }
           }
         }
@@ -121,8 +128,9 @@ function App() {
   };
 
 
-  // Find products marked as "Hero" (previously "header")
+  // Find products marked as "Hero" (previously "header") or fallback to first 6 records
   const headerProducts = products.filter(p => p.tags && p.tags.includes('hero'));
+  const heroList = headerProducts.length > 0 ? headerProducts : products.slice(0, 6);
 
   // Find products marked as "New Arrival" and sort by newest first
   const newArrivalProducts = products
@@ -150,7 +158,7 @@ function App() {
         <Routes>
           <Route path="/" element={
             <>
-              <Hero products={headerProducts} />
+              <Hero products={heroList} />
               {rsdProducts.length > 0 && <RecordStoreWeek products={rsdProducts} />}
               {newArrivalProducts.length > 0 && <NewArrivals products={newArrivalProducts} />}
               {error && products.length === 0 ? (
@@ -200,6 +208,15 @@ function App() {
           } />
           <Route path="/about" element={
             <AboutPage />
+          } />
+          <Route path="/login" element={
+            <LoginPage />
+          } />
+          <Route path="/account" element={
+            <AccountPage />
+          } />
+          <Route path="/admin/customers" element={
+            <AdminCustomersPage />
           } />
 
           {/* 404 Catch-all Route */}

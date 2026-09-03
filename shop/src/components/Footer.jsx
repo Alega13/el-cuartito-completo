@@ -23,12 +23,42 @@ const Footer = () => {
         }
     };
 
-    const handleSubscribe = (e) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const isLocal = window.location.hostname === 'localhost';
+    const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+
+    const handleSubscribe = async (e) => {
         e.preventDefault();
-        if (email.trim()) {
+        if (!email.trim() || isSubmitting) return;
+
+        setIsSubmitting(true);
+        const targetEmail = email.trim();
+
+        const trySubscribe = async (baseUrl) => {
+            const res = await fetch(`${baseUrl}/api/newsletter/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: targetEmail })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        };
+
+        try {
+            try {
+                await trySubscribe(API_URL);
+            } catch (err) {
+                await trySubscribe('https://el-cuartito-shop.up.railway.app');
+            }
             setSubscribed(true);
             setEmail('');
-            setTimeout(() => setSubscribed(false), 3000);
+            setTimeout(() => setSubscribed(false), 4000);
+        } catch (error) {
+            console.error('Subscription error:', error);
+            alert('Could not subscribe at this time. Please try again.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 

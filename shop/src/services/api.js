@@ -1,13 +1,17 @@
 import axios from 'axios';
 
 const isLocal = window.location.hostname === 'localhost';
-const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+const LOCAL_API_URL = 'http://localhost:3001';
+const PROD_API_URL = 'https://el-cuartito-shop.up.railway.app';
+
+export const API_URL = import.meta.env.VITE_API_URL || (isLocal ? LOCAL_API_URL : PROD_API_URL);
 
 const api = axios.create({
     baseURL: API_URL,
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 6000
 });
 
 export const getOnlineRecords = async () => {
@@ -15,7 +19,16 @@ export const getOnlineRecords = async () => {
         const response = await api.get('/firebase/records/products');
         return response.data;
     } catch (error) {
-        console.error("Error fetching records:", error);
+        console.warn("Local API server unreachable, falling back to Railway API...", error);
+        if (isLocal && API_URL === LOCAL_API_URL) {
+            try {
+                const fallbackResponse = await axios.get(`${PROD_API_URL}/firebase/records/products`, { timeout: 10000 });
+                return fallbackResponse.data;
+            } catch (fallbackError) {
+                console.error("Fallback API also failed:", fallbackError);
+                throw fallbackError;
+            }
+        }
         throw error;
     }
 };

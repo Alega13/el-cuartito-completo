@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendSaleNotificationEmail = exports.sendDiscogsShippingNotificationEmail = exports.sendDiscogsOrderPreparingEmail = exports.sendPickupReadyEmail = exports.sendShipOrderEmail = exports.sendShippingNotificationEmail = exports.sendOrderConfirmationEmail = void 0;
+exports.sendWeeklyDropEmail = exports.sendWelcomeEmail = exports.sendSaleNotificationEmail = exports.sendDiscogsShippingNotificationEmail = exports.sendDiscogsOrderPreparingEmail = exports.sendPickupReadyEmail = exports.sendShipOrderEmail = exports.sendShippingNotificationEmail = exports.sendOrderConfirmationEmail = void 0;
 const resend_1 = require("resend");
 const env_1 = __importDefault(require("../config/env"));
 const firebaseAdmin_1 = require("../config/firebaseAdmin");
@@ -706,3 +706,163 @@ const sendSaleNotificationEmail = (saleData) => __awaiter(void 0, void 0, void 0
     }
 });
 exports.sendSaleNotificationEmail = sendSaleNotificationEmail;
+// ─── sendWelcomeEmail ─────────────────────────────────────────────────────────
+const sendWelcomeEmail = (email) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        if (isKeyMissing(env_1.default.RESEND_API_KEY)) {
+            console.warn('⚠️  [MAIL-SERVICE] RESEND_API_KEY not configured. Skipping welcome email.');
+            return { success: false, error: 'Resend API Key missing' };
+        }
+        const SHOP_URL = 'https://elcuartito.dk';
+        const unsubscribeUrl = `${env_1.default.FRONTEND_URL || SHOP_URL}/api/newsletter/unsubscribe?email=${encodeURIComponent(email)}`;
+        const html = emailOpen('Welcome to El Cuartito Records — you\'re on the list.') + `
+
+      <!-- BODY -->
+      <tr><td style="padding:48px 32px 16px 32px;" align="center">
+        <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#999999;">Welcome</p>
+        <h1 style="margin:0 0 24px 0;font-size:28px;font-weight:500;color:#111111;line-height:1.2;letter-spacing:-0.5px;">
+          Welcome to<br/>The Listening Room
+        </h1>
+      </td></tr>
+
+      <tr><td style="padding:0 32px 32px 32px;">
+        <p style="margin:0 0 20px 0;font-size:15px;line-height:1.7;color:#555555;">
+          You're now on the list. Every week we drop new arrivals — rare pressings, secondhand gems, and fresh vinyl from our crate in Vesterbro, Copenhagen.
+        </p>
+        <p style="margin:0 0 32px 0;font-size:15px;line-height:1.7;color:#555555;">
+          We'll keep it short. No spam, just records.
+        </p>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="padding:0 32px 40px 32px;" align="center">
+        <a href="${SHOP_URL}" target="_blank" style="display:inline-block;padding:14px 40px;background-color:#111111;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">
+          BROWSE THE SHOP
+        </a>
+      </td></tr>
+
+      ${inlineDivider()}
+
+      ${signature('Spin soon,')}
+
+      <!-- UNSUBSCRIBE -->
+      <tr><td style="background-color:#fafaf9;padding:16px 32px;border-top:1px solid #ececec;" align="center">
+        <a href="${unsubscribeUrl}" style="font-size:11px;color:#bbbbbb;text-decoration:underline;">Unsubscribe</a>
+      </td></tr>
+
+      ${emailClose()}`;
+        const { data, error } = yield resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [email],
+            subject: 'Welcome to The Listening Room 🎵',
+            html,
+            headers: {
+                'List-Unsubscribe': `<${unsubscribeUrl}>`,
+            },
+        });
+        if (error) {
+            console.error('❌ Resend Error (Welcome Email):', JSON.stringify(error, null, 2));
+            return { success: false, error };
+        }
+        console.log('✅ Welcome email sent to:', email, '- ID:', data === null || data === void 0 ? void 0 : data.id);
+        return { success: true, id: data === null || data === void 0 ? void 0 : data.id };
+    }
+    catch (error) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendWelcomeEmail:', error);
+        return { success: false, error: error.message };
+    }
+});
+exports.sendWelcomeEmail = sendWelcomeEmail;
+const sendWeeklyDropEmail = (recipientEmail, products, subject, intro) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        if (isKeyMissing(env_1.default.RESEND_API_KEY)) {
+            console.warn('⚠️  [MAIL-SERVICE] RESEND_API_KEY not configured.');
+            return { success: false, error: 'Resend API Key missing' };
+        }
+        const SHOP_URL = 'https://elcuartito.dk';
+        const unsubscribeUrl = `${env_1.default.FRONTEND_URL || SHOP_URL}/api/newsletter/unsubscribe?email=${encodeURIComponent(recipientEmail)}`;
+        const introText = intro || 'Fresh drops just landed at El Cuartito Records. Here\'s what\'s new this week.';
+        const emailSubject = subject || 'New This Week — El Cuartito Records';
+        const productRows = products.map((p) => {
+            const img = p.cover_image || p.image || DEFAULT_VINYL;
+            const label = p.label || p.record_label || p.publisher || '';
+            const artistLabel = [p.artist, label].filter(Boolean).join(' · ');
+            const productUrl = `${SHOP_URL}/product/${p.id}`;
+            return `
+    <tr>
+      <td width="80" style="padding:16px 0;border-top:1px solid #ececec;vertical-align:middle;">
+        <a href="${productUrl}" target="_blank" style="text-decoration:none;">
+          <img src="${img}" alt="${p.title}" width="72" height="72"
+               style="display:block;width:72px;height:72px;object-fit:cover;border:1px solid #ececec;" />
+        </a>
+      </td>
+      <td style="padding:16px 12px;border-top:1px solid #ececec;vertical-align:middle;">
+        <a href="${productUrl}" target="_blank" style="text-decoration:none;">
+          <div style="font-size:15px;font-weight:600;color:#111111;line-height:1.3;">${p.title}</div>
+          ${artistLabel ? `<div style="font-size:12px;color:#888888;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">${artistLabel}</div>` : ''}
+        </a>
+      </td>
+      <td align="right" style="padding:16px 0;border-top:1px solid #ececec;vertical-align:middle;font-size:14px;color:#555555;white-space:nowrap;">
+        ${p.price ? `DKK ${p.price}` : ''}
+      </td>
+    </tr>`;
+        }).join('');
+        const html = emailOpen(introText.substring(0, 100)) + `
+
+      <!-- BODY -->
+      <tr><td style="padding:48px 32px 16px 32px;">
+        <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#999999;">New arrivals</p>
+        <h1 style="margin:0 0 8px 0;font-size:28px;font-weight:500;color:#111111;line-height:1.2;letter-spacing:-0.5px;">New This Week</h1>
+        <p style="margin:0 0 0 0;font-size:15px;line-height:1.7;color:#555555;">${introText}</p>
+      </td></tr>
+
+      <!-- PRODUCTS -->
+      <tr><td style="padding:24px 32px 8px 32px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${productRows}
+          <tr>
+            <td colspan="3" style="padding-top:0;">
+              <div style="height:1px;background-color:#ececec;line-height:1px;font-size:1px;">&nbsp;</div>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="padding:24px 32px 40px 32px;" align="center">
+        <a href="${SHOP_URL}" target="_blank" style="display:inline-block;padding:14px 40px;background-color:#111111;color:#ffffff;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">
+          SEE ALL NEW ARRIVALS
+        </a>
+      </td></tr>
+
+      ${inlineDivider()}
+
+      ${signature('Happy digging,')}
+
+      <!-- UNSUBSCRIBE -->
+      <tr><td style="background-color:#fafaf9;padding:16px 32px;border-top:1px solid #ececec;" align="center">
+        <a href="${unsubscribeUrl}" style="font-size:11px;color:#bbbbbb;text-decoration:underline;">Unsubscribe</a>
+      </td></tr>
+
+      ${emailClose()}`;
+        const { data, error } = yield resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [recipientEmail],
+            subject: emailSubject,
+            html,
+            headers: {
+                'List-Unsubscribe': `<${unsubscribeUrl}>`,
+            },
+        });
+        if (error) {
+            console.error('❌ Resend Error (Weekly Drop):', JSON.stringify(error, null, 2));
+            return { success: false, error };
+        }
+        return { success: true, id: data === null || data === void 0 ? void 0 : data.id };
+    }
+    catch (error) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendWeeklyDropEmail:', error);
+        return { success: false, error: error.message };
+    }
+});
+exports.sendWeeklyDropEmail = sendWeeklyDropEmail;
