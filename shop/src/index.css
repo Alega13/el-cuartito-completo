@@ -24,7 +24,7 @@
 /* Custom theme colors for Tailwind 4 */
 @theme {
   --color-background: #F3F3F3;
-  --color-accent: #ea580c;
+  --color-accent: #F2610E;
 }
 
 body {
@@ -38,6 +38,15 @@ body {
 
 #root {
   width: 100%;
+}
+
+/* Custom El Cuartito Orange Cursor (#F2610E) */
+html, body, a, button, input, select, textarea, label, [role="button"], [tabindex], * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23F2610E' stroke='%23FFFFFF' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M3 3l7 18 3-7 7-3L3 3z'/%3E%3C/svg%3E") 3 3, auto !important;
+}
+
+a:hover, button:hover, input[type="submit"]:hover, input[type="button"]:hover, [role="button"]:hover, .clickable:hover {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='%23F2610E' stroke='%23FFFFFF' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M3 3l7 18 3-7 7-3L3 3z'/%3E%3C/svg%3E") 3 3, pointer !important;
 }
 
 /* Slow spin animation for vinyl icon */
