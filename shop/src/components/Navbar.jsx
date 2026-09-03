@@ -205,53 +205,6 @@ const Navbar = ({ setSearchQuery }) => {
                                 </button>
                             </motion.div>
                         )}
-
-                        {/* STATE 3: On /account → horizontal "MY ACCOUNT" + flat inline CART */}
-                        {isAccount && (
-                            <motion.div
-                                key="account-state"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="flex items-baseline gap-5 md:gap-8"
-                            >
-                                {/* MY ACCOUNT text with dropdown */}
-                                <div 
-                                    className="relative"
-                                    onMouseEnter={() => setIsAccountMenuOpen(true)}
-                                    onMouseLeave={() => setIsAccountMenuOpen(false)}
-                                >
-                                    <Link
-                                        to="/account"
-                                        className={`text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-300 block`}
-                                    >
-                                        MY ACCOUNT
-                                    </Link>
-
-                                    <AnimatePresence>
-                                        {isAccountMenuOpen && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 4 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: 4 }}
-                                                transition={{ duration: 0.2 }}
-                                                className="absolute top-full left-0 pt-3 flex flex-col space-y-3 whitespace-nowrap z-50 bg-transparent text-left"
-                                            >
-                                                <Link to="/account" onClick={() => setIsAccountMenuOpen(false)} className="text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-200 block text-left">WISHLIST</Link>
-                                                <button onClick={async () => { setIsAccountMenuOpen(false); await signOut(auth); navigate('/login'); }} className="text-sm md:text-base font-light uppercase tracking-widest text-black hover:opacity-60 transition-opacity duration-200 block text-left w-full">LOGOUT</button>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
-
-                                {/* Flat inline CART (no corner angle) */}
-                                <button onClick={() => setIsCartOpen(true)} className="hover:opacity-60 transition-opacity flex items-baseline gap-2">
-                                    <span className="text-sm md:text-base font-light uppercase tracking-widest text-black leading-none">CART</span>
-                                    <span className="text-sm md:text-base font-light leading-none text-black">{totalItems}</span>
-                                </button>
-                            </motion.div>
-                        )}
                     </AnimatePresence>
                 </div>
             )}
