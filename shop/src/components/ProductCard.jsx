@@ -56,23 +56,18 @@ const ProductCard = ({ product }) => {
                                 RSD
                             </span>
                         ) : null}
-                        
-                        {product.label && (
-                            <>
-                                {(product.stock === 0 || product.status === 'New' || isRSD) && (
-                                    <span className="text-[9px] text-black/20">•</span>
-                                )}
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-black/60">
-                                    {product.label}
-                                </span>
-                            </>
-                        )}
                     </div>
                     
-                    <h3 className="text-sm md:text-base font-bold text-black tracking-tight leading-tight mb-1">
+                    <h3 className="text-sm md:text-base font-bold text-black tracking-tight leading-tight mb-0.5">
                         {product.title}
                     </h3>
                     
+                    {(product.label || product.record_label || product.publisher) && (
+                        <span className="text-xs font-semibold uppercase tracking-wider text-black/60 mb-1">
+                            {product.label || product.record_label || product.publisher}
+                        </span>
+                    )}
+
                     {product.price && (
                         isRSD ? (
                             <div className="flex items-center gap-1.5">

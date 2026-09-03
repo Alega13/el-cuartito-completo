@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, X, SkipBack, SkipForward, List } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 import defaultImage from '../assets/default-vinyl.png';
 
 const GlobalPlayer = () => {
+    const location = useLocation();
+    const isProductPage = location.pathname.startsWith('/product');
+
     const {
         currentTrack,
         isPlaying,
@@ -21,7 +25,7 @@ const GlobalPlayer = () => {
 
     const [showTracklist, setShowTracklist] = useState(false);
 
-    if (!currentTrack) return null;
+    if (!currentTrack || isProductPage) return null;
 
     // Helper to check if image is valid (duplicate logic but safe)
     const isValidImage = (url) => {

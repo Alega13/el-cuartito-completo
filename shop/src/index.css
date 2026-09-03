@@ -41,12 +41,15 @@ body {
 }
 
 /* Custom El Cuartito Orange Cursor (#F2610E) */
-html, body, a, button, input, select, textarea, label, [role="button"], [tabindex], * {
+html, body, *, [tabindex] {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='%23F2610E' stroke='%23FFFFFF' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M3 3l7 18 3-7 7-3L3 3z'/%3E%3C/svg%3E") 3 3, auto !important;
 }
 
-a:hover, button:hover, input[type="submit"]:hover, input[type="button"]:hover, [role="button"]:hover, .clickable:hover {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='%23F2610E' stroke='%23FFFFFF' stroke-width='1.5' stroke-linejoin='round'%3E%3Cpath d='M3 3l7 18 3-7 7-3L3 3z'/%3E%3C/svg%3E") 3 3, pointer !important;
+/* Orange Pointer Hand for Clickable Elements */
+a, button, input[type="submit"], input[type="button"], input[type="reset"], [role="button"], label, select, summary, .clickable,
+a *, button *, [role="button"] *, .clickable *,
+a:hover, button:hover, input:hover, select:hover, label:hover, [role="button"]:hover, .clickable:hover {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='%23F2610E' stroke='%23FFFFFF' stroke-width='1.2' stroke-linejoin='round'%3E%3Cpath d='M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v-1.5a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v7.5L5.4 12.1a2 2 0 0 0-2.8.2v0a2 2 0 0 0 .2 2.8l5.2 5.2A7 7 0 0 0 13 22h3a5 5 0 0 0 5-5v-6a2 2 0 0 0-3 0z'/%3E%3C/svg%3E") 6 0, pointer !important;
 }
 
 /* Slow spin animation for vinyl icon */
