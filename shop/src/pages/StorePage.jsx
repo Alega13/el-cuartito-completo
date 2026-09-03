@@ -146,6 +146,14 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         setCurrentPage(1);
     }, [localSearch, searchQuery, selectedFilters, sortOption, collectionFilter]);
 
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        const catalogElement = document.getElementById('catalogue');
+        if (catalogElement) {
+            catalogElement.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     // Pagination calculations
     const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
     const paginatedProducts = useMemo(() => {
@@ -308,7 +316,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                             {totalPages > 1 && (
                                 <div className="flex items-center justify-center gap-4 mt-12 pt-8 border-t border-black/5">
                                     <button
-                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                                         disabled={currentPage === 1}
                                         className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                     >
@@ -331,7 +339,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                                             return (
                                                 <button
                                                     key={pageNum}
-                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    onClick={() => handlePageChange(pageNum)}
                                                     className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${currentPage === pageNum
                                                         ? 'bg-black text-white'
                                                         : 'hover:bg-black/5'
@@ -344,7 +352,7 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
                                     </div>
 
                                     <button
-                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                                         disabled={currentPage === totalPages}
                                         className="flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-black/10 hover:border-black/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                     >
