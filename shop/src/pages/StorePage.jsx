@@ -1,24 +1,47 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
 import { Filter, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import Fuse from 'fuse.js';
+import { normalizeGenre, normalizeLabel, normalizeCondition, getProductGenres } from '../utils/normalizeFilters';
+
+const CATALOG_STATE_KEY = 'el_cuartito_catalog_state';
+
+const getPersistedState = () => {
+    try {
+        const saved = sessionStorage.getItem(CATALOG_STATE_KEY);
+        if (saved) return JSON.parse(saved);
+    } catch (e) { /* ignore */ }
+    return null;
+};
+
+const defaultFilters = {
+    availability: [],
+    genre: [],
+    label: [],
+    condition: [],
+    year: [],
+    format: []
+};
 
 const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCollection }) => {
-    // New Filter State
-    const [selectedFilters, setSelectedFilters] = useState({
-        availability: [],
-        genre: [],
-        label: [],
-        condition: [],
-        year: [],
-        format: []
-    });
-    const [sortOption, setSortOption] = useState('newest'); // 'newest', 'price-asc', 'price-desc', 'year-desc'
-    const [showMobileFilters, setShowMobileFilters] = useState(false);
-    const [localSearch, setLocalSearch] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
+    const persisted = useMemo(() => getPersistedState(), []);
+
+    // Restore filter state from sessionStorage or use defaults
+    const [selectedFilters, setSelectedFilters] = useState(persisted?.selectedFilters || defaultFilters);
+    const [sortOption, setSortOption] = useState(persisted?.sortOption || 'newest');
+    const [showMobileFilters, setShowMobileFilters] = useState(persisted?.showMobileFilters || false);
+    const [localSearch, setLocalSearch] = useState(persisted?.localSearch || '');
+    const [currentPage, setCurrentPage] = useState(persisted?.currentPage || 1);
     const ITEMS_PER_PAGE = 28;
+
+    // Persist catalog state to sessionStorage on changes
+    useEffect(() => {
+        const state = { selectedFilters, sortOption, showMobileFilters, localSearch, currentPage };
+        try {
+            sessionStorage.setItem(CATALOG_STATE_KEY, JSON.stringify(state));
+        } catch (e) { /* ignore */ }
+    }, [selectedFilters, sortOption, showMobileFilters, localSearch, currentPage]);
 
     // Initialize Fuse.js for fuzzy search
     const fuse = useMemo(() => {
@@ -30,10 +53,19 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
     }, [products]);
 
     const filters = useMemo(() => {
+        const allGenres = new Set();
+        const allLabels = new Set();
+
+        products.forEach(p => {
+            getProductGenres(p).forEach(g => allGenres.add(g));
+            const label = normalizeLabel(p.label);
+            if (label) allLabels.add(label);
+        });
+
         return {
-            genres: [...new Set(products.flatMap(p => [p.genre, p.genre2, p.genre3, p.genre4, p.genre5]).filter(Boolean))].sort(),
-            labels: [...new Set(products.map(p => p.label).filter(Boolean))].sort(),
-            years: [...new Set(products.map(p => p.year).filter(Boolean))].sort((a, b) => b - a), // Newest years first
+            genres: [...allGenres].sort(),
+            labels: [...allLabels].sort(),
+            years: [...new Set(products.map(p => p.year).filter(Boolean))].sort((a, b) => b - a),
         };
     }, [products]);
 
@@ -49,12 +81,15 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         products.forEach(p => {
             if (p.stock !== 0) counts.availability['In stock'] = (counts.availability['In stock'] || 0) + 1;
             
-            const productGenres = [p.genre, p.genre2, p.genre3, p.genre4, p.genre5].filter(Boolean);
+            const productGenres = getProductGenres(p);
             productGenres.forEach(g => { counts.genre[g] = (counts.genre[g] || 0) + 1; });
             
-            if (p.label) counts.label[p.label] = (counts.label[p.label] || 0) + 1;
+            const label = normalizeLabel(p.label);
+            if (label) counts.label[label] = (counts.label[label] || 0) + 1;
             if (p.year) counts.year[p.year?.toString()] = (counts.year[p.year?.toString()] || 0) + 1;
-            if (p.status) counts.condition[p.status] = (counts.condition[p.status] || 0) + 1;
+            
+            const condition = normalizeCondition(p.status);
+            if (condition) counts.condition[condition] = (counts.condition[condition] || 0) + 1;
             
             // Format is mocked in UI, just count them as LP for now if undefined
             counts.format['LP'] = (counts.format['LP'] || 0) + 1;
@@ -74,14 +109,11 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
     };
 
     const clearFilters = () => {
-        setSelectedFilters({
-            availability: [],
-            genre: [],
-            label: [],
-            condition: [],
-            year: [],
-            format: []
-        });
+        setSelectedFilters(defaultFilters);
+        setLocalSearch('');
+        setSortOption('newest');
+        setCurrentPage(1);
+        try { sessionStorage.removeItem(CATALOG_STATE_KEY); } catch (e) { /* ignore */ }
         if (onClearCollection) onClearCollection();
     };
 
@@ -107,12 +139,14 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
             }
 
             if (selectedFilters.genre.length > 0) {
-                const productGenres = [product.genre, product.genre2, product.genre3, product.genre4, product.genre5].filter(Boolean);
+                const productGenres = getProductGenres(product);
                 if (!selectedFilters.genre.some(g => productGenres.includes(g))) return false;
             }
-            if (selectedFilters.label.length > 0 && !selectedFilters.label.includes(product.label)) return false;
+            const prodLabel = normalizeLabel(product.label);
+            if (selectedFilters.label.length > 0 && !selectedFilters.label.includes(prodLabel)) return false;
             if (selectedFilters.year.length > 0 && !selectedFilters.year.includes(product.year?.toString())) return false;
-            if (selectedFilters.condition.length > 0 && !selectedFilters.condition.includes(product.status)) return false;
+            const prodCondition = normalizeCondition(product.status);
+            if (selectedFilters.condition.length > 0 && !selectedFilters.condition.includes(prodCondition)) return false;
 
             // Format Filter (approximated for now based on title or logic)
             // Ideally backend should provide format field.
@@ -141,8 +175,13 @@ const StorePage = ({ products, loading, searchQuery, collectionFilter, onClearCo
         });
     }, [products, searchQuery, localSearch, collectionFilter, selectedFilters, sortOption, fuse]);
 
-    // Reset to page 1 when filters/search change
+    // Reset to page 1 when filters/search change (but not on initial mount)
+    const isInitialMount = React.useRef(true);
     React.useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
         setCurrentPage(1);
     }, [localSearch, searchQuery, selectedFilters, sortOption, collectionFilter]);
 

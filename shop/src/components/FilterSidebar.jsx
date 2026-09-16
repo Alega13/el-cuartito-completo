@@ -109,7 +109,7 @@ const FilterSidebar = ({
 
             <FilterGroup
                 title="Condition"
-                items={['New', 'Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
+                items={['Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
                 selected={selectedFilters.condition}
                 counts={filterCounts?.condition}
                 onToggle={(val) => onFilterChange('condition', val)}
@@ -177,7 +177,7 @@ const FilterSidebar = ({
                             />
                             <FilterGroup
                                 title="Condition"
-                                items={['New', 'Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
+                                items={['Mint', 'Near Mint', 'VG+', 'VG', 'Good']}
                                 selected={selectedFilters.condition}
                                 counts={filterCounts?.condition}
                                 onToggle={(val) => onFilterChange('condition', val)}
