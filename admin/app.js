@@ -3,6 +3,17 @@ const db = firebase.firestore();
 const APP_VERSION = '2026.03.20.1';
 console.log('🚀 El Cuartito Admin v' + APP_VERSION + ' loaded');
 
+// Cierre global de modales: elimina TODOS los overlays (evita overlays invisibles bloqueantes por ids duplicados)
+function closeModal() {
+    document.querySelectorAll('#modal-overlay, #unified-modal, #bulk-import-modal').forEach(el => el.remove());
+}
+// Cerrar cualquier modal con la tecla Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+});
+// Exponer globalmente: app.js es type="module" y los onclick inline lo necesitan
+window.closeModal = closeModal;
+
 const auth = window.auth;
 
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -432,7 +443,7 @@ const app = {
 
             // Re-render modal if open
             if (document.getElementById('modal-overlay')) {
-                document.getElementById('modal-overlay').remove();
+                closeModal();
                 this.openOnlineSaleDetailModal(id);
             }
 
@@ -777,7 +788,7 @@ const app = {
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Asunto del Email</label>
                                 <input type="text" id="newsletter-subject" 
-                                    value="New This Week — El Cuartito Records" 
+                                    value="Novedades de la Semana — El Cuartito Records" 
                                     placeholder="Ej: Fresh Drops This Week 🎵"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">
                             </div>
@@ -986,7 +997,7 @@ const app = {
             return;
         }
 
-        const subject = document.getElementById('newsletter-subject')?.value || 'New This Week — El Cuartito Records';
+        const subject = document.getElementById('newsletter-subject')?.value || 'Novedades de la Semana — El Cuartito Records';
         const intro = document.getElementById('newsletter-intro')?.value || 'Fresh drops just landed at El Cuartito Records.';
 
         if (!confirm(`¿Estás seguro de enviar este Weekly Drop a todos los suscriptores?`)) {
@@ -1739,7 +1750,7 @@ const app = {
                 <td class="py-3 px-4"><span class="text-xs font-bold px-2 py-1 rounded-full bg-orange-100 text-orange-700">${categoryLabel(e.category)}</span></td>
                 <td class="py-3 px-4 text-sm font-bold text-brand-dark text-right">${Number(e.amount).toFixed(2)} DKK</td>
                 <td class="py-3 px-4 text-sm text-slate-500 text-right">${Number(e.vatAmount || 0).toFixed(2)} DKK</td>
-                <td class="py-3 px-4 text-sm text-slate-400">${e.paymentMethod || 'Transfer'}</td>
+                <td class="py-3 px-4 text-sm text-slate-400">${e.paymentMethod === 'Transfer' ? 'Transferencia' : (e.paymentMethod || 'Transferencia')}</td>
                 <td class="py-3 px-4 text-center">
                     <button onclick="app.deleteExtraIncome('${e.id}')" class="text-red-400 hover:text-red-600 transition-colors" title="Eliminar">
                         <i class="ph-bold ph-trash text-lg"></i>
@@ -2080,7 +2091,7 @@ const app = {
                     ` : `
                         <div class="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                             <p class="text-xs text-slate-400">No hay eventos registrados</p>
-                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar nota</a>
+                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar evento</button>
                         </div>
                     `}
                 </div>
@@ -2111,10 +2122,10 @@ const app = {
                             ${dayExpenses.map(e => `
                                 <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
                                     <div class="truncate flex-1 pr-2">
-                                        <span class="font-bold text-slate-700 block truncate">${e.description}</span>
-                                        <span class="text-slate-400 text-[10px]">${e.category}</span>
+                                        <span class="font-bold text-slate-700 block truncate">${e.descripcion || e.description || 'Gasto'}</span>
+                                        <span class="text-slate-400 text-[10px]">${e.categoria_label || e.categoria || e.category || ''}</span>
                                     </div>
-                                    <span class="font-bold text-brand-dark">${this.formatCurrency(e.amount)}</span>
+                                    <span class="font-bold text-brand-dark">${this.formatCurrency(e.monto_total || e.amount || 0)}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -2142,7 +2153,7 @@ const app = {
                 <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="font-display text-xl font-bold text-brand-dark">Nuevo Evento</h3>
-                        <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-brand-dark transition-colors">
+                        <button onclick="closeModal()" class="text-slate-400 hover:text-brand-dark transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
                         </a>
                     </div>
@@ -2167,6 +2178,7 @@ const app = {
                 </div>
             </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -2183,7 +2195,7 @@ const app = {
         db.collection('events').add(eventData)
             .then(() => {
                 this.showToast('✅ Evento agregado');
-                document.getElementById('modal-overlay').remove();
+                closeModal();
                 this.loadData();
             })
             .catch(err => console.error(err));
@@ -2221,11 +2233,11 @@ const app = {
                         </a>
                         
                         <div class="flex-1 relative">
-                            <input type="file" id="import-file" accept=".json" class="hidden" onchange="app.importData(this)">
+                            <input type="file" id="import-file" accept=".json" class="sr-only" onchange="app.importData(this)">
                             <button onclick="document.getElementById('import-file').click()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
                                 <i class="ph-fill ph-upload-simple text-xl"></i>
                                 Importar Backup
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -2293,7 +2305,7 @@ const app = {
                         <div class="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
                             <div>
                                 <p class="font-bold text-amber-900">Marcar Productos como "Usado"</p>
-                                <p class="text-xs text-amber-700">Actualiza todos los productos sin condición a "Second-hand"</p>
+                                <p class="text-xs text-amber-700">Actualiza todos los productos sin condición a "Segunda mano"</p>
                             </div>
                             <button onclick="app.migrateProductCondition()" class="bg-amber-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-700 transition-colors text-sm">
                                 <i class="ph-bold ph-database mr-1"></i> Migrar
@@ -2801,7 +2813,7 @@ const app = {
                             <h3 class="font-display text-2xl font-bold text-brand-dark flex items-center gap-2">
                                 <i class="ph-bold ph-clock-counter-clockwise text-brand-orange"></i> Historial de Movimientos
                             </h3>
-                            <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                            <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                                 <i class="ph-bold ph-x text-xl"></i>
                             </a>
                         </div>
@@ -2823,6 +2835,9 @@ const app = {
                 if (log.type === 'DELETE') badgeClass = 'bg-red-100 text-red-700';
                 if (log.type === 'EDIT') badgeClass = 'bg-blue-100 text-blue-700';
                 if (log.type === 'SOLD') badgeClass = 'bg-purple-100 text-purple-700';
+                // Etiquetas legibles en español (no mostrar claves internas)
+                const typeLabels = { ADD: 'Ingreso', DELETE: 'Egreso', EDIT: 'Edición', SOLD: 'Venta', STOCK_CORRECTION: 'Corrección' };
+                const typeLabel = typeLabels[log.type] || log.type;
 
                 const date = log.timestamp ? (log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp)) : new Date();
 
@@ -2832,7 +2847,7 @@ const app = {
                                                     ${date.toLocaleDateString()} <span class="text-xs text-slate-400 opacity-75">${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </td>
                                                 <td class="p-4">
-                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${badgeClass}">${log.type}</span>
+                                                    <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase ${badgeClass}">${typeLabel}</span>
                                                 </td>
                                                 <td class="p-4 font-bold text-brand-dark">${log.album || 'Unknown'}</td>
                                                 <td class="p-4 font-mono text-xs text-slate-400">${log.sku || 'N/A'}</td>
@@ -2845,6 +2860,7 @@ const app = {
                     </div>
                 </div>
             `;
+            closeModal(); // Evitar overlays duplicados
             document.body.insertAdjacentHTML('beforeend', html);
         });
     },
@@ -2906,7 +2922,9 @@ const app = {
     // --- UTILS ---
     formatCurrency(amount, isPrivate = true) {
         const formatted = new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(amount);
-        return isPrivate ? `<span class="blur-money">${formatted}</span>` : `<span>${formatted}</span>`;
+        // Siempre con clase blur-money: el Modo Privacidad debe difuminar TODOS los valores monetarios,
+        // no solo las tarjetas resumen (el CSS solo aplica el blur bajo body.privacy-active)
+        return `<span class="blur-money">${formatted}</span>`;
     },
 
     formatDate(dateString) {
@@ -3033,6 +3051,7 @@ const app = {
                 </div>
             </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', html);
     },
 
@@ -5751,15 +5770,18 @@ const app = {
             return;
         }
 
-        const matches = this.state.inventory.filter(i =>
-            i.artist.toLowerCase().includes(query.toLowerCase()) ||
-            i.album.toLowerCase().includes(query.toLowerCase()) ||
-            i.sku.toLowerCase().includes(query.toLowerCase())
-        );
+        const q = (query || '').toLowerCase();
+        const matches = this.state.inventory.filter(i => {
+            // Null-safe: un solo disco con artist/album/sku nulo rompía todo el filtro
+            const artist = (i.artist || '').toLowerCase();
+            const album = (i.album || '').toLowerCase();
+            const sku = (i.sku || '').toLowerCase();
+            return artist.includes(q) || album.includes(q) || sku.includes(q);
+        });
 
         if (matches.length > 0) {
             resultsDiv.innerHTML = matches.map(item => `
-    <div onclick="app.selectSku('${item.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
+    <div onclick="app.selectSku('${String(item.sku || '').replace(/'/g, "\\'")}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
                     <div>
                         <p class="font-bold text-sm text-brand-dark">${item.album}</p>
                         <p class="text-xs text-slate-500">${item.artist}</p>
@@ -5884,9 +5906,9 @@ const app = {
                     <div class="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
                         <i class="ph-fill ph-plus-circle text-lg"></i>
                     </div>
-                    <h3 class="text-lg font-bold text-slate-900 tracking-tight">${isEdit ? 'Edit Record' : 'Add to Inventory'}</h3>
+                    <h3 class="text-lg font-bold text-slate-900 tracking-tight">${isEdit ? 'Editar Disco' : 'Agregar al Inventario'}</h3>
                 </div>
-                <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-300 hover:text-slate-900">
+                <button type="button" onclick="closeModal()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-300 hover:text-slate-900">
                     <i class="ph-bold ph-x"></i>
                 </a>
             </div>
@@ -5912,7 +5934,7 @@ const app = {
                             <div class="flex-1 space-y-3">
                                 <div class="relative group">
                                     <i class="ph-bold ph-magnifying-glass absolute left-3 top-[34px] text-slate-300 group-focus-within:text-[#FF6B00] text-sm"></i>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Search Discogs</label>
+                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Buscar en Discogs</label>
                                     <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') { event.preventDefault(); app.searchDiscogs(); }" placeholder="Artist, Title, Label..." 
                                            autocomplete="off" spellcheck="false"
                                            class="dashboard-input w-full pl-9 h-10">
@@ -5934,7 +5956,7 @@ const app = {
                         <div class="col-span-12 lg:col-span-5 dashboard-card p-5 bg-slate-50/30 border-dashed flex flex-col justify-center">
                             <div class="space-y-3 mb-3">
                                 <div class="space-y-1">
-                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Buy Cost</label>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Costo de Compra</label>
                                     <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.onCostChange()" class="dashboard-input w-full h-10">
                                 </div>
                                 <div id="multiplier-row" class="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
@@ -5943,13 +5965,13 @@ const app = {
                                     <span id="multiplier-label" class="text-[9px] font-bold uppercase tracking-wider ${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'text-amber-600' : 'text-emerald-600'; })()}">${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'Disco caro (+100kr)' : 'Disco barato (≤100kr)'; })()}</span>
                                 </div>
                                 <div class="space-y-1">
-                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Retail Price</label>
+                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Precio de Venta</label>
                                     <input name="price" id="modal-price" type="number" step="0.5" value="${item.price || 0}" oninput="app.calculateProfit()" class="dashboard-input w-full h-10 border-[#FF6B00]/40 bg-white">
                                 </div>
                             </div>
                             <div class="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center justify-between">
                                 <p id="profit-percent" class="text-lg font-black text-slate-900 leading-none">0%</p>
-                                <span id="profit-label" class="profit-tag">+$0.00</span>
+                                <span id="profit-label" class="profit-tag">+0.00 kr</span>
                             </div>
 
                             <!-- Provider Origin & Phantom VAT -->
@@ -6022,7 +6044,7 @@ const app = {
                         <div class="col-span-8 space-y-4">
                             <div class="grid grid-cols-5 gap-3">
                                 <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Vinyl Grade</label>
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Estado del Vinilo</label>
                                     <select name="condition" class="dashboard-input w-full h-10 bg-white">
                                         <option value="M" ${item.condition === 'M' ? 'selected' : ''}>M (Mint)</option>
                                         <option value="NM" ${item.condition === 'NM' || !item.condition ? 'selected' : ''}>NM (Near Mint)</option>
@@ -6192,10 +6214,10 @@ const app = {
                 <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: <span class="text-slate-900">${item.sku}</span></p>
                     <div class="flex gap-4">
-                        <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</a>
+                        <button type="button" onclick="closeModal()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</a>
                         <button type="submit" class="bg-[#FF6B00] text-white px-10 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
                             <i class="ph-bold ph-plus"></i>
-                            ${isEdit ? 'Update Inventory' : 'Add to Inventory'}
+                            ${isEdit ? 'Actualizar' : 'Add to Inventory'}
                         </a>
                     </div>
                 </div>
@@ -6203,6 +6225,7 @@ const app = {
         </div>
     </div>
                 `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -6218,8 +6241,7 @@ const app = {
             }
 
             // Remove existing if any
-            const existing = document.getElementById('modal-overlay');
-            if (existing) existing.remove();
+            closeModal();
 
             const html = `
                 <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -6233,7 +6255,7 @@ const app = {
                 }
                             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
 
-                            <button onclick="document.getElementById('modal-overlay').remove()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm">
+                            <button onclick="closeModal()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors backdrop-blur-sm">
                                 <i class="ph-bold ph-x text-xl"></i>
                             </button>
 
@@ -6307,7 +6329,7 @@ const app = {
                             </div>
 
                             <div class="pt-4 flex flex-wrap gap-3">
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openAddVinylModal('${item.id}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
+                                <button onclick="closeModal(); app.openAddVinylModal('${item.id}')" class="flex-1 min-w-[120px] bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-dark/20 text-sm">
                                     <i class="ph-bold ph-pencil-simple"></i>
                                     Editar
                                 </button>
@@ -6325,14 +6347,14 @@ const app = {
                                     <i class="ph-bold ph-magnifying-glass"></i> Buscar
                                    </a>`
                 }
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openTracklistModal('${item.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
+                                <button onclick="closeModal(); app.openTracklistModal('${item.sku}')" class="flex-1 min-w-[120px] bg-indigo-50 text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2 border border-indigo-100 text-sm">
                                     <i class="ph-bold ph-list-numbers"></i> Tracks
                                 </button>
-                                <button onclick="app.addToCart('${item.id}'); document.getElementById('modal-overlay').remove()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
+                                <button onclick="app.addToCart('${item.id}'); closeModal()" class="flex-1 min-w-[120px] bg-brand-orange text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-orange/20 text-sm">
                                     <i class="ph-bold ph-shopping-cart"></i>
                                     Vender
                                 </button>
-                                <button onclick="app.deleteVinyl('${item.id}'); document.getElementById('modal-overlay').remove()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
+                                <button onclick="app.deleteVinyl('${item.id}'); closeModal()" class="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-red-100 shadow-sm" title="Eliminar Disco">
                                     <i class="ph-bold ph-trash text-xl"></i>
                                 </button>
                             </div>
@@ -6341,6 +6363,7 @@ const app = {
                 </div>
                 `;
 
+            closeModal(); // Evitar overlays duplicados
             document.body.insertAdjacentHTML('beforeend', html);
 
         } catch (error) {
@@ -6366,7 +6389,7 @@ const app = {
             const profit = price - cost;
             const margin = (profit / price) * 100;
             profitPercent.innerText = `${Math.round(margin)}%`;
-            profitLabel.innerText = `${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`;
+            profitLabel.innerText = `${profit >= 0 ? '+' : ''}${profit.toFixed(2)} kr`;
 
             if (profit >= 0) {
                 profitLabel.className = 'profit-tag';
@@ -6375,7 +6398,7 @@ const app = {
             }
         } else {
             profitPercent.innerText = '0%';
-            profitLabel.innerText = '+$0.00';
+            profitLabel.innerText = '+0.00 kr';
             profitLabel.className = 'profit-tag';
         }
     },
@@ -6600,7 +6623,7 @@ const app = {
                     <div class="bg-white rounded-3xl w-full max-w-5xl p-6 md:p-8 shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
                         <div class="flex justify-between items-center mb-6 shrink-0">
                             <h3 class="font-display text-2xl font-bold text-brand-dark">Nueva Venta</h3>
-                            <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                            <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                                 <i class="ph-bold ph-x text-xl"></i>
                             </a>
                         </div>
@@ -6622,7 +6645,7 @@ const app = {
                                     <span class="text-sm font-bold text-slate-500">Total</span>
                                     <span class="text-xl font-bold text-brand-dark">${this.formatCurrency(this.state.cart.reduce((s, i) => s + i.price, 0))}</span>
                                 </div>
-                                <button onclick="document.getElementById('modal-overlay').remove(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
+                                <button onclick="closeModal(); app.openCheckoutModal()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20 flex items-center justify-center gap-2">
                                     <i class="ph-bold ph-check-circle"></i> Finalizar Compra Carrito
                                 </a>
                             ` : ''}
@@ -6738,6 +6761,7 @@ const app = {
                                                         </div>
                                                     </div>
                                                     `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         // Focus search
@@ -6838,7 +6862,7 @@ const app = {
                         <button onclick="window.print()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-printer text-xl"></i>
                         </a>
-                        <button onclick="document.getElementById('unified-modal').remove()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                        <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
                         </a>
                     </div>
@@ -7039,13 +7063,14 @@ const app = {
 
                 <!-- Footer -->
                 <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
-                    <button onclick="document.getElementById('unified-modal').remove()" class="flex-1 bg-brand-dark text-white py-3.5 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20">
+                    <button onclick="closeModal()" class="flex-1 bg-brand-dark text-white py-3.5 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20">
                         Cerrar Detalle
                     </a>
                 </div>
             </div>
         </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -7215,6 +7240,7 @@ const app = {
                 </div>
             </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', invoiceHtml);
     },
 
@@ -7646,6 +7672,7 @@ const app = {
 </div>
 `;
 
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         // Generate QR code encoding the SKU
@@ -8338,7 +8365,7 @@ const app = {
         <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
-                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600">
                     <i class="ph-bold ph-x text-xl"></i>
                 </a>
             </div>
@@ -8381,6 +8408,7 @@ const app = {
         </div>
                                                     </div>
     `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -8579,7 +8607,7 @@ const app = {
                 }
             }
 
-            document.getElementById('modal-overlay').remove();
+            closeModal();
             this.loadData();
         } catch (err) {
             console.error(err);
@@ -8695,6 +8723,7 @@ const app = {
                                                     </div>
                                                     `;
 
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -9004,7 +9033,13 @@ const app = {
             const statusLabels = {
                 'completed': '✅ Completado',
                 'PENDING': '⏳ Pendiente',
-                'failed': '❌ Fallido'
+                'failed': '❌ Fallido',
+                'canceled': '❌ Cancelado',
+                'cancelled': '❌ Cancelado',
+                'shipped': '📦 Enviado',
+                'created': '🆕 Creado',
+                'preparing': '📦 En preparación',
+                'refunded': '↩️ Reembolsado'
             };
 
             return `
@@ -9014,7 +9049,7 @@ const app = {
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="font-semibold text-brand-dark">${customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || customer.stripe_info?.name || 'Cliente'}</div>
-                                                <div class="text-xs text-slate-500">${customer.email || customer.stripe_info?.email || 'No email'}</div>
+                                                ${(() => { const em = customer.email || customer.stripe_info?.email || ''; return (em && em !== customer.name) ? `<div class="text-xs text-slate-500">${em}</div>` : ''; })()}
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm text-slate-600 truncate max-w-[200px]">
@@ -9032,7 +9067,7 @@ const app = {
                                             </td>
                                             <td class="px-6 py-4">
                                                 <div class="text-sm">
-                                                    <div class="font-medium capitalize text-xs">${sale.payment_method || sale.paymentMethod || 'card'}</div>
+                                                    <div class="font-medium capitalize text-xs">${sale.payment_method || sale.paymentMethod || 'Tarjeta'}</div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -9109,7 +9144,7 @@ const app = {
                         <div class="text-xs font-bold text-brand-orange uppercase tracking-widest mb-1">Detalle del Pedido</div>
                         <h2 class="font-display text-2xl font-bold text-brand-dark line-clamp-1">${sale.orderNumber || 'Sin número de orden'}</h2>
                     </div>
-                    <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                    <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                         <i class="ph-bold ph-x text-xl"></i>
                     </a>
                 </div>
@@ -9271,13 +9306,14 @@ const app = {
                     <button onclick="window.print()" class="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
                         <i class="ph-bold ph-printer"></i> Imprimir Packing Slip
                     </a>
-                    <button onclick="document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
+                    <button onclick="closeModal()" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
                         Cerrar
                     </a>
                 </div>
             </div>
         </div>
     `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', html);
     },
 
@@ -9327,7 +9363,7 @@ const app = {
                             <h3 class="font-display text-2xl font-bold text-brand-dark">Registrar Venta</h3>
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">${this.state.cart.length} productos seleccionados</p>
                         </div>
-                        <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
+                        <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-slate-50 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
                             <i class="ph-bold ph-x text-xl"></i>
                         </a>
                     </div>
@@ -9423,6 +9459,7 @@ const app = {
             </div>
         `;
 
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
         // Store original total for fee calculation
@@ -9488,7 +9525,7 @@ const app = {
                 const feeMsg = saleData.feeDeducted > 0 ? ` | Fee: ${this.formatCurrency(saleData.feeDeducted)} ` : '';
                 this.showToast(`Venta de ${this.state.cart.length} items por ${this.formatCurrency(finalPrice)} registrada!${channelMsg}${feeMsg} `);
                 this.clearCart();
-                document.getElementById('modal-overlay').remove();
+                closeModal();
                 this.loadData();
             })
             .catch(err => {
@@ -9694,6 +9731,8 @@ const app = {
             // Stock purchases (trigger inventory ingest)
             { value: 'stock_nuevo', label: '📦 Stock: Vinilos NUEVOS (Distribuidor)', type: 'stock_nuevo' },
             { value: 'stock_usado', label: '📦 Stock: Vinilos USADOS (Particular/Brugtmoms)', type: 'stock_usado' },
+            // Valores legacy de registros viejos (se muestran con etiqueta legible)
+            { value: 'stock_eu_b2b', label: '📦 Stock: Compra EU B2B', type: 'stock_nuevo' },
         ];
 
         // Store categories globally for other functions to access
@@ -10891,13 +10930,14 @@ const app = {
                     </div>
                 </div>
                 <div class="pt-4 flex gap-3">
-                    <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition-colors">Cancelar</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition-colors">Cancelar</button>
                     <button type="submit" class="flex-1 py-2 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold transition-colors">Guardar</button>
                 </div>
             </form>
         </div>
 
 `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -10914,7 +10954,7 @@ const app = {
         db.collection('consignors').add(newConsignor)
             .then(() => {
                 this.showToast('✅ Socio registrado correctamente');
-                document.getElementById('modal-overlay').remove();
+                closeModal();
                 this.loadData();
             })
             .catch(err => {
@@ -11173,6 +11213,7 @@ const app = {
                                                                     </div>
                                                                 </div>
                                                                 `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
 
         // Fetch Function
@@ -11436,7 +11477,7 @@ const app = {
                     <i class="ph-fill ph-info text-purple-500 text-xl shrink-0 mt-0.5"></i>
                     <div class="text-sm text-purple-900">
                         <p class="font-bold mb-1">¿Cómo gestionar los fees?</p>
-                        <p class="text-purple-700">Las ventas de Discogs se registran inicialmente por el <b>precio bruto</b>. Haz clic en "Actualizar Valor" e ingresa el monto real recibido en PayPal. El sistema calculará automáticamente la diferencia como fee y ajustará tus ingresos netos.</p>
+                        <p class="text-purple-700">Las ventas de Discogs se registran inicialmente por el <b>precio bruto</b>. Haz clic en "Editar Neto" e ingresa el monto real recibido en PayPal. El sistema calculará automáticamente la diferencia como fee y ajustará tus ingresos netos.</p>
                     </div>
                 </div>
             </div>
@@ -11504,6 +11545,7 @@ const app = {
                 </div>
             </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -12847,6 +12889,7 @@ const app = {
                 </div>
             </div>
         `;
+        closeModal(); // Evitar overlays duplicados
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
@@ -13194,7 +13237,7 @@ const app = {
                                             <div class="text-[10px] text-slate-400 mt-1">${s.items?.length || 0} items</div>
                                         </td>
                                         <td class="p-4 hidden md:table-cell text-xs text-slate-500">
-                                            ${s.city || ''}, ${s.country || 'DK'}
+                                            ${[s.city, s.country || 'DK'].filter(Boolean).join(', ') || '-'}
                                         </td>
                                         <td class="p-4">
                                             ${actionUI}
@@ -13425,7 +13468,7 @@ const app = {
                         <h3 class="font-display text-2xl font-bold">Carga Masiva (CSV)</h3>
                         <p class="text-emerald-100 text-sm">Pega el contenido de tu archivo CSV aquí.</p>
                     </div>
-                    <button onclick="document.getElementById('bulk-import-modal').remove()" class="text-white/80 hover:text-white transition-colors">
+                    <button onclick="closeModal()" class="text-white/80 hover:text-white transition-colors">
                         <i class="ph-bold ph-x text-2xl"></i>
                     </a>
                 </div>
@@ -13445,7 +13488,7 @@ const app = {
                     </div>
 
                     <div class="flex gap-4">
-                        <button onclick="document.getElementById('bulk-import-modal').remove()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</a>
+                        <button onclick="closeModal()" class="flex-1 px-6 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancelar</a>
                         <button id="start-bulk-import-btn" onclick="app.handleBulkImportBatch()" class="flex-1 bg-emerald-500 text-white px-6 py-4 rounded-xl font-bold shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
                             <i class="ph-bold ph-rocket-launch"></i> Comenzar Importación
                         </a>
@@ -13479,7 +13522,7 @@ const app = {
 
             if (response.ok) {
                 this.showToast(`✅ ${result.summary}`);
-                document.getElementById('bulk-import-modal').remove();
+                closeModal();
                 await this.loadData();
                 this.refreshCurrentView();
             }
