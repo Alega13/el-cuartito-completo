@@ -10786,11 +10786,63 @@ const app = {
             const alreadyPaid = soldItems.filter(s => s.payoutStatus === 'paid').reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
             const pendingPay = totalDue - alreadyPaid;
 
+            // Build stock items preview for hover tooltip
+            const stockItemsHtml = partnerItems.filter(i => i.stock > 0).slice(0, 12).map(i => `
+                <div class="flex items-center gap-2 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                    <img src="${i.cover_image || i.image || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-md object-cover border border-white/10 shrink-0" onerror="this.src='https://elcuartito.dk/default-vinyl.png'">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[10px] font-bold text-white truncate">${i.album || i.title || 'Sin título'}</p>
+                        <p class="text-[9px] text-slate-400 truncate">${i.artist || ''} ${i.location ? '· 📍' + i.location : ''}</p>
+                        <p class="text-[9px] text-brand-orange font-bold">${this.formatCurrency(i.price || 0)} × ${i.stock}</p>
+                    </div>
+                </div>
+            `).join('');
+            const remainingStock = partnerItems.filter(i => i.stock > 0).length - 12;
+            const stockOverflowHtml = remainingStock > 0 ? `<p class="text-[9px] text-slate-500 text-center mt-1">+${remainingStock} más...</p>` : '';
+
             return `
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                             <div class="flex justify-between items-start mb-6">
                                 <div>
-                                    <h3 class="font-display text-xl font-bold text-brand-dark">${c.name}</h3>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-display text-xl font-bold text-brand-dark">${c.name}</h3>
+                                        <!-- Info Button -->
+                                        <div class="relative" id="info-wrap-${c.id}">
+                                            <button onclick="event.stopPropagation(); const el = document.getElementById('info-pop-${c.id}'); el.classList.toggle('hidden'); el.classList.toggle('opacity-0'); el.classList.toggle('opacity-100');" 
+                                                class="w-7 h-7 rounded-full bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all" title="Ver contacto">
+                                                <i class="ph-bold ph-info text-sm"></i>
+                                            </button>
+                                            <!-- Info Popover -->
+                                            <div id="info-pop-${c.id}" class="hidden opacity-0 absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 p-4 z-50 transition-all duration-200">
+                                                <div class="absolute -top-1.5 left-4 w-3 h-3 bg-white border-t border-l border-slate-100 rotate-45"></div>
+                                                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Datos de Contacto</h4>
+                                                <div class="space-y-2">
+                                                    <div class="flex items-center gap-2.5 p-2 bg-slate-50 rounded-lg">
+                                                        <div class="w-7 h-7 bg-blue-50 rounded-md flex items-center justify-center text-blue-500 shrink-0">
+                                                            <i class="ph-bold ph-envelope-simple text-sm"></i>
+                                                        </div>
+                                                        ${c.email 
+                                                            ? `<a href="mailto:${c.email}" class="text-xs text-brand-dark font-medium hover:text-blue-600 transition-colors truncate">${c.email}</a>` 
+                                                            : `<span class="text-xs text-slate-400 italic">No registrado</span>`}
+                                                    </div>
+                                                    <div class="flex items-center gap-2.5 p-2 bg-slate-50 rounded-lg">
+                                                        <div class="w-7 h-7 bg-green-50 rounded-md flex items-center justify-center text-green-500 shrink-0">
+                                                            <i class="ph-bold ph-phone text-sm"></i>
+                                                        </div>
+                                                        ${c.phone 
+                                                            ? `<a href="tel:${c.phone}" class="text-xs text-brand-dark font-medium hover:text-green-600 transition-colors">${c.phone}</a>` 
+                                                            : `<span class="text-xs text-slate-400 italic">No registrado</span>`}
+                                                    </div>
+                                                </div>
+                                                <div class="mt-3 pt-3 border-t border-slate-50">
+                                                    <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                                                        <i class="ph-bold ph-handshake text-xs"></i>
+                                                        <span>Acuerdo: <strong class="text-brand-orange">${c.agreementSplit || c.split || 70}%</strong> para el socio</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="flex items-center gap-2 mt-1">
                                         <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">${c.agreementSplit || c.split || 70}% Acuerdo</span>
                                     </div>
@@ -10801,9 +10853,21 @@ const app = {
                             </div>
                             
                             <div class="grid grid-cols-2 gap-4 mb-6">
-                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <!-- Stock Actual with hover preview -->
+                                <div class="relative group/stock bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-default">
                                     <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Stock Actual</p>
                                     <p class="font-display font-bold text-xl text-brand-dark">${inStockCount}</p>
+                                    ${inStockCount > 0 ? `
+                                    <!-- Stock hover tooltip -->
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-brand-dark rounded-xl shadow-2xl border border-slate-700 p-3 opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible transition-all duration-200 z-50 pointer-events-none">
+                                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-brand-dark"></div>
+                                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="ph-bold ph-vinyl-record mr-1"></i>Discos en stock (${inStockCount})</p>
+                                        <div class="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                            ${stockItemsHtml || '<p class="text-[10px] text-slate-500 text-center py-2">Sin items</p>'}
+                                            ${stockOverflowHtml}
+                                        </div>
+                                    </div>
+                                    ` : ''}
                                 </div>
                                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pendiente Pago</p>
@@ -10856,6 +10920,16 @@ const app = {
                                                                 </div>
     `;
         container.innerHTML = html;
+
+        // Close info popovers on click outside
+        document.addEventListener('click', function closeInfoPopovers(e) {
+            if (!e.target.closest('[id^="info-wrap-"]')) {
+                document.querySelectorAll('[id^="info-pop-"]').forEach(p => {
+                    p.classList.add('hidden', 'opacity-0');
+                    p.classList.remove('opacity-100');
+                });
+            }
+        }, { once: false });
     },
 
     togglePayoutStatus(saleId, currentStatus) {
