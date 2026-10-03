@@ -3317,8 +3317,10 @@ const app = {
                 })
                 .reduce((sum, e) => sum + (Number(e.monto_total || e.amount) || 0), 0);
 
-            const netProfitActual = totalNetProfit - taxAmount - periodExpenses;
-            const cuartitoShare = totalNetProfit - taxAmount; // Legacy reference
+            // NET PROFIT: IVA is tax-neutral per SKAT (Denmark) — NOT an operating expense.
+            // Formula: Gross Profit (sales margin - platform fees) + Extra Income - Operating Expenses
+            const netProfitActual = totalNetProfit - periodExpenses;
+            const cuartitoShare = totalNetProfit; // Legacy reference (IVA excluded per SKAT rules)
 
             // 3. Stock Metrics
             const totalStockValueSale = this.state.inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
@@ -3501,10 +3503,6 @@ const app = {
                                 <span class="text-slate-400">Ingresos Extra:</span>
                                 <span class="text-green-400">+${this.formatCurrency(extraIncomeTotal)}</span>
                             </div>
-                            <div class="flex justify-between gap-4 mb-1">
-                                <span class="text-slate-400">Impuestos (IVA):</span>
-                                <span class="text-red-400">-${this.formatCurrency(taxAmount)}</span>
-                            </div>
                             <div class="flex justify-between gap-4 mb-2 pb-2 border-b border-slate-700">
                                 <span class="text-slate-400">Gastos Operativos:</span>
                                 <span class="text-red-400">-${this.formatCurrency(periodExpenses)}</span>
@@ -3513,6 +3511,7 @@ const app = {
                                 <span>Beneficio Neto:</span>
                                 <span>${this.formatCurrency(netProfitActual)}</span>
                             </div>
+                            <div class="text-[9px] text-slate-500 mt-2 pt-2 border-t border-slate-700">IVA excluido (impuesto neutro según SKAT)</div>
                             <div class="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-brand-dark"></div>
                         </div>
 
@@ -3523,7 +3522,7 @@ const app = {
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Beneficio Neto</span>
                         </div>
                         <p class="text-4xl font-display font-bold text-emerald-600 mb-2">${this.formatCurrency(netProfitActual)}</p>
-                        <p class="text-[10px] text-slate-400 font-medium">Incluye costos, fees y gastos operativos.</p>
+                        <p class="text-[10px] text-slate-400 font-medium">Margen bruto + extras − gastos operativos. IVA excluido.</p>
                     </div>
 
                     <!-- Card 3: Alerta de Pedidos -->
@@ -3766,14 +3765,31 @@ const app = {
                                 </button>
                             </div>
 
-                            <!-- Mini Fiscal Summary Widget -->
+                            <!-- Posición SKAT — Pasivo de IVA (no afecta P&L) -->
                             <div class="mt-8 pt-8 border-t border-slate-50">
-                                <div class="bg-brand-dark p-6 rounded-2xl text-white shadow-xl shadow-brand-dark/10 relative overflow-hidden group">
-                                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Resumen Fiscal</h4>
-                                    <div class="flex justify-between items-baseline">
-                                        <span class="text-xs text-slate-300 font-bold uppercase tracking-tighter">Moms Tilsvar:</span>
-                                        <span class="text-xl font-display font-bold text-brand-orange">${this.formatCurrency(estimatedVAT)}</span>
+                                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl shadow-slate-900/10 relative overflow-hidden">
+                                    <div class="absolute top-0 right-0 w-24 h-24 bg-brand-orange/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                                    <div class="flex items-center gap-2 mb-4">
+                                        <div class="w-7 h-7 bg-brand-orange/10 rounded-lg flex items-center justify-center">
+                                            <i class="ph-bold ph-bank text-sm text-brand-orange"></i>
+                                        </div>
+                                        <h4 class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Posición SKAT · Moms</h4>
                                     </div>
+                                    <div class="flex justify-between items-baseline mb-3">
+                                        <span class="text-xs text-slate-400 font-bold uppercase tracking-tighter">Moms Tilsvar:</span>
+                                        <span class="text-2xl font-display font-bold ${estimatedVAT > 0 ? 'text-red-400' : 'text-emerald-400'}">${this.formatCurrency(estimatedVAT)}</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3 text-[10px]">
+                                        <div class="bg-white/5 rounded-lg p-2.5">
+                                            <span class="text-slate-500 block mb-0.5">Output (ventas)</span>
+                                            <span class="text-white font-bold">${this.formatCurrency(totalLiability)}</span>
+                                        </div>
+                                        <div class="bg-white/5 rounded-lg p-2.5">
+                                            <span class="text-slate-500 block mb-0.5">Input (compras)</span>
+                                            <span class="text-emerald-400 font-bold">-${this.formatCurrency(totalDeductions)}</span>
+                                        </div>
+                                    </div>
+                                    <p class="text-[9px] text-slate-500 mt-3">Impuesto neutro — pasivo de flujo de caja, no afecta rentabilidad.</p>
                                 </div>
                             </div>
                         </div>
