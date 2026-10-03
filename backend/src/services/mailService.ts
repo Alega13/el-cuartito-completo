@@ -649,13 +649,20 @@ export const sendSaleNotificationEmail = async (saleData: {
         };
         const channelLabel = channelLabels[saleData.channel] || saleData.channel;
 
-        const itemsHtml = saleData.items.map((item: any) => {
+        const items = await enrichItemImages(saleData.items || []);
+
+        const itemsHtml = items.map((item: any) => {
             const price = item.priceAtSale || item.price || item.unitPrice || 0;
             const qty = item.qty || item.quantity || 1;
             const lineTotal = price * qty;
+            const img = item.cover_image || item.image || DEFAULT_VINYL;
             return `
     <tr>
-      <td style="padding:12px 0;border-top:1px solid #ececec;vertical-align:top;">
+      <td width="64" style="padding:12px 0;border-top:1px solid #ececec;vertical-align:middle;">
+        <img src="${img}" alt="" width="56" height="56"
+             style="display:block;width:56px;height:56px;border-radius:2px;object-fit:cover;"/>
+      </td>
+      <td style="padding:12px 12px;border-top:1px solid #ececec;vertical-align:top;">
         <div style="font-size:15px;font-weight:600;color:#111111;line-height:1.3;">${item.album || 'Unknown'}</div>
         <div style="font-size:12px;color:#888888;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">${item.artist || ''}</div>
         <div style="font-size:12px;color:#aaaaaa;margin-top:4px;">× ${qty}</div>
