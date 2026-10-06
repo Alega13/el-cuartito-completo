@@ -537,13 +537,14 @@ const app = {
     async loadData() {
         try {
             // Load data directly from Firestore (no Railway needed)
-            const [inventorySnap, salesSnap, expensesSnap, eventsSnap, consignorsSnap, extraIncomeSnap] = await Promise.all([
+            const [inventorySnap, salesSnap, expensesSnap, eventsSnap, consignorsSnap, extraIncomeSnap, recurringSnap] = await Promise.all([
                 db.collection('products').get(),
                 db.collection('sales').get(), // ✅ Removed orderBy to avoid filtering out documents
                 db.collection('expenses').get(), // ✅ Removed orderBy to avoid filtering out new docs
                 db.collection('events').orderBy('date', 'desc').get(),
                 db.collection('consignors').get(),
-                db.collection('extra_income').get()
+                db.collection('extra_income').get(),
+                db.collection('recurring_expenses').get()
             ]);
 
             this.state.inventory = inventorySnap.docs.map(doc => {
@@ -622,6 +623,11 @@ const app = {
                 id: doc.id,
                 ...doc.data()
             }));
+
+            this.state.recurringExpenses = (recurringSnap ? recurringSnap.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) : []);
 
             this.state.consignors = consignorsSnap.docs.map(doc => {
                 const data = doc.data();
@@ -4269,6 +4275,13 @@ const app = {
             const stock = Number(i.stock) || 0;
             return sum + (stock > 0 ? (parseFloat(i.price) || 0) * stock : 0);
         }, 0);
+        // 6. Valuación a costo (para impuestos el inventario se valúa a costo, no a precio de venta).
+        // El modelo guarda `cost` por SKU (campo del formulario "Añadir Disco"); puede faltar en discos viejos.
+        const totalCostValue = filteredInventory.reduce((sum, i) => {
+            const stock = Number(i.stock) || 0;
+            return sum + (stock > 0 ? (parseFloat(i.cost) || 0) * stock : 0);
+        }, 0);
+        const missingCostCount = filteredInventory.filter(i => (Number(i.stock) || 0) > 0 && !(parseFloat(i.cost) > 0)).length;
         const inStock = filteredInventory.filter(i => (i.stock || 0) > 0).length;
         const onDiscogs = filteredInventory.filter(i => i.discogs_listing_id).length;
 
@@ -4392,8 +4405,13 @@ const app = {
                     <p class="text-xl font-bold text-brand-dark font-display mt-1">${totalItems}${isFiltered ? ` <span class="text-xs text-slate-400 font-normal">/ ${globalTotal}</span>` : ''}</p>
                 </div>
                 <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total ${filteredBadge}</p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total (venta) ${filteredBadge}</p>
                     <p class="text-xl font-bold text-brand-orange font-display mt-1">${this.formatCurrency(totalValue)}</p>
+                </div>
+                <div class="kpi-card">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor a Costo ${filteredBadge}</p>
+                    <p class="text-xl font-bold text-emerald-600 font-display mt-1">${this.formatCurrency(totalCostValue)}</p>
+                    ${missingCostCount > 0 ? `<p class="text-[10px] text-amber-600 font-medium mt-1">${missingCostCount} discos sin costo cargado</p>` : `<p class="text-[10px] text-slate-400 mt-1">Base imponible aprox.</p>`}
                 </div>
                 <div class="kpi-card">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Stock ${filteredBadge}</p>
@@ -9706,6 +9724,7 @@ const app = {
             { value: 'honorarios', label: 'Honorarios Profesionales', type: 'operativo' },
             { value: 'oficina', label: 'Material de Oficina', type: 'operativo' },
             { value: 'transporte', label: 'Transporte', type: 'operativo' },
+            { value: 'comisiones', label: 'Comisiones (MobilePay/Pagos)', type: 'operativo' },
             { value: 'otros_op', label: 'Otros Gastos Operativos', type: 'operativo' },
             // Stock purchases (trigger inventory ingest)
             { value: 'stock_nuevo', label: '📦 Stock: Vinilos NUEVOS (Distribuidor)', type: 'stock_nuevo' },
@@ -9722,6 +9741,30 @@ const app = {
             (e.category || e.categoria || '').toLowerCase().includes(searchTerm) ||
             (e.proveedor || '').toLowerCase().includes(searchTerm)
         );
+
+        // --- Totals (general + by category + by month) over the filtered list ---
+        const expensesTotal = filteredExpenses.reduce((sum, e) => sum + (Number(e.monto_total || e.amount) || 0), 0);
+        const expensesByCategory = {};
+        const expensesByMonth = {};
+        filteredExpenses.forEach(e => {
+            const label = this.resolveExpenseCategoryLabel(e.categoria || e.category);
+            const amt = Number(e.monto_total || e.amount) || 0;
+            expensesByCategory[label] = (expensesByCategory[label] || 0) + amt;
+            const d = new Date(e.fecha_factura || e.date);
+            if (!isNaN(d)) {
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                expensesByMonth[key] = (expensesByMonth[key] || 0) + amt;
+            }
+        });
+        const sortedCategories = Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1]);
+        const sortedMonths = Object.entries(expensesByMonth).sort((a, b) => a[0].localeCompare(b[0]));
+        const monthKeyToLabel = (key) => {
+            const [y, m] = key.split('-');
+            return `${this.getMonthName(parseInt(m, 10) - 1)} ${y}`;
+        };
+
+        // --- Recurring expenses: which active templates are missing for the current month? ---
+        const recurringMissing = this.getRecurringMissing();
 
         const html = `
     <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6" >
@@ -9853,6 +9896,20 @@ const app = {
                                         class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none resize-none"></textarea>
                                 </div>
 
+                                <!-- Receipt override (explicit opt-out) -->
+                                <div class="flex items-start gap-3 bg-amber-50/60 p-3 rounded-xl border border-amber-100">
+                                    <input type="checkbox" id="expense-no-receipt"
+                                        class="mt-1 w-4 h-4 text-amber-600 bg-white border-amber-300 rounded focus:ring-amber-500 cursor-pointer">
+                                    <div>
+                                        <label for="expense-no-receipt" class="text-sm font-bold text-amber-800 cursor-pointer">
+                                            Cargar sin comprobante por ahora
+                                        </label>
+                                        <p class="text-[10px] text-amber-600 leading-tight mt-1">
+                                            El registro quedará marcado <strong>en revisión</strong> hasta que subas el comprobante.
+                                        </p>
+                                    </div>
+                                </div>
+
                                 <!-- Buttons -->
                                 <div class="flex gap-2 pt-2">
                                     <button type="submit" id="expense-submit-btn" 
@@ -9866,6 +9923,72 @@ const app = {
                                     </a>
                                 </div>
                             </form>
+                        </div>
+
+                        <!-- 5. Recurring expenses + MobilePay fees -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 mt-6">
+                            <h3 class="font-bold text-lg mb-1 flex items-center gap-2">
+                                <i class="ph-duotone ph-arrows-clockwise text-brand-orange"></i>
+                                Gastos Recurrentes
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mb-4">Plantillas de gastos fijos mensuales (ej. alquiler). Generá el gasto del mes con un click.</p>
+
+                            <div id="recurring-list" class="space-y-2 mb-4">
+                                ${(this.state.recurringExpenses || []).filter(t => t.active !== false).map(t => { const missing = this.getRecurringMissing().some(m => m.id === t.id); return `
+                                    <div class="flex items-center justify-between gap-2 p-3 rounded-xl ${missing ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-100'}">
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-bold text-brand-dark truncate">${t.proveedor || t.descripcion || ''}</p>
+                                            <p class="text-[10px] text-slate-400">Día ${t.dia || 1} · ${Number(t.monto_total).toFixed(2)} kr ${missing ? '· <span class="text-amber-600 font-bold">falta este mes</span>' : ''}</p>
+                                        </div>
+                                        <div class="flex gap-1 shrink-0">
+                                            <button onclick="app.generateRecurringExpense('${t.id}')" ${missing ? '' : 'disabled'}
+                                                class="text-[11px] font-bold px-3 py-1.5 rounded-lg ${missing ? 'bg-brand-orange text-white hover:bg-orange-600' : 'bg-slate-100 text-slate-300 cursor-not-allowed'} transition-colors">
+                                                Generar
+                                            </a>
+                                            <button onclick="app.deleteRecurringTemplate('${t.id}')"
+                                                class="text-slate-300 hover:text-red-500 p-1.5 transition-colors" title="Eliminar plantilla">
+                                                <i class="ph-bold ph-trash text-sm"></i>
+                                            </a>
+                                        </div>
+                                    </div>`; }).join('') || '<p class="text-xs text-slate-400 italic">Sin plantillas todavía.</p>'}
+                            </div>
+
+                            ${(this.state.recurringExpenses || []).length === 0 ? `
+                            <button onclick="app.seedDefaultRecurring()"
+                                class="w-full mb-4 py-2.5 bg-orange-50 border border-orange-200 text-brand-orange text-xs font-bold rounded-xl hover:bg-orange-100 transition-colors">
+                                <i class="ph-bold ph-plus"></i> Crear plantilla: Alquiler 4.500 kr (día 1)
+                            </a>` : ''}
+
+                            <!-- Add template mini-form -->
+                            <div class="border-t border-orange-50 pt-4 space-y-2">
+                                <p class="text-xs font-bold text-slate-500 uppercase">Nueva plantilla</p>
+                                <input id="rec-proveedor" placeholder="Descripción (ej. Alquiler local)"
+                                    class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                <div class="grid grid-cols-3 gap-2">
+                                    <input id="rec-monto" type="number" step="0.01" min="0" placeholder="Monto kr"
+                                        class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                    <select id="rec-categoria"
+                                        class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                        ${expenseCategories.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+                                    </select>
+                                    <input id="rec-dia" type="number" min="1" max="28" value="1" title="Día del mes"
+                                        class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-brand-orange outline-none">
+                                </div>
+                                <button onclick="app.addRecurringTemplate()"
+                                    class="w-full py-2.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                                    <i class="ph-bold ph-plus"></i> Añadir plantilla
+                                </a>
+                            </div>
+
+                            <!-- MobilePay fee generator -->
+                            <div class="border-t border-orange-50 mt-4 pt-4">
+                                <p class="text-xs font-bold text-slate-500 uppercase mb-1">Comisión MobilePay (0,99%)</p>
+                                <p class="text-[11px] text-slate-400 mb-3">Genera el gasto del mes = 0,99% de las ventas del mes.</p>
+                                <button onclick="app.generateMobilePayFee()"
+                                    class="w-full py-2.5 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center gap-2">
+                                    <i class="ph-bold ph-calculator"></i> Generar comisión del mes
+                                </a>
+                            </div>
                         </div>
                     </div>
 
@@ -9881,6 +10004,49 @@ const app = {
                                         oninput="app.state.expensesSearch = this.value; app.renderExpenses(document.getElementById('app-content'))"
                                         placeholder="Buscar por proveedor, categoría..."
                                         class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-orange">
+                                </div>
+                            </div>
+
+                            <!-- Recurring missing alert -->
+                            ${recurringMissing.length > 0 ? `
+                            <div class="mx-4 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                                <i class="ph-fill ph-warning text-amber-500 text-lg mt-0.5"></i>
+                                <div class="text-xs text-amber-800">
+                                    <p class="font-bold mb-1">Falta cargar este mes:</p>
+                                    <ul class="list-disc ml-4 space-y-0.5">
+                                        ${recurringMissing.map(t => `<li>${t.proveedor} — ${Number(t.monto_total).toFixed(2)} kr</li>`).join('')}
+                                    </ul>
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            <!-- Totals: general + by category + by month -->
+                            <div class="p-4 border-b border-orange-50 bg-slate-50/60">
+                                <div class="flex items-baseline justify-between mb-3">
+                                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total gastos</p>
+                                    <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(expensesTotal)}</p>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Por categoría</p>
+                                        <div class="space-y-1">
+                                            ${sortedCategories.map(([label, amt]) => `
+                                                <div class="flex justify-between text-xs">
+                                                    <span class="text-slate-600 truncate pr-2">${label}</span>
+                                                    <span class="font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(amt)}</span>
+                                                </div>`).join('')}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Por mes</p>
+                                        <div class="space-y-1">
+                                            ${sortedMonths.map(([key, amt]) => `
+                                                <div class="flex justify-between text-xs">
+                                                    <span class="text-slate-600">${monthKeyToLabel(key)}</span>
+                                                    <span class="font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(amt)}</span>
+                                                </div>`).join('')}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -9910,7 +10076,7 @@ const app = {
                                                 </td>
                                                 <td class="p-4">
                                                     <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-                                                        ${expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || '-'}
+                                                        ${this.resolveExpenseCategoryLabel(e.categoria || e.category)}
                                                     </span>
                                                     ${(e.categoria === 'stock_nuevo' || e.categoria === 'stock_usado' || e.category === 'Inventario (compra de vinilos)') ? `
                                                         <button onclick="app.openInventoryIngest('${e.id}')" 
@@ -9948,12 +10114,16 @@ const app = {
                                                                 <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white -mt-px"></div>
                                                             </div>
                                                         </div>
+                                                    ` : (e.receiptPending ? `
+                                                        <span class="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full text-[10px] font-bold" title="Comprobante pendiente de carga">
+                                                            <i class="ph-fill ph-clock"></i> En revisión
+                                                        </span>
                                                     ` : `
                                                         <span class="inline-flex items-center gap-1 text-red-500" title="⚠️ Sin comprobante - Peligro fiscal">
                                                             <i class="ph-fill ph-paperclip text-lg"></i>
                                                             <i class="ph-fill ph-warning text-xs"></i>
                                                         </span>
-                                                    `}
+                                                    `)}
                                                 </td>
                                                 <td class="p-4">
                                                     <div class="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -10001,12 +10171,19 @@ const app = {
                                             </p>
                                         </div>
                                     </div>
-                                    <!-- Export Button -->
-                                    <button onclick="app.downloadReceiptsZip()" 
-                                        class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
-                                        <i class="ph-bold ph-file-zip"></i>
-                                        Descargar Comprobantes del Mes (ZIP)
-                                    </a>
+                                    <!-- Export Buttons -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        <button onclick="app.exportExpensesToCSV()"
+                                            class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 text-sm">
+                                            <i class="ph-bold ph-file-csv"></i>
+                                            Exportar CSV
+                                        </a>
+                                        <button onclick="app.downloadReceiptsZip()"
+                                            class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
+                                            <i class="ph-bold ph-file-zip"></i>
+                                            Descargar Comprobantes del Mes (ZIP)
+                                        </a>
+                                    </div>
                                 </div>
                             ` : ''}
                         </div>
@@ -10059,6 +10236,10 @@ const app = {
             document.getElementById('receipt-filename').textContent = 'Recibo guardado';
         }
 
+        // Reflect the "pending receipt" override state
+        const noReceiptBox = document.getElementById('expense-no-receipt');
+        if (noReceiptBox) noReceiptBox.checked = !!expense.receiptPending && !expense.receiptUrl;
+
         // Update UI State
         document.getElementById('expense-form-title').innerHTML = '<i class="ph-duotone ph-pencil-simple text-brand-orange"></i> Editar Compra';
         document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Actualizar';
@@ -10085,6 +10266,60 @@ const app = {
         document.getElementById('upload-preview').classList.add('hidden');
         document.getElementById('receipt-preview-img').src = '';
         document.getElementById('receipt-filename').textContent = '';
+
+        // Reset receipt override checkbox
+        const noReceiptBox = document.getElementById('expense-no-receipt');
+        if (noReceiptBox) noReceiptBox.checked = false;
+    },
+
+    // Resolves a readable category label, including legacy values from older records
+    // (e.g. 'stock_eu_b2b' -> '📦 Stock: Vinilos NUEVOS (Distribuidor)')
+    resolveExpenseCategoryLabel(value) {
+        const legacyLabels = {
+            'stock_eu_b2b': '📦 Stock: Vinilos NUEVOS (Distribuidor)',
+        };
+        const found = (window.expenseCategories || []).find(c => c.value === value);
+        return found?.label || legacyLabels[value] || value || '-';
+    },
+
+    // Normalized text for duplicate detection: lowercase, no accents, single spaces
+    normalizeText(s) {
+        return (s || '').toString().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ').trim();
+    },
+
+    // Levenshtein-based similarity 0..1 (catches typos like "discgs" vs "discogs")
+    _textSimilarity(a, b) {
+        a = a || ''; b = b || '';
+        if (!a || !b) return 0;
+        if (a === b) return 1;
+        const m = a.length, n = b.length;
+        if (Math.abs(m - n) > Math.max(m, n) * 0.4) return 0;
+        let prev = Array.from({ length: n + 1 }, (_, j) => j);
+        for (let i = 1; i <= m; i++) {
+            const cur = [i];
+            for (let j = 1; j <= n; j++) {
+                cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            }
+            prev = cur;
+        }
+        return 1 - prev[n] / Math.max(m, n);
+    },
+
+    // 2. Finds a likely-duplicate expense: same date + same amount + similar concept
+    findDuplicateExpense(fecha, monto, proveedor, descripcion, excludeId) {
+        const target = this.normalizeText(`${proveedor || ''} ${descripcion || ''}`);
+        const targetDate = (fecha || '').slice(0, 10);
+        const targetAmount = Number(monto) || 0;
+        return (this.state.expenses || []).find(e => {
+            if (excludeId && e.id === excludeId) return false;
+            if ((e.fecha_factura || e.date || '').slice(0, 10) !== targetDate) return false;
+            if (Math.abs((Number(e.monto_total || e.amount) || 0) - targetAmount) > 0.005) return false;
+            const existing = this.normalizeText(`${e.proveedor || e.description || ''} ${e.descripcion || ''}`);
+            if (!target || !existing) return false;
+            return existing.includes(target) || target.includes(existing) || this._textSimilarity(target, existing) >= 0.6;
+        });
     },
 
     handleExpenseSubmit(e) {
@@ -10110,6 +10345,22 @@ const app = {
             receiptUrl: document.getElementById('receipt-url').value || '',
             timestamp: new Date().toISOString()
         };
+
+        // 4. Comprobante obligatorio, salvo override explícito ("cargar sin comprobante por ahora")
+        const noReceiptOverride = document.getElementById('expense-no-receipt')?.checked;
+        if (!expenseData.receiptUrl && !noReceiptOverride) {
+            this.showToast('❌ Subí el comprobante o marcá "Cargar sin comprobante por ahora".');
+            return;
+        }
+        expenseData.receiptPending = !expenseData.receiptUrl && !!noReceiptOverride;
+
+        // 2. Detector de duplicados: misma fecha + mismo importe + concepto similar
+        const editingId = formData.get('id');
+        const dup = this.findDuplicateExpense(expenseData.fecha_factura, expenseData.monto_total, expenseData.proveedor, expenseData.descripcion, editingId || null);
+        if (dup) {
+            const ok = confirm(`⚠️ Parece duplicado de "${dup.proveedor || dup.description || ''}" (${this.formatDate(dup.fecha_factura || dup.date)} · ${Number(dup.monto_total || dup.amount || 0).toFixed(2)} kr).\n\n¿Guardar igual?`);
+            if (!ok) return;
+        }
 
         // If it's a global B2B inventory invoice, neutralise its VAT and ensure it bypasses the VAT reports
         // since the VAT and deductions are already handled at the item-level Micro-IVA
@@ -10222,6 +10473,215 @@ const app = {
                 this.loadData();
             })
             .catch(err => console.error(err));
+    },
+
+    // 1. Exporta el Registro de Compras a CSV (compatible con Excel).
+    // Separador ";" (convención Excel en configuración danesa) + BOM para UTF-8.
+    exportExpensesToCSV() {
+        const rows = this.state.expenses || [];
+        if (rows.length === 0) {
+            this.showToast('ℹ️ No hay registros para exportar.');
+            return;
+        }
+        const esc = (v) => {
+            const s = (v === null || v === undefined) ? '' : String(v);
+            return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        };
+        const header = ['Fecha', 'Proveedor', 'Descripcion', 'Categoria', 'Importe (DKK)', 'IVA (DKK)', 'Comprobante'];
+        const lines = [header.map(esc).join(';')];
+        // Orden cronológico ascendente para el contador
+        const sorted = [...rows].sort((a, b) => new Date(a.fecha_factura || a.date) - new Date(b.fecha_factura || b.date));
+        sorted.forEach(e => {
+            lines.push([
+                esc((e.fecha_factura || e.date || '').slice(0, 10)),
+                esc(e.proveedor || e.description || ''),
+                esc(e.descripcion || ''),
+                esc(this.resolveExpenseCategoryLabel(e.categoria || e.category)),
+                esc(Number(e.monto_total || e.amount || 0).toFixed(2)),
+                esc(Number(e.monto_iva || 0).toFixed(2)),
+                esc(e.receiptUrl ? 'Si' : (e.receiptPending ? 'Pendiente' : 'No'))
+            ].join(';'));
+        });
+        const csv = '\uFEFF' + lines.join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `registro-compras-${new Date().getFullYear()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        this.showToast(`✅ CSV exportado (${rows.length} registros)`);
+    },
+
+    // 5a. Gastos recurrentes: plantillas mensuales en la colección 'recurring_expenses'
+    getRecurringMissing() {
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        return (this.state.recurringExpenses || []).filter(t => t.active !== false).filter(t => {
+            return !(this.state.expenses || []).some(e => {
+                const d = new Date(e.fecha_factura || e.date);
+                return d.getFullYear() === y && d.getMonth() === m &&
+                    (e.categoria || e.category) === t.categoria &&
+                    Math.abs((Number(e.monto_total || e.amount) || 0) - Number(t.monto_total)) < 0.005;
+            });
+        });
+    },
+
+    async addRecurringTemplate() {
+        const proveedor = (document.getElementById('rec-proveedor').value || '').trim();
+        const monto = parseFloat(document.getElementById('rec-monto').value) || 0;
+        const categoria = document.getElementById('rec-categoria').value;
+        const dia = Math.min(Math.max(parseInt(document.getElementById('rec-dia').value) || 1, 1), 28);
+        if (!proveedor || monto <= 0 || !categoria) {
+            this.showToast('❌ Completá descripción, monto y categoría.');
+            return;
+        }
+        const cat = (window.expenseCategories || []).find(c => c.value === categoria);
+        try {
+            await db.collection('recurring_expenses').add({
+                proveedor,
+                descripcion: proveedor,
+                categoria,
+                categoria_label: cat?.label || categoria,
+                categoria_tipo: cat?.type || 'operativo',
+                monto_total: monto,
+                monto_iva: 0,
+                dia,
+                active: true,
+                createdAt: new Date().toISOString()
+            });
+            this.showToast('✅ Plantilla recurrente creada');
+            this.loadData();
+        } catch (err) {
+            this.showToast('❌ Error: ' + err.message);
+        }
+    },
+
+    async deleteRecurringTemplate(id) {
+        if (!confirm('¿Eliminar esta plantilla recurrente?')) return;
+        try {
+            await db.collection('recurring_expenses').doc(id).delete();
+            this.showToast('🗑️ Plantilla eliminada');
+            this.loadData();
+        } catch (err) {
+            this.showToast('❌ Error: ' + err.message);
+        }
+    },
+
+    async seedDefaultRecurring() {
+        try {
+            await db.collection('recurring_expenses').add({
+                proveedor: 'Alquiler local',
+                descripcion: 'Alquiler local',
+                categoria: 'alquiler',
+                categoria_label: 'Alquiler',
+                categoria_tipo: 'operativo',
+                monto_total: 4500,
+                monto_iva: 0,
+                dia: 1,
+                active: true,
+                createdAt: new Date().toISOString()
+            });
+            this.showToast('✅ Plantilla de alquiler creada');
+            this.loadData();
+        } catch (err) {
+            this.showToast('❌ Error: ' + err.message);
+        }
+    },
+
+    async generateRecurringExpense(templateId) {
+        const t = (this.state.recurringExpenses || []).find(x => x.id === templateId);
+        if (!t) return;
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        // Guard: no duplicar si ya existe el gasto este mes
+        const exists = (this.state.expenses || []).some(e => {
+            const d = new Date(e.fecha_factura || e.date);
+            return d.getFullYear() === y && d.getMonth() === m &&
+                (e.categoria || e.category) === t.categoria &&
+                Math.abs((Number(e.monto_total || e.amount) || 0) - Number(t.monto_total)) < 0.005;
+        });
+        if (exists) {
+            this.showToast('ℹ️ Este gasto ya está cargado este mes.');
+            return;
+        }
+        const fecha = `${y}-${String(m + 1).padStart(2, '0')}-${String(Math.min(t.dia || 1, 28)).padStart(2, '0')}`;
+        try {
+            await db.collection('expenses').add({
+                proveedor: t.proveedor,
+                descripcion: (t.descripcion || '') + ` (${this.getMonthName(m)} ${y})`,
+                fecha_factura: fecha,
+                date: fecha,
+                monto_total: Number(t.monto_total),
+                monto_iva: Number(t.monto_iva) || 0,
+                categoria: t.categoria,
+                categoria_label: t.categoria_label || t.categoria,
+                categoria_tipo: t.categoria_tipo || 'operativo',
+                is_vat_deductible: (t.categoria_tipo || 'operativo') === 'operativo',
+                receiptUrl: '',
+                receiptPending: true, // se genera sin comprobante: queda en revisión
+                recurrente: true,
+                timestamp: new Date().toISOString()
+            });
+            this.showToast('✅ Gasto recurrente generado (en revisión: subí el comprobante)');
+            this.loadData();
+        } catch (err) {
+            this.showToast('❌ Error: ' + err.message);
+        }
+    },
+
+    // 5b. Comisión MobilePay 0,99% sobre las ventas del mes corriente
+    async generateMobilePayFee() {
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth();
+        // Guard: no duplicar
+        const exists = (this.state.expenses || []).some(e => {
+            const d = new Date(e.fecha_factura || e.date);
+            return d.getFullYear() === y && d.getMonth() === m &&
+                (e.categoria || e.category) === 'comisiones' &&
+                this.normalizeText(e.proveedor || '').includes('mobilepay');
+        });
+        if (exists) {
+            this.showToast('ℹ️ La comisión MobilePay de este mes ya está cargada.');
+            return;
+        }
+        const monthSales = (this.state.sales || [])
+            .filter(s => {
+                const d = new Date(s.date);
+                return d.getFullYear() === y && d.getMonth() === m;
+            })
+            .reduce((sum, s) => sum + (Number(s.total || s.total_amount) || 0), 0);
+        if (monthSales <= 0) {
+            this.showToast('ℹ️ No hay ventas este mes para calcular la comisión.');
+            return;
+        }
+        const fee = Math.round(monthSales * 0.009 * 100) / 100;
+        const lastDay = new Date(y, m + 1, 0).getDate();
+        const fecha = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        try {
+            await db.collection('expenses').add({
+                proveedor: 'MobilePay',
+                descripcion: `Comisión 0,99% sobre ${monthSales.toFixed(2)} kr en ventas de ${this.getMonthName(m)} ${y}`,
+                fecha_factura: fecha,
+                date: fecha,
+                monto_total: fee,
+                monto_iva: 0,
+                categoria: 'comisiones',
+                categoria_label: 'Comisiones (MobilePay/Pagos)',
+                categoria_tipo: 'operativo',
+                is_vat_deductible: true,
+                receiptUrl: '',
+                receiptPending: true,
+                recurrente: true,
+                timestamp: new Date().toISOString()
+            });
+            this.showToast(`✅ Comisión MobilePay generada: ${fee.toFixed(2)} kr`);
+            this.loadData();
+        } catch (err) {
+            this.showToast('❌ Error: ' + err.message);
+        }
     },
 
     // Download all receipts from current month as ZIP
