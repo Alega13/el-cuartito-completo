@@ -7478,7 +7478,6 @@ const app = {
         const sale = this.state.sales.find(s => s.id === saleId);
         if (!sale) return;
 
-        const customerInfo = this.getCustomerInfo(sale);
         const history = sale.history || [];
         const createdDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : (sale.date ? new Date(sale.date) : new Date());
 
@@ -7667,28 +7666,13 @@ const app = {
                             <div class="space-y-4">
                                 <h4 class="font-bold text-brand-dark flex items-center gap-2">
                                     <i class="ph-fill ph-user-circle text-brand-orange"></i> Cliente
+                                    <button onclick="app.toggleCustomerEdit('${sale.id}')" title="Editar datos del cliente"
+                                        class="ml-auto w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange flex items-center justify-center transition-colors">
+                                        <i class="ph-bold ph-pencil-simple"></i>
+                                    </button>
                                 </h4>
-                                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre</p>
-                                        <p class="font-bold text-brand-dark">${customerInfo.name}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Email</p>
-                                        <p class="text-sm font-medium text-slate-600 truncate">${customerInfo.email || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</p>
-                                        <p class="text-sm font-medium text-slate-600">${sale.customer?.phone || '-'}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
-                                        <p class="text-xs font-medium text-slate-600 leading-relaxed">${customerInfo.address || 'Sin dirección registrada'}</p>
-                                        ${customerInfo.hasAddress ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerInfo.address)}" target="_blank" class="text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1">
-                                            <i class="ph ph-map-pin"></i> Ver en Maps
-                                        </a>` : ''}
-                                    </div>
-                                </div>
+                                <div id="ci-view">${this.renderCustomerInfoView(sale)}</div>
+                                <div id="ci-form" class="hidden">${this.renderCustomerInfoForm(sale)}</div>
                             </div>
 
                             <!-- Fulfillment Actions -->
@@ -7752,6 +7736,150 @@ const app = {
         </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    // --- Datos del cliente (ficha de envío): vista + edición inline ---
+    renderCustomerInfoView(sale) {
+        const ci = this.getCustomerInfo(sale);
+        return `
+            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre</p>
+                    <p class="font-bold text-brand-dark">${ci.name}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Email</p>
+                    <p class="text-sm font-medium text-slate-600 truncate">${ci.email || '-'}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</p>
+                    <p class="text-sm font-medium text-slate-600">${ci.phone || '-'}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
+                    <p class="text-xs font-medium text-slate-600 leading-relaxed">${ci.address || 'Sin dirección registrada'}</p>
+                    ${ci.hasAddress ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ci.address)}" target="_blank" class="text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1">
+                        <i class="ph ph-map-pin"></i> Ver en Maps
+                    </a>` : ''}
+                </div>
+            </div>`;
+    },
+
+    renderCustomerInfoForm(sale) {
+        const escA = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const customer = sale.customer || {};
+        const ship = customer.shipping || {};
+        const name = sale.customerName || customer.name || '';
+        const email = sale.customerEmail || customer.email || '';
+        const phone = customer.phone || sale.customerPhone || sale.phone || '';
+        const field = (id, label, value, type = 'text', placeholder = '') => `
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">${label}</label>
+                <input id="${id}" type="${type}" value="${escA(value)}" placeholder="${placeholder}"
+                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-sm font-medium text-brand-dark">
+            </div>`;
+        return `
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+                ${field('ci-name', 'Nombre', name, 'text', 'Nombre del cliente')}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    ${field('ci-email', 'Email', email, 'email', 'cliente@mail.com')}
+                    ${field('ci-phone', 'Teléfono', phone, 'tel', '+45 ...')}
+                </div>
+                ${field('ci-addr1', 'Dirección (línea 1)', ship.line1 || '', 'text', 'Calle y número')}
+                ${field('ci-addr2', 'Dirección (línea 2)', ship.line2 || '', 'text', 'Piso, puerta (opcional)')}
+                <div class="grid grid-cols-2 gap-3">
+                    ${field('ci-city', 'Ciudad', ship.city || '', 'text', 'Copenhague')}
+                    ${field('ci-zip', 'Código postal', ship.postal_code || ship.zip || '', 'text', '1050')}
+                </div>
+                ${field('ci-country', 'País', ship.country || '', 'text', 'Dinamarca')}
+                <div class="flex gap-2 pt-1">
+                    <button onclick="app.saveCustomerInfo('${sale.id}')"
+                        class="flex-1 py-2.5 bg-brand-dark text-white text-xs font-bold rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-check"></i> Guardar datos
+                    </button>
+                    <button onclick="app.toggleCustomerEdit('${sale.id}')"
+                        class="px-4 py-2.5 bg-slate-100 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                        Cancelar
+                    </button>
+                </div>
+            </div>`;
+    },
+
+    toggleCustomerEdit(saleId) {
+        const v = document.getElementById('ci-view');
+        const f = document.getElementById('ci-form');
+        if (!v || !f) return;
+        v.classList.toggle('hidden');
+        f.classList.toggle('hidden');
+    },
+
+    async saveCustomerInfo(saleId) {
+        const sale = this.state.sales.find(s => s.id === saleId);
+        if (!sale) return;
+        const val = (id) => (document.getElementById(id)?.value || '').trim();
+        const name = val('ci-name');
+        const email = val('ci-email');
+        const phone = val('ci-phone');
+        const line1 = val('ci-addr1'), line2 = val('ci-addr2'), city = val('ci-city');
+        const zip = val('ci-zip'), country = val('ci-country');
+
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            this.showToast('⚠️ El email no tiene un formato válido');
+            return;
+        }
+
+        // Paths canónicos que lee getCustomerInfo (sirven para WebShop y Discogs)
+        const updates = {
+            'customer.name': name,
+            'customer.email': email,
+            'customer.phone': phone,
+            'customer.shipping.line1': line1,
+            'customer.shipping.line2': line2,
+            'customer.shipping.city': city,
+            'customer.shipping.postal_code': zip,
+            'customer.shipping.country': country,
+        };
+        // Sincronizar campos planos legacy si el registro los usa
+        if (sale.customerName !== undefined) updates['customerName'] = name;
+        if (sale.customerEmail !== undefined) updates['customerEmail'] = email;
+        if (sale.customerPhone !== undefined) updates['customerPhone'] = phone;
+        if (sale.phone !== undefined) updates['phone'] = phone;
+        // Sincronizar dirección en formato string si el registro no usaba customer.shipping
+        const hadStructured = !!(sale.customer && sale.customer.shipping);
+        const composed = [[line1, line2].filter(Boolean).join(' '), [zip, city].filter(Boolean).join(' '), country].filter(Boolean).join(', ');
+        if (!hadStructured) {
+            if (sale.address !== undefined) updates['address'] = composed;
+            else if (sale.customer && sale.customer.address !== undefined) updates['customer.address'] = composed;
+        }
+
+        try {
+            await db.collection('sales').doc(saleId).update(updates);
+            // Merge en memoria
+            sale.customer = sale.customer || {};
+            sale.customer.name = name;
+            sale.customer.email = email;
+            sale.customer.phone = phone;
+            sale.customer.shipping = { line1, line2, city, postal_code: zip, country };
+            if (sale.customerName !== undefined) sale.customerName = name;
+            if (sale.customerEmail !== undefined) sale.customerEmail = email;
+            if (sale.customerPhone !== undefined) sale.customerPhone = phone;
+            if (sale.phone !== undefined) sale.phone = phone;
+            if (!hadStructured) {
+                if (sale.address !== undefined) sale.address = composed;
+                else if (sale.customer.address !== undefined) sale.customer.address = composed;
+            }
+            // Refrescar la vista de fondo (kanban) sin recargar la página
+            this.refreshCurrentView();
+            // Refrescar la ficha del modal
+            const v = document.getElementById('ci-view');
+            const f = document.getElementById('ci-form');
+            if (v) { v.innerHTML = this.renderCustomerInfoView(sale); v.classList.remove('hidden'); }
+            if (f) { f.innerHTML = this.renderCustomerInfoForm(sale); f.classList.add('hidden'); }
+            this.showToast('✅ Datos del cliente actualizados');
+        } catch (e) {
+            console.error('saveCustomerInfo:', e);
+            this.showToast('⚠️ Error al guardar: ' + e.message);
+        }
     },
 
     openInvoiceModal(saleId) {
@@ -10044,8 +10172,8 @@ const app = {
             { value: 'transporte', label: 'Transporte', type: 'operativo' },
             { value: 'otros_op', label: 'Otros Gastos Operativos', type: 'operativo' },
             // Stock purchases (trigger inventory ingest)
-            { value: 'stock_nuevo', label: '📦 Stock: Vinilos NUEVOS (Distribuidor)', type: 'stock_nuevo' },
-            { value: 'stock_usado', label: '📦 Stock: Vinilos USADOS (Particular/Brugtmoms)', type: 'stock_usado' },
+            { value: 'stock_nuevo', label: 'Stock: Vinilos NUEVOS (Distribuidor)', type: 'stock_nuevo' },
+            { value: 'stock_usado', label: 'Stock: Vinilos USADOS (Particular/Brugtmoms)', type: 'stock_usado' },
         ];
 
         // Store categories globally for other functions to access
@@ -10077,7 +10205,7 @@ const app = {
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <!-- Form Panel -->
                     <div class="lg:col-span-1">
-                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 sticky top-4">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-4">
                             <h3 id="expense-form-title" class="font-bold text-lg mb-4 flex items-center gap-2">
                                 <i class="ph-duotone ph-plus-circle text-brand-orange"></i>
                                 Nueva Compra
@@ -10129,7 +10257,7 @@ const app = {
                                     </label>
                                     <input name="proveedor" id="expense-proveedor" required 
                                         placeholder="Nombre de tienda/empresa"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
                                 </div>
 
                                 <!-- Invoice Date -->
@@ -10139,7 +10267,7 @@ const app = {
                                     </label>
                                     <input type="date" name="fecha_factura" id="expense-fecha" required 
                                         value="${new Date().toISOString().split('T')[0]}"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
                                 </div>
 
                                 <!-- Total Amount -->
@@ -10149,7 +10277,7 @@ const app = {
                                     </label>
                                     <input type="number" name="monto_total" id="expense-monto" step="0.01" min="0" required
                                         placeholder="0.00"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none text-lg font-bold">
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-lg font-bold">
                                 </div>
 
                                 <!-- VAT Amount -->
@@ -10159,9 +10287,9 @@ const app = {
                                     </label>
                                     <input type="number" name="monto_iva" id="expense-iva" step="0.01" min="0" value="0"
                                         placeholder="0.00"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
-                                    <p class="text-[10px] text-slate-400 mt-1 italic">
-                                        💡 Puede ser 0 si el proveedor es extranjero o particular
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                                        <i class="ph-bold ph-info"></i> Puede ser 0 si el proveedor es extranjero o particular
                                     </p>
                                 </div>
 
@@ -10172,12 +10300,12 @@ const app = {
                                     </label>
                                     <select name="categoria" id="expense-categoria" required
                                         onchange="app.handleExpenseCategoryChange(this)"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none">
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
                                         <option value="" disabled selected>Seleccionar categoría...</option>
                                         ${expenseCategories.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
                                     </select>
-                                    <p id="category-warning" class="text-[10px] text-amber-600 mt-1 italic hidden">
-                                        ⚠️ Los vinilos usados (Brugtmoms) no tienen IVA deducible.
+                                    <p id="category-warning" class="text-[10px] text-amber-600 mt-1 hidden flex items-center gap-1">
+                                        <i class="ph-bold ph-warning"></i> Los vinilos usados (Brugtmoms) no tienen IVA deducible.
                                     </p>
                                 </div>
 
@@ -10202,7 +10330,7 @@ const app = {
                                     </label>
                                     <textarea name="descripcion" id="expense-descripcion" rows="2"
                                         placeholder="Detalles adicionales (opcional)"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:border-brand-orange outline-none resize-none"></textarea>
+                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none resize-none"></textarea>
                                 </div>
 
                                 <!-- Buttons -->
@@ -10223,9 +10351,9 @@ const app = {
 
                     <!-- Expenses List -->
                     <div class="lg:col-span-2">
-                        <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <!-- Search -->
-                            <div class="p-4 border-b border-orange-50">
+                            <div class="p-4 border-b border-slate-100">
                                 <div class="relative">
                                     <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                                     <input type="text"
@@ -10282,8 +10410,8 @@ const app = {
                             <!-- Table -->
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
-                                    <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-medium">
-                                        <tr>
+                                    <thead class="bg-slate-50 border-b border-slate-100">
+                                        <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                             <th class="p-4">Fecha</th>
                                             <th class="p-4">Proveedor</th>
                                             <th class="p-4">Categoría</th>
@@ -10293,9 +10421,9 @@ const app = {
                                             <th class="p-4 w-20"></th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-orange-50">
+                                    <tbody class="divide-y divide-slate-50">
                                         ${filteredExpenses.length > 0 ? filteredExpenses.map(e => `
-                                            <tr class="hover:bg-orange-50/30 transition-colors group">
+                                            <tr class="hover:bg-slate-50 transition-colors group">
                                                 <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
                                                     ${this.formatDate(e.fecha_factura || e.date)}
                                                 </td>
@@ -10304,7 +10432,7 @@ const app = {
                                                     ${e.descripcion ? `<p class="text-xs text-slate-400 truncate max-w-[200px]">${e.descripcion}</p>` : ''}
                                                 </td>
                                                 <td class="p-4">
-                                                    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
+                                                    <span class="text-[11px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
                                                         ${expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || '-'}
                                                     </span>
                                                     ${(e.categoria === 'stock_nuevo' || e.categoria === 'stock_usado' || e.category === 'Inventario (compra de vinilos)') ? `
@@ -10371,9 +10499,9 @@ const app = {
                                             </tr>
                                         `).join('') : `
                                             <tr>
-                                                <td colspan="7" class="p-8 text-center text-slate-400 italic">
-                                                    <i class="ph-duotone ph-receipt text-4xl mb-2 block opacity-30"></i>
-                                                    No hay compras registradas
+                                                <td colspan="7" class="p-12 text-center">
+                                                    <i class="ph-duotone ph-receipt text-4xl text-slate-200 block mb-3"></i>
+                                                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sin compras registradas</p>
                                                 </td>
                                             </tr>
                                         `}
@@ -10383,7 +10511,7 @@ const app = {
 
                             <!-- Summary -->
                             ${filteredExpenses.length > 0 ? `
-                                <div class="p-4 bg-slate-50 border-t border-orange-100">
+                                <div class="p-4 bg-slate-50 border-t border-slate-100">
                                     <div class="flex justify-between items-center mb-3">
                                         <div class="flex items-center gap-4">
                                             <span class="text-xs text-slate-500">${filteredExpenses.length} registro(s)</span>
