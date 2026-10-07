@@ -10006,11 +10006,11 @@ const app = {
         }
     },
 
-    /* ================= Webshop (fase 1: Hero + New Arrivals) =================
+    /* ================= Web shop (fase 1: Hero + New Arrivals) =================
        La tienda elcuartito.dk arma sus secciones desde los tags de `products`:
          'hero'        → Hero (el shop solo muestra is_online == true)
-         'new_arrival' → New Arrivals
-         'Nuevos'      → tag legacy que el shop ignora (se avisa, no se toca) */
+         'new_arrival' → New Arrivals (es lo que el inventario marca como NOVEDAD)
+         'Nuevos'      → tag aparte que el shop ignora (se avisa, no se toca) */
 
     wsFilterByTag(products, tag) {
         return (products || []).filter(p => Array.isArray(p.tags) && p.tags.includes(tag));
@@ -10062,7 +10062,7 @@ const app = {
         <div class="p-4 md:p-8 max-w-6xl mx-auto animate-slide-up">
             <div class="mb-6">
                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">elcuartito.dk</p>
-                <h1 class="text-2xl font-display font-bold text-brand-dark">Webshop</h1>
+                <h1 class="text-2xl font-display font-bold text-brand-dark">Web shop</h1>
                 <p class="text-sm text-slate-500 mt-1">Administrá qué discos aparecen en el Hero y en New Arrivals de la tienda.</p>
             </div>
 
