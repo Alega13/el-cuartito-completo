@@ -2998,6 +2998,18 @@ const app = {
         } catch (e) { /* noop */ }
     },
 
+    // Blueprint Sec 06: colapsar/expandir opciones avanzadas del formulario de disco
+    toggleVinylAdvanced() {
+        const panel = document.getElementById('vinyl-advanced-options');
+        const caret = document.getElementById('vinyl-advanced-caret');
+        if (!panel) return;
+        const hidden = panel.classList.toggle('hidden');
+        if (caret) {
+            caret.classList.toggle('ph-caret-down', hidden);
+            caret.classList.toggle('ph-caret-up', !hidden);
+        }
+    },
+
     restoreNavGroups() {
         let saved = {};
         try { saved = JSON.parse(localStorage.getItem('ec_nav_groups') || '{}'); } catch (e) { /* noop */ }
@@ -6188,6 +6200,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                     <div class="grid grid-cols-12 gap-5 items-start">
                         <!-- Left: Record Details -->
                         <div class="col-span-8 space-y-4">
+                            <!-- Núcleo: lo esencial para cargar rápido -->
                             <div class="grid grid-cols-5 gap-3">
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Vinyl Grade</label>
@@ -6200,43 +6213,13 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                     </select>
                                 </div>
                                 <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Sleeve Grade</label>
-                                    <select name="sleeveCondition" class="dashboard-input w-full h-10 bg-white">
-                                        <option value="" ${!item.sleeveCondition ? 'selected' : ''}>—</option>
-                                        <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>M (Mint)</option>
-                                        <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>NM (Near Mint)</option>
-                                        <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
-                                        <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
-                                        <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>G (Good)</option>
-                                        <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
-                                        <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
-                                    </select>
-                                </div>
-
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Year</label>
-                                    <input name="year" value="${item.year || ''}" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Stock</label>
                                     <input name="stock" type="number" value="${item.stock || 1}" class="dashboard-input w-full h-10 bg-white">
                                 </div>
-                            </div>
-                            <div class="grid grid-cols-3 gap-3">
                                 <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 1</label>
-                                    <input name="genre" id="genre-1" value="${item.genre || ''}" placeholder="e.g. Electronic" class="dashboard-input w-full h-10 bg-white">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre</label>
+                                    <input name="genre" id="genre-1" value="${item.genre || ''}" placeholder="e.g. Minimal" class="dashboard-input w-full h-10 bg-white">
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 2</label>
-                                    <input name="genre2" id="genre-2" value="${item.genre2 || ''}" placeholder="e.g. Techno" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 3</label>
-                                    <input name="genre3" id="genre-3" value="${item.genre3 || ''}" placeholder="e.g. Minimal" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-4 gap-3">
                                 <div class="space-y-1">
                                     <label class="text-[9px] font-black text-slate-400 uppercase block">Label / Sello</label>
                                     <input name="label" value="${item.label || ''}" placeholder="Record label" class="dashboard-input w-full h-10 bg-white">
@@ -6248,15 +6231,58 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                         ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
                                     </select>
                                 </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Storage Location</label>
-                                    <input name="storageLocation" value="${item.storageLocation || ''}" placeholder="e.g. Shelf A" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Comments</label>
-                                    <input name="comments" value="${item.comments || ''}" placeholder="Optional notes" class="dashboard-input w-full h-10 bg-white">
-                                </div>
                             </div>
+                            <!-- Blueprint Sec 06: Opciones avanzadas colapsadas por defecto -->
+                            ${(() => {
+                                const hasAdvanced = !!(item.sleeveCondition || item.year || item.genre2 || item.genre3 || item.storageLocation || item.comments);
+                                return `
+                            <button type="button" onclick="app.toggleVinylAdvanced()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-dashed border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange transition-all">
+                                <span class="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                    <i class="ph-bold ph-sliders-horizontal"></i> Opciones avanzadas
+                                    ${hasAdvanced ? '<span class="text-[9px] bg-orange-100 text-brand-orange px-1.5 py-0.5 rounded-full normal-case tracking-normal">con datos</span>' : ''}
+                                </span>
+                                <i id="vinyl-advanced-caret" class="ph-bold ${hasAdvanced ? 'ph-caret-up' : 'ph-caret-down'}"></i>
+                            </button>
+                            <div id="vinyl-advanced-options" class="${hasAdvanced ? '' : 'hidden'} space-y-4 animate-fade-in">
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Sleeve Grade</label>
+                                        <select name="sleeveCondition" class="dashboard-input w-full h-10 bg-white">
+                                            <option value="" ${!item.sleeveCondition ? 'selected' : ''}>—</option>
+                                            <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>M (Mint)</option>
+                                            <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>NM (Near Mint)</option>
+                                            <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
+                                            <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
+                                            <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>G (Good)</option>
+                                            <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
+                                            <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Year / Pressing</label>
+                                        <input name="year" value="${item.year || ''}" placeholder="e.g. 2023" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Storage Location</label>
+                                        <input name="storageLocation" value="${item.storageLocation || ''}" placeholder="e.g. Shelf A" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 2</label>
+                                        <input name="genre2" id="genre-2" value="${item.genre2 || ''}" placeholder="e.g. Techno" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 3</label>
+                                        <input name="genre3" id="genre-3" value="${item.genre3 || ''}" placeholder="e.g. Deep House" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Comments</label>
+                                        <input name="comments" value="${item.comments || ''}" placeholder="Optional notes" class="dashboard-input w-full h-10 bg-white">
+                                    </div>
+                                </div>
+                            </div>`;
+                            })()}
                         </div>
 
                         <!-- Right Column: Channels & Shop Visibility -->
