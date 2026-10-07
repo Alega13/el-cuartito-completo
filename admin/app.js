@@ -132,8 +132,13 @@ function ecBuildShipmondoPayload(sale, input) {
     receiver_email: r.email,
     receiver_mobile: r.phone,
     parcels: [{ weight: input.parcel.weight }],
-    // TODO(API): reemplazar por los product_code reales de Shipmondo al integrar
-    product_code: input.shippingMethod === "shop" ? "SHOP_PRODUCT_CODE" : "HOME_PRODUCT_CODE",
+    // Si se eligió una tarifa real (Live Rates), su productCode viaja tal cual;
+    // si no, placeholders hasta integrar la API.
+    product_code: (() => {
+      const m = input.shippingMethod || "home";
+      if (m !== "home" && m !== "shop") return m;
+      return m === "shop" ? "SHOP_PRODUCT_CODE" : "HOME_PRODUCT_CODE";
+    })(),
     service_codes: "email_notification,sms_notification",
   };
   if (input.service_point && input.service_point.id) {
@@ -143,6 +148,68 @@ function ecBuildShipmondoPayload(sale, input) {
     payload.customs = input.customs;
   }
   return payload;
+}
+
+/* ============================================================
+   LIVE RATES · Cotización en tiempo real (Shipmondo)
+   El frontend llama al backend propio (proxy); la API key nunca
+   viaja al navegador. Si los endpoints no existen → QUOTE_ERROR
+   elegante con reintento, sin romper nada.
+   ============================================================ */
+
+/* Config tienda (Datos Legales): Dybbølsgade 14 st tv, 1721 København V */
+const EC_SENDER_ZIP = "1721";
+const EC_SENDER_COUNTRY = "DK";
+
+/* Máquina de estados por pedido */
+const QUOTE_IDLE = "idle";        // nada pedido aún
+const QUOTE_LOADING = "loading";  // esperando tarifas
+const QUOTE_ERROR = "error";      // falló la cotización (reintentable)
+const QUOTE_READY = "ready";      // tarifas en pantalla, sin selección
+const QUOTE_POINTS = "points";    // cargando puntos de retiro
+const QUOTE_SELECTED = "selected";// tarifa (+ punto si aplica) elegida
+
+function ecNewQuoteState() {
+  return { status: QUOTE_IDLE, rates: [], selectedRateId: null, servicePoints: [], selectedPointId: null, error: null };
+}
+
+/* Precio danés: 39 -> "39,00 kr." */
+function formatDKK(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "—";
+  return v.toLocaleString("da-DK", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " kr.";
+}
+
+/* Prereq lite para cotizar: CP + país + peso (puro, testeable).
+   El Pre-Flight completo (email, teléfono, dirección) se exige al comprar, no al cotizar. */
+function ecQuotePrereq(input = {}) {
+  const out = [];
+  const r = input.receiver || {};
+  if (!String(r.zipcode || "").trim()) out.push({ field: "receiver.zipcode", message: "Falta código postal" });
+  const cc = String(r.country_code || "").trim();
+  if (!/^[A-Z]{2}$/.test(cc)) out.push({ field: "receiver.country_code", message: "Falta país válido (ISO alpha-2)" });
+  const w = input.parcel ? input.parcel.weight : undefined;
+  if (!Number.isInteger(w) || w <= 0) out.push({ field: "parcel.weight", message: "Falta peso válido" });
+  return out;
+}
+
+/* Tarifas ordenadas por precio ascendente (puro, testeable) */
+function ecSortRates(rates = []) {
+  return rates.slice().sort((a, b) => Number(a.price) - Number(b.price));
+}
+
+/* Estado del botón final a partir del state (puro, testeable) */
+function ecQuoteBuyState(st = {}) {
+  const rate = (st.rates || []).find(r => r.id === st.selectedRateId) || null;
+  if (!rate) return { ready: false, rate: null, needsPoint: false, label: "Elegí una tarifa para continuar" };
+  const needsPoint = rate.serviceType === "shop";
+  const ready = !needsPoint || !!st.selectedPointId;
+  return { ready, rate, needsPoint, label: `Comprar Etiqueta — ${formatDKK(rate.price)}` };
+}
+
+/* Escape HTML mínimo para datos que vienen del backend */
+function ecEsc(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -14567,6 +14634,7 @@ const app = {
                 </span>
                 ${ui.customs ? "" : `<button onclick="app.openQuickFixModal('${s.id}', 'customs')" class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 underline hover:text-amber-900">Completar</button>`}
             </div>` : ""}
+            <div data-quote-section="${s.id}"></div>
             <button ${canGo ? "" : "disabled"} title="${canGo ? "Generar etiqueta en Shipmondo" : "Faltan datos: " + firstBlocker}"
                 onclick="app.ecGenerateLabel('${s.id}')"
                 class="w-full mt-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canGo ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
@@ -14580,6 +14648,7 @@ const app = {
         const w = parseInt(value, 10);
         ui.weight = Number.isInteger(w) ? w : 500;
         ui.weightConfirmed = false; // cualquier edición exige nueva confirmación
+        this.ecInvalidateQuote(saleId); // las tarifas viejas ya no valen
         this.refreshCurrentView();
     },
 
@@ -14597,6 +14666,7 @@ const app = {
         const ui = this.ecShipUI(saleId);
         ui.shippingMethod = value;
         if (!EC_SHOP_DELIVERY_METHODS.has(value)) delete ui.servicePointId;
+        this.ecInvalidateQuote(saleId); // el método manual cambió: re-cotizar
         this.refreshCurrentView();
     },
 
@@ -14755,6 +14825,7 @@ const app = {
             if (field === "parcel.weight") {
                 ui.weight = parseInt(value, 10);
                 ui.weightConfirmed = true;
+                this.ecInvalidateQuote(saleId); // el peso cambió: re-cotizar
             } else if (field === "service_point.id") {
                 ui.servicePointId = value.trim();
             } else if (field === "shippingMethod") {
@@ -14763,6 +14834,9 @@ const app = {
             } else {
                 await db.collection("sales").doc(saleId).update(this.ecQuickFixUpdates(sale, field, value.trim()));
                 this.ecQuickFixApplyMemory(sale, field, value.trim());
+                if (field === "receiver.zipcode" || field === "receiver.city" || field === "receiver.country_code") {
+                    this.ecInvalidateQuote(saleId); // cambió el destino: re-cotizar
+                }
             }
             this.closeQuickFixModal();
             this.showToast("✅ Dato guardado");
@@ -14898,6 +14972,285 @@ const app = {
         }
     },
 
+    /* ============ LIVE RATES · Cotización en tiempo real ============ */
+
+    ecQuoteUI(saleId) {
+        this._quoteUI = this._quoteUI || {};
+        if (!this._quoteUI[saleId]) this._quoteUI[saleId] = ecNewQuoteState();
+        return this._quoteUI[saleId];
+    },
+
+    /* Vuelve la cotización a idle: las tarifas viejas ya no valen si cambió peso/CP/país/método */
+    ecInvalidateQuote(saleId) {
+        if (this._quoteUI) this._quoteUI[saleId] = ecNewQuoteState();
+        this.renderQuoteSection(saleId);
+    },
+
+    /* Re-renderiza las secciones de cotización visibles (tras refreshCurrentView) */
+    ecRestoreQuoteSections() {
+        if (!this._quoteUI) return;
+        Object.keys(this._quoteUI).forEach(saleId => this.renderQuoteSection(saleId));
+    },
+
+    /* Disparo: solo si CP + país + peso pasan el prereq lite.
+       El Pre-Flight completo se exige al comprar, no al cotizar. */
+    async fetchLiveRates(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const ui = this.ecShipUI(saleId);
+        const input = this.ecBuildShipmentInput(sale, ui);
+        const prereq = ecQuotePrereq(input);
+        if (prereq.length) {
+            this.showToast("⚠️ Completá CP, país y peso para cotizar: " + prereq[0].message);
+            return;
+        }
+        const st = (this._quoteUI[saleId] = ecNewQuoteState());
+        st.status = QUOTE_LOADING;
+        this.renderQuoteSection(saleId);
+
+        try {
+            const res = await fetch(`${BASE_API_URL}/api/shipmondo/quotes`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    orderId: saleId,
+                    sender: { country_code: EC_SENDER_COUNTRY, zipcode: EC_SENDER_ZIP },
+                    receiver: {
+                        country_code: input.receiver.country_code,
+                        zipcode: input.receiver.zipcode,
+                    },
+                    parcels: [{ weight: input.parcel.weight }],
+                }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            st.rates = ecSortRates(data.rates || []);
+            if (!st.rates.length) throw new Error("Sin tarifas");
+            st.status = QUOTE_READY;
+        } catch (e) {
+            // Endpoints aún no implementados en el backend → error elegante con reintento
+            st.status = QUOTE_ERROR;
+            st.error = "No se pudieron cargar las tarifas. Revisá la conexión e intentá de nuevo.";
+        }
+        this.renderQuoteSection(saleId);
+    },
+
+    /* Renderiza la sección en [data-quote-section]; idempotente */
+    renderQuoteSection(saleId) {
+        const el = document.querySelector(`[data-quote-section="${saleId}"]`);
+        if (!el) return;
+        const st = this.ecQuoteUI(saleId);
+        const head = `
+            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <i class="ph-bold ph-tag"></i>Cotización en tiempo real
+            </div>`;
+
+        if (st.status === QUOTE_IDLE) {
+            const sale = (this.state.sales || []).find(s => s.id === saleId);
+            const prereq = sale ? ecQuotePrereq(this.ecBuildShipmentInput(sale, this.ecShipUI(saleId))) : [{ message: "" }];
+            el.innerHTML = `
+            <div class="mt-2.5 rounded-xl border border-dashed border-slate-200 bg-white/60 p-3" onclick="event.stopPropagation()">
+                ${head}
+                ${prereq.length
+                    ? `<p class="text-[11px] text-slate-400 font-semibold">Completá código postal, país y peso para cotizar las tarifas.</p>`
+                    : `<button onclick="app.fetchLiveRates('${saleId}')" class="w-full px-3 py-2 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-tag"></i>Cotizar envío</button>
+                       <p class="text-[10px] text-slate-400 mt-1.5 text-center">Tarifas en vivo de Shipmondo según peso y destino</p>`}
+            </div>`;
+            return;
+        }
+        if (st.status === QUOTE_LOADING) {
+            el.innerHTML = `
+            <div class="mt-2.5 rounded-xl border border-slate-200 bg-white/60 p-3" onclick="event.stopPropagation()">
+                ${head}
+                <div class="rate-group" aria-hidden="true">
+                    ${[1, 2, 3].map(() => `<div class="rate-card skeleton"><div class="sk-line"></div><div class="sk-line short"></div></div>`).join("")}
+                </div>
+            </div>`;
+            return;
+        }
+        if (st.status === QUOTE_ERROR) {
+            el.innerHTML = `
+            <div class="mt-2.5 rounded-xl border border-slate-200 bg-white/60 p-3" onclick="event.stopPropagation()">
+                ${head}
+                <div class="quote-error">
+                    <i class="ph-bold ph-warning-circle text-base shrink-0"></i>
+                    <span class="flex-1">${ecEsc(st.error)}</span>
+                    <button onclick="app.fetchLiveRates('${saleId}')" class="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-red-200 text-red-700 text-[11px] font-bold hover:bg-red-50 transition-colors">Reintentar</button>
+                </div>
+            </div>`;
+            return;
+        }
+        /* ready / points / selected */
+        el.innerHTML = `
+        <div class="mt-2.5 rounded-xl border border-slate-200 bg-white/60 p-3" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between mb-1">
+                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <i class="ph-bold ph-tag"></i>Cotización en tiempo real
+                </div>
+                <button onclick="app.fetchLiveRates('${saleId}')" title="Actualizar tarifas" class="text-[10px] font-bold text-slate-400 hover:text-brand-orange uppercase tracking-wider flex items-center gap-1">
+                    <i class="ph-bold ph-arrows-clockwise"></i>Actualizar
+                </button>
+            </div>
+            <p class="quote-title">Elegí el método de envío</p>
+            <div class="rate-group" role="radiogroup" aria-label="Métodos de envío">
+                ${st.rates.map(r => this.ecRateCardHTML(saleId, r, st)).join("")}
+            </div>
+            ${this.ecBuyButtonHTML(saleId, st)}
+        </div>`;
+    },
+
+    ecRateCardHTML(saleId, r, st) {
+        const selected = st.selectedRateId === r.id;
+        const isShop = r.serviceType === "shop";
+        return `
+        <label class="rate-card ${selected ? "selected" : ""}">
+            <input type="radio" name="rate-${saleId}" value="${ecEsc(r.id)}" class="sr-only"
+                ${selected ? "checked" : ""} onchange="app.selectRate('${saleId}', '${ecEsc(r.id)}')" />
+            <span class="rate-radio" aria-hidden="true"></span>
+            <span class="rate-carrier" data-carrier="${ecEsc(r.carrier)}">${ecEsc(r.carrierName || r.carrier)}</span>
+            <span class="rate-service">${ecEsc(r.serviceLabel || "")}</span>
+            <span class="rate-eta">${ecEsc(r.deliveryEstimate || "")}</span>
+            <span class="rate-price">${formatDKK(r.price)}</span>
+            ${selected && isShop ? this.ecServicePointPickerHTML(saleId, st) : ""}
+        </label>`;
+    },
+
+    /* Desplegable de puntos de retiro: se renderiza DENTRO de la tarjeta seleccionada */
+    ecServicePointPickerHTML(saleId, st) {
+        if (st.status === QUOTE_POINTS)
+            return `<span class="sp-loading">Buscando puntos cercanos…</span>`;
+        if (!st.servicePoints.length)
+            return `<span class="sp-empty">No se encontraron puntos cercanos.</span>`;
+        return `
+        <span class="sp-list" role="radiogroup" aria-label="Punto de retiro">
+            ${st.servicePoints.map(p => `
+            <label class="sp-item ${st.selectedPointId === p.id ? "selected" : ""}">
+                <input type="radio" name="sp-${saleId}" value="${ecEsc(p.id)}" class="sr-only"
+                    ${st.selectedPointId === p.id ? "checked" : ""}
+                    onchange="app.selectServicePoint('${saleId}', '${ecEsc(p.id)}')" />
+                <span class="sp-radio" aria-hidden="true"></span>
+                <span class="sp-name">${ecEsc(p.name)}</span>
+                <span class="sp-addr">${ecEsc(p.address1)}, ${ecEsc(p.zipcode)} ${ecEsc(p.city)}</span>
+                <span class="sp-dist">${p.distanceKm != null ? ecEsc(p.distanceKm) + " km" : ""}</span>
+            </label>`).join("")}
+        </span>`;
+    },
+
+    ecBuyButtonHTML(saleId, st) {
+        const bs = ecQuoteBuyState(st);
+        if (!bs.rate) {
+            return `<button class="w-full mt-2.5 px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-200 text-slate-400 cursor-not-allowed" disabled>Elegí una tarifa para continuar</button>`;
+        }
+        return `
+        <button onclick="app.buyLabel('${saleId}')" ${bs.ready ? "" : "disabled"}
+            class="w-full mt-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${bs.ready ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
+            <i class="ph-bold ph-tag"></i>${bs.label}</button>
+        <p class="buy-hint">${bs.ready ? "Se descuenta de tu saldo de Shipmondo" : (bs.needsPoint ? "Elegí un punto de retiro para continuar" : "Elegí una tarifa para continuar")}</p>`;
+    },
+
+    async selectRate(saleId, rateId) {
+        const st = this.ecQuoteUI(saleId);
+        const rate = (st.rates || []).find(r => r.id === rateId);
+        if (!rate) return;
+        st.selectedRateId = rateId;
+        st.selectedPointId = null;
+        st.servicePoints = [];
+
+        if (rate.serviceType === "shop") {
+            // Parcel Shop: buscar los 3 puntos más cercanos al CP del cliente
+            st.status = QUOTE_POINTS;
+            this.renderQuoteSection(saleId);
+            try {
+                const sale = (this.state.sales || []).find(s => s.id === saleId);
+                const c = (sale && sale.customer) || {};
+                const ship = c.shipping || {};
+                const q = new URLSearchParams({
+                    country_code: String(ship.country || "").trim().toUpperCase(),
+                    zipcode: String(ship.postal_code || ship.zip || "").trim(),
+                    carrier: rate.carrier || "",
+                    limit: "3",
+                });
+                const res = await fetch(`${BASE_API_URL}/api/shipmondo/service-points?${q.toString()}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                st.servicePoints = (data.servicePoints || []).slice(0, 3);
+            } catch (e) {
+                st.servicePoints = [];
+            }
+            st.status = QUOTE_READY;
+        } else {
+            st.status = QUOTE_SELECTED;
+        }
+        // Sincronizar con el Pre-Flight: el método elegido alimenta la validación
+        const ui = this.ecShipUI(saleId);
+        ui.shippingMethod = rate.productCode || rate.id;
+        if (rate.serviceType !== "shop") delete ui.servicePointId;
+        this.refreshCurrentView(); // re-render + ecRestoreQuoteSections mantiene la sección
+    },
+
+    selectServicePoint(saleId, pointId) {
+        const st = this.ecQuoteUI(saleId);
+        if (!(st.servicePoints || []).some(p => p.id === pointId)) return;
+        st.selectedPointId = pointId;
+        st.status = QUOTE_SELECTED;
+        // El Pre-Flight exige service_point.id para shop delivery: se lo entregamos
+        const ui = this.ecShipUI(saleId);
+        ui.servicePointId = pointId;
+        this.refreshCurrentView(); // re-render + ecRestoreQuoteSections mantiene la sección
+    },
+
+    /* Compra final: la barrera del Pre-Flight completo va ANTES de cualquier acción */
+    buyLabel(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const ui = this.ecShipUI(saleId);
+        const input = this.ecBuildShipmentInput(sale, ui);
+        const blockers = ecValidateShipment(input);
+        if (blockers.length) {
+            this.showToast("⚠️ Faltan datos para generar la etiqueta: " + blockers[0].message);
+            return; // no sale ningún fetch
+        }
+        const st = this.ecQuoteUI(saleId);
+        const bs = ecQuoteBuyState(st);
+        if (!bs.ready) {
+            this.showToast("⚠️ Elegí una tarifa" + (bs.needsPoint ? " y un punto de retiro" : "") + " para continuar");
+            return;
+        }
+        const rate = bs.rate;
+        const point = (st.servicePoints || []).find(p => p.id === st.selectedPointId);
+        const payload = ecBuildShipmondoPayload(sale, input);
+        const pretty = JSON.stringify(payload, null, 2).replace(/</g, "&lt;");
+
+        // TODO(API): POST tu-backend/api/shipmondo/shipments con { orderId, productCode, servicePointId?, parcel }
+        // La API key vive SOLO en el backend (proxy). El fetch va detrás de la barrera de arriba.
+
+        const html = `
+        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
+            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-tag text-brand-orange"></i>Comprar Etiqueta</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · validación 100% superada</p>
+                <div class="flex items-center justify-between rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 mb-4">
+                    <div>
+                        <p class="text-xs font-extrabold text-brand-dark">${ecEsc(rate.carrierName || rate.carrier)} · ${ecEsc(rate.serviceLabel || "")}</p>
+                        ${point ? `<p class="text-[11px] text-slate-500 mt-0.5">→ ${ecEsc(point.name)}, ${ecEsc(point.address1)}, ${ecEsc(point.zipcode)} ${ecEsc(point.city)}</p>` : ""}
+                        ${rate.deliveryEstimate ? `<p class="text-[11px] text-slate-400">${ecEsc(rate.deliveryEstimate)}</p>` : ""}
+                    </div>
+                    <p class="text-lg font-extrabold text-brand-dark whitespace-nowrap">${formatDKK(rate.price)}</p>
+                </div>
+                <pre id="ec-payload-pre" class="bg-slate-900 text-emerald-300 text-[11px] leading-relaxed rounded-xl p-4 overflow-x-auto max-h-56 overflow-y-auto font-mono">${pretty}</pre>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cerrar</button>
+                    <button onclick="app.ecCopyPayload()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors flex items-center gap-1.5"><i class="ph-bold ph-copy"></i>Copiar JSON</button>
+                    <a href="https://app.shipmondo.com/" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-1.5"><i class="ph-bold ph-arrow-square-out"></i>Abrir Shipmondo</a>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-3">TODO(API): al integrar la API directa, el POST a <span class="font-mono">/api/shipmondo/shipments</span> va detrás de la barrera Pre-Flight de arriba. Hoy la etiqueta se genera manual en Shipmondo.</p>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+        this.showToast(`✅ Etiqueta lista para comprar — ${formatDKK(rate.price)}`);
+    },
+
     renderShipping(container) {
         // Solo WebShop y Discogs: el local nunca hace envíos
         const shipSales = this.state.sales.filter(s => this.isShippableChannel(s));
@@ -14972,6 +15325,7 @@ const app = {
             </div>
         `;
         container.innerHTML = html;
+        this.ecRestoreQuoteSections();
     },
 
     openOrderHistoryModal(saleId) {

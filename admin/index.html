@@ -596,6 +596,51 @@
             pointer-events: none;
             transition: filter 0.3s ease;
         }
+
+        /* ---- Live Rates · Radio Card Group (Shipmondo) ---- */
+        .quote-title{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin:12px 0 8px; }
+        .rate-group{ display:flex; flex-direction:column; gap:8px; }
+        .rate-card{
+            display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px; align-items:center;
+            background:#fff; border:1.5px solid #e8edf3; border-radius:16px; padding:12px 14px;
+            cursor:pointer; transition:border-color .15s, box-shadow .15s; position:relative;
+        }
+        .rate-card:hover{ border-color:#cbd5e1; }
+        .rate-card.selected{ border-color:#f97316; box-shadow:0 0 0 3px rgba(249,115,22,.15); }
+        .rate-radio{ width:18px; height:18px; border-radius:50%; border:2px solid #cbd5e1; grid-row:span 2; position:relative; }
+        .rate-card.selected .rate-radio{ border-color:#f97316; }
+        .rate-card.selected .rate-radio::after{
+            content:""; position:absolute; inset:3px; border-radius:50%; background:#f97316;
+        }
+        .rate-carrier{ font-weight:800; font-size:13px; }
+        .rate-carrier[data-carrier="dao"]::before{ content:"⬢ "; color:#e11d48; }
+        .rate-carrier[data-carrier="gls"]::before{ content:"⬢ "; color:#1d4ed8; }
+        .rate-carrier[data-carrier="postnord"]::before{ content:"⬢ "; color:#0ea5e9; }
+        .rate-service{ font-size:11px; color:#64748b; font-weight:600; }
+        .rate-eta{ font-size:11px; color:#94a3b8; grid-column:2; }
+        .rate-price{ font-size:15px; font-weight:800; grid-row:span 2; white-space:nowrap; }
+        .rate-card.skeleton{ pointer-events:none; }
+        .sk-line{ height:12px; border-radius:6px; background:linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9); }
+        .sk-line.short{ width:40%; }
+        .quote-error{
+            display:flex; align-items:center; gap:8px; background:#FDECEC; color:#C81E1E;
+            border:1px solid #F8C9C9; border-radius:12px; padding:10px 12px; font-size:12px; font-weight:600;
+        }
+        .sp-list{ display:flex; flex-direction:column; gap:6px; grid-column:1/-1; margin-top:6px;
+            border-top:1px dashed #e2e8f0; padding-top:8px; }
+        .sp-item{
+            display:grid; grid-template-columns:auto 1fr auto; gap:2px 8px; align-items:center;
+            background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:8px 10px; cursor:pointer;
+        }
+        .sp-item.selected{ border-color:#f97316; background:#fff7ed; }
+        .sp-radio{ width:14px; height:14px; border-radius:50%; border:2px solid #cbd5e1; grid-row:span 2; }
+        .sp-item.selected .sp-radio{ border-color:#f97316; }
+        .sp-name{ font-size:12px; font-weight:700; }
+        .sp-addr{ font-size:11px; color:#64748b; grid-column:2; }
+        .sp-dist{ font-size:11px; font-weight:700; color:#0f172a; grid-row:span 2; }
+        .sp-loading,.sp-empty{ grid-column:1/-1; font-size:12px; color:#94a3b8; padding:6px 2px; }
+        .buy-hint{ font-size:10px; color:#94a3b8; text-align:center; margin-top:6px; font-weight:600; }
+        .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
     </style>
 </head>
 
