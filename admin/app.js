@@ -4048,6 +4048,55 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
     `;
     },
 
+    // Blueprint Sec 05: paginacion (no renderizar ~1000 filas de una vez)
+    setInvPage(page) {
+        this.state.invPage = page;
+        this.refreshCurrentView();
+        const el = document.getElementById('inventory-content-container');
+        if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    },
+
+    setInvPageSize(size) {
+        this.state.invPageSize = parseInt(size, 10) || 50;
+        this.state.invPage = 1;
+        this.refreshCurrentView();
+    },
+
+    renderInvPagination(total, context) {
+        const size = this.state.invPageSize || 50;
+        const totalPages = Math.max(1, Math.ceil(total / size));
+        const page = Math.min(Math.max(1, this.state.invPage || 1), totalPages);
+        const from = total === 0 ? 0 : (page - 1) * size + 1;
+        const to = Math.min(page * size, total);
+        const btn = (p, label, opts = {}) => `
+            <button onclick="app.setInvPage(${p})" ${opts.disabled ? 'disabled' : ''}
+                class="min-w-[36px] h-9 px-2 rounded-lg text-xs font-bold transition-all ${opts.active ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' : 'bg-white border border-slate-200 text-slate-500 hover:border-brand-orange hover:text-brand-orange'} ${opts.disabled ? 'opacity-40 cursor-not-allowed' : ''}">
+                ${label}
+            </button>`;
+        let nums = '';
+        const win = [];
+        for (let p = Math.max(1, page - 2); p <= Math.min(totalPages, page + 2); p++) win.push(p);
+        if (win[0] > 1) { win.unshift(1); if (win[1] > 2) win.splice(1, 0, '...'); }
+        if (win[win.length - 1] < totalPages) { if (win[win.length - 1] < totalPages - 1) win.push('...'); win.push(totalPages); }
+        win.forEach(p => { nums += p === '...' ? '<span class="text-slate-300 text-xs px-1">…</span>' : btn(p, p, { active: p === page }); });
+        return `
+            <div class="flex flex-wrap items-center justify-between gap-3 mt-4" data-pagination="${context}">
+                <div class="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                    <span>Mostrando <b class="text-brand-dark">${from}–${to}</b> de <b class="text-brand-dark">${total}</b></span>
+                    <select onchange="app.setInvPageSize(this.value)" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-brand-dark outline-none cursor-pointer">
+                        ${[25, 50, 100, 200].map(s => `<option value="${s}" ${s === size ? 'selected' : ''}>${s}/pág</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    ${btn(1, '<i class="ph-bold ph-caret-double-left"></i>', { disabled: page <= 1 })}
+                    ${btn(page - 1, '<i class="ph-bold ph-caret-left"></i>', { disabled: page <= 1 })}
+                    ${nums}
+                    ${btn(page + 1, '<i class="ph-bold ph-caret-right"></i>', { disabled: page >= totalPages })}
+                    ${btn(totalPages, '<i class="ph-bold ph-caret-double-right"></i>', { disabled: page >= totalPages })}
+                </div>
+            </div>`;
+    },
+
     renderInventoryContent(container, filteredInventory, allGenres, allOwners, allStorage) {
         // CONTENT AREA (Grid/List)
         container.innerHTML = `
@@ -4154,6 +4203,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                 <div class="flex-1 flex flex-col">
                                     <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${item.album}">${item.album}</h3>
                                     <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${item.artist}</p>
+                                    <div class="flex flex-wrap gap-1 mt-1">${this.stockStatusBadges(item)}</div>
                                     <div class="mt-auto flex justify-between items-center pt-3 border-t border-slate-50">
                                         <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(item.price, false)}</span>
                                         <span class="text-xs font-bold ${item.stock > 0 ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'} px-2 py-1 rounded-md">
@@ -4207,7 +4257,13 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
-                            ${filteredInventory.map(item => `
+                            ${(() => {
+                                const size = this.state.invPageSize || 50;
+                                const totalPages = Math.max(1, Math.ceil(filteredInventory.length / size));
+                                const page = Math.min(Math.max(1, this.state.invPage || 1), totalPages);
+                                this.state.invPage = page;
+                                return filteredInventory.slice((page - 1) * size, page * size);
+                            })().map(item => `
                                 <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.id) ? 'bg-orange-50/50' : ''}" 
                                     onclick="app.openProductModal('${item.id}')">
                                     <td class="p-3" onclick="event.stopPropagation()">
@@ -4231,6 +4287,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                             <div class="min-w-0">
                                                 <div class="font-bold text-brand-dark text-sm truncate max-w-[220px]" title="${item.album}">${item.album}</div>
                                                 <div class="text-xs text-slate-400 font-medium truncate max-w-[220px]">${item.artist}</div>
+                                                <div class="flex flex-wrap gap-1 mt-1">${this.stockStatusBadges(item)}</div>
                                                 <div class="text-[10px] text-slate-300 font-mono mt-0.5 sm:hidden">${item.sku}</div>
                                             </div>
                                         </div>
@@ -4294,6 +4351,9 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                         </tbody>
                     </table>
                 </div>
+                <div class="bg-white rounded-2xl border border-slate-100 px-4 py-3">
+                    ${this.renderInvPagination(filteredInventory.length, 'list')}
+                </div>
 
             `}
         `;
@@ -4354,6 +4414,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         if (this.state.filterOwner !== 'all') activeFiltersList.push({ key: 'filterOwner', label: `Dueño: ${this.state.filterOwner}`, icon: 'ph-user' });
         if (this.state.filterStorage !== 'all') activeFiltersList.push({ key: 'filterStorage', label: `Disquería: ${this.state.filterStorage}`, icon: 'ph-tag' });
         if (this.state.filterHero === 'yes') activeFiltersList.push({ key: 'filterHero', label: 'Destacados', icon: 'ph-star' });
+        if (this.state.filterPriceMin || this.state.filterPriceMax) activeFiltersList.push({ key: 'filterPrice', label: `Precio: ${this.state.filterPriceMin || '0'}–${this.state.filterPriceMax || '∞'} kr`, icon: 'ph-currency-circle-dollar' });
         if (this.state.filterHero === 'no') activeFiltersList.push({ key: 'filterHero', label: 'No Destacados', icon: 'ph-star' });
         if (this.state.filterStockTime.length > 0) {
             const timeLabels = { green: '0-2m', orange: '2-4m', red: '4-6m', purple: '+6m' };
@@ -4395,7 +4456,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                         <!-- Search Bar -->
                         <div class="relative group mb-4">
                             <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-orange transition-colors text-lg"></i>
-                            <input type="text" placeholder="Buscar artista, álbum, sello, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium shadow-sm">
+                            <input type="text" placeholder="Buscar artista, álbum, sello, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.state.invPage = 1; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium shadow-sm">
                         </div>
 
                         <!-- KPI Stats Row -->
@@ -4580,6 +4641,18 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                         <option value="all">Todas las disquerías</option>
                         ${allStorage.map(s => `<option value="${s}" ${this.state.filterStorage === s ? 'selected' : ''}>${s}</option>`).join('')}
                     </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Rango de precio (DKK)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" min="0" placeholder="Mín" value="${this.state.filterPriceMin || ''}"
+                            onchange="app.state.filterPriceMin = this.value; app.state.invPage = 1; app.refreshCurrentView()"
+                            class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <span class="text-slate-300 font-bold">–</span>
+                        <input type="number" min="0" placeholder="Máx" value="${this.state.filterPriceMax || ''}"
+                            onchange="app.state.filterPriceMax = this.value; app.state.invPage = 1; app.refreshCurrentView()"
+                            class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                    </div>
                 </div>
                 <div class="space-y-1">
                     <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Héroe / Destacado</label>
@@ -4769,6 +4842,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         } else {
             this.state[filterName] = value;
         }
+        this.state.invPage = 1; // Blueprint Sec 05: volver a la primera pagina al filtrar
         this.refreshCurrentView();
     },
 
@@ -4806,6 +4880,10 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
             this.state.filterStockTime = [];
         } else if (filterName === 'inventoryLowStockOnly') {
             this.state.inventoryLowStockOnly = false; // Blueprint Sec 04: flag booleana de drill-down
+        } else if (filterName === 'filterPrice') {
+            this.state.filterPriceMin = '';
+            this.state.filterPriceMax = '';
+            this.state.invPage = 1;
         } else {
             this.state[filterName] = resetValue !== undefined ? resetValue : 'all';
         }
@@ -4822,6 +4900,9 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         this.state.filterStock = 'all';
         this.state.filterCondition = 'all';
         this.state.filterStockTime = [];
+        this.state.filterPriceMin = '';
+        this.state.filterPriceMax = '';
+        this.state.invPage = 1;
         this.refreshCurrentView();
     },
 
@@ -8286,6 +8367,27 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         this.fuse = new Fuse(this.state.inventory, options);
     },
 
+    // Blueprint Sec 05: badges de estado de stock
+    stockStatusBadges(item) {
+        const badges = [];
+        const stock = Number(item.stock) || 0;
+        if (stock <= 0) {
+            badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-x-circle"></i>Agotado</span>');
+        } else if (stock === 1) {
+            badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>Poco stock</span>');
+        }
+        // Reservado = en el carrito de venta activo
+        if ((this.state.cart || []).some(c => c.id === item.id || c.sku === item.sku)) {
+            badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100 text-[10px] font-bold"><i class="ph-bold ph-handshake"></i>Reservado</span>');
+        }
+        // Nuevo ingreso = creado en los ultimos 14 dias
+        const created = item.created_at ? (item.created_at.seconds ? item.created_at.seconds * 1000 : new Date(item.created_at).getTime()) : 0;
+        if (created && (Date.now() - created) < 14 * 24 * 60 * 60 * 1000) {
+            badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 text-[10px] font-bold"><i class="ph-bold ph-sparkle"></i>Nuevo</span>');
+        }
+        return badges.join(' ');
+    },
+
     getFilteredInventory() {
         const searchTerm = (this.state.inventorySearch || '').trim().toLowerCase();
 
@@ -8297,8 +8399,18 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         const currentHeroFilter = this.state.filterHero || 'all';
         const currentStockFilter = this.state.filterStock || 'all';
         const currentConditionFilter = this.state.filterCondition || 'all';
+        const priceMin = this.state.filterPriceMin !== undefined && this.state.filterPriceMin !== '' ? parseFloat(this.state.filterPriceMin) : null;
+        const priceMax = this.state.filterPriceMax !== undefined && this.state.filterPriceMax !== '' ? parseFloat(this.state.filterPriceMax) : null;
 
         let results = this.state.inventory;
+
+        // Blueprint Sec 05: rango de precio
+        if (priceMin !== null || priceMax !== null) {
+            results = results.filter(item => {
+                const p = parseFloat(item.price) || 0;
+                return (priceMin === null || p >= priceMin) && (priceMax === null || p <= priceMax);
+            });
+        }
 
         // Blueprint Sec 04/05: drill-down "Stock bajo" desde el dashboard
         if (this.state.inventoryLowStockOnly) {
