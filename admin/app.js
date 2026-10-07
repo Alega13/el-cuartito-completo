@@ -1929,6 +1929,7 @@ const app = {
         content.innerHTML = '';
 
         this.refreshCurrentView();
+        this.updateNavBadges();
     },
 
     renderCalendar(container) {
@@ -2936,6 +2937,8 @@ const app = {
     setupNavigation() {
         // Navigation is handled via inline onclick events in HTML
         // This function is kept for compatibility with init()
+        this.restoreNavGroups();
+        this.updateNavBadges();
     },
 
     setupMobileMenu() {
@@ -2979,6 +2982,76 @@ const app = {
             menu.classList.add('translate-y-full');
             overlay.classList.add('hidden');
         }
+    },
+
+    // --- Blueprint Sec 01/03: Grupos de navegación colapsables ---
+    toggleNavGroup(key) {
+        const body = document.getElementById(`nav-group-${key}`);
+        const caret = document.getElementById(`nav-caret-${key}`);
+        if (!body) return;
+        const collapsed = body.classList.toggle('hidden');
+        if (caret) caret.style.transform = collapsed ? 'rotate(-90deg)' : '';
+        try {
+            const saved = JSON.parse(localStorage.getItem('ec_nav_groups') || '{}');
+            saved[key] = collapsed;
+            localStorage.setItem('ec_nav_groups', JSON.stringify(saved));
+        } catch (e) { /* noop */ }
+    },
+
+    restoreNavGroups() {
+        let saved = {};
+        try { saved = JSON.parse(localStorage.getItem('ec_nav_groups') || '{}'); } catch (e) { /* noop */ }
+        ['operacion', 'catalogo', 'finanzas', 'administracion'].forEach(key => {
+            if (saved[key]) {
+                const body = document.getElementById(`nav-group-${key}`);
+                const caret = document.getElementById(`nav-caret-${key}`);
+                if (body) body.classList.add('hidden');
+                if (caret) caret.style.transform = 'rotate(-90deg)';
+            }
+        });
+    },
+
+    // Badges solo para pendientes reales (Blueprint Sec 03)
+    updateNavBadges() {
+        const setBadge = (id, count) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (count > 0) {
+                el.textContent = count > 99 ? '99+' : count;
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        };
+        // Compras sin comprobante
+        const missingReceipt = (this.state.expenses || []).filter(e => !e.receiptUrl && !e.comprobante && e.receiptPending !== false && !e.receiptExempt).length;
+        setBadge('nav-badge-expenses', missingReceipt);
+        // Envíos pendientes (sin tracking o en preparación)
+        const pendingShip = (this.state.shipments || this.state.sales || []).filter(s => {
+            const st = (s.status || s.shipping_status || '').toLowerCase();
+            return st === 'preparar' || st === 'pendiente' || st === 'pending' || (!s.tracking && st !== 'despachada' && st !== 'despachado');
+        }).length;
+        setBadge('nav-badge-shipping', pendingShip);
+    },
+
+    // --- Blueprint Sec 01: Encabezado contextual con una acción primaria ---
+    sectionHeader({ title, subtitle = '', primary = null, filters = '' }) {
+        const primaryBtn = primary ? `
+            <button onclick="${primary.onclick}" class="${primary.class || 'bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform'}">
+                <i class="ph-bold ${primary.icon || 'ph-plus'} text-lg"></i>
+                <span class="text-xs font-bold hidden sm:inline">${primary.label}</span>
+            </button>` : '';
+        return `
+            <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+                <div>
+                    <h2 class="font-display text-2xl font-bold text-brand-dark">${title}</h2>
+                    ${subtitle ? `<p class="text-xs text-slate-400 mt-1">${subtitle}</p>` : ''}
+                </div>
+                <div class="flex gap-2 items-center">
+                    ${filters}
+                    ${primaryBtn}
+                </div>
+            </div>`;
     },
 
     // --- LOGIC ---
