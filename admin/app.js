@@ -6101,7 +6101,7 @@ const app = {
     // (proxy ${BASE_API_URL}/discogs/*) y delega el alta en
     // handleAddVinyl para no duplicar la logica de persistencia.
     // ============================================================
-    openQuickAddWizard(presetLot = '') {
+    openQuickAddWizard(presetLot = '', presetOrigin = '') {
         this.state.quickAdd = {
             step: 1,
             search: '',
@@ -6130,6 +6130,7 @@ const app = {
             softDups: [],
         };
         if (presetLot) this.state.quickAdd.lot = presetLot;
+        if (presetOrigin) this.state.quickAdd.presetOrigin = presetOrigin;
         const overlay = document.createElement('div');
         overlay.id = 'quickadd-overlay';
         overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
@@ -6508,7 +6509,7 @@ const app = {
         set('label', qa.label.trim());
         set('condition', qa.condition);
         set('product_condition', qa.productCondition);
-        set('provider_origin', qa.productCondition === 'New' ? 'EU_B2B' : 'Local_Used');
+        set('provider_origin', qa.presetOrigin || (qa.productCondition === 'New' ? 'EU_B2B' : 'Local_Used'));
         set('cost', qa.cost || '0');
         set('price', qa.price || '0');
         set('stock', qa.stock || '1');
@@ -10179,6 +10180,11 @@ const app = {
         this.refreshCurrentView();
     },
 
+    toggleExpenseMissingReceipt() {
+        this.state.expenseMissingReceiptOnly = !this.state.expenseMissingReceiptOnly;
+        this.refreshCurrentView();
+    },
+
     setExpenseCategoryFilter(v) {
         this.state.expenseCategoryFilter = v;
         this.refreshCurrentView();
@@ -10241,7 +10247,7 @@ const app = {
                     primary: { label: 'Registrar compra', icon: 'ph-plus', onclick: 'app.openExpenseWizard()' }
                 })}
                 ${missingOnly ? `
-                <div class="mb-4 flex items-center justify-between bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-bold">
+                <div class="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm font-bold">
                     <span class="flex items-center gap-2"><i class="ph-bold ph-warning-circle"></i> Mostrando solo gastos sin comprobante</span>
                     <button onclick="app.state.expenseMissingReceiptOnly = false; app.refreshCurrentView()" class="underline hover:no-underline">Mostrar todos</button>
                 </div>` : ''}
@@ -10298,21 +10304,27 @@ const app = {
                     </div>
                 </div>
 
-                <!-- Filtros combinables -->
-                <div class="flex flex-wrap gap-3 mb-4">
+                <!-- Filtros: mismo patrón de pills que Inventario/Ventas -->
+                <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="relative flex-1 min-w-[220px]">
                         <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                         <input type="text" id="expenses-search-input"
                             value="${(this.state.expensesSearch || '').replace(/"/g, '&quot;')}"
                             oninput="app.setExpensesSearch(this.value)"
                             placeholder="Buscar por proveedor, categoría, lote..."
-                            class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-brand-orange shadow-sm text-sm">
+                            class="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-full focus:outline-none focus:border-brand-orange shadow-sm text-sm">
                     </div>
-                    <select onchange="app.setExpenseCategoryFilter(this.value)"
-                        class="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none cursor-pointer shadow-sm focus:border-brand-orange">
-                        <option value="all" ${catFilter === 'all' ? 'selected' : ''}>Todas las categorías</option>
-                        ${expenseCategories.map(c => `<option value="${c.value}" ${catFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
-                    </select>
+                    <div class="filter-chip ${catFilter !== 'all' ? 'active' : ''}" title="Filtrar por categoría">
+                        <i class="ph-bold ph-tag text-xs"></i>
+                        <select onchange="app.setExpenseCategoryFilter(this.value)">
+                            <option value="all">Todas las categorías</option>
+                            ${expenseCategories.map(c => `<option value="${c.value}" ${catFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="app.toggleExpenseMissingReceipt()" class="quick-pill ${missingOnly ? 'active' : ''}" title="Mostrar solo gastos sin comprobante">
+                        <i class="ph-bold ph-paperclip text-xs"></i> Sin comprobante
+                        ${kpiMissing > 0 ? `<span class="w-5 h-5 rounded-full ${missingOnly ? 'bg-white/30' : 'bg-amber-100 text-amber-700'} flex items-center justify-center text-[10px] font-bold">${kpiMissing}</span>` : ''}
+                    </button>
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -10392,6 +10404,10 @@ const app = {
                                                     <span class="text-[11px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
                                                         ${expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || '-'}
                                                     </span>
+                                                    ${e.categoria === 'stock_nuevo' ? (() => {
+                                                        const t = e.vat_treatment === 'dk' ? 'dk' : (e.vat_treatment === 'eu' || e.is_inventory_invoice ? 'eu' : null);
+                                                        return t ? `<span class="block mt-1.5 text-[10px] font-bold ${t === 'dk' ? 'text-emerald-600' : 'text-blue-600'}">${t === 'dk' ? 'DK · 25%' : 'UE · reverse charge'}</span>` : '';
+                                                    })() : ''}
                                                     ${(e.categoria === 'stock_nuevo' || e.categoria === 'stock_usado' || e.category === 'Inventario (compra de vinilos)') ? `
                                                         <button onclick="app.openInventoryIngest('${e.id}')" 
                                                             class="ml-2 text-[10px] bg-brand-orange text-white px-2 py-0.5 rounded hover:bg-orange-600 transition-colors">
@@ -10512,6 +10528,73 @@ const app = {
         ];
     },
 
+    // --- Tratamiento de IVA para compras de stock: 'eu' (reverse charge) | 'dk' (25% moms) ---
+    // El default es 'eu' (99% de los distribuidores son de la UE). Se recuerda por proveedor.
+    vatTreatmentStorageKey() { return 'ec_vat_treatment_by_supplier'; },
+    getRememberedVatTreatment(supplier) {
+        try {
+            const map = JSON.parse(localStorage.getItem(this.vatTreatmentStorageKey()) || '{}');
+            return map[this.normalizeLotSupplier(supplier)] || null;
+        } catch (e) { return null; }
+    },
+    rememberVatTreatment(supplier, treatment) {
+        if (!supplier || !treatment) return;
+        try {
+            const key = this.vatTreatmentStorageKey();
+            const map = JSON.parse(localStorage.getItem(key) || '{}');
+            map[this.normalizeLotSupplier(supplier)] = treatment;
+            localStorage.setItem(key, JSON.stringify(map));
+        } catch (e) { /* noop */ }
+    },
+    // Al editar: respeta lo guardado; si no hay dato, deriva de los campos legacy
+    deriveVatTreatment(editing) {
+        if (!editing) return 'eu';
+        if (editing.vat_treatment === 'dk' || editing.vat_treatment === 'eu') return editing.vat_treatment;
+        if (editing.is_inventory_invoice) return 'eu';
+        if ((Number(editing.monto_iva) || 0) > 0) return 'dk';
+        return 'eu';
+    },
+    setExpenseVatTreatment(t) {
+        const wz = this.state.expenseWizard;
+        if (!wz) return;
+        wz.vatTreatment = t;
+        wz.vatTreatmentTouched = true;
+        this.refreshExpenseVatTreatmentUI();
+    },
+    refreshExpenseVatTreatmentUI() {
+        const wz = this.state.expenseWizard;
+        const box = document.getElementById('expense-vat-treatment-options');
+        if (wz && box) box.innerHTML = this.expenseVatTreatmentOptionsHTML(wz);
+    },
+    expenseVatTreatmentOptionsHTML(wz) {
+        const t = wz.vatTreatment || 'eu';
+        const opt = (val, title, help, icon) => {
+            const sel = t === val;
+            return `<button type="button" onclick="app.setExpenseVatTreatment('${val}')"
+                class="text-left p-3 rounded-xl border-2 transition-all ${sel ? 'border-brand-orange bg-orange-50/60 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}">
+                <span class="flex items-center gap-2 font-bold text-sm ${sel ? 'text-brand-dark' : 'text-slate-600'}">
+                    <i class="ph-bold ${icon} ${sel ? 'text-brand-orange' : 'text-slate-400'}"></i> ${title}
+                </span>
+                <span class="block text-[11px] text-slate-400 mt-1 leading-snug">${help}</span>
+            </button>`;
+        };
+        return opt('eu', 'UE · Reverse charge', 'El distribuidor factura sin IVA. Se declara y deduce solo en el Reporte VAT (neto 0).', 'ph-globe')
+            + opt('dk', 'Dinamarca · 25% moms', 'Proveedor danés con IVA en la factura. Se deduce en el Reporte VAT.', 'ph-bank');
+    },
+    // Al tipear el proveedor: si tiene tratamiento recordado y el usuario no lo tocó, aplicarlo
+    expenseSupplierChanged(v) {
+        const wz = this.state.expenseWizard;
+        if (wz) wz.proveedor = v;
+        this.updateLotPreview();
+        if (wz && !wz.vatTreatmentTouched && wz.categoria === 'stock_nuevo') {
+            const remembered = this.getRememberedVatTreatment(v);
+            if (remembered && remembered !== wz.vatTreatment) {
+                wz.vatTreatment = remembered;
+                this.refreshExpenseVatTreatmentUI();
+            }
+        }
+    },
+
     openExpenseWizard(editId = null) {
         const expenseCategories = this.getExpenseCategories();
         window.expenseCategories = expenseCategories;
@@ -10527,7 +10610,8 @@ const app = {
             invoiceNumber: editing ? (editing.invoiceNumber || '') : '',
             total: editing ? (editing.monto_total || editing.amount || '') : '',
             iva: editing ? (editing.monto_iva || 0) : 0,
-            isInventoryInvoice: editing ? !!editing.is_inventory_invoice : false,
+            vatTreatment: this.deriveVatTreatment(editing),
+            vatTreatmentTouched: false,
             noReceipt: editing ? !!editing.receiptPending : false,
             receiptUrl: editing ? (editing.receiptUrl || '') : '',
             dupAck: false,
@@ -10607,7 +10691,6 @@ const app = {
         if (g('expense-invoice-number')) wz.invoiceNumber = g('expense-invoice-number').value;
         if (g('expense-monto')) wz.total = g('expense-monto').value;
         if (g('expense-iva')) wz.iva = g('expense-iva').value;
-        if (g('expense-inventory-invoice')) wz.isInventoryInvoice = g('expense-inventory-invoice').checked;
         if (g('expense-no-receipt')) wz.noReceipt = g('expense-no-receipt').checked;
         if (g('expense-dup-ack')) wz.dupAck = g('expense-dup-ack').checked;
         if (g('receipt-url') && g('receipt-url').value) wz.receiptUrl = g('receipt-url').value;
@@ -10625,7 +10708,7 @@ const app = {
         }
         if (step > 2 && wz.step === 2) {
             const total = parseFloat(wz.total);
-            const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+            const ivaLocked = wz.categoria === 'stock_usado' || (wz.categoria === 'stock_nuevo' && (wz.vatTreatment || 'eu') === 'eu');
             const iva = ivaLocked ? 0 : (parseFloat(wz.iva) || 0);
             if (isNaN(total) || total <= 0) { this.showToast('El monto total debe ser mayor a 0.'); return; }
             if (iva < 0 || iva > total) { this.showToast('El IVA debe estar entre 0 y el total.'); return; }
@@ -10640,20 +10723,6 @@ const app = {
         if (wz) wz.categoria = sel.value;
         this.toggleExpenseLotFields();
         if (wz && wz.categoria === 'stock_usado') wz.iva = 0;
-    },
-
-    expenseWizardInvToggle(cb) {
-        const wz = this.state.expenseWizard;
-        if (wz) wz.isInventoryInvoice = cb.checked;
-        const ivaInput = document.getElementById('expense-iva');
-        if (ivaInput && wz) {
-            const locked = wz.categoria === 'stock_usado' || cb.checked;
-            ivaInput.disabled = locked;
-            if (locked) { ivaInput.value = '0'; wz.iva = 0; }
-            ivaInput.classList.toggle('bg-slate-100', locked);
-            ivaInput.classList.toggle('cursor-not-allowed', locked);
-        }
-        this.expenseWizardUpdateNet();
     },
 
     expenseWizardCalcVat() {
@@ -10695,7 +10764,7 @@ const app = {
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Proveedor *</label>
                     <input id="expense-proveedor" list="expense-supplier-list" value="${esc(wz.proveedor)}"
                         placeholder="Nombre de tienda/empresa"
-                        oninput="app.state.expenseWizard.proveedor=this.value;app.updateLotPreview()"
+                        oninput="app.expenseSupplierChanged(this.value)"
                         class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
                 </div>
             </div>
@@ -10719,6 +10788,12 @@ const app = {
                     <span id="expense-lot-preview" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">${this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—'}</span>
                 </div>
                 <p class="text-[10px] text-slate-400 mt-1">Vincula esta factura con los discos que ingresen al inventario.</p>
+                <div id="expense-vat-treatment" class="${wz.categoria === 'stock_nuevo' ? '' : 'hidden'} mt-3 pt-3 border-t border-indigo-100">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Tratamiento de IVA</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2" id="expense-vat-treatment-options">
+                        ${this.expenseVatTreatmentOptionsHTML(wz)}
+                    </div>
+                </div>
             </div>
             <div class="mt-4">
                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notas / Descripción</label>
@@ -10730,7 +10805,11 @@ const app = {
 
     // --- Paso 2: Importes ---
     expenseWizardStepAmounts(wz) {
-        const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+        const isUsado = wz.categoria === 'stock_usado';
+        const treat = (wz.vatTreatment || 'eu');
+        const isEu = wz.categoria === 'stock_nuevo' && treat === 'eu';
+        const isDk = wz.categoria === 'stock_nuevo' && treat === 'dk';
+        const ivaLocked = isUsado || isEu;
         const ivaVal = ivaLocked ? 0 : (wz.iva === '' || wz.iva == null ? 0 : wz.iva);
         return `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -10751,13 +10830,17 @@ const app = {
                         ${ivaLocked ? '' : `<button type="button" onclick="app.expenseWizardCalcVat()" class="px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:border-brand-orange hover:text-brand-orange transition-all" title="Calcular IVA 25% incluido en el total">25%</button>`}
                     </div>
                     <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                        <i class="ph-bold ph-info"></i> Puede ser 0 si el proveedor es extranjero o particular
+                        <i class="ph-bold ph-info"></i> ${isDk ? 'Factura danesa: ingresá el 25% de IVA incluido en el total.' : 'Puede ser 0 si el proveedor es extranjero o particular'}
                     </p>
                 </div>
             </div>
-            ${wz.categoria === 'stock_usado' ? `
+            ${isUsado ? `
             <p class="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2">
                 <i class="ph-bold ph-warning"></i> Vinilos usados (Brugtmoms): sin IVA deducible.
+            </p>` : ''}
+            ${isEu ? `
+            <p class="mt-3 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2">
+                <i class="ph-bold ph-info"></i> Reverse charge UE: la factura viene al 0%. El IVA se autoliquida por disco en el Reporte VAT (se declara y se deduce, neto 0).
             </p>` : ''}
             <div class="mt-4 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
                 <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal neto</span>
@@ -10765,14 +10848,7 @@ const app = {
             </div>
             <p id="expense-iva-warn" class="hidden mt-2 text-[11px] text-amber-700 flex items-center gap-1">
                 <i class="ph-bold ph-warning"></i> El IVA supera el 25% danés — revisá los importes.
-            </p>
-            <label class="mt-4 flex items-start gap-3 p-3 rounded-xl border ${wz.isInventoryInvoice ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200'} cursor-pointer hover:border-blue-300 transition-all">
-                <input type="checkbox" id="expense-inventory-invoice" ${wz.isInventoryInvoice ? 'checked' : ''} onchange="app.expenseWizardInvToggle(this)" class="mt-0.5 w-4 h-4 rounded text-blue-600 border-slate-300">
-                <span class="text-xs text-slate-500">
-                    <span class="font-bold text-slate-700">Factura de Inventario B2B</span><br>
-                    Los vinilos de esta factura ya manejan su propio Micro-IVA. Se registra para balances pero se <strong>ignora fiscalmente</strong>.
-                </span>
-            </label>`;
+            </p>`;
     },
 
     // --- Paso 3: Comprobante y revisión ---
@@ -10829,7 +10905,8 @@ const app = {
         const expenseCategories = this.getExpenseCategories();
         const catLabel = expenseCategories.find(c => c.value === wz.categoria)?.label || wz.categoria || '—';
         const total = parseFloat(wz.total) || 0;
-        const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+        const treat = (wz.vatTreatment || 'eu');
+        const ivaLocked = wz.categoria === 'stock_usado' || (wz.categoria === 'stock_nuevo' && treat === 'eu');
         const iva = ivaLocked ? 0 : (parseFloat(wz.iva) || 0);
         const isStock = wz.categoria === 'stock_nuevo' || wz.categoria === 'stock_usado';
         const lot = (isStock && (wz.proveedor || '').trim()) ? (this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—') : null;
@@ -10845,6 +10922,7 @@ const app = {
                     ${row('Categoría', catLabel)}
                     ${row('Total', this.formatCurrency(total))}
                     ${row('IVA', this.formatCurrency(iva))}
+                    ${wz.categoria === 'stock_nuevo' ? row('Tratamiento IVA', treat === 'dk' ? '<span class="text-emerald-700">Dinamarca · 25%</span>' : '<span class="text-blue-700">UE · Reverse charge</span>') : ''}
                     ${row('Subtotal neto', this.formatCurrency(total - iva))}
                     ${lot ? row('Lote', `<span class="text-indigo-700">${lot}</span>`) : ''}
                     ${row('Comprobante', receiptUrl ? '<span class="text-emerald-600">Subido</span>' : (wz.noReceipt ? '<span class="text-amber-600">En revisión</span>' : '<span class="text-red-500">Falta</span>'))}
@@ -10878,8 +10956,8 @@ const app = {
             return;
         }
         const cat = (window.expenseCategories || []).find(c => c.value === wz.categoria);
-        const isInventoryInvoice = !!wz.isInventoryInvoice;
-        const ivaLocked = wz.categoria === 'stock_usado' || isInventoryInvoice;
+        const vatTreatment = wz.categoria === 'stock_nuevo' ? (wz.vatTreatment || 'eu') : '';
+        const ivaLocked = wz.categoria === 'stock_usado' || vatTreatment === 'eu';
         const expenseData = {
             proveedor: (wz.proveedor || '').trim(),
             fecha_factura: wz.fecha,
@@ -10890,7 +10968,7 @@ const app = {
             categoria_label: cat?.label || wz.categoria,
             categoria_tipo: cat?.type || 'operativo',
             is_vat_deductible: cat?.type === 'operativo' || cat?.type === 'stock_nuevo',
-            is_inventory_invoice: isInventoryInvoice,
+            vat_treatment: vatTreatment,
             descripcion: (wz.descripcion || '').trim(),
             receiptUrl,
             timestamp: new Date().toISOString(),
@@ -10901,12 +10979,9 @@ const app = {
                 ? this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null)
                 : '',
         };
-        // Factura global B2B: neutralizar IVA para no duplicar el Micro-IVA a nivel item
-        if (isInventoryInvoice) {
-            expenseData.monto_iva = 0;
-            expenseData.is_vat_deductible = false;
-            expenseData.categoria_tipo = 'stock_factura_global';
-        }
+        // UE reverse charge: el IVA se autoliquida por disco (micro-IVA) en el Reporte VAT,
+        // por eso el gasto queda en 0 y no duplica la deducción.
+        if (vatTreatment) this.rememberVatTreatment(wz.proveedor, vatTreatment);
         const done = () => {
             this.showToast(wz.id ? 'Compra actualizada' : 'Compra registrada');
             this.closeExpenseWizard();
@@ -10991,6 +11066,8 @@ const app = {
         if (!wrap) return;
         const isStock = cat === 'stock_nuevo' || cat === 'stock_usado';
         wrap.classList.toggle('hidden', !isStock);
+        const treat = document.getElementById('expense-vat-treatment');
+        if (treat) treat.classList.toggle('hidden', cat !== 'stock_nuevo');
         if (isStock) this.updateLotPreview();
     },
 
@@ -11010,8 +11087,13 @@ const app = {
     exportExpensesToCSV() {
         const rows = this.state.expenses || [];
         const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const header = ['Fecha', 'Proveedor', 'N Factura', 'Lote', 'Descripcion', 'Categoria', 'Total (kr)', 'IVA (kr)', 'Comprobante'];
+        const header = ['Fecha', 'Proveedor', 'N Factura', 'Lote', 'Descripcion', 'Categoria', 'Tratamiento IVA', 'Total (kr)', 'IVA (kr)', 'Comprobante'];
         const lines = [header.map(esc).join(';')];
+        const treatLabel = (e) => {
+            if (e.categoria !== 'stock_nuevo') return '';
+            const t = e.vat_treatment === 'dk' ? 'dk' : (e.vat_treatment === 'eu' || e.is_inventory_invoice ? 'eu' : null);
+            return t === 'dk' ? 'Dinamarca 25%' : (t === 'eu' ? 'UE reverse charge' : '');
+        };
         rows.forEach(e => {
             lines.push([
                 esc((e.fecha_factura || e.date || '').slice(0, 10)),
@@ -11020,6 +11102,7 @@ const app = {
                 esc(e.lotRef || ''),
                 esc(e.descripcion || ''),
                 esc(e.categoria_label || e.categoria || e.category || ''),
+                esc(treatLabel(e)),
                 esc(Number(e.monto_total || e.amount || 0).toFixed(2)),
                 esc(Number(e.monto_iva || 0).toFixed(2)),
                 esc(e.receiptUrl ? 'Si' : (e.receiptPending ? 'En revision' : 'No'))
@@ -11039,7 +11122,11 @@ const app = {
         if (!expense) return;
 
         // Abrir el wizard de carga rapida con el lote de la compra pre-seleccionado
-        this.openQuickAddWizard(expense.lotRef || '');
+        // y el origen (EU_B2B / DK_B2B) según el tratamiento de IVA de la factura
+        const presetOrigin = expense.categoria === 'stock_nuevo'
+            ? (expense.vat_treatment === 'dk' ? 'DK_B2B' : 'EU_B2B')
+            : '';
+        this.openQuickAddWizard(expense.lotRef || '', presetOrigin);
         if (expense.lotRef) this.showToast(`Cargando discos del lote ${expense.lotRef}`);
     },
 
@@ -12685,8 +12772,14 @@ const app = {
 
         // ── Micro-IVA: Calculate Real VAT from DK B2B acquisitions ──
         // DK invoices carry actual 25% VAT → goes ONLY to Købsmoms (pure deduction)
+        // Anti-duplicación: si el lote ya deduce su IVA vía un gasto con tratamiento 'dk',
+        // los discos de ese lote no vuelven a deducir por micro-IVA (el gasto ya lo reclama).
+        const dkClaimedLots = new Set((this.state.expenses || [])
+            .filter(e => e.vat_treatment === 'dk' && e.lotRef)
+            .map(e => e.lotRef));
         const dkB2bVatItems = (this.state.inventory || []).filter(p => {
             if (!p.item_real_vat || p.item_real_vat <= 0 || p.provider_origin !== 'DK_B2B') return false;
+            if (p.lot && dkClaimedLots.has(p.lot)) return false;
             const acqDate = p.acquisition_date ? new Date(p.acquisition_date) : null;
             if (!acqDate) return false;
             return acqDate >= startDate && acqDate <= endDate;
