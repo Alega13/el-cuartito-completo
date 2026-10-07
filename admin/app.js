@@ -1895,7 +1895,6 @@ const app = {
 
         // Blueprint Sec 04: los drill-downs del dashboard no quedan pegados al navegar a otra pantalla
         if (view !== 'expenses') this.state.expenseMissingReceiptOnly = false;
-        if (view !== 'inventory') this.state.inventoryLowStockOnly = false;
 
         // Update UI Active States
         document.querySelectorAll('.nav-item, .nav-item-m').forEach(el => {
@@ -2010,15 +2009,26 @@ const app = {
     getCustomerInfo(sale) {
         const customer = sale.customer || {};
         const name = sale.customerName || customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : '') || 'Cliente';
-        const email = sale.customerEmail || customer.email || '-';
+        // Sin placeholders inventados: '' si no hay dato (el render decide qué mostrar)
+        const email = (sale.customerEmail || customer.email || '').trim();
+        const phone = (customer.phone || sale.customerPhone || sale.phone || '').trim();
 
-        let address = sale.address || customer.address || '-';
-        if (customer.shipping) {
+        // Dirección: WebShop trae customer.shipping {line1,line2,city,postal_code,country};
+        // Discogs/otros usan sale.address o customer.address (string libre)
+        let address = '';
+        let hasAddress = false;
+        if (customer.shipping && (customer.shipping.line1 || customer.shipping.city || customer.shipping.postal_code)) {
             const s = customer.shipping;
-            address = `${s.line1 || ''} ${s.line2 || ''}, ${s.city || ''}, ${s.postal_code || ''}, ${s.country || ''}`.trim().replace(/^,|,$/g, '');
+            const street = [s.line1, s.line2].filter(Boolean).join(' ');
+            const cityLine = [s.postal_code || s.zip, s.city].filter(Boolean).join(' ');
+            address = [street, cityLine, s.country].filter(Boolean).join(', ');
+            hasAddress = true;
+        } else {
+            const raw = (sale.address || customer.address || '').trim();
+            if (raw && raw !== '-') { address = raw; hasAddress = true; }
         }
 
-        return { name, email, address };
+        return { name, email, phone, address, hasAddress };
     },
 
     renderCalendarDaySummary(date) {
@@ -3037,11 +3047,10 @@ const app = {
         // Compras sin comprobante
         const missingReceipt = (this.state.expenses || []).filter(e => !e.receiptUrl && !e.comprobante && e.receiptPending !== false && !e.receiptExempt).length;
         setBadge('nav-badge-expenses', missingReceipt);
-        // Envíos pendientes: canal online/discogs con fulfillment no cerrado (misma lógica que renderShipping)
+        // Envíos pendientes: solo WebShop/Discogs con fulfillment no cerrado (el local nunca envía)
         const doneFs = ['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'];
         const pendingShip = (this.state.sales || []).filter(s => {
-            const ch = (s.channel || '').toLowerCase();
-            if (ch !== 'online' && ch !== 'discogs') return false;
+            if (!this.isShippableChannel(s)) return false;
             return !doneFs.includes((s.fulfillment_status || '').toLowerCase());
         }).length;
         setBadge('nav-badge-shipping', pendingShip);
@@ -3413,11 +3422,13 @@ const app = {
             const totalItems = this.state.inventory.reduce((sum, i) => sum + i.stock, 0);
 
             // 4. Operational Alerts
-            const lowStockItems = this.state.inventory.filter(i => i.stock > 0 && i.stock < 1);
+            // El local nunca cuenta como pendiente de envío (ni POS web ni app mobile)
             const pendingOrders = this.state.sales.filter(s =>
-                s.fulfillment_status === 'preparing' ||
-                s.status === 'paid' ||
-                (s.channel?.toLowerCase() === 'discogs' && s.status !== 'shipped' && s.fulfillment_status !== 'shipped')
+                this.isShippableChannel(s) && (
+                    s.fulfillment_status === 'preparing' ||
+                    s.status === 'paid' ||
+                    (s.channel?.toLowerCase() === 'discogs' && s.status !== 'shipped' && s.fulfillment_status !== 'shipped')
+                )
             );
 
             // --- NEW: IVA Estimado (Real-time for selected period) ---
@@ -3433,7 +3444,6 @@ const app = {
                 if (seenExpenseKeys.has(key)) possibleDuplicates++;
                 else seenExpenseKeys.add(key);
             });
-            const lowStockCount = this.state.inventory.filter(i => (Number(i.stock) || 0) === 1).length;
 
             const periodText = selectedMonths.length === 12
                 ? `Año ${currentYear} `
@@ -3599,7 +3609,7 @@ const app = {
                     <h3 class="font-bold text-sm text-brand-dark flex items-center gap-2 mb-4">
                         <i class="ph-bold ph-warning-circle text-brand-orange"></i> Requiere atención
                     </h3>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                         <button onclick="app.state.expenseMissingReceiptOnly = true; app.navigate('expenses')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
                             <span class="text-2xl font-display font-bold ${missingReceiptCount > 0 ? 'text-red-500' : 'text-emerald-500'}">${missingReceiptCount}</span>
                             <span class="text-xs font-bold text-slate-600 leading-tight">Gastos sin<br>comprobante</span>
@@ -3611,10 +3621,6 @@ const app = {
                         <button onclick="app.navigate('shipping')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
                             <span class="text-2xl font-display font-bold ${pendingOrders.length > 0 ? 'text-red-500' : 'text-emerald-500'}">${pendingOrders.length}</span>
                             <span class="text-xs font-bold text-slate-600 leading-tight">Envíos<br>pendientes</span>
-                        </button>
-                        <button onclick="app.state.inventoryLowStockOnly = true; app.navigate('inventory')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
-                            <span class="text-2xl font-display font-bold ${lowStockCount > 0 ? 'text-amber-500' : 'text-emerald-500'}">${lowStockCount}</span>
-                            <span class="text-xs font-bold text-slate-600 leading-tight">Stock<br>bajo</span>
                         </button>
                     </div>
                 </div>
@@ -4413,7 +4419,6 @@ const app = {
         const activeFiltersList = [];
         if (this.state.filterStock === 'inStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo en Stock', icon: 'ph-check-circle' });
         if (this.state.filterStock === 'outOfStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo Agotados', icon: 'ph-x-circle' });
-        if (this.state.inventoryLowStockOnly) activeFiltersList.push({ key: 'inventoryLowStockOnly', label: 'Stock bajo (≤1)', icon: 'ph-warning' });
         if (this.state.filterDiscogs === 'yes') activeFiltersList.push({ key: 'filterDiscogs', label: 'En Discogs', icon: 'ph-disc' });
         if (this.state.filterDiscogs === 'no') activeFiltersList.push({ key: 'filterDiscogs', label: 'No en Discogs', icon: 'ph-disc' });
         if (this.state.filterCondition === 'used') activeFiltersList.push({ key: 'filterCondition', label: 'Brugtmoms (Usados)', icon: 'ph-recycle' });
@@ -4891,8 +4896,6 @@ const app = {
     clearSingleFilter(filterName, resetValue) {
         if (resetValue === 'stockTime') {
             this.state.filterStockTime = [];
-        } else if (filterName === 'inventoryLowStockOnly') {
-            this.state.inventoryLowStockOnly = false; // Blueprint Sec 04: flag booleana de drill-down
         } else if (filterName === 'filterPrice') {
             this.state.filterPriceMin = '';
             this.state.filterPriceMax = '';
@@ -5204,9 +5207,9 @@ const app = {
             .filter(s => s.date === yesterday && channelMatch(s))
             .reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
 
-        // Orders to ship (WebShop o Discogs con fulfillment pendiente)
+        // Orders to ship (WebShop o Discogs con fulfillment pendiente; el local nunca envía)
         const toShip = this.state.sales.filter(s =>
-            channelMatch(s) && (
+            channelMatch(s) && this.isShippableChannel(s) && (
                 s.fulfillment_status === 'preparing' ||
                 s.status === 'paid' ||
                 (this.normalizeSaleChannel(s) === 'discogs' && s.status !== 'shipped')
@@ -5453,9 +5456,10 @@ const app = {
                                             <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">
                                                 ${isPaid ? 'Pagado' : 'Pendiente'}
                                             </span>
+                                            ${this.isShippableChannel(s) ? `
                                             <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${isShipped ? 'bg-slate-100 text-slate-500' : 'bg-rose-50 text-rose-500'}">
                                                 ${isShipped ? 'Enviado' : 'Por Enviar'}
-                                            </span>
+                                            </span>` : ''}
                                         </div>
                                     </div>
 
@@ -5941,6 +5945,13 @@ const app = {
         if (s.customer && (s.customer.email || s.shipping_method)) return 'online';
         if (s.source === 'STORE') return 'local';
         return 'local';
+    },
+
+    // El local nunca hace envíos: solo WebShop y Discogs pueden estar pendientes de envío.
+    // Centraliza la regla para nav, dashboard, Ventas y Envíos.
+    isShippableChannel(s) {
+        const ch = this.normalizeSaleChannel(s);
+        return ch === 'online' || ch === 'discogs';
     },
 
     // Badge pastel por canal (lenguaje visual de la app)
@@ -7664,7 +7675,7 @@ const app = {
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Email</p>
-                                        <p class="text-sm font-medium text-slate-600 truncate">${customerInfo.email}</p>
+                                        <p class="text-sm font-medium text-slate-600 truncate">${customerInfo.email || '-'}</p>
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</p>
@@ -7672,10 +7683,10 @@ const app = {
                                     </div>
                                     <div>
                                         <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
-                                        <p class="text-xs font-medium text-slate-600 leading-relaxed">${customerInfo.address}</p>
-                                        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerInfo.address)}" target="_blank" class="text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1">
+                                        <p class="text-xs font-medium text-slate-600 leading-relaxed">${customerInfo.address || 'Sin dirección registrada'}</p>
+                                        ${customerInfo.hasAddress ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerInfo.address)}" target="_blank" class="text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1">
                                             <i class="ph ph-map-pin"></i> Ver en Maps
-                                        </a>
+                                        </a>` : ''}
                                     </div>
                                 </div>
                             </div>
@@ -8899,8 +8910,6 @@ const app = {
         const stock = Number(item.stock) || 0;
         if (stock <= 0) {
             badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-x-circle"></i>Agotado</span>');
-        } else if (stock === 1) {
-            badges.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>Poco stock</span>');
         }
         // Reservado = en el carrito de venta activo
         if ((this.state.cart || []).some(c => c.id === item.id || c.sku === item.sku)) {
@@ -8936,11 +8945,6 @@ const app = {
                 const p = parseFloat(item.price) || 0;
                 return (priceMin === null || p >= priceMin) && (priceMax === null || p <= priceMax);
             });
-        }
-
-        // Blueprint Sec 04/05: drill-down "Stock bajo" desde el dashboard
-        if (this.state.inventoryLowStockOnly) {
-            results = results.filter(item => (Number(item.stock) || 0) <= 1);
         }
 
         // 1. Fuzzy Search (if term exists)
@@ -13196,399 +13200,223 @@ const app = {
     },
     // ====== END INVESTMENTS MODULE ======
 
+    // --- Envíos: flujo por pasos (kanban) ---
+    // Un pedido es "retiro en tienda" si el método de envío es pickup o no se cobra envío
+    isPickupOrder(s) {
+        return (s.shipping_method?.id === 'local_pickup') ||
+            (s.shipping_method && typeof s.shipping_method === 'string' && s.shipping_method.toLowerCase().includes('pickup')) ||
+            (s.shippingMethod && s.shippingMethod.toLowerCase().includes('pickup')) ||
+            (Number(s.shipping) === 0) ||
+            (Number(s.shipping_cost) === 0) ||
+            (Number(s.shipping_income) === 0);
+    },
+
+    // Motivos bloqueantes que mandan un pedido activo a la columna EXCEPCIÓN
+    getShippingIssues(s) {
+        const issues = [];
+        const ci = this.getCustomerInfo(s);
+        if (!this.isPickupOrder(s) && !ci.hasAddress) {
+            issues.push('Falta dirección de envío');
+        }
+        if (!ci.email && !ci.phone) {
+            issues.push('Sin datos de contacto');
+        }
+        return issues;
+    },
+
+    // Columna del kanban según fulfillment_status. Las excepciones tienen prioridad.
+    shipKanbanColumn(s) {
+        const fs = (s.fulfillment_status || '').toLowerCase();
+        const closed = ['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'];
+        if (!closed.includes(fs) && this.getShippingIssues(s).length > 0) return 'excepcion';
+        if (['preparing', 'ready_for_pickup', 'in_transit'].includes(fs)) return 'etiqueta';
+        if (closed.includes(fs)) return 'despachado';
+        return 'preparar';
+    },
+
+    // Tarjeta de pedido del kanban con datos completos del cliente
+    renderShipCard(s) {
+        const ci = this.getCustomerInfo(s);
+        const col = this.shipKanbanColumn(s);
+        const fs = (s.fulfillment_status || '').toLowerCase();
+        const isPickup = this.isPickupOrder(s);
+        const issues = this.getShippingIssues(s);
+        const items = s.items || [];
+        const displayName = ci.name && ci.name !== 'Cliente' ? ci.name : (ci.email || 'Cliente');
+        const firstTitle = items[0] ? (items[0].album || items[0].title || items[0].name || 'Item') : '';
+
+        // Bloque de datos del cliente: solo lo que existe, sin placeholders inventados
+        const customerBlock = `
+            ${ci.hasAddress ? `
+            <div class="flex items-start gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2 mt-2">
+                <i class="ph-bold ph-map-pin text-slate-400 text-sm mt-0.5"></i>
+                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-snug">${ci.address}</span>
+            </div>` : ''}
+            ${(ci.phone || ci.email) ? `
+            <div class="mt-2 space-y-1">
+                ${ci.phone ? `<div class="flex items-center gap-2 text-xs text-slate-600"><i class="ph-bold ph-phone text-slate-400"></i><a href="tel:${ci.phone}" class="font-semibold hover:text-brand-orange">${ci.phone}</a></div>` : ''}
+                ${ci.email ? `<div class="flex items-center gap-2 text-xs text-slate-600 truncate"><i class="ph-bold ph-envelope-simple text-slate-400"></i><span class="truncate font-medium" title="${ci.email}">${ci.email}</span></div>` : ''}
+            </div>` : ''}`;
+
+        // Acción contextual según la columna (patrón fulfillment por pasos)
+        let actionBtn = '';
+        if (col === 'preparar') {
+            actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`;
+        } else if (col === 'etiqueta') {
+            if (isPickup && fs === 'ready_for_pickup') {
+                actionBtn = `<button onclick="app.markPickedUpDiscogs('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-check-circle"></i>Confirmar recogida</button>`;
+            } else if (isPickup) {
+                actionBtn = `<button onclick="app.setReadyForPickup('${s.id}', event)" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-bell-ringing"></i>Lista para retiro</button>`;
+            } else {
+                actionBtn = `
+                <div class="mt-3 space-y-2">
+                    <input type="text" id="track-${s.id}" placeholder="Tracking # (opcional)" value="${s.tracking_number || ''}"
+                        class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono" onclick="event.stopPropagation()">
+                    <button onclick="app.shipOrderFromKanban('${s.id}', 'track-${s.id}')" class="w-full px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>
+                </div>`;
+            }
+        } else if (col === 'excepcion') {
+            actionBtn = `<button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-warning-circle"></i>Resolver problema</button>`;
+        }
+
+        return `
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    ${this.saleChannelBadge(s)}
+                    <span class="font-bold text-sm text-brand-dark truncate">#${s.orderNumber || s.id.slice(0, 6)}</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-medium whitespace-nowrap">${this.formatDate(s.date)}</span>
+            </div>
+            <div class="mt-2 font-bold text-brand-dark text-[15px] truncate" title="${displayName}">${displayName}</div>
+            <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <i class="ph-bold ph-disc text-brand-orange"></i>
+                <span class="font-bold text-slate-600">${items.length}</span>
+                ${firstTitle ? `<span class="truncate">${firstTitle}${items.length > 1 ? ` <span class="text-slate-400">+${items.length - 1}</span>` : ''}</span>` : ''}
+            </div>
+            <div class="mt-1.5">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${isPickup ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}">
+                    <i class="ph-bold ${isPickup ? 'ph-storefront' : 'ph-truck'}"></i>${isPickup ? 'Retiro' : 'Envío'}
+                </span>
+            </div>
+            ${customerBlock}
+            ${issues.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
+            ${actionBtn}
+            <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
+        </div>`;
+    },
+
+    // Despacha desde el kanban: guarda tracking (si hay), notifica al comprador de Discogs y marca shipped
+    async shipOrderFromKanban(saleId, inputId) {
+        try {
+            const input = document.getElementById(inputId);
+            const tracking = input ? input.value.trim() : '';
+            const sale = (this.state.sales || []).find(s => s.id === saleId);
+            const ch = sale ? this.normalizeSaleChannel(sale) : '';
+            if (tracking && ch === 'discogs') {
+                await api.notifyShipped(saleId, tracking, null);
+                this.showToast('Cliente notificado con el tracking');
+            } else if (tracking) {
+                await db.collection('sales').doc(saleId).update({ tracking_number: tracking });
+            }
+            await db.collection('sales').doc(saleId).update({ fulfillment_status: 'shipped' });
+            this.showToast('Pedido marcado como despachado');
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error('shipOrderFromKanban:', e);
+            this.showToast('Error al despachar: ' + e.message, 'error');
+        }
+    },
+
+    // Exporta la lista de envíos activos a CSV
+    exportShippingList() {
+        const rows = this.state.sales.filter(s => this.isShippableChannel(s));
+        const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const lines = [['Orden', 'Fecha', 'Canal', 'Cliente', 'Email', 'Teléfono', 'Dirección', 'Items', 'Total', 'Estado'].join(';')];
+        rows.forEach(s => {
+            const ci = this.getCustomerInfo(s);
+            lines.push([s.orderNumber || s.id.slice(0, 8), s.date || '', this.normalizeSaleChannel(s), ci.name, ci.email, ci.phone, ci.address, (s.items || []).length, s.total || 0, s.fulfillment_status || 'pendiente'].map(q).join(';'));
+        });
+        const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `envios-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        this.showToast('Lista de envíos exportada');
+    },
+
     renderShipping(container) {
-        // Helper to identify order type
-        const isPickup = (s) => {
-            return (s.shipping_method?.id === 'local_pickup') ||
-                (s.shipping_method && typeof s.shipping_method === 'string' && s.shipping_method.toLowerCase().includes('pickup')) ||
-                (s.shippingMethod && s.shippingMethod.toLowerCase().includes('pickup')) ||
-                (Number(s.shipping) === 0) || 
-                (Number(s.shipping_cost) === 0) || 
-                (Number(s.shipping_income) === 0);
-        };
+        // Solo WebShop y Discogs: el local nunca hace envíos
+        const shipSales = this.state.sales.filter(s => this.isShippableChannel(s));
 
-        const isShippable = (s) => !isPickup(s);
+        const byCol = { preparar: [], etiqueta: [], despachado: [], excepcion: [] };
+        shipSales.forEach(s => { byCol[this.shipKanbanColumn(s)].push(s); });
+        const byDateAsc = (a, b) => new Date(a.date) - new Date(b.date);
+        byCol.preparar.sort(byDateAsc);
+        byCol.etiqueta.sort(byDateAsc);
+        byCol.excepcion.sort(byDateAsc);
+        byCol.despachado.sort((a, b) => new Date(b.updated_at?.toDate ? b.updated_at.toDate() : (b.updated_at || b.date)) - new Date(a.updated_at?.toDate ? a.updated_at.toDate() : (a.updated_at || a.date)));
+        const despachados = byCol.despachado.slice(0, 12);
 
-        // Helper to check if order is active (not closed)
-        // Closed states: 'shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'
-        const isActive = (s) => !['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'].includes(s.fulfillment_status);
+        const pendingCount = byCol.preparar.length + byCol.etiqueta.length + byCol.excepcion.length;
 
-        // Filter Sales
-        // 1. Active Pickups (Online + Discogs)
-        const activePickups = this.state.sales.filter(s =>
-            (s.channel === 'online' || s.channel?.toLowerCase() === 'discogs') &&
-            isPickup(s) &&
-            isActive(s)
-        ).sort((a, b) => new Date(a.date) - new Date(b.date)); // Oldest first
-
-        // 2. Active Shipping (Online + Discogs)
-        const activeShipping = this.state.sales.filter(s =>
-            (s.channel === 'online' || s.channel?.toLowerCase() === 'discogs') &&
-            isShippable(s) &&
-            isActive(s)
-        ).sort((a, b) => new Date(a.date) - new Date(b.date)); // Oldest first
-
-        // 3. History (Recently Closed)
-        const history = this.state.sales.filter(s =>
-            (s.channel === 'online' || s.channel?.toLowerCase() === 'discogs') &&
-            !isActive(s)
-        ).sort((a, b) => new Date(b.updated_at?.toDate ? b.updated_at.toDate() : (b.updated_at || b.date)) - new Date(a.updated_at?.toDate ? a.updated_at.toDate() : (a.updated_at || a.date)))
-            .slice(0, 20);
-
-        // Blueprint Sec 08: bandejas por estado (pestañas con conteos)
-        const shipTab = this.state.shippingTab || 'all';
-        const shipStatusOf = (s) => {
-            const fs = (s.fulfillment_status || '').toLowerCase();
-            if (['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'].includes(fs)) return 'done';
-            if (fs === 'preparing') return 'preparing';
-            if (fs === 'ready_for_pickup') return 'ready';
-            return 'pending';
-        };
-        const tabMatch = (s) => shipTab === 'all' || shipStatusOf(s) === shipTab;
-        const tabbedPickups = activePickups.filter(tabMatch);
-        const tabbedShipping = activeShipping.filter(tabMatch);
-        const countBy = (tab) => this.state.sales.filter(s =>
-            (s.channel === 'online' || s.channel?.toLowerCase() === 'discogs') && shipStatusOf(s) === tab
-        ).length;
-        const shipTabs = [
-            { key: 'all', label: 'Todas', icon: 'ph-squares-four' },
-            { key: 'pending', label: 'Pendientes', icon: 'ph-clock', count: countBy('pending') },
-            { key: 'preparing', label: 'En preparación', icon: 'ph-package', count: countBy('preparing') },
-            { key: 'ready', label: 'Listas', icon: 'ph-bell-ringing', count: countBy('ready') },
-            { key: 'done', label: 'Cerradas', icon: 'ph-check-circle', count: countBy('done') },
+        const columns = [
+            { key: 'preparar', label: 'Preparar', dot: 'bg-slate-400', colBg: 'bg-slate-50/70', hint: 'Pedidos nuevos por preparar' },
+            { key: 'etiqueta', label: 'Etiqueta creada', dot: 'bg-blue-500', colBg: 'bg-blue-50/40', hint: 'Listos para despachar o retirar' },
+            { key: 'despachado', label: 'Despachado', dot: 'bg-green-500', colBg: 'bg-green-50/40', hint: 'Últimos 12 cerrados' },
+            { key: 'excepcion', label: 'Excepción', dot: 'bg-red-500', colBg: 'bg-red-50/40', hint: 'Requieren acción' },
         ];
 
         const html = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
+            <div class="max-w-[1600px] mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
                 <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
                     <div>
                         <h2 class="font-display text-3xl font-bold text-brand-dark">Envíos y Logística</h2>
-                        <p class="text-slate-500 text-sm">Bandeja de trabajo Shipmondo y Pickup</p>
+                        <p class="text-slate-500 text-sm mt-1 flex items-center gap-1.5"><i class="ph-bold ph-truck text-brand-orange"></i>Bandeja de trabajo Shipmondo y Pickup</p>
                     </div>
-                    <div class="flex flex-wrap gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
                         <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
                             <i class="ph-fill ph-hand-coins text-indigo-500 text-2xl"></i>
                             <div>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Envíos (aprox)</p>
-                                <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(this.state.sales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
+                                <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(shipSales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
                             </div>
                         </div>
                         <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
                             <i class="ph-fill ph-clock text-brand-orange text-2xl"></i>
                             <div>
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Pendientes</p>
-                                <p class="text-2xl font-display font-bold text-brand-dark">${activePickups.length + activeShipping.length}</p>
+                                <p class="text-2xl font-display font-bold text-brand-dark">${pendingCount}</p>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Blueprint Sec 08: pestañas de estado -->
-                <div class="flex gap-2 overflow-x-auto no-scrollbar mb-8">
-                    ${shipTabs.map(t => `
-                        <button onclick="app.state.shippingTab = '${t.key}'; app.refreshCurrentView()"
-                            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${shipTab === t.key ? 'bg-brand-dark text-white shadow-lg' : 'bg-white border border-slate-200 text-slate-500 hover:border-brand-orange hover:text-brand-orange'}">
-                            <i class="ph-bold ${t.icon}"></i> ${t.label}
-                            ${t.count !== undefined ? `<span class="min-w-[20px] h-5 px-1.5 rounded-full text-[10px] flex items-center justify-center ${shipTab === t.key ? 'bg-white/20 text-white' : (t.count > 0 ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400')}">${t.count}</span>` : ''}
-                        </button>`).join('')}
-                </div>
-
-                <!-- SECTION 1: PICKUP ORDERS -->
-                <div class="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden mb-8">
-                    <div class="p-6 bg-blue-50/30 border-b border-blue-50 flex justify-between items-center">
-                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                            <i class="ph-fill ph-storefront text-blue-500 text-xl"></i> 
-                            Retiro en Tienda (Pickup)
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">${tabbedPickups.length}</span>
-                        </h3>
-                    </div>
-                    
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-blue-50/50 text-xs uppercase text-slate-500 font-bold">
-                                <tr>
-                                    <th class="p-4 w-24">Orden</th>
-                                    <th class="p-4 w-48">Cliente</th>
-                                    <th class="p-4">Items</th>
-                                    <th class="p-4 w-32 hidden md:table-cell">Canal</th>
-                                    <th class="p-4 text-center w-64">Workflow</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-blue-50">
-                                ${tabbedPickups.length > 0 ? tabbedPickups.map(s => {
-            const customerInfo = this.getCustomerInfo(s);
-            const status = s.fulfillment_status || 'unfulfilled';
-
-            // Workflow Logic
-            // 1. Preparing (notifyPreparingDiscogs)
-            // 2. Ready (notifyPickupReadyDiscogs)
-            // 3. Picked Up (markPickedUpDiscogs)
-
-            let btn1Click = (!status || status === 'unfulfilled') ? `onclick="app.notifyPreparingDiscogs('${s.id}')"` : 'disabled';
-            let btn1Class = (!status || status === 'unfulfilled') ? 'bg-blue-500 text-white shadow-sm hover:bg-blue-600' : (status === 'preparing' || status === 'ready_for_pickup' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-50');
-
-            let btn2Click = status === 'preparing' ? `onclick="app.notifyPickupReadyDiscogs('${s.id}')"` : 'disabled';
-            let btn2Class = status === 'preparing' ? 'bg-brand-orange text-white shadow-sm hover:bg-orange-600' : (status === 'ready_for_pickup' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50');
-
-            let btn3Click = status === 'ready_for_pickup' ? `onclick="app.markPickedUpDiscogs('${s.id}')"` : 'disabled';
-            let btn3Class = status === 'ready_for_pickup' ? 'bg-brand-dark text-white shadow-sm hover:bg-black' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
-
-            let actionUI = `
-                <div class="flex flex-col gap-2 relative pl-2">
-                    <div class="flex items-center absolute left-0 top-4 bottom-4 py-0 w-1">
-                        <div class="w-1 bg-blue-100 rounded-full h-full relative overflow-hidden">
-                            <div class="w-1 bg-blue-500 rounded-full transition-all duration-300 absolute top-0" style="height: ${status === 'ready_for_pickup' ? '100%' : (status === 'preparing' ? '50%' : '0%')}"></div>
-                        </div>
-                    </div>
-                    
-                    <button ${btn1Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn1Class}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ${(status !== 'unfulfilled' && status) ? 'ph-check-circle text-green-500' : 'ph-package'} text-sm"></i> 
-                            1. En preparación
-                        </span>
-                        ${(status !== 'unfulfilled' && status) ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
-                    </button>
-
-                    <button ${btn2Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn2Class}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ${status === 'ready_for_pickup' ? 'ph-check-circle text-green-500' : 'ph-bell-ringing'} text-sm"></i> 
-                            2. Lista para pickup
-                        </span>
-                        ${status === 'ready_for_pickup' ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
-                    </button>
-
-                    <button ${btn3Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn3Class}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ph-check-circle text-sm"></i> 
-                            3. Orden recogida
-                        </span>
-                    </button>
-
-                    ${status !== 'canceled' && status !== 'picked_up' ? `
-                    <button onclick="app.cancelOrderDiscogs('${s.id}')" class="w-full text-left px-3 py-1.5 mt-1 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border border-transparent hover:border-red-100">
-                        <i class="ph-bold ph-x-circle text-sm"></i> Cancelar orden
-                    </button>` : ''}
-                </div>
-            `;
-            return `
-                                    <tr class="hover:bg-blue-50/20 transition-colors">
-                                        <td class="p-4 font-bold text-brand-dark">
-                                            #${s.orderNumber || s.id.slice(0, 6)}
-                                            <div class="text-[10px] text-slate-400 font-normal mt-0.5">${this.formatDate(s.date)}</div>
-                                        </td>
-                                        <td class="p-4">
-                                            <div class="font-bold text-sm text-brand-dark">${customerInfo.name}</div>
-                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${customerInfo.email}">${customerInfo.email}</div>
-                                        </td>
-                                        <td class="p-4">
-                                            <div class="flex -space-x-2 overflow-hidden">
-                                                ${(s.items || []).slice(0, 3).map(i =>
-                `<img src="${i.image || i.cover_image || 'https://elcuartito.dk/default-vinyl.png'}" 
-                                                         class="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" 
-                                                         title="${i.album}">`
-            ).join('')}
-                                                ${(s.items || []).length > 3 ? `<span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] ring-2 ring-white text-slate-500 font-bold">+${s.items.length - 3}</span>` : ''}
-                                            </div>
-                                            <div class="text-[10px] text-slate-400 mt-1">${s.items?.length || 0} items</div>
-                                        </td>
-                                        <td class="p-4 hidden md:table-cell">
-                                            <span class="text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                                                ${s.channel || 'Online'}
-                                            </span>
-                                        </td>
-                                        <td class="p-4">
-                                            ${actionUI}
-                                        </td>
-                                    </tr>
-                                    `;
-        }).join('') : `
-                                    <tr>
-                                        <td colspan="5" class="p-8 text-center text-slate-400 italic">No hay retiros pendientes</td>
-                                    </tr>
-                                `}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- SECTION 2: SHIPPING ORDERS -->
-                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-8">
-                     <div class="p-6 bg-orange-50/30 border-b border-orange-50 flex justify-between items-center">
-                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                            <i class="ph-fill ph-truck text-brand-orange text-xl"></i> 
-                            Envíos por Correo
-                            <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">${tabbedShipping.length}</span>
-                        </h3>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-orange-50/50 text-xs uppercase text-slate-500 font-bold">
-                                <tr>
-                                    <th class="p-4 w-24">Orden</th>
-                                    <th class="p-4 w-48">Cliente</th>
-                                    <th class="p-4">Items</th>
-                                    <th class="p-4 hidden md:table-cell">Destino</th>
-                                    <th class="p-4 text-center w-64">Workflow</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-orange-50">
-                                ${tabbedShipping.length > 0 ? tabbedShipping.map(s => {
-            const customerInfo = this.getCustomerInfo(s);
-            const status = s.fulfillment_status || 'unfulfilled';
-
-            // Workflow Logic
-            // 1. Preparing (notifyPreparingDiscogs)
-            // 2. In Transit -> Updates to in_transit
-            // 3. Shipped (Closed)
-
-            let btn1Click = (!status || status === 'unfulfilled') ? `onclick="app.notifyPreparingDiscogs('${s.id}')"` : 'disabled';
-            let btn1Class = (!status || status === 'unfulfilled') ? 'bg-brand-orange text-white shadow-sm hover:bg-orange-600' : (status === 'preparing' || status === 'in_transit' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-50');
-
-            let btn3Click = status === 'in_transit' ? `onclick="app.markDispatchedDiscogs('${s.id}')"` : 'disabled';
-            let btn3Class = status === 'in_transit' ? 'bg-brand-dark text-white shadow-sm hover:bg-black' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
-
-            let midSection = '';
-            if (status === 'preparing') {
-                midSection = `
-                    <div class="w-full bg-orange-50 border border-orange-100 rounded-lg p-2 flex flex-col gap-2 shadow-sm relative z-10">
-                        <div class="flex items-center gap-2 text-xs font-bold text-orange-800 px-1">
-                            <i class="ph-bold ph-truck text-sm"></i> 2. En camino
-                        </div>
-                        <input type="text" id="tracking-${s.id}" placeholder="Tracking #" 
-                            value="${s.tracking_number || ''}"
-                            class="w-full text-xs border border-orange-200 rounded px-2 py-1.5 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono">
-                        <input type="text" id="tracking-link-${s.id}" placeholder="Link (Opcional)" 
-                            class="w-full text-xs border border-orange-200 rounded px-2 py-1.5 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono text-slate-500">
-                        <button onclick="app.notifyShippedDiscogs('${s.id}', 'tracking-${s.id}', 'tracking-link-${s.id}')" 
-                                class="w-full bg-orange-600 hover:bg-orange-700 text-white px-2 py-1.5 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                            <i class="ph-bold ph-paper-plane-right text-sm"></i> Enviar Tracking al cliente
+                        <button onclick="app.exportShippingList()" class="bg-white border border-slate-200 text-slate-600 px-4 h-12 rounded-xl flex items-center gap-2 shadow-sm hover:border-brand-orange hover:text-brand-orange transition-all text-xs font-bold">
+                            <i class="ph-bold ph-download-simple text-base"></i><span class="hidden sm:inline">Exportar Lista</span>
                         </button>
                     </div>
-                `;
-            } else {
-                let midClass = status === 'in_transit' ? 'bg-slate-50 border border-slate-100 text-slate-400 cursor-not-allowed opacity-75' : 'bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed opacity-50';
-                midSection = `
-                    <button disabled class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${midClass}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ${status === 'in_transit' ? 'ph-check-circle text-green-500' : 'ph-truck'} text-sm"></i> 
-                            2. En camino
-                        </span>
-                        ${status === 'in_transit' ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
-                    </button>
-                `;
-            }
-
-            let actionUI = `
-                <div class="flex flex-col gap-2 relative pl-2">
-                    <div class="flex items-center absolute left-0 top-4 bottom-4 py-0 w-1">
-                        <div class="w-1 bg-orange-100 rounded-full h-full relative overflow-hidden">
-                            <div class="w-1 bg-brand-orange rounded-full transition-all duration-300 absolute top-0" style="height: ${status === 'in_transit' ? '100%' : (status === 'preparing' ? '50%' : '0%')}"></div>
-                        </div>
-                    </div>
-
-                    <button ${btn1Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn1Class}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ${(status !== 'unfulfilled' && status) ? 'ph-check-circle text-green-500' : 'ph-package'} text-sm"></i> 
-                            1. En preparación
-                        </span>
-                        ${(status !== 'unfulfilled' && status) ? '<span class="text-[9px] uppercase font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">Hecho</span>' : ''}
-                    </button>
-
-                    ${midSection}
-
-                    <button ${btn3Click} class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${btn3Class}">
-                        <span class="flex items-center gap-2">
-                            <i class="ph-bold ph-archive text-sm"></i> 
-                            3. Orden despachada
-                        </span>
-                    </button>
-
-                    ${status !== 'canceled' && status !== 'shipped' ? `
-                    <button onclick="app.cancelOrderDiscogs('${s.id}')" class="w-full text-left px-3 py-1.5 mt-1 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border border-transparent hover:border-red-100">
-                        <i class="ph-bold ph-x-circle text-sm"></i> Cancelar orden
-                    </button>` : ''}
-                </div>
-            `;
-
-            return `
-                                    <tr class="hover:bg-orange-50/20 transition-colors">
-                                        <td class="p-4 font-bold text-brand-dark">
-                                            #${s.orderNumber || s.id.slice(0, 6)}
-                                            <div class="text-[10px] text-slate-400 font-normal mt-0.5">${this.formatDate(s.date)}</div>
-                                        </td>
-                                        <td class="p-4">
-                                            <div class="font-bold text-sm text-brand-dark">${customerInfo.name}</div>
-                                            <div class="text-xs text-slate-500 truncate max-w-[150px]" title="${customerInfo.email}">${customerInfo.email}</div>
-                                        </td>
-                                        <td class="p-4">
-                                            <div class="flex -space-x-2 overflow-hidden">
-                                                ${(s.items || []).slice(0, 3).map(i =>
-                `<img src="${i.image || i.cover_image || 'https://elcuartito.dk/default-vinyl.png'}" 
-                                                         class="inline-block h-8 w-8 rounded-full ring-2 ring-white object-cover" 
-                                                         title="${i.album}">`
-            ).join('')}
-                                                ${(s.items || []).length > 3 ? `<span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] ring-2 ring-white text-slate-500 font-bold">+${s.items.length - 3}</span>` : ''}
-                                            </div>
-                                            <div class="text-[10px] text-slate-400 mt-1">${s.items?.length || 0} items</div>
-                                        </td>
-                                        <td class="p-4 hidden md:table-cell text-xs text-slate-500">
-                                            ${s.city || ''}, ${s.country || 'DK'}
-                                        </td>
-                                        <td class="p-4">
-                                            ${actionUI}
-                                        </td>
-                                    </tr>
-                                    `;
-        }).join('') : `
-                                    <tr>
-                                        <td colspan="5" class="p-8 text-center text-slate-400 italic">No hay envíos pendientes</td>
-                                    </tr>
-                                `}
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
 
-                ${(shipTab === 'all' || shipTab === 'done') ? `
-                <!-- SECTION 3: HISTORY (Last 20) -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-8 opacity-75 hover:opacity-100 transition-opacity">
-                    <div class="p-6 bg-slate-50 border-b border-slate-100">
-                         <h3 class="font-bold text-slate-600 flex items-center gap-2">
-                            <i class="ph-fill ph-clock-counter-clockwise"></i> Historial Reciente (Completados)
-                        </h3>
-                    </div>
-                     <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                             <thead class="bg-slate-50 text-xs uppercase text-slate-400 font-bold">
-                                <tr>
-                                    <th class="p-4">Orden</th>
-                                    <th class="p-4">Ref</th>
-                                    <th class="p-4 text-right">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-50">
-                                ${history.map(s => `
-                                    <tr class="hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${s.id}')" title="Ver historial">
-                                        <td class="p-4 text-sm font-medium text-slate-500">
-                                            #${s.orderNumber || s.id.slice(0, 8)}
-                                            <i class="ph-bold ph-clock-counter-clockwise text-xs ml-1 text-slate-300"></i>
-                                        </td>
-                                        <td class="p-4 text-xs text-slate-400">
-                                            ${this.formatDate(s.updated_at?.toDate ? s.updated_at.toDate() : (s.updated_at || s.date))}
-                                        </td>
-                                        <td class="p-4 text-right">
-                                            <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase ${s.fulfillment_status === 'shipped' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">
-                                                ${s.fulfillment_status === 'shipped' ? 'Despachado' : 'Retirado'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
+                    ${columns.map(c => {
+                        const list = c.key === 'despachado' ? despachados : byCol[c.key];
+                        return `
+                        <div class="rounded-2xl border border-slate-100 ${c.colBg} p-3">
+                            <div class="flex items-center justify-between px-2 pt-1 pb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full ${c.dot}"></span>
+                                    <span class="text-[11px] font-bold uppercase tracking-widest text-slate-600">${c.label}</span>
+                                </div>
+                                <span class="min-w-[24px] h-6 px-2 rounded-full text-[11px] font-bold flex items-center justify-center ${list.length > 0 ? 'bg-white text-slate-600 shadow-sm border border-slate-100' : 'bg-slate-100 text-slate-400'}">${list.length}</span>
+                            </div>
+                            <div class="space-y-3 max-h-[70vh] overflow-y-auto pr-0.5 custom-scrollbar">
+                                ${list.length > 0 ? list.map(s => this.renderShipCard(s)).join('') : `
+                                <div class="bg-white/60 border border-dashed border-slate-200 rounded-2xl py-10 px-4 text-center">
+                                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-300">Bandeja vacía</p>
+                                </div>`}
+                            </div>
+                        </div>`;
+                    }).join('')}
                 </div>
-                ` : ''}
             </div>
         `;
         container.innerHTML = html;
