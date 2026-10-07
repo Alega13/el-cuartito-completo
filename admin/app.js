@@ -306,6 +306,10 @@ const app = {
         inventorySearch: '',
         salesHistorySearch: '',
         expensesSearch: '',
+        expenseFilterYear: new Date().getFullYear(),
+        expenseFilterMonths: [new Date().getMonth()],
+        expenseCategoryFilter: 'all',
+        expenseWizard: null,
         events: [],
         selectedDate: new Date(),
         vatActive: false,
@@ -9224,62 +9228,6 @@ const app = {
             alert('Error al eliminar');
         });
     },
-    openAddExpenseModal() {
-        // Custom Categories Logic
-        const defaultCategories = ['Alquiler', 'Servicios', 'Marketing', 'Suministros', 'Honorarios'];
-        const allCategories = [...new Set([...defaultCategories, ...(this.state.customCategories || [])])];
-
-        const modalHtml = `
-    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-display text-xl font-bold text-brand-dark">Registrar Gasto</h3>
-                <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-slate-600">
-                    <i class="ph-bold ph-x text-xl"></i>
-                </a>
-            </div>
-            <form onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
-                <input type="hidden" name="id" id="expense-id">
-
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
-                        <input name="description" id="expense-description" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto</label>
-                            <input name="amount" id="expense-amount" type="number" step="0.01" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría</label>
-                            <select name="category" id="expense-category" onchange="app.checkCustomInput(this, 'custom-expense-category-container')" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                                ${allCategories.map(c => `<option>${c}</option>`).join('')}
-                                <option value="other">Otra...</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div id="custom-expense-category-container" class="hidden">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Categoría</label>
-                        <input name="custom_category" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Nombre de categoría">
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" name="hasVat" id="hasVat" class="w-4 h-4 text-brand-orange rounded border-slate-300 focus:ring-brand-orange">
-                            <label for="hasVat" class="text-sm text-slate-600">Incluye IVA (25%)</label>
-                    </div>
-
-                    <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
-                        Guardar Gasto
-                    </a>
-            </form>
-        </div>
-                                                    </div>
-    `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    },
-
     async handleAddVinyl(e, editSku) {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -10193,10 +10141,9 @@ const app = {
 
 
 
-    renderExpenses(container) {
-        // Expense Categories with Types for VAT Logic
-        const expenseCategories = [
-            // Gastos Operativos (VAT deductible from SKAT)
+    getExpenseCategories() {
+        return [
+            // Gastos Operativos (deducibles de IVA ante SKAT)
             { value: 'alquiler', label: 'Alquiler', type: 'operativo' },
             { value: 'servicios', label: 'Servicios (internet, luz)', type: 'operativo' },
             { value: 'marketing', label: 'Marketing', type: 'operativo' },
@@ -10206,19 +10153,75 @@ const app = {
             { value: 'oficina', label: 'Material de Oficina', type: 'operativo' },
             { value: 'transporte', label: 'Transporte', type: 'operativo' },
             { value: 'otros_op', label: 'Otros Gastos Operativos', type: 'operativo' },
-            // Stock purchases (trigger inventory ingest)
+            // Compras de stock (disparan ingreso a inventario)
             { value: 'stock_nuevo', label: 'Stock: Vinilos NUEVOS (Distribuidor)', type: 'stock_nuevo' },
             { value: 'stock_usado', label: 'Stock: Vinilos USADOS (Particular/Brugtmoms)', type: 'stock_usado' },
         ];
+    },
 
+    // --- Filtros de período y categoría (propios de Registro de Compras) ---
+    toggleExpenseMonth(i) {
+        const arr = this.state.expenseFilterMonths;
+        const ix = arr.indexOf(i);
+        if (ix >= 0) { if (arr.length > 1) arr.splice(ix, 1); }
+        else arr.push(i);
+        arr.sort((a, b) => a - b);
+        this.refreshCurrentView();
+    },
+
+    setExpenseFilterMonthsAll() {
+        this.state.expenseFilterMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        this.refreshCurrentView();
+    },
+
+    setExpenseFilterYear(y) {
+        this.state.expenseFilterYear = Number(y);
+        this.refreshCurrentView();
+    },
+
+    setExpenseCategoryFilter(v) {
+        this.state.expenseCategoryFilter = v;
+        this.refreshCurrentView();
+    },
+
+    setExpensesSearch(v) {
+        this.state.expensesSearch = v;
+        this.refreshCurrentView();
+        const el = document.getElementById('expenses-search-input');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    },
+
+    renderExpenses(container) {
+        const expenseCategories = this.getExpenseCategories();
         // Store categories globally for other functions to access
         window.expenseCategories = expenseCategories;
 
         const searchTerm = (this.state.expensesSearch || '').toLowerCase();
-        // Blueprint Sec 04: drill-down desde el dashboard (gastos sin comprobante)
         const missingOnly = !!this.state.expenseMissingReceiptOnly;
-        const filteredExpenses = this.state.expenses.filter(e => {
-            if (missingOnly && (e.receiptUrl || e.comprobante)) return false;
+        const catFilter = this.state.expenseCategoryFilter || 'all';
+        const fYear = this.state.expenseFilterYear;
+        const fMonths = this.state.expenseFilterMonths || [];
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const monthNamesLong = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+        const inPeriod = (e) => {
+            const d = new Date(e.fecha_factura || e.date || e.timestamp);
+            if (isNaN(d.getTime())) return true;
+            return d.getFullYear() === fYear && fMonths.includes(d.getMonth());
+        };
+        const isMissingReceipt = (e) => !e.receiptUrl && !e.comprobante;
+
+        // KPIs: siempre sobre el período seleccionado
+        const periodExpenses = (this.state.expenses || []).filter(inPeriod);
+        const kpiTotal = periodExpenses.reduce((s, e) => s + (Number(e.monto_total || e.amount) || 0), 0);
+        const kpiMissing = periodExpenses.filter(isMissingReceipt).length;
+        const kpiIva = periodExpenses.reduce((s, e) => s + (Number(e.monto_iva) || 0), 0);
+
+        // Tabla: período + categoría + búsqueda + sin comprobante (combinables)
+        const filteredExpenses = (this.state.expenses || []).filter(e => {
+            if (!inPeriod(e)) return false;
+            if (missingOnly && !isMissingReceipt(e)) return false;
+            if (catFilter !== 'all' && (e.categoria || e.category) !== catFilter) return false;
             return !searchTerm ||
                 (e.description || e.proveedor || '').toLowerCase().includes(searchTerm) ||
                 (e.category || e.categoria || '').toLowerCase().includes(searchTerm) ||
@@ -10226,244 +10229,137 @@ const app = {
                 (e.proveedor || '').toLowerCase().includes(searchTerm);
         });
 
+        const periodLabel = fMonths.length === 12 ? `${fYear}`
+            : fMonths.length === 1 ? `${monthNamesLong[fMonths[0]]} ${fYear}`
+            : `${fMonths.length} meses · ${fYear}`;
+
         const html = `
-    <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6" >
+    <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 ${this.sectionHeader({
                     title: 'Registro de Compras',
-                    subtitle: 'Gastos del negocio con comprobantes, categorías e IVA'
+                    subtitle: 'Gastos del negocio con comprobantes, categorías e IVA',
+                    primary: { label: 'Registrar compra', icon: 'ph-plus', onclick: 'app.openExpenseWizard()' }
                 })}
-                ${this.state.expenseMissingReceiptOnly ? `
+                ${missingOnly ? `
                 <div class="mb-4 flex items-center justify-between bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-bold">
                     <span class="flex items-center gap-2"><i class="ph-bold ph-warning-circle"></i> Mostrando solo gastos sin comprobante</span>
                     <button onclick="app.state.expenseMissingReceiptOnly = false; app.refreshCurrentView()" class="underline hover:no-underline">Mostrar todos</button>
                 </div>` : ''}
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <!-- Form Panel -->
-                    <div class="lg:col-span-1">
-                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 sticky top-4">
-                            <h3 id="expense-form-title" class="font-bold text-lg mb-4 flex items-center gap-2">
-                                <i class="ph-duotone ph-plus-circle text-brand-orange"></i>
-                                Nueva Compra
-                            </h3>
-                            
-                            <!-- File Upload Zone -->
-                            <div class="mb-6">
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">
-                                    Factura / Recibo
-                                </label>
-                                <div id="upload-zone" 
-                                    onclick="document.getElementById('receipt-file').click()"
-                                    class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-orange hover:bg-orange-50/30 transition-all group">
-                                    <input type="file" id="receipt-file" accept="image/*,.pdf" class="hidden" onchange="app.handleReceiptUpload(this)">
-                                    <div id="upload-placeholder">
-                                        <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
-                                        <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">
-                                            Subir Factura/Recibo
-                                        </p>
-                                        <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
-                                    </div>
-                                    <div id="upload-preview" class="hidden">
-                                        <img id="receipt-preview-img" src="" alt="Preview" class="max-h-32 mx-auto rounded-lg shadow-sm mb-2">
-                                        <p id="receipt-filename" class="text-xs text-slate-500 truncate"></p>
-                                        <button type="button" onclick="event.stopPropagation(); app.clearReceiptUpload()" 
-                                            class="mt-2 text-xs text-red-500 hover:text-red-600 font-medium">
-                                            <i class="ph-bold ph-x"></i> Quitar
-                                        </a>
-                                    </div>
-                                </div>
-                                <input type="hidden" id="receipt-url" name="receiptUrl">
-                                <!-- Blueprint Sec 09: comprobante obligatorio con override explicito -->
-                                <label class="mt-3 flex items-start gap-3 p-3 rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-amber-300 hover:bg-amber-50/50 transition-all">
-                                    <input type="checkbox" id="expense-no-receipt" class="mt-0.5 w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300">
-                                    <span class="text-xs text-slate-500">
-                                        <span class="font-bold text-slate-700">Cargar sin comprobante por ahora</span><br>
-                                        El registro quedará marcado <strong>en revisión</strong> hasta que subas el comprobante.
-                                    </span>
-                                </label>
-                            </div>
-
-                            <form id="expense-form" onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
-                                <input type="hidden" name="id" id="expense-id">
-                                
-                                <!-- Provider -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Proveedor *
-                                    </label>
-                                    <input name="proveedor" id="expense-proveedor" required list="expense-supplier-list"
-                                        placeholder="Nombre de tienda/empresa" oninput="app.updateLotPreview()"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
-                                    <datalist id="expense-supplier-list">
-                                        ${[...new Set((this.state.expenses || []).map(e => e.proveedor).filter(Boolean))].sort().map(p => `<option value="${p.replace(/"/g, '&quot;')}">`).join('')}
-                                    </datalist>
-                                </div>
-
-                                <!-- Lote: solo compras de stock (vinilos) -->
-                                <div id="expense-lot-fields" class="hidden">
-                                    <div>
-                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                            Nº de Factura <span class="normal-case font-medium text-slate-400">(del proveedor)</span>
-                                        </label>
-                                        <input name="invoice_number" id="expense-invoice-number"
-                                            placeholder="Ej. 12345" oninput="app.updateLotPreview()"
-                                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
-                                    </div>
-                                    <div class="mt-2 flex items-center gap-2 text-xs">
-                                        <span class="text-slate-400 font-bold uppercase tracking-wide">Lote:</span>
-                                        <span id="expense-lot-preview" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">—</span>
-                                    </div>
-                                    <p class="text-[10px] text-slate-400 mt-1">Vincula esta factura con los discos que ingresen al inventario.</p>
-                                </div>
-
-                                <!-- Invoice Date -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Fecha de Factura *
-                                    </label>
-                                    <input type="date" name="fecha_factura" id="expense-fecha" required 
-                                        value="${new Date().toISOString().split('T')[0]}"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
-                                </div>
-
-                                <!-- Total Amount -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Monto Total (DKK) *
-                                    </label>
-                                    <input type="number" name="monto_total" id="expense-monto" step="0.01" min="0" required
-                                        placeholder="0.00"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-lg font-bold">
-                                </div>
-
-                                <!-- VAT Amount -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Monto IVA / Moms (DKK)
-                                    </label>
-                                    <input type="number" name="monto_iva" id="expense-iva" step="0.01" min="0" value="0"
-                                        placeholder="0.00"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
-                                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                                        <i class="ph-bold ph-info"></i> Puede ser 0 si el proveedor es extranjero o particular
-                                    </p>
-                                </div>
-
-                                <!-- Category -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Categoría del Gasto *
-                                    </label>
-                                    <select name="categoria" id="expense-categoria" required
-                                        onchange="app.handleExpenseCategoryChange(this)"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
-                                        <option value="" disabled selected>Seleccionar categoría...</option>
-                                        ${expenseCategories.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
-                                    </select>
-                                    <p id="category-warning" class="text-[10px] text-amber-600 mt-1 hidden flex items-center gap-1">
-                                        <i class="ph-bold ph-warning"></i> Los vinilos usados (Brugtmoms) no tienen IVA deducible.
-                                    </p>
-                                </div>
-
-                                <!-- Inventory Invoice Toggle (Micro-IVA sync bypass) -->
-                                <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-start gap-3 mt-2">
-                                    <input type="checkbox" name="is_inventory_invoice" id="expense-inventory-invoice"
-                                        class="mt-1 w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 cursor-pointer"
-                                        onchange="app.handleInventoryInvoiceToggle(this)">
-                                    <div>
-                                        <label for="expense-inventory-invoice" class="text-sm font-bold text-blue-800 cursor-pointer">Factura de Inventario B2B</label>
-                                        <p class="text-[10px] text-blue-600 leading-tight mt-1">
-                                            Marca esto si los vinilos de esta factura ya manejan su propio Micro-IVA. 
-                                            Registraremos el gasto para balances, pero lo <strong class="uppercase">ignoraremos fiscalmente</strong> para evitar doble contabilización.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <!-- Description (Optional) -->
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                        Notas / Descripción
-                                    </label>
-                                    <textarea name="descripcion" id="expense-descripcion" rows="2"
-                                        placeholder="Detalles adicionales (opcional)"
-                                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none resize-none"></textarea>
-                                </div>
-
-                                <!-- Buttons -->
-                                <div class="flex gap-2 pt-2">
-                                    <button type="submit" id="expense-submit-btn" 
-                                        class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
-                                        <i class="ph-bold ph-floppy-disk"></i>
-                                        Guardar Gasto
-                                    </a>
-                                    <button type="button" id="expense-cancel-btn" onclick="app.resetExpenseForm()" 
-                                        class="hidden px-4 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-colors">
-                                        Cancelar
-                                    </a>
-                                </div>
-                            </form>
+                <!-- Selector de período -->
+                <div class="flex flex-wrap items-center gap-3 mb-6">
+                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+                        <select onchange="app.setExpenseFilterYear(this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
+                            <option value="2026" ${fYear === 2026 ? 'selected' : ''}>2026</option>
+                            <option value="2025" ${fYear === 2025 ? 'selected' : ''}>2025</option>
+                        </select>
+                        <div class="h-6 w-px bg-slate-100 mx-1"></div>
+                        <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
+                            <button onclick="app.setExpenseFilterMonthsAll()"
+                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                Todo
+                            </button>
+                            ${monthNames.map((m, i) => `
+                                <button onclick="app.toggleExpenseMonth(${i})"
+                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                    ${m}
+                                </button>
+                            `).join('')}
                         </div>
                     </div>
+                    <p class="text-xs text-slate-400">Período: <span class="font-bold text-brand-dark">${periodLabel}</span></p>
+                </div>
 
-                    <!-- Expenses List -->
-                    <div class="lg:col-span-2">
-                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                            <!-- Search -->
-                            <div class="p-4 border-b border-slate-100">
-                                <div class="relative">
-                                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                    <input type="text"
-                                        value="${this.state.expensesSearch || ''}"
-                                        oninput="app.state.expensesSearch = this.value; app.renderExpenses(document.getElementById('app-content'))"
-                                        placeholder="Buscar por proveedor, categoría..."
-                                        class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-orange">
-                                </div>
-                            </div>
+                <!-- KPIs del período -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-wallet"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del período</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(kpiTotal)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${periodExpenses.length} compra${periodExpenses.length === 1 ? '' : 's'}</p>
+                    </div>
+                    <button onclick="app.state.expenseMissingReceiptOnly = true; app.refreshCurrentView()" class="text-left bg-white p-5 rounded-2xl border ${kpiMissing > 0 ? 'border-amber-200' : 'border-slate-100'} shadow-sm hover:shadow-md hover:border-amber-300 transition-all">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-paperclip"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin comprobante</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold ${kpiMissing > 0 ? 'text-amber-600' : 'text-emerald-600'}">${kpiMissing}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${kpiMissing > 0 ? 'Clic para filtrar' : 'Todo respaldado'}</p>
+                    </button>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600"><i class="ph-bold ph-percent"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA recuperable</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-emerald-600">${this.formatCurrency(kpiIva)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Del período seleccionado</p>
+                    </div>
+                </div>
 
-                            <!-- Blueprint Sec 09: totales por categoria + exportacion -->
-                            ${(() => {
-                                const byCat = {};
-                                let totIva = 0;
-                                filteredExpenses.forEach(e => {
-                                    const label = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || 'Sin categoría';
-                                    const amt = Number(e.monto_total || e.amount) || 0;
-                                    byCat[label] = (byCat[label] || 0) + amt;
-                                    totIva += Number(e.monto_iva) || 0;
-                                });
-                                const tot = Object.values(byCat).reduce((a, b) => a + b, 0);
-                                const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
-                                return `
-                                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
-                                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                                        <div class="flex items-center gap-4">
-                                            <div>
-                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total filtrado</p>
-                                                <p class="text-xl font-display font-bold text-brand-dark">${this.formatCurrency(tot)}</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA total</p>
-                                                <p class="text-xl font-display font-bold text-emerald-600">${this.formatCurrency(totIva)}</p>
-                                            </div>
-                                            <div>
-                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registros</p>
-                                                <p class="text-xl font-display font-bold text-slate-500">${filteredExpenses.length}</p>
-                                            </div>
-                                        </div>
-                                        <button onclick="app.exportExpensesToCSV()" class="flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-orange hover:text-brand-orange text-slate-500 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                                            <i class="ph-bold ph-download-simple"></i> Exportar CSV
-                                        </button>
+                <!-- Filtros combinables -->
+                <div class="flex flex-wrap gap-3 mb-4">
+                    <div class="relative flex-1 min-w-[220px]">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="expenses-search-input"
+                            value="${(this.state.expensesSearch || '').replace(/"/g, '&quot;')}"
+                            oninput="app.setExpensesSearch(this.value)"
+                            placeholder="Buscar por proveedor, categoría, lote..."
+                            class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-brand-orange shadow-sm text-sm">
+                    </div>
+                    <select onchange="app.setExpenseCategoryFilter(this.value)"
+                        class="px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 outline-none cursor-pointer shadow-sm focus:border-brand-orange">
+                        <option value="all" ${catFilter === 'all' ? 'selected' : ''}>Todas las categorías</option>
+                        ${expenseCategories.map(c => `<option value="${c.value}" ${catFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+                    </select>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <!-- Totales por categoría + exportación (siguen el filtro activo) -->
+                    ${(() => {
+                        const byCat = {};
+                        let totIva = 0;
+                        filteredExpenses.forEach(e => {
+                            const label = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || 'Sin categoría';
+                            const amt = Number(e.monto_total || e.amount) || 0;
+                            byCat[label] = (byCat[label] || 0) + amt;
+                            totIva += Number(e.monto_iva) || 0;
+                        });
+                        const tot = Object.values(byCat).reduce((a, b) => a + b, 0);
+                        const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                        return `
+                        <div class="bg-slate-50/60 border-b border-slate-100 p-4">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                <div class="flex items-center gap-5">
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total filtrado</p>
+                                        <p class="text-xl font-display font-bold text-brand-dark">${this.formatCurrency(tot)}</p>
                                     </div>
-                                    ${top.length > 0 ? `
-                                    <div class="flex flex-wrap gap-2">
-                                        ${top.map(([label, amt]) => `
-                                            <span class="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1 text-[11px] font-bold text-slate-600">
-                                                ${label} <span class="text-brand-dark">${this.formatCurrency(amt)}</span>
-                                            </span>`).join('')}
-                                    </div>` : ''}
-                                </div>`;
-                            })()}
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA</p>
+                                        <p class="text-xl font-display font-bold text-emerald-600">${this.formatCurrency(totIva)}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registros</p>
+                                        <p class="text-xl font-display font-bold text-slate-500">${filteredExpenses.length}</p>
+                                    </div>
+                                </div>
+                                <button onclick="app.exportExpensesToCSV()" class="flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-orange hover:text-brand-orange text-slate-500 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
+                                    <i class="ph-bold ph-download-simple"></i> Exportar CSV
+                                </button>
+                            </div>
+                            ${top.length > 0 ? `
+                            <div class="flex flex-wrap gap-2">
+                                ${top.map(([label, amt]) => `
+                                    <span class="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1 text-[11px] font-bold text-slate-600">
+                                        ${label} <span class="text-brand-dark">${this.formatCurrency(amt)}</span>
+                                    </span>`).join('')}
+                            </div>` : ''}
+                        </div>`;
+                    })()}
 
-                            <!-- Table -->
+<!-- Table -->
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
                                     <thead class="bg-slate-50 border-b border-slate-100">
@@ -10598,89 +10494,430 @@ const app = {
                                 </div>
                             ` : ''}
                         </div>
-                    </div>
-                </div>
             </div>
     `;
         container.innerHTML = html;
     },
 
     editExpense(id) {
-        if (!confirm('¿Seguro que deseas editar esta compra?')) return;
-
-        const expense = this.state.expenses.find(e => e.id === id);
-        if (!expense) return;
-
-        // Populate Form
-        document.getElementById('expense-id').value = expense.id;
-        document.getElementById('expense-proveedor').value = expense.proveedor || expense.description || '';
-        document.getElementById('expense-fecha').value = expense.fecha_factura || (expense.date ? expense.date.split('T')[0] : '');
-        document.getElementById('expense-monto').value = expense.monto_total || expense.amount || 0;
-        document.getElementById('expense-iva').value = expense.monto_iva || 0;
-        document.getElementById('expense-categoria').value = expense.categoria || expense.category || 'Otros';
-        document.getElementById('expense-descripcion').value = expense.descripcion || '';
-        document.getElementById('expense-invoice-number').value = expense.invoiceNumber || '';
-
-        // Restoring Inventory Invoice toggle
-        const invToggle = document.getElementById('expense-inventory-invoice');
-        if (invToggle) {
-            invToggle.checked = !!expense.is_inventory_invoice;
-        }
-
-        // Trigger category change logic to set IVA field state (disabled if stock_usado)
-        const catSelect = document.getElementById('expense-categoria');
-        if (catSelect) {
-            catSelect.value = expense.categoria || expense.category || '';
-            // If it's an inventory invoice, toggle handles the disabled state, otherwise category handles it
-            if (invToggle && invToggle.checked) {
-                this.handleInventoryInvoiceToggle(invToggle);
-            } else {
-                this.handleExpenseCategoryChange(catSelect);
-            }
-        }
-        this.updateLotPreview();
-
-        // Handle receipt preview if exists
-        if (expense.receiptUrl) {
-            document.getElementById('receipt-url').value = expense.receiptUrl;
-            document.getElementById('upload-placeholder').classList.add('hidden');
-            document.getElementById('upload-preview').classList.remove('hidden');
-            document.getElementById('receipt-preview-img').src = expense.receiptUrl;
-            document.getElementById('receipt-filename').textContent = 'Recibo guardado';
-        }
-
-        // Update UI State
-        document.getElementById('expense-form-title').innerHTML = '<i class="ph-duotone ph-pencil-simple text-brand-orange"></i> Editar Compra';
-        document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Actualizar';
-        document.getElementById('expense-cancel-btn').classList.remove('hidden');
+        this.openExpenseWizard(id);
     },
 
+    // --- Wizard: Registrar / Editar compra en 3 pasos ---
+    expenseWizardSteps() {
+        return [
+            { n: 1, label: 'Compra', icon: 'ph-receipt' },
+            { n: 2, label: 'Importes', icon: 'ph-calculator' },
+            { n: 3, label: 'Revisión', icon: 'ph-check-circle' },
+        ];
+    },
 
+    openExpenseWizard(editId = null) {
+        const expenseCategories = this.getExpenseCategories();
+        window.expenseCategories = expenseCategories;
+        const editing = editId ? (this.state.expenses || []).find(e => e.id === editId) : null;
+        const today = new Date().toISOString().split('T')[0];
+        this.state.expenseWizard = {
+            step: 1,
+            id: editId || null,
+            fecha: editing ? (editing.fecha_factura || (editing.date || '').slice(0, 10) || today) : today,
+            proveedor: editing ? (editing.proveedor || editing.description || '') : '',
+            descripcion: editing ? (editing.descripcion || '') : '',
+            categoria: editing ? (editing.categoria || editing.category || '') : '',
+            invoiceNumber: editing ? (editing.invoiceNumber || '') : '',
+            total: editing ? (editing.monto_total || editing.amount || '') : '',
+            iva: editing ? (editing.monto_iva || 0) : 0,
+            isInventoryInvoice: editing ? !!editing.is_inventory_invoice : false,
+            noReceipt: editing ? !!editing.receiptPending : false,
+            receiptUrl: editing ? (editing.receiptUrl || '') : '',
+            dupAck: false,
+        };
+        if (document.getElementById('expensewizard-overlay')) return;
+        const suppliers = [...new Set((this.state.expenses || []).map(e => e.proveedor).filter(Boolean))].sort();
+        const overlay = document.createElement('div');
+        overlay.id = 'expensewizard-overlay';
+        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
+        overlay.innerHTML = `
+        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-100">
+            <div class="p-6 border-b border-slate-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-display text-xl font-bold text-brand-dark flex items-center gap-2">
+                        <i class="ph-bold ph-receipt text-brand-orange"></i> ${editing ? 'Editar compra' : 'Registrar compra'}
+                    </h3>
+                    <button onclick="app.closeExpenseWizard()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+                <div class="flex items-center gap-1" id="expensewizard-steps"></div>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1" id="expensewizard-body"></div>
+            <div class="p-4 border-t border-slate-100 flex justify-between gap-3 bg-slate-50/50" id="expensewizard-footer"></div>
+            <datalist id="expense-supplier-list">
+                ${suppliers.map(p => `<option value="${String(p).replace(/"/g, '&quot;')}">`).join('')}
+            </datalist>
+        </div>`;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeExpenseWizard(); });
+        document.body.appendChild(overlay);
+        this.renderExpenseWizardStep();
+    },
 
-    resetExpenseForm() {
-        document.getElementById('expense-form').reset();
-        document.getElementById('expense-id').value = '';
-        document.getElementById('expense-fecha').value = new Date().toISOString().split('T')[0];
-        document.getElementById('expense-iva').value = '0';
-        document.getElementById('expense-iva').disabled = false;
-        document.getElementById('expense-iva').classList.remove('bg-slate-100', 'cursor-not-allowed');
-        // Ocultar campos de lote hasta elegir categoria de stock
-        document.getElementById('expense-lot-fields')?.classList.add('hidden');
-        const lotPreview = document.getElementById('expense-lot-preview');
-        if (lotPreview) lotPreview.textContent = '—';
-        document.getElementById('expense-form-title').innerHTML = '<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra';
-        document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Guardar Gasto';
-        document.getElementById('expense-cancel-btn').classList.add('hidden');
+    closeExpenseWizard() {
+        document.getElementById('expensewizard-overlay')?.remove();
+        this.state.expenseWizard = null;
+    },
 
-        // Reset file upload
-        document.getElementById('receipt-url').value = '';
-        document.getElementById('receipt-file').value = '';
-        const noReceiptBox = document.getElementById('expense-no-receipt');
-        if (noReceiptBox) noReceiptBox.checked = false; // Blueprint Sec 09
-        document.getElementById('upload-placeholder').classList.remove('hidden');
-        document.getElementById('upload-preview').classList.add('hidden');
-        document.getElementById('receipt-preview-img').src = '';
-        document.getElementById('receipt-filename').textContent = '';
+    renderExpenseWizardStep() {
+        const wz = this.state.expenseWizard;
+        const stepsEl = document.getElementById('expensewizard-steps');
+        const body = document.getElementById('expensewizard-body');
+        const footer = document.getElementById('expensewizard-footer');
+        if (!wz || !stepsEl || !body || !footer) return;
+        const steps = this.expenseWizardSteps();
+        stepsEl.innerHTML = steps.map(s => `
+            <div class="flex-1 flex items-center gap-2 ${s.n <= wz.step ? '' : 'opacity-40'}">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${s.n < wz.step ? 'bg-emerald-500 text-white' : s.n === wz.step ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'}">
+                    ${s.n < wz.step ? '<i class="ph-bold ph-check"></i>' : s.n}
+                </div>
+                <span class="text-[10px] font-bold uppercase tracking-wide hidden sm:inline ${s.n === wz.step ? 'text-brand-dark' : 'text-slate-400'}">${s.label}</span>
+                ${s.n < steps.length ? '<div class="flex-1 h-px bg-slate-200 mx-1"></div>' : ''}
+            </div>`).join('');
+        body.innerHTML = wz.step === 1 ? this.expenseWizardStepWhat(wz)
+            : wz.step === 2 ? this.expenseWizardStepAmounts(wz)
+            : this.expenseWizardStepReview(wz);
+        footer.innerHTML = `
+            ${wz.step > 1
+                ? `<button onclick="app.expenseWizardGo(${wz.step - 1})" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all flex items-center gap-2"><i class="ph-bold ph-arrow-left"></i> Atrás</button>`
+                : `<button onclick="app.closeExpenseWizard()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all">Cancelar</button>`}
+            ${wz.step < 3
+                ? `<button onclick="app.expenseWizardGo(${wz.step + 1})" class="px-6 py-2.5 rounded-xl bg-brand-dark text-white font-bold text-sm shadow-lg hover:scale-[1.02] transition-transform flex items-center gap-2">Continuar <i class="ph-bold ph-arrow-right"></i></button>`
+                : `<button onclick="app.saveExpenseWizard()" class="px-6 py-2.5 rounded-xl bg-brand-orange text-white font-bold text-sm shadow-lg shadow-brand-orange/30 hover:scale-[1.02] transition-transform flex items-center gap-2"><i class="ph-bold ph-check"></i> ${wz.id ? 'Actualizar compra' : 'Guardar compra'}</button>`}`;
+        if (wz.step === 3) this.renderExpenseWizardReview();
+        if (wz.step === 2) this.expenseWizardUpdateNet();
+    },
+
+    // Lee los campos visibles del paso actual hacia el estado del wizard
+    captureExpenseWizardFields() {
+        const wz = this.state.expenseWizard;
+        if (!wz) return;
+        const g = (id) => document.getElementById(id);
+        if (g('expense-fecha')) wz.fecha = g('expense-fecha').value;
+        if (g('expense-proveedor')) wz.proveedor = g('expense-proveedor').value;
+        if (g('expense-descripcion')) wz.descripcion = g('expense-descripcion').value;
+        if (g('expense-categoria')) wz.categoria = g('expense-categoria').value;
+        if (g('expense-invoice-number')) wz.invoiceNumber = g('expense-invoice-number').value;
+        if (g('expense-monto')) wz.total = g('expense-monto').value;
+        if (g('expense-iva')) wz.iva = g('expense-iva').value;
+        if (g('expense-inventory-invoice')) wz.isInventoryInvoice = g('expense-inventory-invoice').checked;
+        if (g('expense-no-receipt')) wz.noReceipt = g('expense-no-receipt').checked;
+        if (g('expense-dup-ack')) wz.dupAck = g('expense-dup-ack').checked;
+        if (g('receipt-url') && g('receipt-url').value) wz.receiptUrl = g('receipt-url').value;
+    },
+
+    expenseWizardGo(step) {
+        const wz = this.state.expenseWizard;
+        if (!wz) return;
+        this.captureExpenseWizardFields();
+        if (step > 1 && wz.step === 1) {
+            if (!wz.fecha || !(wz.proveedor || '').trim() || !wz.categoria) {
+                this.showToast('Completá fecha, proveedor y categoría para continuar.');
+                return;
+            }
+        }
+        if (step > 2 && wz.step === 2) {
+            const total = parseFloat(wz.total);
+            const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+            const iva = ivaLocked ? 0 : (parseFloat(wz.iva) || 0);
+            if (isNaN(total) || total <= 0) { this.showToast('El monto total debe ser mayor a 0.'); return; }
+            if (iva < 0 || iva > total) { this.showToast('El IVA debe estar entre 0 y el total.'); return; }
+            wz.iva = iva;
+        }
+        wz.step = step;
+        this.renderExpenseWizardStep();
+    },
+
+    expenseWizardCategoryChanged(sel) {
+        const wz = this.state.expenseWizard;
+        if (wz) wz.categoria = sel.value;
+        this.toggleExpenseLotFields();
+        if (wz && wz.categoria === 'stock_usado') wz.iva = 0;
+    },
+
+    expenseWizardInvToggle(cb) {
+        const wz = this.state.expenseWizard;
+        if (wz) wz.isInventoryInvoice = cb.checked;
+        const ivaInput = document.getElementById('expense-iva');
+        if (ivaInput && wz) {
+            const locked = wz.categoria === 'stock_usado' || cb.checked;
+            ivaInput.disabled = locked;
+            if (locked) { ivaInput.value = '0'; wz.iva = 0; }
+            ivaInput.classList.toggle('bg-slate-100', locked);
+            ivaInput.classList.toggle('cursor-not-allowed', locked);
+        }
+        this.expenseWizardUpdateNet();
+    },
+
+    expenseWizardCalcVat() {
+        const wz = this.state.expenseWizard;
+        const total = parseFloat(wz?.total) || parseFloat(document.getElementById('expense-monto')?.value) || 0;
+        if (!total) { this.showToast('Ingresá primero el monto total.'); return; }
+        const iva = Math.round((total - total / 1.25) * 100) / 100;
+        if (wz) wz.iva = iva;
+        const el = document.getElementById('expense-iva');
+        if (el) el.value = iva;
+        this.expenseWizardUpdateNet();
+    },
+
+    expenseWizardUpdateNet() {
+        const total = parseFloat(document.getElementById('expense-monto')?.value) || 0;
+        const iva = parseFloat(document.getElementById('expense-iva')?.value) || 0;
+        const net = document.getElementById('expense-neto');
+        if (net) net.textContent = this.formatCurrency(total - iva);
+        const warn = document.getElementById('expense-iva-warn');
+        if (warn) warn.classList.toggle('hidden', !(total > 0 && iva > total * 0.2 + 0.005));
+    },
+
+    // --- Paso 1: Qué se compró ---
+    expenseWizardStepWhat(wz) {
+        const expenseCategories = this.getExpenseCategories();
+        const isStock = wz.categoria === 'stock_nuevo' || wz.categoria === 'stock_usado';
+        const esc = (s) => String(s || '').replace(/"/g, '&quot;');
+        const escT = (s) => String(s || '').replace(/</g, '&lt;');
+        return `
+            <input type="hidden" id="expense-id" value="${wz.id || ''}">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de factura *</label>
+                    <input type="date" id="expense-fecha" value="${wz.fecha || ''}"
+                        oninput="app.state.expenseWizard.fecha=this.value;app.updateLotPreview()"
+                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Proveedor *</label>
+                    <input id="expense-proveedor" list="expense-supplier-list" value="${esc(wz.proveedor)}"
+                        placeholder="Nombre de tienda/empresa"
+                        oninput="app.state.expenseWizard.proveedor=this.value;app.updateLotPreview()"
+                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                </div>
+            </div>
+            <div class="mt-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría del gasto *</label>
+                <select id="expense-categoria" onchange="app.expenseWizardCategoryChanged(this)"
+                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                    <option value="" disabled ${!wz.categoria ? 'selected' : ''}>Seleccionar categoría...</option>
+                    ${expenseCategories.map(c => `<option value="${c.value}" ${wz.categoria === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+                </select>
+            </div>
+            <div id="expense-lot-fields" class="${isStock ? '' : 'hidden'} mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                    Nº de Factura <span class="normal-case font-medium text-slate-400">(del proveedor)</span>
+                </label>
+                <input id="expense-invoice-number" value="${esc(wz.invoiceNumber)}" placeholder="Ej. 12345"
+                    oninput="app.state.expenseWizard.invoiceNumber=this.value;app.updateLotPreview()"
+                    class="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                <div class="mt-2 flex items-center gap-2 text-xs">
+                    <span class="text-slate-400 font-bold uppercase tracking-wide">Lote:</span>
+                    <span id="expense-lot-preview" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">${this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—'}</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Vincula esta factura con los discos que ingresen al inventario.</p>
+            </div>
+            <div class="mt-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notas / Descripción</label>
+                <textarea id="expense-descripcion" rows="2" placeholder="Detalles adicionales (opcional)"
+                    oninput="app.state.expenseWizard.descripcion=this.value"
+                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none resize-none">${escT(wz.descripcion)}</textarea>
+            </div>`;
+    },
+
+    // --- Paso 2: Importes ---
+    expenseWizardStepAmounts(wz) {
+        const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+        const ivaVal = ivaLocked ? 0 : (wz.iva === '' || wz.iva == null ? 0 : wz.iva);
+        return `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto total (DKK) *</label>
+                    <input type="number" id="expense-monto" step="0.01" min="0" value="${wz.total === '' || wz.total == null ? '' : wz.total}"
+                        placeholder="0.00"
+                        oninput="app.state.expenseWizard.total=this.value;app.expenseWizardUpdateNet()"
+                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-lg font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto IVA / Moms (DKK)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="expense-iva" step="0.01" min="0" value="${ivaVal}"
+                            placeholder="0.00" ${ivaLocked ? 'disabled' : ''}
+                            oninput="app.state.expenseWizard.iva=this.value;app.expenseWizardUpdateNet()"
+                            class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none ${ivaLocked ? 'bg-slate-100 cursor-not-allowed' : ''}">
+                        ${ivaLocked ? '' : `<button type="button" onclick="app.expenseWizardCalcVat()" class="px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:border-brand-orange hover:text-brand-orange transition-all" title="Calcular IVA 25% incluido en el total">25%</button>`}
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                        <i class="ph-bold ph-info"></i> Puede ser 0 si el proveedor es extranjero o particular
+                    </p>
+                </div>
+            </div>
+            ${wz.categoria === 'stock_usado' ? `
+            <p class="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2">
+                <i class="ph-bold ph-warning"></i> Vinilos usados (Brugtmoms): sin IVA deducible.
+            </p>` : ''}
+            <div class="mt-4 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal neto</span>
+                <span id="expense-neto" class="text-lg font-display font-bold text-brand-dark"></span>
+            </div>
+            <p id="expense-iva-warn" class="hidden mt-2 text-[11px] text-amber-700 flex items-center gap-1">
+                <i class="ph-bold ph-warning"></i> El IVA supera el 25% danés — revisá los importes.
+            </p>
+            <label class="mt-4 flex items-start gap-3 p-3 rounded-xl border ${wz.isInventoryInvoice ? 'border-blue-300 bg-blue-50/60' : 'border-slate-200'} cursor-pointer hover:border-blue-300 transition-all">
+                <input type="checkbox" id="expense-inventory-invoice" ${wz.isInventoryInvoice ? 'checked' : ''} onchange="app.expenseWizardInvToggle(this)" class="mt-0.5 w-4 h-4 rounded text-blue-600 border-slate-300">
+                <span class="text-xs text-slate-500">
+                    <span class="font-bold text-slate-700">Factura de Inventario B2B</span><br>
+                    Los vinilos de esta factura ya manejan su propio Micro-IVA. Se registra para balances pero se <strong>ignora fiscalmente</strong>.
+                </span>
+            </label>`;
+    },
+
+    // --- Paso 3: Comprobante y revisión ---
+    expenseWizardStepReview(wz) {
+        return `
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Factura / Recibo *</label>
+                <div id="upload-zone" onclick="document.getElementById('receipt-file').click()"
+                    class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-orange hover:bg-orange-50/30 transition-all group">
+                    <input type="file" id="receipt-file" accept="image/*,.pdf" class="hidden" onchange="app.handleReceiptUpload(this)">
+                    <div id="upload-placeholder">
+                        <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
+                        <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">Subir Factura/Recibo</p>
+                        <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
+                    </div>
+                    <div id="upload-preview" class="hidden">
+                        <img id="receipt-preview-img" src="" alt="Preview" class="max-h-32 mx-auto rounded-lg shadow-sm mb-2">
+                        <p id="receipt-filename" class="text-xs text-slate-500 truncate"></p>
+                        <button type="button" onclick="event.stopPropagation(); app.clearReceiptUpload()"
+                            class="mt-2 text-xs text-red-500 hover:text-red-600 font-medium">
+                            <i class="ph-bold ph-x"></i> Quitar
+                        </button>
+                    </div>
+                </div>
+                <input type="hidden" id="receipt-url" value="">
+                <label class="mt-3 flex items-start gap-3 p-3 rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-amber-300 hover:bg-amber-50/50 transition-all">
+                    <input type="checkbox" id="expense-no-receipt" ${wz.noReceipt ? 'checked' : ''} onchange="app.state.expenseWizard.noReceipt=this.checked" class="mt-0.5 w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300">
+                    <span class="text-xs text-slate-500">
+                        <span class="font-bold text-slate-700">Cargar sin comprobante por ahora</span><br>
+                        El registro quedará marcado <strong>en revisión</strong> hasta que subas el comprobante.
+                    </span>
+                </label>
+            </div>
+            <div id="expensewizard-dup"></div>
+            <div id="expensewizard-summary"></div>`;
+    },
+
+    renderExpenseWizardReview() {
+        const wz = this.state.expenseWizard;
+        if (!wz) return;
+        const dup = this.findDuplicateExpense(wz.fecha, wz.total, wz.proveedor, wz.descripcion, wz.id || null);
+        const dupBox = document.getElementById('expensewizard-dup');
+        if (dupBox) {
+            dupBox.innerHTML = dup ? `
+                <div class="mb-4 p-4 rounded-2xl border border-amber-200 bg-amber-50">
+                    <p class="text-sm font-bold text-amber-800 flex items-center gap-2"><i class="ph-bold ph-warning"></i> Posible duplicado</p>
+                    <p class="text-xs text-amber-700 mt-1">Ya existe <strong>${dup.proveedor || dup.description || ''}</strong> el ${this.formatDate(dup.fecha_factura || dup.date)} por ${this.formatCurrency(Number(dup.monto_total || dup.amount || 0))}.</p>
+                    <label class="mt-3 flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" id="expense-dup-ack" ${wz.dupAck ? 'checked' : ''} onchange="app.state.expenseWizard.dupAck=this.checked" class="mt-0.5 w-4 h-4 rounded text-amber-600 border-amber-300">
+                        <span class="text-xs text-amber-800 font-bold">Entiendo, guardar igual</span>
+                    </label>
+                </div>` : '';
+        }
+        const expenseCategories = this.getExpenseCategories();
+        const catLabel = expenseCategories.find(c => c.value === wz.categoria)?.label || wz.categoria || '—';
+        const total = parseFloat(wz.total) || 0;
+        const ivaLocked = wz.categoria === 'stock_usado' || !!wz.isInventoryInvoice;
+        const iva = ivaLocked ? 0 : (parseFloat(wz.iva) || 0);
+        const isStock = wz.categoria === 'stock_nuevo' || wz.categoria === 'stock_usado';
+        const lot = (isStock && (wz.proveedor || '').trim()) ? (this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—') : null;
+        const receiptUrl = document.getElementById('receipt-url')?.value || wz.receiptUrl || '';
+        const sumBox = document.getElementById('expensewizard-summary');
+        if (sumBox) {
+            const row = (k, v) => `<div class="flex justify-between gap-4 py-2 border-b border-slate-50 last:border-0"><span class="text-xs text-slate-400 font-bold uppercase tracking-wide">${k}</span><span class="text-sm font-bold text-brand-dark text-right">${v}</span></div>`;
+            sumBox.innerHTML = `
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Resumen</p>
+                <div class="bg-slate-50/60 border border-slate-100 rounded-2xl px-4 py-2">
+                    ${row('Fecha', this.formatDate(wz.fecha))}
+                    ${row('Proveedor', wz.proveedor || '—')}
+                    ${row('Categoría', catLabel)}
+                    ${row('Total', this.formatCurrency(total))}
+                    ${row('IVA', this.formatCurrency(iva))}
+                    ${row('Subtotal neto', this.formatCurrency(total - iva))}
+                    ${lot ? row('Lote', `<span class="text-indigo-700">${lot}</span>`) : ''}
+                    ${row('Comprobante', receiptUrl ? '<span class="text-emerald-600">Subido</span>' : (wz.noReceipt ? '<span class="text-amber-600">En revisión</span>' : '<span class="text-red-500">Falta</span>'))}
+                </div>`;
+        }
+        // Restaurar vista previa del comprobante si se está editando
+        if (wz.receiptUrl && !document.getElementById('receipt-url')?.value) {
+            const rurl = document.getElementById('receipt-url');
+            if (rurl) rurl.value = wz.receiptUrl;
+            document.getElementById('upload-placeholder')?.classList.add('hidden');
+            document.getElementById('upload-preview')?.classList.remove('hidden');
+            const img = document.getElementById('receipt-preview-img');
+            if (img) img.src = wz.receiptUrl;
+            const fn = document.getElementById('receipt-filename');
+            if (fn) fn.textContent = 'Comprobante guardado';
+        }
+    },
+
+    saveExpenseWizard() {
+        const wz = this.state.expenseWizard;
+        if (!wz) return;
+        this.captureExpenseWizardFields();
+        const receiptUrl = document.getElementById('receipt-url')?.value || wz.receiptUrl || '';
+        if (!receiptUrl && !wz.noReceipt) {
+            this.showToast('Subí el comprobante o marcá "Cargar sin comprobante por ahora".');
+            return;
+        }
+        const dup = this.findDuplicateExpense(wz.fecha, wz.total, wz.proveedor, wz.descripcion, wz.id || null);
+        if (dup && !wz.dupAck) {
+            this.showToast('Posible duplicado: revisá el aviso y marcá "guardar igual" para continuar.');
+            return;
+        }
+        const cat = (window.expenseCategories || []).find(c => c.value === wz.categoria);
+        const isInventoryInvoice = !!wz.isInventoryInvoice;
+        const ivaLocked = wz.categoria === 'stock_usado' || isInventoryInvoice;
+        const expenseData = {
+            proveedor: (wz.proveedor || '').trim(),
+            fecha_factura: wz.fecha,
+            date: wz.fecha,
+            monto_total: parseFloat(wz.total) || 0,
+            monto_iva: ivaLocked ? 0 : (parseFloat(wz.iva) || 0),
+            categoria: wz.categoria,
+            categoria_label: cat?.label || wz.categoria,
+            categoria_tipo: cat?.type || 'operativo',
+            is_vat_deductible: cat?.type === 'operativo' || cat?.type === 'stock_nuevo',
+            is_inventory_invoice: isInventoryInvoice,
+            descripcion: (wz.descripcion || '').trim(),
+            receiptUrl,
+            timestamp: new Date().toISOString(),
+            receiptPending: !receiptUrl && !!wz.noReceipt,
+            invoiceNumber: (wz.invoiceNumber || '').trim(),
+            supplier: (wz.proveedor || '').trim(),
+            lotRef: ((wz.categoria === 'stock_nuevo' || wz.categoria === 'stock_usado') && (wz.proveedor || '').trim())
+                ? this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null)
+                : '',
+        };
+        // Factura global B2B: neutralizar IVA para no duplicar el Micro-IVA a nivel item
+        if (isInventoryInvoice) {
+            expenseData.monto_iva = 0;
+            expenseData.is_vat_deductible = false;
+            expenseData.categoria_tipo = 'stock_factura_global';
+        }
+        const done = () => {
+            this.showToast(wz.id ? 'Compra actualizada' : 'Compra registrada');
+            this.closeExpenseWizard();
+            this.loadData();
+        };
+        const fail = (err) => { console.error(err); this.showToast('Error al guardar'); };
+        if (wz.id) {
+            db.collection('expenses').doc(wz.id).update(expenseData).then(done).catch(fail);
+        } else {
+            db.collection('expenses').add(expenseData).then(done).catch(fail);
+        }
     },
 
     // Blueprint Sec 09: normalizacion para deteccion de duplicados
@@ -10795,126 +11032,6 @@ const app = {
         a.click();
         URL.revokeObjectURL(a.href);
         this.showToast('✅ CSV exportado (' + rows.length + ' registros)');
-    },
-
-    handleExpenseSubmit(e) {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-
-        const catValue = formData.get('categoria');
-        const cat = (window.expenseCategories || []).find(c => c.value === catValue);
-        const isInventoryInvoice = formData.get('is_inventory_invoice') === 'on';
-
-        const expenseData = {
-            proveedor: formData.get('proveedor'),
-            fecha_factura: formData.get('fecha_factura'),
-            date: formData.get('fecha_factura'), // Dual field for query compatibility
-            monto_total: parseFloat(formData.get('monto_total')) || 0,
-            monto_iva: parseFloat(formData.get('monto_iva')) || 0,
-            categoria: catValue,
-            categoria_label: cat?.label || catValue,
-            categoria_tipo: cat?.type || 'operativo',
-            is_vat_deductible: cat?.type === 'operativo' || cat?.type === 'stock_nuevo',
-            is_inventory_invoice: isInventoryInvoice,
-            descripcion: formData.get('descripcion') || '',
-            receiptUrl: document.getElementById('receipt-url').value || '',
-            timestamp: new Date().toISOString()
-        };
-
-        // Blueprint Sec 09: comprobante obligatorio, salvo override explicito ("en revision")
-        const noReceiptOverride = document.getElementById('expense-no-receipt')?.checked;
-        if (!expenseData.receiptUrl && !noReceiptOverride) {
-            this.showToast('⚠️ Subí el comprobante o marcá "Cargar sin comprobante por ahora".');
-            return;
-        }
-        expenseData.receiptPending = !expenseData.receiptUrl && !!noReceiptOverride;
-
-        // Blueprint Sec 09: validacion de duplicados al guardar
-        const editingId = formData.get('id');
-        const dup = this.findDuplicateExpense(expenseData.fecha_factura, expenseData.monto_total, expenseData.proveedor, expenseData.descripcion, editingId || null);
-        if (dup) {
-            const ok = confirm(`Parece duplicado de "${dup.proveedor || dup.description || ''}" (${this.formatDate(dup.fecha_factura || dup.date)} \u00b7 ${Number(dup.monto_total || dup.amount || 0).toFixed(2)} kr).\n\n¿Guardar igual?`);
-            if (!ok) return;
-        }
-
-        // Referencia de lote: solo para compras de stock (vinilos)
-        const invoiceNumber = (formData.get('invoice_number') || '').trim();
-        const isStockCat = catValue === 'stock_nuevo' || catValue === 'stock_usado';
-        expenseData.invoiceNumber = invoiceNumber;
-        expenseData.supplier = expenseData.proveedor;
-        expenseData.lotRef = (isStockCat && expenseData.proveedor)
-            ? this.buildLotRef(expenseData.proveedor, invoiceNumber, expenseData.fecha_factura, editingId || null)
-            : '';
-
-        // If it's a global B2B inventory invoice, neutralise its VAT and ensure it bypasses the VAT reports
-        // since the VAT and deductions are already handled at the item-level Micro-IVA
-        if (isInventoryInvoice) {
-            expenseData.monto_iva = 0;
-            expenseData.is_vat_deductible = false;
-            expenseData.categoria_tipo = 'stock_factura_global';
-        }
-
-        const id = formData.get('id');
-        if (id) {
-            db.collection('expenses').doc(id).update(expenseData)
-                .then(() => {
-                    this.showToast('✅ Compra actualizada');
-                    this.loadData();
-                })
-                .catch(err => console.error(err));
-        } else {
-            db.collection('expenses').add(expenseData)
-                .then(() => {
-                    this.showToast('✅ Compra registrada');
-                    this.loadData();
-                })
-                .catch(err => console.error(err));
-        }
-
-        this.resetExpenseForm();
-    },
-
-    handleInventoryInvoiceToggle(checkbox) {
-        const ivaInput = document.getElementById('expense-iva');
-        if (checkbox.checked) {
-            ivaInput.value = '0';
-            ivaInput.disabled = true;
-            ivaInput.classList.add('bg-slate-100', 'cursor-not-allowed');
-        } else {
-            // Restore previous state by triggering category change logic again
-            const select = document.getElementById('expense-categoria');
-            this.handleExpenseCategoryChange(select);
-        }
-    },
-
-    handleExpenseCategoryChange(select) {
-        const value = select.value;
-        const cat = (window.expenseCategories || []).find(c => c.value === value);
-        const ivaInput = document.getElementById('expense-iva');
-        const warning = document.getElementById('category-warning');
-        const invToggle = document.getElementById('expense-inventory-invoice');
-
-        // Campos de lote: solo para compras de stock
-        this.toggleExpenseLotFields();
-
-        // If inventory invoice is toggled, ignore category rules changing VAT
-        if (invToggle && invToggle.checked) {
-            ivaInput.value = '0';
-            ivaInput.disabled = true;
-            ivaInput.classList.add('bg-slate-100', 'cursor-not-allowed');
-            return;
-        }
-
-        if (cat?.type === 'stock_usado') {
-            ivaInput.value = '0';
-            ivaInput.disabled = true;
-            ivaInput.classList.add('bg-slate-100', 'cursor-not-allowed');
-            warning.classList.remove('hidden');
-        } else {
-            ivaInput.disabled = false;
-            ivaInput.classList.remove('bg-slate-100', 'cursor-not-allowed');
-            warning.classList.add('hidden');
-        }
     },
 
     openInventoryIngest(expenseId) {
