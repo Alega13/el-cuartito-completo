@@ -13241,6 +13241,29 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         ).sort((a, b) => new Date(b.updated_at?.toDate ? b.updated_at.toDate() : (b.updated_at || b.date)) - new Date(a.updated_at?.toDate ? a.updated_at.toDate() : (a.updated_at || a.date)))
             .slice(0, 20);
 
+        // Blueprint Sec 08: bandejas por estado (pestañas con conteos)
+        const shipTab = this.state.shippingTab || 'all';
+        const shipStatusOf = (s) => {
+            const fs = (s.fulfillment_status || '').toLowerCase();
+            if (['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'].includes(fs)) return 'done';
+            if (fs === 'preparing') return 'preparing';
+            if (fs === 'ready_for_pickup') return 'ready';
+            return 'pending';
+        };
+        const tabMatch = (s) => shipTab === 'all' || shipStatusOf(s) === shipTab;
+        const tabbedPickups = activePickups.filter(tabMatch);
+        const tabbedShipping = activeShipping.filter(tabMatch);
+        const countBy = (tab) => this.state.sales.filter(s =>
+            (s.channel === 'online' || s.channel?.toLowerCase() === 'discogs') && shipStatusOf(s) === tab
+        ).length;
+        const shipTabs = [
+            { key: 'all', label: 'Todas', icon: 'ph-squares-four' },
+            { key: 'pending', label: 'Pendientes', icon: 'ph-clock', count: countBy('pending') },
+            { key: 'preparing', label: 'En preparación', icon: 'ph-package', count: countBy('preparing') },
+            { key: 'ready', label: 'Listas', icon: 'ph-bell-ringing', count: countBy('ready') },
+            { key: 'done', label: 'Cerradas', icon: 'ph-check-circle', count: countBy('done') },
+        ];
+
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
                 <div class="flex justify-between items-center mb-8">
@@ -13266,13 +13289,23 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                     </div>
                 </div>
 
+                <!-- Blueprint Sec 08: pestañas de estado -->
+                <div class="flex gap-2 overflow-x-auto no-scrollbar mb-8">
+                    ${shipTabs.map(t => `
+                        <button onclick="app.state.shippingTab = '${t.key}'; app.refreshCurrentView()"
+                            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${shipTab === t.key ? 'bg-brand-dark text-white shadow-lg' : 'bg-white border border-slate-200 text-slate-500 hover:border-brand-orange hover:text-brand-orange'}">
+                            <i class="ph-bold ${t.icon}"></i> ${t.label}
+                            ${t.count !== undefined ? `<span class="min-w-[20px] h-5 px-1.5 rounded-full text-[10px] flex items-center justify-center ${shipTab === t.key ? 'bg-white/20 text-white' : (t.count > 0 ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400')}">${t.count}</span>` : ''}
+                        </button>`).join('')}
+                </div>
+
                 <!-- SECTION 1: PICKUP ORDERS -->
                 <div class="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden mb-8">
                     <div class="p-6 bg-blue-50/30 border-b border-blue-50 flex justify-between items-center">
                         <h3 class="font-bold text-brand-dark flex items-center gap-2">
                             <i class="ph-fill ph-storefront text-blue-500 text-xl"></i> 
                             Retiro en Tienda (Pickup)
-                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">${activePickups.length}</span>
+                            <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">${tabbedPickups.length}</span>
                         </h3>
                     </div>
                     
@@ -13288,7 +13321,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-blue-50">
-                                ${activePickups.length > 0 ? activePickups.map(s => {
+                                ${tabbedPickups.length > 0 ? tabbedPickups.map(s => {
             const customerInfo = this.getCustomerInfo(s);
             const status = s.fulfillment_status || 'unfulfilled';
 
@@ -13390,7 +13423,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                         <h3 class="font-bold text-brand-dark flex items-center gap-2">
                             <i class="ph-fill ph-truck text-brand-orange text-xl"></i> 
                             Envíos por Correo
-                            <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">${activeShipping.length}</span>
+                            <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">${tabbedShipping.length}</span>
                         </h3>
                     </div>
 
@@ -13406,7 +13439,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-orange-50">
-                                ${activeShipping.length > 0 ? activeShipping.map(s => {
+                                ${tabbedShipping.length > 0 ? tabbedShipping.map(s => {
             const customerInfo = this.getCustomerInfo(s);
             const status = s.fulfillment_status || 'unfulfilled';
 
@@ -13523,6 +13556,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                     </div>
                 </div>
 
+                ${(shipTab === 'all' || shipTab === 'done') ? `
                 <!-- SECTION 3: HISTORY (Last 20) -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-8 opacity-75 hover:opacity-100 transition-opacity">
                     <div class="p-6 bg-slate-50 border-b border-slate-100">
@@ -13560,6 +13594,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                         </table>
                     </div>
                 </div>
+                ` : ''}
             </div>
         `;
         container.innerHTML = html;
