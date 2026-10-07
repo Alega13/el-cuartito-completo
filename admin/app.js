@@ -432,6 +432,16 @@ const api = {
         return response.json();
     },
 
+    async deleteSale(saleId) {
+        const idToken = await auth.currentUser.getIdToken();
+        const response = await fetch(`${BASE_API_URL}/sales/${saleId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+    },
+
     async buyShipmondoLabel({ orderId, productCode, servicePointId, shipment, testMode = true }) {
         const response = await fetch(`${BASE_API_URL}/api/shipmondo/shipments`, {
             method: 'POST',
@@ -13164,8 +13174,9 @@ const app = {
     },
 
     // "Avisar al cliente": envía el email del estado indicado vía Resend (endpoint
-    // POST /sales/:id/notify). No cambia el estado del envío. Muestra aviso si
-    // la venta no tiene email del cliente.
+    // POST /sales/:id/notify). No cambia el estado del envío. El backend garantiza
+    // un solo envío por tipo (devuelve { alreadySent: true } si ya se mandó).
+    // Tras éxito el botón queda en estado "Avisado ✓" deshabilitado.
     async notifyCustomerUI(saleId, type, btn) {
         const labels = {
             preparing: 'tu pedido está en preparación',
@@ -13185,16 +13196,86 @@ const app = {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Enviando...';
             }
-            await api.notifyCustomer(saleId, type);
-            this.showToast(`✅ Cliente notificado: ${labels[type] || type}`);
+            const result = await api.notifyCustomer(saleId, type);
+            // Marcar como enviado en el estado local y re-renderizar: el botón
+            // pasa a "Avisado ✓" y no se puede apretar de nuevo.
+            if (sale) {
+                sale.notifications = {
+                    ...(sale.notifications || {}),
+                    [type]: { status: 'sent', sentAt: new Date().toISOString() }
+                };
+            }
+            this.refreshCurrentView();
+            this.showToast(result && result.alreadySent
+                ? 'ℹ️ El cliente ya había sido avisado'
+                : `✅ Cliente notificado: ${labels[type] || type}`);
         } catch (e) {
             console.error('notifyCustomerUI:', e);
             this.showToast('Error al notificar: ' + (e.message || e), 'error');
-        } finally {
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
             }
+        }
+    },
+
+    // Modal propio (no window.confirm) para eliminar una ficha de envío.
+    // Avisa si se va a devolver 1 unidad al stock del disco vinculado.
+    openDeleteShipmentModal(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) {
+            this.showToast('La ficha ya no existe', 'error');
+            return;
+        }
+        const ci = this.getCustomerInfo(sale);
+        const displayName = ci.name && ci.name !== 'Cliente' ? ci.name : (ci.email || 'Cliente');
+        const warn = this.shipDeleteStockWarning(sale);
+        const modalHtml = `
+        <div id="delete-shipment-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
+                        <i class="ph-fill ph-warning text-2xl text-red-500"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-display text-xl font-bold text-brand-dark">¿Eliminar ficha?</h3>
+                        <p class="text-sm text-slate-500">Esta acción no se puede deshacer</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-4 mb-4">
+                    <p class="font-bold text-brand-dark mb-1">${ecEsc(displayName)}</p>
+                    <p class="text-xs text-slate-400">Se va a eliminar la ficha de ${ecEsc(displayName)}.</p>
+                </div>
+                ${warn.willReturn ? `
+                <div class="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 flex items-start gap-2">
+                    <i class="ph-bold ph-warning text-amber-500 mt-0.5"></i>
+                    <p class="text-xs text-amber-800">Se va a devolver <b>1 unidad</b> al stock de <b>${ecEsc(warn.label)}</b>.</p>
+                </div>` : ''}
+                <div class="flex gap-3">
+                    <button onclick="document.getElementById('delete-shipment-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button>
+                    <button onclick="app.confirmDeleteShipment('${saleId}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">Eliminar</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    // Confirma el borrado: llama al backend y quita la tarjeta del kanban
+    // sin recargar la página.
+    async confirmDeleteShipment(saleId) {
+        const modal = document.getElementById('delete-shipment-modal');
+        if (modal) modal.remove();
+        try {
+            const res = await api.deleteSale(saleId);
+            this.state.sales = (this.state.sales || []).filter(s => s.id !== saleId);
+            const card = document.querySelector(`[data-sale-id="${saleId}"]`);
+            if (card) card.remove();
+            this.showToast(res && res.stockReturned
+                ? '✅ Ficha eliminada — 1 unidad devuelta al stock'
+                : '✅ Ficha eliminada');
+        } catch (e) {
+            console.error('confirmDeleteShipment:', e);
+            this.showToast('Error al eliminar: ' + (e.message || e), 'error');
         }
     },
 
@@ -14495,6 +14576,25 @@ const app = {
         return 'preparar';
     },
 
+    // Estado del botón "Avisar al cliente": 'sent' si la notificación de ese
+    // tipo ya consta enviada en el doc (el backend garantiza un solo envío).
+    // Un claim 'sending' trabado se trata como reintentable ('idle'): el
+    // backend igual devuelve alreadySent sin mandar el mail dos veces.
+    shipNotifyState(s, type) {
+        const rec = s && s.notifications && s.notifications[type];
+        return rec && rec.status === 'sent' ? 'sent' : 'idle';
+    },
+
+    // Info para el modal de eliminar ficha: si se va a devolver stock y a qué disco.
+    shipDeleteStockWarning(s) {
+        const li = s && s.linkedInventory;
+        const willReturn = !!(s && s.stockDecremented && li && li.productId);
+        return {
+            willReturn,
+            label: willReturn ? `${li.artist || 'Sin artista'} — ${li.album || 'Sin título'}` : ''
+        };
+    },
+
     // Tarjeta de pedido del kanban con datos completos del cliente
     renderShipCard(s) {
         const ci = this.getCustomerInfo(s);
@@ -14526,11 +14626,22 @@ const app = {
         // Acción contextual según la columna/estado.
         // Patrón: avance de estado = botón primario sólido; "Avisar al cliente" =
         // botón secundario outline con campana (usa Resend, no cambia el estado).
-        const notifyBtn = (type) => `
+        // Si la notificación ya se envió (consta en el doc), el botón queda en
+        // estado "Avisado ✓" deshabilitado: no se puede mandar dos veces.
+        const notifyBtn = (type) => {
+            if (this.shipNotifyState(s, type) === 'sent') {
+                return `
+            <button disabled
+                class="w-full mt-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-slate-300 text-xs font-bold flex items-center justify-center gap-2 cursor-default">
+                <i class="ph-bold ph-check-circle"></i>Avisado ✓
+            </button>`;
+            }
+            return `
             <button onclick="event.stopPropagation();app.notifyCustomerUI('${s.id}', '${type}', this)"
                 class="w-full mt-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-500 text-xs font-bold hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
                 <i class="ph-bold ph-bell-ringing"></i>Avisar al cliente
             </button>`;
+        };
         let actionBtn = '';
         if (col === 'preparar') {
             actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`
@@ -14567,7 +14678,7 @@ const app = {
             <button onclick="event.stopPropagation();app.openLinkInventoryModal('${s.id}')" class="mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors flex items-center gap-1"><i class="ph-bold ph-link"></i>Vincular disco del inventario</button>` : "");
 
         return `
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+        <div data-sale-id="${s.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                     ${this.saleChannelBadge(s)}
@@ -14600,7 +14711,11 @@ const app = {
             ${(isPickup && col !== "despachado") ? `<div data-quote-section="${s.id}"></div>` : ""}
             ${issues.length > 0 ? `<div class="mt-3 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
             ${actionBtn}
-            <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
+            <div class="mt-2 flex items-center justify-center gap-3">
+                <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
+                <span class="text-slate-200 text-[11px] select-none">·</span>
+                <button onclick="event.stopPropagation();app.openDeleteShipmentModal('${s.id}')" class="text-[11px] font-bold text-slate-300 hover:text-red-500 transition-colors flex items-center gap-1"><i class="ph-bold ph-trash"></i>Eliminar</button>
+            </div>
         </div>`;
     },
 

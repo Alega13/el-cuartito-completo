@@ -29,6 +29,16 @@ const fakeDb = {
             update: async (data: any) => { updates.push({ id, data }); },
         }),
     }),
+    // Los endpoints nuevos reclaman la notificación en transacción
+    runTransaction: async (fn: any) => {
+        const tx = {
+            get: (ref: any) => ref.get(),
+            update: (ref: any, data: any) => ref.update(data),
+            set: (ref: any, data: any) => ref.update(data),
+            delete: (_ref: any) => Promise.resolve(),
+        };
+        return fn(tx);
+    },
 };
 const firebaseAdminMod = require('./src/config/firebaseAdmin');
 firebaseAdminMod.getDb = () => fakeDb;

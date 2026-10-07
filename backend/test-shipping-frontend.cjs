@@ -73,5 +73,32 @@ ok(src.includes('saveManualTracking') && src.includes('buyLabelViaAPI'), 'camino
 ok(src.includes('testMode: !real'), 'testMode=true por defecto, real solo con confirmación');
 ok(src.includes('COMPRA REAL'), 'confirmación explícita antes de compra real');
 
+// Estado del botón "Avisar al cliente" (un solo envío por tipo)
+console.log('shipNotifyState');
+const shipNotifyState = new Function('s', 'type', extractMethod('shipNotifyState'));
+ok(shipNotifyState({ notifications: { preparing: { status: 'sent' } } }, 'preparing') === 'sent', 'notificación enviada → sent');
+ok(shipNotifyState({ notifications: { preparing: { status: 'sent' } } }, 'shipped') === 'idle', 'otro tipo → idle');
+ok(shipNotifyState({ notifications: { preparing: { status: 'sending' } } }, 'preparing') === 'idle', 'claim trabado → idle (reintentable, el backend igual no duplica)');
+ok(shipNotifyState({}, 'preparing') === 'idle', 'sin notifications → idle');
+ok(shipNotifyState(null, 'preparing') === 'idle', 'sale null → idle');
+ok(src.includes('Avisado ✓') && src.includes("shipNotifyState(s, type) === 'sent'"), 'la tarjeta pinta "Avisado ✓" deshabilitado cuando ya se envió');
+
+// Aviso de devolución de stock al eliminar la ficha
+console.log('shipDeleteStockWarning');
+const shipDeleteStockWarning = new Function('s', extractMethod('shipDeleteStockWarning'));
+const w1 = shipDeleteStockWarning({ stockDecremented: true, linkedInventory: { productId: 'p1', artist: 'Moodymann', album: 'Black Mahogani' } });
+ok(w1.willReturn === true && w1.label === 'Moodymann — Black Mahogani', 'con stockDecremented avisa la devolución');
+ok(shipDeleteStockWarning({ stockDecremented: false, linkedInventory: { productId: 'p1' } }).willReturn === false, 'sin stockDecremented no devuelve');
+ok(shipDeleteStockWarning({ stockDecremented: true }).willReturn === false, 'sin vínculo no devuelve');
+ok(shipDeleteStockWarning({}).willReturn === false, 'venta vacía no devuelve');
+
+// Eliminar ficha: botón discreto + modal propio + borrado sin recargar
+console.log('eliminar ficha');
+ok(src.includes('openDeleteShipmentModal') && src.includes('confirmDeleteShipment'), 'flujo de borrado presente');
+ok(src.includes('api.deleteSale'), 'usa DELETE /sales/:id del backend');
+ok(src.includes('data-sale-id'), 'la tarjeta tiene data-sale-id para quitarla del DOM');
+ok(src.includes('delete-shipment-modal') && src.includes('Esta acción no se puede deshacer'), 'modal propio de confirmación');
+ok(!/openDeleteShipmentModal[\s\S]{0,400}window\.confirm/.test(src), 'el borrado no usa window.confirm');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -20,6 +20,7 @@ router.post('/:id/notify-pickup-ready', isAdmin, firebaseController.notifyReadyF
 router.post('/:id/mark-picked-up', isAdmin, firebaseController.markAsPickedUp);
 router.post('/:id/label-created', isAdmin, firebaseController.setLabelCreated);
 router.post('/:id/notify', isAdmin, firebaseController.notifyCustomer);
+router.delete('/:id', isAdmin, firebaseController.deleteSale);
 
 export default router;
 

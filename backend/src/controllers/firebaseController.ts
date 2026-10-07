@@ -501,6 +501,109 @@ import {
     sendShippingNotificationEmail
 } from '../services/mailService';
 
+/* ------------------------------------------------------------------ */
+/* Notificaciones al cliente: idempotencia (anti doble envío)           */
+/*                                                                     */
+/* Cada venta guarda `notifications: { <tipo>: { status, sentAt, to } }`.*/
+/* El envío se reclama en transacción ANTES de mandar el email: si dos   */
+/* requests llegan a la vez, solo una manda el mail. Si el tipo ya se    */
+/* envió (o está en curso), se devuelve 200 { alreadySent: true } — no   */
+/* es error: el frontend lo muestra como "ya avisado". Si el email falla,*/
+/* el claim se libera para permitir reintento.                          */
+/* ------------------------------------------------------------------ */
+const NOTIFY_TYPES = ['preparing', 'label_created', 'shipped', 'pickup_ready'] as const;
+type NotifyType = typeof NOTIFY_TYPES[number];
+
+const customerEmailOf = (saleData: any): string =>
+    saleData.customerEmail || saleData.email || saleData.customer_email || saleData.customer?.email || '';
+
+async function claimNotification(
+    db: admin.firestore.Firestore,
+    saleRef: admin.firestore.DocumentReference,
+    type: NotifyType
+): Promise<{ alreadySent: boolean }> {
+    return db.runTransaction(async (tx) => {
+        const snap = await tx.get(saleRef);
+        if (!snap.exists) throw Object.assign(new Error('Sale not found'), { code: 'NOT_FOUND' });
+        const data = snap.data() as any;
+        const rec = data.notifications && data.notifications[type];
+        if (rec && (rec.status === 'sent' || rec.status === 'sending')) {
+            return { alreadySent: true };
+        }
+        tx.update(saleRef, {
+            [`notifications.${type}`]: { status: 'sending', claimedAt: new Date().toISOString() },
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { alreadySent: false };
+    });
+}
+
+async function finalizeNotification(
+    saleRef: admin.firestore.DocumentReference,
+    type: NotifyType,
+    email: string,
+    note: string
+): Promise<void> {
+    await saleRef.update({
+        [`notifications.${type}`]: { status: 'sent', sentAt: new Date().toISOString(), to: email },
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        history: admin.firestore.FieldValue.arrayUnion({
+            status: `notify_${type}`,
+            timestamp: new Date().toISOString(),
+            note,
+        }),
+    });
+}
+
+async function releaseNotificationClaim(
+    saleRef: admin.firestore.DocumentReference,
+    type: NotifyType
+): Promise<void> {
+    try {
+        await saleRef.update({ [`notifications.${type}`]: admin.firestore.FieldValue.delete() });
+    } catch {
+        /* best effort: si no se puede liberar, el reintento manual lo pisa */
+    }
+}
+
+/**
+ * Envía una notificación una sola vez por venta y tipo.
+ * Devuelve { alreadySent: true } si ya constaba enviada/en curso.
+ */
+async function sendNotificationOnce(opts: {
+    db: FirebaseFirestore.Firestore;
+    id: string;
+    type: NotifyType;
+    send: (saleData: any) => Promise<any>;
+    historyNote: (email: string) => string;
+}): Promise<{ alreadySent: boolean; mailResult?: any }> {
+    const { db, id, type, send, historyNote } = opts;
+    const saleRef = db.collection('sales').doc(id);
+
+    const claim = await claimNotification(db, saleRef, type);
+    if (claim.alreadySent) return { alreadySent: true };
+
+    const saleSnap = await saleRef.get();
+    const saleData = saleSnap.data() as any;
+    const email = customerEmailOf(saleData);
+
+    let mailResult: any;
+    try {
+        mailResult = await send(saleData);
+    } catch (e: any) {
+        await releaseNotificationClaim(saleRef, type);
+        // NO_TRACKING es error de validación (400), no fallo del email
+        if (e?.code === 'NO_TRACKING') throw e;
+        throw Object.assign(new Error(`No se pudo enviar el email: ${e?.message || e}`), { code: 'MAIL_FAILED' });
+    }
+    if (!mailResult || mailResult.success === false) {
+        await releaseNotificationClaim(saleRef, type);
+        throw Object.assign(new Error(mailResult?.error || 'El email no pudo enviarse'), { code: 'MAIL_FAILED' });
+    }
+    await finalizeNotification(saleRef, type, email, historyNote(email));
+    return { alreadySent: false, mailResult };
+}
+
 export const notifyPreparing = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -514,22 +617,30 @@ export const notifyPreparing = async (req: Request, res: Response) => {
 
         const saleData = saleDoc.data() as any;
 
-        // Update status in Firestore
-        await saleRef.update({
-            fulfillment_status: 'preparing',
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            history: admin.firestore.FieldValue.arrayUnion({
-                status: 'preparing',
-                timestamp: new Date().toISOString(), // Use string for easier frontend parsing or Timestamp if consistent
-                note: 'Order is being prepared. Notification sent.'
-            })
+        // Estado idempotente: si ya está en preparing, no duplicar historial
+        if (saleData.fulfillment_status !== 'preparing') {
+            await saleRef.update({
+                fulfillment_status: 'preparing',
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                history: admin.firestore.FieldValue.arrayUnion({
+                    status: 'preparing',
+                    timestamp: new Date().toISOString(), // Use string for easier frontend parsing or Timestamp if consistent
+                    note: 'Order is being prepared. Notification sent.'
+                })
+            });
+        }
+
+        // Email: una sola vez por venta (ver cabecera de esta sección)
+        const { alreadySent, mailResult } = await sendNotificationOnce({
+            db, id, type: 'preparing',
+            send: (s) => sendDiscogsOrderPreparingEmail(s),
+            historyNote: (email) => `Notificación "en preparación" enviada a ${email || 'cliente'}.`,
         });
 
-        // Send email
-        const mailResult = await sendDiscogsOrderPreparingEmail(saleData);
-
-        res.json({ success: true, mailResult });
+        res.json({ success: true, alreadySent, mailResult: mailResult || null });
     } catch (error: any) {
+        if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: 'Sale not found' });
+        if (error?.code === 'MAIL_FAILED') return res.status(502).json({ success: false, error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -603,32 +714,46 @@ export const notifyShipped = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Tracking number is required to notify shipment' });
         }
 
-        // Prepare update data
-        const updateData: any = {
-            fulfillment_status: 'in_transit', // Step 2: In Transit (Tracking sent)
-            tracking_number: finalTrackingNumber,
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            history: admin.firestore.FieldValue.arrayUnion({
-                status: 'in_transit',
-                timestamp: new Date().toISOString(),
-                note: `Order is in transit. Tracking: ${finalTrackingNumber}`
-            })
-        };
+        // Estado idempotente: si ya está in_transit, no duplicar historial
+        if (saleData.fulfillment_status !== 'in_transit') {
+            // Prepare update data
+            const updateData: any = {
+                fulfillment_status: 'in_transit', // Step 2: In Transit (Tracking sent)
+                tracking_number: finalTrackingNumber,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                history: admin.firestore.FieldValue.arrayUnion({
+                    status: 'in_transit',
+                    timestamp: new Date().toISOString(),
+                    note: `Order is in transit. Tracking: ${finalTrackingNumber}`
+                })
+            };
 
-        if (trackingLink) {
-            updateData.tracking_link = trackingLink;
-            // Update local object for email content
-            saleData.tracking_link = trackingLink;
+            if (trackingLink) {
+                updateData.tracking_link = trackingLink;
+                // Update local object for email content
+                saleData.tracking_link = trackingLink;
+            }
+
+            // Update status in Firestore
+            await saleRef.update(updateData);
+        } else if (trackingNumber) {
+            await saleRef.update({
+                tracking_number: finalTrackingNumber,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
         }
 
-        // Update status in Firestore
-        await saleRef.update(updateData);
+        // Email: una sola vez por venta (ver cabecera de esta sección)
+        const { alreadySent, mailResult } = await sendNotificationOnce({
+            db, id, type: 'shipped',
+            send: (s) => sendDiscogsShippingNotificationEmail(s, finalTrackingNumber),
+            historyNote: (email) => `Notificación "despachado" enviada a ${email || 'cliente'}. Tracking: ${finalTrackingNumber}`,
+        });
 
-        // Send email
-        const mailResult = await sendDiscogsShippingNotificationEmail(saleData, finalTrackingNumber);
-
-        res.json({ success: true, mailResult });
+        res.json({ success: true, alreadySent, mailResult: mailResult || null });
     } catch (error: any) {
+        if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: 'Sale not found' });
+        if (error?.code === 'MAIL_FAILED') return res.status(502).json({ success: false, error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -637,8 +762,16 @@ export const markAsDispatched = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+        if (!saleDoc.exists) return res.status(404).json({ error: 'Sale not found' });
 
-        await db.collection('sales').doc(id).update({
+        // Idempotente: si ya está despachado, ok sin efectos secundarios
+        if ((saleDoc.data() as any).fulfillment_status === 'shipped') {
+            return res.json({ success: true, alreadyDone: true });
+        }
+
+        await saleRef.update({
             fulfillment_status: 'shipped', // Step 3: Dispatched (Closed)
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -665,19 +798,30 @@ export const notifyReadyForPickup = async (req: Request, res: Response) => {
 
         const saleData = saleDoc.data() as any;
 
-        await saleRef.update({
-            fulfillment_status: 'ready_for_pickup',
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            history: admin.firestore.FieldValue.arrayUnion({
-                status: 'ready_for_pickup',
-                timestamp: new Date().toISOString(),
-                note: 'Ready for pickup. Notification sent.'
-            })
+        // Estado idempotente: si ya está listo para retiro, no duplicar historial
+        if (saleData.fulfillment_status !== 'ready_for_pickup') {
+            await saleRef.update({
+                fulfillment_status: 'ready_for_pickup',
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+                history: admin.firestore.FieldValue.arrayUnion({
+                    status: 'ready_for_pickup',
+                    timestamp: new Date().toISOString(),
+                    note: 'Ready for pickup. Notification sent.'
+                })
+            });
+        }
+
+        // Email: una sola vez por venta (ver cabecera de esta sección)
+        const { alreadySent, mailResult } = await sendNotificationOnce({
+            db, id, type: 'pickup_ready',
+            send: (s) => sendPickupReadyEmail(s),
+            historyNote: (email) => `Notificación "listo para recoger" enviada a ${email || 'cliente'}.`,
         });
 
-        const mailResult = await sendPickupReadyEmail(saleData);
-        res.json({ success: true, mailResult });
+        res.json({ success: true, alreadySent, mailResult: mailResult || null });
     } catch (error: any) {
+        if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: 'Sale not found' });
+        if (error?.code === 'MAIL_FAILED') return res.status(502).json({ success: false, error: error.message });
         res.status(500).json({ error: error.message });
     }
 };
@@ -686,8 +830,16 @@ export const markAsPickedUp = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+        if (!saleDoc.exists) return res.status(404).json({ error: 'Sale not found' });
 
-        await db.collection('sales').doc(id).update({
+        // Idempotente: si ya está recogido, ok sin efectos secundarios
+        if ((saleDoc.data() as any).fulfillment_status === 'picked_up') {
+            return res.json({ success: true, alreadyDone: true });
+        }
+
+        await saleRef.update({
             fulfillment_status: 'picked_up', // Closed
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
@@ -725,15 +877,23 @@ export const setLabelCreated = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Sale not found' });
         }
 
+        const saleData = saleDoc.data() as any;
+        const tracking = String(trackingNumber).trim();
+
+        // Idempotente: si ya está en label_created con el mismo tracking, ok sin efectos
+        if (saleData.fulfillment_status === 'label_created' && saleData.tracking_number === tracking) {
+            return res.json({ success: true, alreadyDone: true, trackingNumber: tracking });
+        }
+
         const updateData: any = {
-            tracking_number: String(trackingNumber).trim(),
+            tracking_number: tracking,
             fulfillment_status: 'label_created',
             label_created_at: admin.firestore.FieldValue.serverTimestamp(),
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             history: admin.firestore.FieldValue.arrayUnion({
                 status: 'label_created',
                 timestamp: new Date().toISOString(),
-                note: `Etiqueta creada. Tracking: ${String(trackingNumber).trim()}${carrier ? ` (${carrier})` : ''}`
+                note: `Etiqueta creada. Tracking: ${tracking}${carrier ? ` (${carrier})` : ''}`
             })
         };
         if (carrier) updateData.label_carrier = String(carrier);
@@ -746,52 +906,98 @@ export const setLabelCreated = async (req: Request, res: Response) => {
     }
 };
 
-const NOTIFY_TYPES = ['preparing', 'label_created', 'shipped', 'pickup_ready'] as const;
-type NotifyType = typeof NOTIFY_TYPES[number];
-
 /**
  * "Avisar al cliente": envía el email correspondiente al estado indicado
  * usando Resend. Puro notify — NO cambia fulfillment_status.
+ * Idempotente: si el tipo ya se envió para esta venta, devuelve
+ * 200 { success: true, alreadySent: true } sin reenviar.
  */
 export const notifyCustomer = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { type } = req.body || {} as { type: NotifyType };
+        const { type } = (req.body || {}) as { type: NotifyType };
         const db = getDb();
 
         if (!NOTIFY_TYPES.includes(type)) {
             return res.status(400).json({ error: `type inválido. Usar uno de: ${NOTIFY_TYPES.join(', ')}` });
         }
 
-        const saleRef = db.collection('sales').doc(id);
-        const saleDoc = await saleRef.get();
-        if (!saleDoc.exists) {
-            return res.status(404).json({ error: 'Sale not found' });
-        }
-        const saleData = saleDoc.data() as any;
+        const senders: Record<NotifyType, (saleData: any) => Promise<any>> = {
+            preparing: (s) => sendOrderPreparingEmail(s),
+            label_created: (s) => {
+                const tracking = s.tracking_number;
+                if (!tracking) {
+                    throw Object.assign(new Error('El envío no tiene tracking_number cargado'), { code: 'NO_TRACKING' });
+                }
+                return sendLabelReadyEmail(s, tracking);
+            },
+            shipped: (s) => sendShippingNotificationEmail(s, {
+                tracking_number: s.tracking_number || '—',
+                tracking_link: s.tracking_link || '',
+                carrier: s.label_carrier || ''
+            }),
+            pickup_ready: (s) => sendPickupReadyEmail(s),
+        };
 
-        let mailResult: any;
-        if (type === 'preparing') {
-            mailResult = await sendOrderPreparingEmail(saleData);
-        } else if (type === 'label_created') {
-            const tracking = saleData.tracking_number;
-            if (!tracking) {
-                return res.status(400).json({ error: 'El envío no tiene tracking_number cargado' });
-            }
-            mailResult = await sendLabelReadyEmail(saleData, tracking);
-        } else if (type === 'shipped') {
-            const tracking = saleData.tracking_number;
-            mailResult = await sendShippingNotificationEmail(saleData, {
-                tracking_number: tracking || '—',
-                tracking_link: saleData.tracking_link || '',
-                carrier: saleData.label_carrier || ''
-            });
-        } else {
-            mailResult = await sendPickupReadyEmail(saleData);
-        }
+        const { alreadySent, mailResult } = await sendNotificationOnce({
+            db, id, type,
+            send: senders[type],
+            historyNote: (email) => `Notificación "${type}" enviada a ${email || 'cliente'}.`,
+        });
 
-        res.json({ success: true, type, mailResult });
+        res.json({ success: true, type, alreadySent, mailResult: mailResult || null });
     } catch (error: any) {
+        if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: 'Sale not found' });
+        if (error?.code === 'NO_TRACKING') return res.status(400).json({ error: error.message });
+        if (error?.code === 'MAIL_FAILED') return res.status(502).json({ success: false, error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * DELETE /sales/:id — elimina la ficha de envío (el doc de la venta).
+ * Si la venta tenía stockDecremented y el disco vinculado existe, devuelve
+ * 1 unidad al stock y lo registra en inventory_logs. Todo en transacción.
+ * Solo toca ventas (y la devolución puntual al inventario).
+ */
+export const deleteSale = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = getDb();
+        const saleRef = db.collection('sales').doc(id);
+
+        const result = await db.runTransaction(async (tx: admin.firestore.Transaction) => {
+            const snap = await tx.get(saleRef);
+            if (!snap.exists) throw Object.assign(new Error('Sale not found'), { code: 'NOT_FOUND' });
+            const sale = snap.data() as any;
+
+            let stockReturned = false;
+            let returnedTo = '';
+            if (sale.stockDecremented && sale.linkedInventory?.productId) {
+                const prodRef = db.collection('products').doc(sale.linkedInventory.productId);
+                const prodSnap = await tx.get(prodRef);
+                if (prodSnap.exists) {
+                    const pd = prodSnap.data() as any;
+                    tx.update(prodRef, { stock: (Number(pd.stock) || 0) + 1 });
+                    returnedTo = [pd.artist, pd.album].filter(Boolean).join(' — ') || 'disco vinculado';
+                    tx.set(db.collection('inventory_logs').doc(), {
+                        type: 'STOCK_RETURN',
+                        sku: pd.sku || 'Unknown',
+                        album: pd.album || 'Unknown',
+                        artist: pd.artist || 'Unknown',
+                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                        details: `Ficha de envío eliminada (${sale.orderNumber || id}): 1 unidad devuelta al stock`,
+                    });
+                    stockReturned = true;
+                }
+            }
+            tx.delete(saleRef);
+            return { stockReturned, returnedTo };
+        });
+
+        res.json({ success: true, ...result });
+    } catch (error: any) {
+        if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: 'Sale not found' });
         res.status(500).json({ error: error.message });
     }
 };
