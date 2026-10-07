@@ -3440,7 +3440,7 @@ const app = {
         // Compras sin comprobante
         const missingReceipt = (this.state.expenses || []).filter(e => !e.receiptUrl && !e.comprobante && e.receiptPending !== false && !e.receiptExempt).length;
         setBadge('nav-badge-expenses', missingReceipt);
-        // Envíos pendientes: solo WebShop/Discogs con fulfillment no cerrado (el local nunca envía)
+        // Envíos pendientes: WebShop/Discogs/Manual con fulfillment no cerrado (el local nunca envía)
         const doneFs = ['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'];
         const pendingShip = (this.state.sales || []).filter(s => {
             if (!this.isShippableChannel(s)) return false;
@@ -3607,6 +3607,7 @@ const app = {
             const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
             const filteredSales = this.state.sales.filter(s => {
+                if (this.normalizeSaleChannel(s) === 'manual') return false; // envíos manuales: logística, no revenue
                 const saleDate = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
                 return saleDate.getFullYear() === currentYear && selectedMonths.includes(saleDate.getMonth());
             });
@@ -3619,7 +3620,7 @@ const app = {
 
             // --- NEW: Unified Movements Feed (Last 5 Sales/Expenses) ---
             const lastMovements = [
-                ...this.state.sales.map(s => ({ ...s, type: 'sale', sortDate: new Date(s.date) })),
+                ...this.state.sales.filter(s => this.normalizeSaleChannel(s) !== 'manual').map(s => ({ ...s, type: 'sale', sortDate: new Date(s.date) })),
                 ...this.state.expenses.map(e => ({ ...e, type: 'expense', sortDate: new Date(e.date || e.fecha_factura) }))
             ]
                 .sort((a, b) => b.sortDate - a.sortDate)
@@ -5601,21 +5602,24 @@ const app = {
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
         const channelFilter = this.state.salesChannelFilter || 'all';
         const channelMatch = (s) => channelFilter === 'all' || this.normalizeSaleChannel(s) === channelFilter;
+        // Los envíos manuales son logística, no ventas: nunca inflan revenue
+        const revenueEligible = (s) => this.normalizeSaleChannel(s) !== 'manual';
 
-        // KPIs calculados sobre el conjunto filtrado por canal
+        // KPIs calculados sobre el conjunto filtrado por canal (sin manuales)
         const todaySales = this.state.sales
-            .filter(s => s.date === today && channelMatch(s))
+            .filter(s => s.date === today && channelMatch(s) && revenueEligible(s))
             .reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
         const yesterdaySales = this.state.sales
-            .filter(s => s.date === yesterday && channelMatch(s))
+            .filter(s => s.date === yesterday && channelMatch(s) && revenueEligible(s))
             .reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
 
-        // Orders to ship (WebShop o Discogs con fulfillment pendiente; el local nunca envía)
+        // Orders to ship (WebShop, Discogs o Manual con fulfillment pendiente; el local nunca envía)
         const toShip = this.state.sales.filter(s =>
             channelMatch(s) && this.isShippableChannel(s) && (
                 s.fulfillment_status === 'preparing' ||
                 s.status === 'paid' ||
-                (this.normalizeSaleChannel(s) === 'discogs' && s.status !== 'shipped')
+                (this.normalizeSaleChannel(s) === 'discogs' && s.status !== 'shipped') ||
+                (this.normalizeSaleChannel(s) === 'manual' && !['shipped', 'fulfilled', 'delivered', 'canceled'].includes((s.fulfillment_status || '').toLowerCase()))
             )
         ).length;
 
@@ -5661,11 +5665,12 @@ const app = {
             return dateMatch && paymentMatch && searchMatch && feedMatch && channelMatch(s);
         });
 
-        const totalRevenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
-        const avgTicket = filteredSales.length > 0 ? totalRevenue / filteredSales.length : 0;
+        const revenueSales = filteredSales.filter(revenueEligible);
+        const totalRevenue = revenueSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+        const avgTicket = revenueSales.length > 0 ? totalRevenue / revenueSales.length : 0;
 
         // Conteos por canal para los chips (respetan año/mes, no el filtro de canal)
-        const channelCounts = { all: 0, local: 0, online: 0, discogs: 0 };
+        const channelCounts = { all: 0, local: 0, online: 0, discogs: 0, manual: 0 };
         this.state.sales.forEach(s => {
             const d = new Date(s.date);
             if (d.getFullYear() === currentYear && selectedMonths.includes(d.getMonth())) {
@@ -5678,7 +5683,7 @@ const app = {
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 ${this.sectionHeader({
                     title: 'Ventas',
-                    subtitle: 'Bandeja unificada · Local, WebShop y Discogs',
+                    subtitle: 'Bandeja unificada · Local, WebShop, Discogs y Manual',
                     filters: `
                         <button onclick="app.syncWithDiscogs()" class="bg-white border border-slate-200 text-slate-600 px-4 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all text-xs font-bold">
                             <i class="ph-bold ph-arrows-clockwise text-base"></i>
@@ -5732,7 +5737,7 @@ const app = {
                             <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Período</span>
                         </div>
                         <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(totalRevenue)}</h3>
-                        <p class="text-xs text-slate-400 font-medium">${filteredSales.length} ventas en el filtro</p>
+                        <p class="text-xs text-slate-400 font-medium">${revenueSales.length} ventas en el filtro</p>
                     </div>
 
                     <!-- Tarjeta C: Por Despachar -->
@@ -5777,7 +5782,8 @@ const app = {
                             { id: 'all', label: 'Todos' },
                             { id: 'local', label: 'Local' },
                             { id: 'online', label: 'WebShop' },
-                            { id: 'discogs', label: 'Discogs' }
+                            { id: 'discogs', label: 'Discogs' },
+                            { id: 'manual', label: 'Manual' }
                         ].map(ch => `
                             <button onclick="app.updateSalesChannelFilter('${ch.id}')"
                                 class="px-4 py-2 rounded-xl text-[11px] font-bold transition-all border ${channelFilter === ch.id
@@ -6338,9 +6344,10 @@ const app = {
     },
 
     // ── Ventas unificadas: canal ─────────────────────────────────────
-    // Normaliza el canal de una venta a 'local' | 'online' | 'discogs'
+    // Normaliza el canal de una venta a 'local' | 'online' | 'discogs' | 'manual'
     normalizeSaleChannel(s) {
         const ch = (s.channel || '').toString().toLowerCase().trim();
+        if (ch === 'manual') return 'manual'; // envío manual creado desde Envíos
         if (ch.includes('discogs')) return 'discogs';
         if (ch === 'online' || ch.includes('web') || ch.includes('shop')) return 'online';
         if (ch === 'local' || ch === 'tienda' || ch === 'store' || s.source === 'STORE') return 'local';
@@ -6353,11 +6360,11 @@ const app = {
         return 'local';
     },
 
-    // El local nunca hace envíos: solo WebShop y Discogs pueden estar pendientes de envío.
+    // El local nunca hace envíos: solo WebShop, Discogs y Manual pueden estar pendientes de envío.
     // Centraliza la regla para nav, dashboard, Ventas y Envíos.
     isShippableChannel(s) {
         const ch = this.normalizeSaleChannel(s);
-        return ch === 'online' || ch === 'discogs';
+        return ch === 'online' || ch === 'discogs' || ch === 'manual';
     },
 
     // Badge pastel por canal (lenguaje visual de la app)
@@ -6366,7 +6373,8 @@ const app = {
         const map = {
             local:   { label: 'Local',   cls: 'bg-emerald-100 text-emerald-700' },
             online:  { label: 'WebShop', cls: 'bg-blue-100 text-blue-700' },
-            discogs: { label: 'Discogs', cls: 'bg-purple-100 text-purple-700' }
+            discogs: { label: 'Discogs', cls: 'bg-purple-100 text-purple-700' },
+            manual:  { label: 'Manual',  cls: 'bg-amber-100 text-amber-700' }
         };
         const m = map[ch] || map.local;
         return `<span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${m.cls}">${m.label}</span>`;
@@ -14547,11 +14555,14 @@ const app = {
                 phone: String(c.phone || sale.customerPhone || sale.phone || "").trim(),
             },
             parcel: {
-                weight: Number.isInteger(ui.weight) ? ui.weight : 500,
-                weightConfirmed: ui.weightConfirmed === true,
+                // Peso: UI efímera > peso persistido en la venta (envío manual) > default 500 g
+                weight: Number.isInteger(ui.weight) ? ui.weight : (Number.isInteger(sale.parcel_weight) ? sale.parcel_weight : 500),
+                weightConfirmed: ui.weightConfirmed === true || sale.weight_confirmed === true,
             },
             shippingMethod: ui.shippingMethod || sale.shipping_method || "home",
-            service_point: ui.servicePointId ? { id: ui.servicePointId } : undefined,
+            // Punto de retiro: UI efímera > persistido en la venta (envío manual) > nada
+            service_point: ui.servicePointId ? { id: ui.servicePointId }
+                : (sale.service_point && sale.service_point.id ? { id: sale.service_point.id } : undefined),
             customs: ui.customs || undefined,
         };
     },
@@ -14845,6 +14856,197 @@ const app = {
             console.error("saveQuickFix:", e);
             errEl.textContent = "⚠️ Error al guardar: " + e.message;
             errEl.classList.remove("hidden");
+        }
+    },
+
+    /* ── Envío manual: crear desde Envíos ──────────────────────────────
+       Crea una venta con channel 'manual' que entra al kanban en PREPARAR.
+       El formulario valida inline con las mismas reglas del Pre-Flight
+       (ecValidateShipment). Punto de retiro y aduana no bloquean la creación:
+       se completan después desde la tarjeta, como el resto de los pedidos. */
+
+    msCountryOptions() {
+        const extra = ["GB", "US", "NO", "CH", "CA", "AU", "JP", "AR", "BR", "CL", "MX", "UY"];
+        const codes = [...new Set([...EC_EU_COUNTRIES, ...extra])].sort();
+        return codes.map(c => `<option value="${c}" ${c === "DK" ? "selected" : ""}>${c}</option>`).join("");
+    },
+
+    openManualShipmentModal() {
+        document.getElementById("ms-modal-overlay")?.remove();
+        const inp = "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white";
+        const lab = "text-[10px] font-bold text-slate-400 uppercase tracking-widest";
+        const html = `
+        <div id="ms-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='ms-modal-overlay')app.closeManualShipmentModal()">
+            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6 max-h-[90vh] overflow-y-auto custom-scrollbar" onclick="event.stopPropagation()">
+                <div class="flex items-start justify-between mb-1">
+                    <div>
+                        <h3 class="text-lg font-bold text-brand-dark">Crear envío manual</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">No vino de Discogs ni WebShop · entra directo a <b>PREPARAR</b></p>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700">Manual</span>
+                </div>
+                <div id="ms-errors" class="hidden flex flex-wrap gap-1.5 my-3"></div>
+
+                <p class="${lab} mt-4 mb-2">Destinatario</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2"><label class="${lab}">Nombre *</label>
+                        <input id="ms-name" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Nombre y apellido"></div>
+                    <div class="col-span-2"><label class="${lab}">Dirección *</label>
+                        <input id="ms-address" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Calle y número, piso/puerta"></div>
+                    <div><label class="${lab}">Código postal *</label>
+                        <input id="ms-zip" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="1050"></div>
+                    <div><label class="${lab}">Ciudad *</label>
+                        <input id="ms-city" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="København K"></div>
+                    <div><label class="${lab}">País *</label>
+                        <select id="ms-country" onchange="app.msRevalidate()" class="${inp} mt-1 cursor-pointer">${this.msCountryOptions()}</select></div>
+                    <div><label class="${lab}">Teléfono *</label>
+                        <input id="ms-phone" type="tel" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="+45 12 34 56 78"></div>
+                    <div class="col-span-2"><label class="${lab}">Email *</label>
+                        <input id="ms-email" type="email" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="cliente@mail.com"></div>
+                </div>
+
+                <p class="${lab} mt-5 mb-2">Contenido</p>
+                <div><label class="${lab}">Descripción de ítems *</label>
+                    <textarea id="ms-desc" rows="2" oninput="app.msRevalidate()" class="${inp} mt-1 resize-none" placeholder="Ej: 2× vinilos — artista / título"></textarea></div>
+
+                <p class="${lab} mt-5 mb-2">Paquete y método</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="${lab}">Peso (g) *</label>
+                        <input id="ms-weight" type="number" min="1" step="1" value="500" oninput="app.msRevalidate()" class="${inp} mt-1"></div>
+                    <div class="flex items-end pb-2"><label class="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
+                        <input id="ms-weight-ok" type="checkbox" onchange="app.msRevalidate()" class="w-4 h-4 accent-orange-600">Peso confirmado</label></div>
+                    <div><label class="${lab}">Método de envío</label>
+                        <input id="ms-method" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="home (opcional)"></div>
+                    <div><label class="${lab}">ID punto de retiro</label>
+                        <input id="ms-servicepoint" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Solo shop delivery"></div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-3">Se valida con las mismas reglas del Pre-Flight. Punto de retiro y aduana (fuera de la UE) se pueden completar después desde la tarjeta del envío.</p>
+
+                <div class="flex justify-end gap-2 mt-6">
+                    <button onclick="app.closeManualShipmentModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                    <button id="ms-save-btn" onclick="app.saveManualShipment()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-2"><i class="ph-bold ph-plus"></i>Crear envío</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+        setTimeout(() => document.getElementById("ms-name")?.focus(), 50);
+    },
+
+    closeManualShipmentModal() {
+        document.getElementById("ms-modal-overlay")?.remove();
+    },
+
+    /* Arma el input de validación desde el formulario (mismo shape que ecBuildShipmentInput) */
+    msBuildShipmentInput() {
+        const v = (id) => (document.getElementById(id)?.value || "").trim();
+        const w = parseInt(v("ms-weight"), 10);
+        const spId = v("ms-servicepoint");
+        return {
+            receiver: {
+                name: v("ms-name"),
+                address1: v("ms-address"),
+                zipcode: v("ms-zip"),
+                city: v("ms-city"),
+                country_code: v("ms-country").toUpperCase(),
+                email: v("ms-email"),
+                phone: v("ms-phone"),
+            },
+            parcel: {
+                weight: Number.isInteger(w) ? w : NaN,
+                weightConfirmed: document.getElementById("ms-weight-ok")?.checked === true,
+            },
+            shippingMethod: v("ms-method") || "home",
+            service_point: spId ? { id: spId } : undefined,
+            customs: undefined,
+        };
+    },
+
+    /* Valida con las reglas del Pre-Flight. Devuelve { input, hard, soft }:
+       hard = bloquea la creación; soft (punto de retiro / aduana) = aviso ámbar,
+       se completa después desde la tarjeta como en el resto de los pedidos. */
+    msValidate() {
+        const input = this.msBuildShipmentInput();
+        const blockers = ecValidateShipment(input);
+        const isSoft = (b) => b.field === "service_point.id" || b.field.startsWith("customs");
+        return { input, hard: blockers.filter(b => !isSoft(b)), soft: blockers.filter(isSoft) };
+    },
+
+    msRenderBlockers() {
+        const { hard, soft } = this.msValidate();
+        const box = document.getElementById("ms-errors");
+        if (!box) return { hard, soft };
+        const pill = (b, warn) => {
+            const key = b.field.startsWith("customs") ? "customs" : b.field;
+            const label = EC_FIELD_LABELS[key] || "Falta dato";
+            const cls = warn
+                ? "bg-amber-50 text-amber-700 border-amber-200"
+                : "bg-red-50 text-red-700 border-red-200";
+            const icon = warn ? "ph-warning" : "ph-warning-circle";
+            return `<span title="${b.message.replace(/"/g, "&quot;")}" class="inline-flex items-center gap-1 ${cls} border text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full"><i class="ph-bold ${icon}"></i>${label}</span>`;
+        };
+        const all = [...hard.map(b => pill(b, false)), ...soft.map(b => pill(b, true))];
+        box.innerHTML = all.join("");
+        box.classList.toggle("hidden", all.length === 0);
+        return { hard, soft };
+    },
+
+    /* Re-valida en vivo solo si ya se mostraron errores (no spamea al tipear) */
+    msRevalidate() {
+        const box = document.getElementById("ms-errors");
+        if (box && !box.classList.contains("hidden")) this.msRenderBlockers();
+    },
+
+    async saveManualShipment() {
+        const btn = document.getElementById("ms-save-btn");
+        const { input, hard } = this.msRenderBlockers();
+        if (hard.length) {
+            document.getElementById("ms-modal-overlay")?.querySelector(".max-w-lg")?.scrollTo({ top: 0, behavior: "smooth" });
+            (document.getElementById("ms-name")?.value ? document.querySelector("#ms-modal-overlay input") : document.getElementById("ms-name"))?.focus();
+            return;
+        }
+        const r = input.receiver;
+        const desc = (document.getElementById("ms-desc")?.value || "").trim() || "Envío manual";
+        const method = input.shippingMethod || "home";
+        const now = new Date();
+        const addressLine = `${r.address1}, ${r.zipcode} ${r.city}, ${r.country_code}`;
+        const docData = {
+            channel: "manual",
+            source: "ADMIN",
+            orderNumber: "MAN-" + now.getTime().toString(36).toUpperCase(),
+            customerName: r.name,
+            customerEmail: r.email,
+            customer: {
+                name: r.name,
+                email: r.email,
+                phone: r.phone,
+                address: addressLine,
+                shipping: { line1: r.address1, line2: "", postal_code: r.zipcode, city: r.city, country: r.country_code }
+            },
+            address: addressLine,
+            items: [{ title: desc, album: desc, name: desc, quantity: 1, unitPrice: 0 }],
+            total: 0,
+            total_amount: 0,
+            status: "pending",
+            fulfillment_status: "pending", // entra al kanban en PREPARAR
+            paymentMethod: "N/A",
+            shipping_method: method,
+            service_point: input.service_point || null,
+            parcel_weight: input.parcel.weight,
+            weight_confirmed: input.parcel.weightConfirmed,
+            date: now.toISOString().split("T")[0],
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            note: "Envío manual creado desde Envíos"
+        };
+        try {
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Creando...'; }
+            await db.collection("sales").add(docData);
+            this.closeManualShipmentModal();
+            this.showToast("✅ Envío manual creado en PREPARAR");
+            this.loadData();
+        } catch (e) {
+            console.error("saveManualShipment:", e);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-plus"></i>Crear envío'; }
+            this.showToast("⚠️ Error al crear el envío: " + e.message);
         }
     },
 
@@ -15252,7 +15454,7 @@ const app = {
     },
 
     renderShipping(container) {
-        // Solo WebShop y Discogs: el local nunca hace envíos
+        // Solo WebShop, Discogs y Manual: el local nunca hace envíos
         const shipSales = this.state.sales.filter(s => this.isShippableChannel(s));
 
         const byCol = { preparar: [], etiqueta: [], despachado: [], excepcion: [] };
@@ -15295,6 +15497,9 @@ const app = {
                                 <p class="text-2xl font-display font-bold text-brand-dark">${pendingCount}</p>
                             </div>
                         </div>
+                        <button onclick="app.openManualShipmentModal()" class="bg-brand-dark text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-sm hover:bg-black transition-all text-xs font-bold">
+                            <i class="ph-bold ph-plus text-base"></i><span class="hidden sm:inline">Crear envío</span>
+                        </button>
                         <button onclick="app.exportShippingList()" class="bg-white border border-slate-200 text-slate-600 px-4 h-12 rounded-xl flex items-center gap-2 shadow-sm hover:border-brand-orange hover:text-brand-orange transition-all text-xs font-bold">
                             <i class="ph-bold ph-download-simple text-base"></i><span class="hidden sm:inline">Exportar Lista</span>
                         </button>
@@ -15310,6 +15515,7 @@ const app = {
                                 <div class="flex items-center gap-2">
                                     <span class="w-2.5 h-2.5 rounded-full ${c.dot}"></span>
                                     <span class="text-[11px] font-bold uppercase tracking-widest text-slate-600">${c.label}</span>
+                                    ${c.key === 'preparar' ? `<button onclick="event.stopPropagation();app.openManualShipmentModal()" title="Crear envío manual" class="w-5 h-5 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange flex items-center justify-center transition-all"><i class="ph-bold ph-plus text-[10px]"></i></button>` : ''}
                                 </div>
                                 <span class="min-w-[24px] h-6 px-2 rounded-full text-[11px] font-bold flex items-center justify-center ${list.length > 0 ? 'bg-white text-slate-600 shadow-sm border border-slate-100' : 'bg-slate-100 text-slate-400'}">${list.length}</span>
                             </div>
