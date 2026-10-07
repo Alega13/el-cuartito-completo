@@ -15012,14 +15012,19 @@ const app = {
     msValidate() {
         const input = this.msBuildShipmentInput();
         const blockers = ecValidateShipment(input);
-        const isSoft = (b) => b.field === "service_point.id" || b.field.startsWith("customs");
+        // El peso 500g pre-cargado sin confirmar no bloquea la creación del envío:
+        // se confirma después desde la tarjeta (como punto de retiro y aduana).
+        // Un peso inválido (no entero / <= 0) sí sigue siendo bloqueador duro.
+        const w = input.parcel.weight;
+        const isSoft = (b) => b.field === "service_point.id" || b.field.startsWith("customs") ||
+            (b.field === "parcel.weight" && w === 500 && !input.parcel.weightConfirmed);
         return { input, hard: blockers.filter(b => !isSoft(b)), soft: blockers.filter(isSoft) };
     },
 
     msRenderBlockers() {
-        const { hard, soft } = this.msValidate();
+        const { input, hard, soft } = this.msValidate();
         const box = document.getElementById("ms-errors");
-        if (!box) return { hard, soft };
+        if (!box) return { input, hard, soft };
         const pill = (b, warn) => {
             const key = b.field.startsWith("customs") ? "customs" : b.field;
             const label = EC_FIELD_LABELS[key] || "Falta dato";
@@ -15032,7 +15037,7 @@ const app = {
         const all = [...hard.map(b => pill(b, false)), ...soft.map(b => pill(b, true))];
         box.innerHTML = all.join("");
         box.classList.toggle("hidden", all.length === 0);
-        return { hard, soft };
+        return { input, hard, soft };
     },
 
     /* Re-valida en vivo solo si ya se mostraron errores (no spamea al tipear) */
