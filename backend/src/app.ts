@@ -20,6 +20,7 @@ import reportRoutes from './routes/reportRoutes';
 import orderRoutes from './routes/orderRoutes';
 import wishlistRoutes from './routes/wishlistRoutes';
 import newsletterRoutes from './routes/newsletterRoutes';
+import shipmondoProxyRoutes from './routes/shipmondoProxyRoutes';
 
 
 
@@ -89,6 +90,9 @@ app.use('/', newsletterRoutes);
 app.get('/', (req, res) => {
     res.send("<h1>El Cuartito API is running 🎵</h1><p>Go to <a href='/records/online'>/records/online</a> to see products.</p>");
 });
+
+// Shipmondo Live Rates proxy for the admin (key never leaves the server)
+app.use('/api/shipmondo', shipmondoProxyRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
