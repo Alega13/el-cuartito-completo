@@ -3410,6 +3410,18 @@ const app = {
             // --- NEW: IVA Estimado (Real-time for selected period) ---
             const estimatedVAT = taxAmount;
 
+            // --- Blueprint Sec 04: métricas comparables ---
+            const stockValueCost = this.state.inventory.reduce((sum, i) => sum + ((parseFloat(i.cost) || 0) * (Number(i.stock) || 0)), 0);
+            const missingReceiptCount = (this.state.expenses || []).filter(e => !e.receiptUrl && !e.comprobante).length;
+            const seenExpenseKeys = new Set();
+            let possibleDuplicates = 0;
+            (this.state.expenses || []).forEach(e => {
+                const key = `${e.date || e.fecha_factura || ''}|${(e.description || e.proveedor || '').toLowerCase().trim()}|${Number(e.monto_total || e.amount || 0).toFixed(2)}`;
+                if (seenExpenseKeys.has(key)) possibleDuplicates++;
+                else seenExpenseKeys.add(key);
+            });
+            const lowStockCount = this.state.inventory.filter(i => (Number(i.stock) || 0) === 1).length;
+
             const periodText = selectedMonths.length === 12
                 ? `Año ${currentYear} `
                 : `${selectedMonths.map(m => this.getMonthName(m)).join(', ')} ${currentYear} `;
@@ -3515,93 +3527,76 @@ const app = {
                         <div class="h-6 w-px bg-slate-100 mx-1"></div>
                         <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar">
                             <button onclick="app.state.filterMonths=[0,1,2,3,4,5,6,7,8,9,10,11];app.refreshCurrentView()"
-                                class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${selectedMonths.length === 12 ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' : 'text-slate-400 hover:text-brand-dark hover:bg-slate-50'}">
-                                Todo
-                            </button>
-                            <div class="w-px bg-slate-200 mx-0.5 self-stretch"></div>
-                            ${monthNames.map((m, i) => `
-                                <button onclick="app.toggleMonthFilter(${i})" 
-                                    class="px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20' : 'text-slate-400 hover:text-brand-dark hover:bg-slate-50'}">
-                                    ${m}
-                                </button>
-                            `).join('')}
+                                class="px-3 py-1.5 round                <!-- Blueprint Sec 04: 5 indicadores comparables (clicables = drill-down) -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <button onclick="app.navigate('sales')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-chart-line-up"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ventas período</span>
                         </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totalRevenue)}</p>
+                        <p class="text-[11px] font-bold mt-1 ${growth >= 0 ? 'text-emerald-600' : 'text-red-500'}">${growthText}</p>
+                    </button>
+                    <button onclick="app.navigate('contabilidad')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500"><i class="ph-bold ph-hand-coins"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Margen</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold ${netProfitActual >= 0 ? 'text-emerald-600' : 'text-red-500'}">${this.formatCurrency(netProfitActual)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Bruto + extras − operativos</p>
+                    </button>
+                    <button onclick="app.navigate('inventory')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-500"><i class="ph-bold ph-disc"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stock a costo</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(stockValueCost)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${totalItems} unidades</p>
+                    </button>
+                    <button onclick="app.navigate('sales')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-500"><i class="ph-bold ph-receipt"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ticket promedio</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(avgTicket)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${filteredSales.length} ventas</p>
+                    </button>
+                    <button onclick="app.navigate('vatReport')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-bank"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">VAT estimado</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold ${estimatedVAT >= 0 ? 'text-amber-600' : 'text-emerald-600'}">${this.formatCurrency(estimatedVAT)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Período seleccionado</p>
+                    </button>
+                </div>
+
+                <!-- Blueprint Sec 04: Colas de trabajo accionables -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-sm text-brand-dark flex items-center gap-2 mb-4">
+                        <i class="ph-bold ph-warning-circle text-brand-orange"></i> Requiere atención
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <button onclick="app.state.expenseMissingReceiptOnly = true; app.navigate('expenses')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
+                            <span class="text-2xl font-display font-bold ${missingReceiptCount > 0 ? 'text-red-500' : 'text-emerald-500'}">${missingReceiptCount}</span>
+                            <span class="text-xs font-bold text-slate-600 leading-tight">Gastos sin<br>comprobante</span>
+                        </button>
+                        <button onclick="app.navigate('expenses')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
+                            <span class="text-2xl font-display font-bold ${possibleDuplicates > 0 ? 'text-amber-500' : 'text-emerald-500'}">${possibleDuplicates}</span>
+                            <span class="text-xs font-bold text-slate-600 leading-tight">Posibles<br>duplicados</span>
+                        </button>
+                        <button onclick="app.navigate('shipping')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
+                            <span class="text-2xl font-display font-bold ${pendingOrders.length > 0 ? 'text-red-500' : 'text-emerald-500'}">${pendingOrders.length}</span>
+                            <span class="text-xs font-bold text-slate-600 leading-tight">Envíos<br>pendientes</span>
+                        </button>
+                        <button onclick="app.state.inventoryLowStockOnly = true; app.navigate('inventory')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
+                            <span class="text-2xl font-display font-bold ${lowStockCount > 0 ? 'text-amber-500' : 'text-emerald-500'}">${lowStockCount}</span>
+                            <span class="text-xs font-bold text-slate-600 leading-tight">Stock<br>bajo</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- KPI Top Grid (3 Status Cards) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Card 1: Ingresos del Período -->
-                    <div class="relative group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <!-- Tooltip Custom -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max min-w-[200px] bg-brand-dark text-white text-xs rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none">
-                            <div class="flex justify-between gap-4 mb-1">
-                                <span class="text-slate-400">Ventas:</span>
-                                <span>${this.formatCurrency(totalRevenue - extraIncomeTotal)}</span>
-                            </div>
-                            <div class="flex justify-between gap-4 mb-2 pb-2 border-b border-slate-700">
-                                <span class="text-slate-400">Ingresos Extra:</span>
-                                <span>${this.formatCurrency(extraIncomeTotal)}</span>
-                            </div>
-                            <div class="flex justify-between gap-4 font-bold">
-                                <span>Total:</span>
-                                <span>${this.formatCurrency(totalRevenue)}</span>
-                            </div>
-                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-brand-dark"></div>
-                        </div>
-
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange">
-                                <i class="ph-bold ph-chart-line-up text-xl"></i>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Ingresos del Período</span>
-                        </div>
-                        <p class="text-4xl font-display font-bold text-brand-dark mb-2">${this.formatCurrency(totalRevenue)}</p>
-                        <div class="flex items-center gap-2">
-                             <span class="text-[10px] font-bold text-brand-orange bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
-                                ${filteredSales.length} ventas · ${totalUnitsSold} uds
-                             </span>
-                        </div>
-                    </div>
-
-                    <!-- Card 2: Beneficio Neto Estimado -->
-                    <div class="relative group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <!-- Tooltip Custom -->
-                        <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max min-w-[250px] bg-brand-dark text-white text-xs rounded-xl p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none">
-                            <div class="flex justify-between gap-4 mb-1">
-                                <span class="text-slate-400">Beneficio Bruto:</span>
-                                <span>${this.formatCurrency(totalNetProfit - extraIncomeTotal)}</span>
-                            </div>
-                            <div class="flex justify-between gap-4 mb-1">
-                                <span class="text-slate-400">Ingresos Extra:</span>
-                                <span class="text-green-400">+${this.formatCurrency(extraIncomeTotal)}</span>
-                            </div>
-                            <div class="flex justify-between gap-4 mb-2 pb-2 border-b border-slate-700">
-                                <span class="text-slate-400">Gastos Operativos:</span>
-                                <span class="text-red-400">-${this.formatCurrency(periodExpenses)}</span>
-                            </div>
-                            <div class="flex justify-between gap-4 font-bold text-emerald-400">
-                                <span>Beneficio Neto:</span>
-                                <span>${this.formatCurrency(netProfitActual)}</span>
-                            </div>
-                            <div class="text-[9px] text-slate-500 mt-2 pt-2 border-t border-slate-700">IVA excluido (impuesto neutro según SKAT)</div>
-                            <div class="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-brand-dark"></div>
-                        </div>
-
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500">
-                                <i class="ph-bold ph-hand-coins text-xl"></i>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Beneficio Neto</span>
-                        </div>
-                        <p class="text-4xl font-display font-bold text-emerald-600 mb-2">${this.formatCurrency(netProfitActual)}</p>
-                        <p class="text-[10px] text-slate-400 font-medium">Margen bruto + extras − gastos operativos. IVA excluido.</p>
-                    </div>
-
-                    <!-- Card 3: Alerta de Pedidos -->
-                    <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-4">
-                            <div class="w-10 h-10 ${pendingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'} rounded-xl flex items-center justify-center">
+endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'} rounded-xl flex items-center justify-center">
                                 <i class="ph-bold ${pendingOrders.length > 0 ? 'ph-package' : 'ph-check-circle'} text-xl"></i>
                             </div>
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Alerta de Pedidos</span>
@@ -4349,6 +4344,7 @@ const app = {
         const activeFiltersList = [];
         if (this.state.filterStock === 'inStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo en Stock', icon: 'ph-check-circle' });
         if (this.state.filterStock === 'outOfStock') activeFiltersList.push({ key: 'filterStock', label: 'Solo Agotados', icon: 'ph-x-circle' });
+        if (this.state.inventoryLowStockOnly) activeFiltersList.push({ key: 'inventoryLowStockOnly', label: 'Stock bajo (≤1)', icon: 'ph-warning' });
         if (this.state.filterDiscogs === 'yes') activeFiltersList.push({ key: 'filterDiscogs', label: 'En Discogs', icon: 'ph-disc' });
         if (this.state.filterDiscogs === 'no') activeFiltersList.push({ key: 'filterDiscogs', label: 'No en Discogs', icon: 'ph-disc' });
         if (this.state.filterCondition === 'used') activeFiltersList.push({ key: 'filterCondition', label: 'Brugtmoms (Usados)', icon: 'ph-recycle' });
@@ -4808,6 +4804,8 @@ const app = {
     clearSingleFilter(filterName, resetValue) {
         if (resetValue === 'stockTime') {
             this.state.filterStockTime = [];
+        } else if (filterName === 'inventoryLowStockOnly') {
+            this.state.inventoryLowStockOnly = false; // Blueprint Sec 04: flag booleana de drill-down
         } else {
             this.state[filterName] = resetValue !== undefined ? resetValue : 'all';
         }
@@ -8302,6 +8300,11 @@ const app = {
 
         let results = this.state.inventory;
 
+        // Blueprint Sec 04/05: drill-down "Stock bajo" desde el dashboard
+        if (this.state.inventoryLowStockOnly) {
+            results = results.filter(item => (Number(item.stock) || 0) <= 1);
+        }
+
         // 1. Fuzzy Search (if term exists)
         if (searchTerm.length >= 2) {
             if (this.fuse) {
@@ -9789,12 +9792,15 @@ const app = {
         window.expenseCategories = expenseCategories;
 
         const searchTerm = (this.state.expensesSearch || '').toLowerCase();
-        const filteredExpenses = this.state.expenses.filter(e =>
-            !searchTerm ||
-            (e.description || e.proveedor || '').toLowerCase().includes(searchTerm) ||
-            (e.category || e.categoria || '').toLowerCase().includes(searchTerm) ||
-            (e.proveedor || '').toLowerCase().includes(searchTerm)
-        );
+        // Blueprint Sec 04: drill-down desde el dashboard (gastos sin comprobante)
+        const missingOnly = !!this.state.expenseMissingReceiptOnly;
+        const filteredExpenses = this.state.expenses.filter(e => {
+            if (missingOnly && (e.receiptUrl || e.comprobante)) return false;
+            return !searchTerm ||
+                (e.description || e.proveedor || '').toLowerCase().includes(searchTerm) ||
+                (e.category || e.categoria || '').toLowerCase().includes(searchTerm) ||
+                (e.proveedor || '').toLowerCase().includes(searchTerm);
+        });
 
         const html = `
     <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6" >
@@ -9802,6 +9808,11 @@ const app = {
                     <i class="ph-duotone ph-file-text text-brand-orange mr-2"></i>
                     Registro de Compras
                 </h2>
+                ${this.state.expenseMissingReceiptOnly ? `
+                <div class="mb-4 flex items-center justify-between bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-bold">
+                    <span class="flex items-center gap-2"><i class="ph-bold ph-warning-circle"></i> Mostrando solo gastos sin comprobante</span>
+                    <button onclick="app.state.expenseMissingReceiptOnly = false; app.refreshCurrentView()" class="underline hover:no-underline">Mostrar todos</button>
+                </div>` : ''}
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <!-- Form Panel -->
