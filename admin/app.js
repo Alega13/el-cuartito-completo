@@ -431,9 +431,10 @@ const app = {
             await this.loadData();
 
             // Re-render modal if open
-            if (document.getElementById('modal-overlay')) {
-                document.getElementById('modal-overlay').remove();
-                this.openOnlineSaleDetailModal(id);
+            const um = document.getElementById('unified-modal');
+            if (um) {
+                um.remove();
+                this.openUnifiedOrderDetailModal(id);
             }
 
             this.showToast('Estado de envío actualizado');
@@ -660,8 +661,7 @@ const app = {
             case 'dashboard': this.renderDashboard(container); break;
             case 'inventory': this.renderInventory(container); break;
             case 'sales': this.renderSales(container); break;
-            case 'onlineSales': this.renderOnlineSales(container); break;
-            case 'discogsSales': this.renderDiscogsSales(container); break;
+            case 'pos': this.renderPOS(container); break;
             case 'expenses': this.renderExpenses(container); break;
             case 'consignments': this.renderConsignments(container); break;
 
@@ -1889,6 +1889,8 @@ const app = {
     },
 
     navigate(view) {
+        // Legacy: las vistas separadas de ventas ahora redirigen a la bandeja unificada
+        if (view === 'onlineSales' || view === 'discogsSales') view = 'sales';
         this.state.currentView = view;
 
         // Blueprint Sec 04: los drill-downs del dashboard no quedan pegados al navegar a otra pantalla
@@ -5184,34 +5186,38 @@ const app = {
             this.state.filterMonths = [m]; // Sync with dashboard multi-month
         }
         if (type === 'year') this.state.filterYear = parseInt(value);
-        this.renderDashboard(document.getElementById('app-content'));
+        this.refreshCurrentView();
     },
 
     renderSales(container) {
-        // 1. Data Processing
+        // 1. Data Processing — bandeja unificada de los 3 canales
         const today = new Date().toISOString().split('T')[0];
         const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const channelFilter = this.state.salesChannelFilter || 'all';
+        const channelMatch = (s) => channelFilter === 'all' || this.normalizeSaleChannel(s) === channelFilter;
 
-        // Use full state for today/yesterday KPIs, but scoped filteredSales for history
+        // KPIs calculados sobre el conjunto filtrado por canal
         const todaySales = this.state.sales
-            .filter(s => s.date === today)
+            .filter(s => s.date === today && channelMatch(s))
             .reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
         const yesterdaySales = this.state.sales
-            .filter(s => s.date === yesterday)
+            .filter(s => s.date === yesterday && channelMatch(s))
             .reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
 
-        // Orders to ship (Discogs or Web pending fulfillment)
+        // Orders to ship (WebShop o Discogs con fulfillment pendiente)
         const toShip = this.state.sales.filter(s =>
-            s.fulfillment_status === 'preparing' ||
-            s.status === 'paid' ||
-            (s.channel === 'Discogs' && s.status !== 'shipped')
+            channelMatch(s) && (
+                s.fulfillment_status === 'preparing' ||
+                s.status === 'paid' ||
+                (this.normalizeSaleChannel(s) === 'discogs' && s.status !== 'shipped')
+            )
         ).length;
 
         // Current Filter Context
         const currentYear = this.state.filterYear;
         const selectedMonths = this.state.filterMonths;
         const paymentFilter = document.getElementById('sales-payment-filter')?.value || 'all';
-        const searchTerm = this.state.salesHistorySearch.toLowerCase();
+        const searchTerm = (this.state.salesHistorySearch || '').toLowerCase();
         const searchTerms = searchTerm.split(' ').filter(t => t.length > 0);
         const feedFilter = this.state.orderFeedFilter || 'all';
 
@@ -5238,54 +5244,62 @@ const app = {
                 });
             }
 
-            // Channel/Status Feed Filter
+            // Status Feed Filter
             let feedMatch = true;
             if (feedFilter === 'to_ship') {
-                feedMatch = s.status !== 'shipped' && s.source !== 'STORE';
+                feedMatch = s.status !== 'shipped' && this.normalizeSaleChannel(s) !== 'local';
             } else if (feedFilter === 'completed') {
                 feedMatch = s.status === 'shipped';
-            } else if (feedFilter === 'store') {
-                feedMatch = s.source === 'STORE';
             }
 
-            return dateMatch && paymentMatch && searchMatch && feedMatch;
+            return dateMatch && paymentMatch && searchMatch && feedMatch && channelMatch(s);
         });
 
         const totalRevenue = filteredSales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
         const avgTicket = filteredSales.length > 0 ? totalRevenue / filteredSales.length : 0;
 
+        // Conteos por canal para los chips (respetan año/mes, no el filtro de canal)
+        const channelCounts = { all: 0, local: 0, online: 0, discogs: 0 };
+        this.state.sales.forEach(s => {
+            const d = new Date(s.date);
+            if (d.getFullYear() === currentYear && selectedMonths.includes(d.getMonth())) {
+                channelCounts.all++;
+                channelCounts[this.normalizeSaleChannel(s)]++;
+            }
+        });
+
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header Component -->
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <div>
-                        <h2 class="font-display text-2xl font-bold text-brand-dark">Gestión de Ventas</h2>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Sistema Operativo POS & Feed</p>
-                        </div>
+                ${this.sectionHeader({
+                    title: 'Ventas',
+                    subtitle: 'Bandeja unificada · Local, WebShop y Discogs',
+                    filters: `
+                        <button onclick="app.syncWithDiscogs()" class="bg-white border border-slate-200 text-slate-600 px-4 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all text-xs font-bold">
+                            <i class="ph-bold ph-arrows-clockwise text-base"></i>
+                            <span class="hidden sm:inline">Sincronizar Discogs</span>
+                        </button>`
+                })}
+
+                <!-- Período -->
+                <div class="flex flex-wrap items-center gap-3 mb-6">
+                    <div class="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                        <select id="sales-year" onchange="app.updateFilter('year', this.value)" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
+                            <option value="2026" ${currentYear === 2026 ? 'selected' : ''}>2026</option>
+                            <option value="2025" ${currentYear === 2025 ? 'selected' : ''}>2025</option>
+                        </select>
                     </div>
-                    
-                    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <div class="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
-                            <select id="sales-year" onchange="app.updateFilter('year', this.value)" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
-                                <option value="2026" ${currentYear === 2026 ? 'selected' : ''}>2026</option>
-                                <option value="2025" ${currentYear === 2025 ? 'selected' : ''}>2025</option>
-                            </select>
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => `
-                                <button onclick="app.toggleMonthFilter(${i})" 
-                                    class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-dark text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}">
-                                    ${m}
-                                </button>
-                            `).join('')}
-                        </div>
+                    <div class="flex flex-wrap gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                        ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => `
+                            <button onclick="app.toggleMonthFilter(${i})"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-dark text-white' : 'text-slate-400 hover:bg-slate-100'}">
+                                ${m}
+                            </button>
+                        `).join('')}
                     </div>
                 </div>
 
-                <!-- Minimalist KPI Cards (Prompt 1) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <!-- KPI Cards: calculadas sobre el conjunto filtrado -->
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                     <!-- Tarjeta A: Ventas de Hoy -->
                     <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                         <div class="flex items-center justify-between mb-4">
@@ -5303,7 +5317,19 @@ const app = {
                         </div>
                     </div>
 
-                    <!-- Tarjeta B: Por Despachar -->
+                    <!-- Tarjeta B: Ingresos del Período (filtrado) -->
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                                <i class="ph-duotone ph-wallet text-xl"></i>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Período</span>
+                        </div>
+                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(totalRevenue)}</h3>
+                        <p class="text-xs text-slate-400 font-medium">${filteredSales.length} ventas en el filtro</p>
+                    </div>
+
+                    <!-- Tarjeta C: Por Despachar -->
                     <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                         <div class="flex items-center justify-between mb-4">
                             <div class="w-10 h-10 ${toShip > 0 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'} rounded-2xl flex items-center justify-center">
@@ -5329,51 +5355,40 @@ const app = {
                     </div>
                 </div>
 
-                <!-- Main Layout: 2 Columns (Prompt 1) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-                    
-                    <!-- LEFT COLUMN: POS / Sales Entry -->
-                    <div class="space-y-6">
-                        <div class="flex items-center gap-2 mb-2">
-                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Registrar Venta (POS)</h3>
+                <!-- Bandeja unificada: ancho completo (el POS vive en su propia sección) -->
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2 flex-1">
+                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Bandeja de ventas</h3>
                             <div class="h-px flex-1 bg-slate-100"></div>
-                        </div>
-
-                        ${this.state.cart.length > 0 ? this.renderSalesCartWidget() : this.renderQuickPOS()}
-
-                        <!-- Partners Quick Summary -->
-                        <div class="bg-slate-50/50 rounded-3xl p-6 border border-slate-100">
-                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">Stock por Dueño</h4>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                ${['El Cuartito', ...this.state.consignors.map(c => c.name)].map(owner => {
-            const stockCount = this.state.inventory.filter(i => i.owner === owner).reduce((sum, i) => sum + i.stock, 0);
-            return `
-                                        <div class="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
-                                            <span class="text-xs font-bold text-slate-600 truncate mr-2">${owner}</span>
-                                            <span class="bg-slate-100 px-2 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-400">${stockCount}</span>
-                                        </div>
-                                    `;
-        }).join('')}
-                            </div>
                         </div>
                     </div>
 
-                    <!-- RIGHT COLUMN: History Feed -->
-                    <div class="space-y-6">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center gap-2 flex-1">
-                                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Live Order Feed</h3>
-                                <div class="h-px flex-1 bg-slate-100"></div>
-                            </div>
-                        </div>
+                    <!-- Filtro por canal -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Canal</span>
+                        ${[
+                            { id: 'all', label: 'Todos' },
+                            { id: 'local', label: 'Local' },
+                            { id: 'online', label: 'WebShop' },
+                            { id: 'discogs', label: 'Discogs' }
+                        ].map(ch => `
+                            <button onclick="app.updateSalesChannelFilter('${ch.id}')"
+                                class="px-4 py-2 rounded-xl text-[11px] font-bold transition-all border ${channelFilter === ch.id
+                                    ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}">
+                                ${ch.label}
+                                <span class="ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] ${channelFilter === ch.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}">${channelCounts[ch.id]}</span>
+                            </button>
+                        `).join('')}
+                    </div>
 
                         <!-- Filter Tabs -->
                         <div class="flex bg-slate-100/50 p-1 rounded-2xl border border-slate-100">
                             ${[
                 { id: 'all', label: 'Todos', icon: 'ph-list' },
                 { id: 'to_ship', label: 'Por Enviar', icon: 'ph-package' },
-                { id: 'completed', label: 'Completados', icon: 'ph-check-circle' },
-                { id: 'store', label: 'Tienda Física', icon: 'ph-storefront' }
+                { id: 'completed', label: 'Completados', icon: 'ph-check-circle' }
             ].map(tab => `
                                 <button onclick="app.updateOrderFeedFilter('${tab.id}')" 
                                     class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold transition-all ${feedFilter === tab.id ? 'bg-white text-brand-dark shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}">
@@ -5433,7 +5448,8 @@ const app = {
                                         </h4>
                                         
                                         <!-- Status Badges -->
-                                        <div class="flex items-center gap-2 mt-2">
+                                        <div class="flex items-center gap-2 mt-2 flex-wrap">
+                                            ${this.saleChannelBadge(s)}
                                             <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">
                                                 ${isPaid ? 'Pagado' : 'Pendiente'}
                                             </span>
@@ -5483,7 +5499,6 @@ const app = {
                                 </div>
                             ` : ''}
                         </div>
-                    </div>
                 </div>
             </div>
         `;
@@ -5502,7 +5517,21 @@ const app = {
         }
     },
 
-    // Helper to render the cart widget in sales view
+    // ── POS web: sección propia, separada de Ventas ────────────────────
+    renderPOS(container) {
+        const html = `
+            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                ${this.sectionHeader({
+                    title: 'POS',
+                    subtitle: 'Terminal de caja web · ventas de mostrador'
+                })}
+                ${this.state.cart.length > 0 ? this.renderSalesCartWidget() : this.renderQuickPOS()}
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    // Helper to render the cart widget in POS view
     renderSalesCartWidget() {
         return `
             <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 ring-2 ring-emerald-500/10">
@@ -5512,7 +5541,7 @@ const app = {
                         Venta en Progreso
                         <span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full">${this.state.cart.length}</span>
                     </h3>
-                    <button onclick="app.clearCart(); app.renderSales(document.getElementById('app-content'))" class="text-xs text-red-500 font-bold hover:underline">Vaciar Carrito</button>
+                    <button onclick="app.clearCart(); app.refreshCurrentView()" class="text-xs text-red-500 font-bold hover:underline">Vaciar Carrito</button>
                 </div>
                 
                 <div class="space-y-3 mb-6 max-h-80 overflow-y-auto custom-scrollbar px-1">
@@ -5527,7 +5556,7 @@ const app = {
                                     ? `<div class="text-right"><span class="text-[10px] text-slate-400 line-through block">${this.formatCurrency(item.price, false)}</span><span class="font-bold text-sm text-orange-600">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
                                     : `<span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price, false)}</span>`
                                 }
-                                <button onclick="app.removeFromCart(${index}); app.renderSales(document.getElementById('app-content'))" class="w-8 h-8 rounded-lg bg-white shadow-sm text-slate-300 hover:text-red-500 border border-slate-100 transition-colors flex items-center justify-center">
+                                <button onclick="app.removeFromCart(${index}); app.refreshCurrentView()" class="w-8 h-8 rounded-lg bg-white shadow-sm text-slate-300 hover:text-red-500 border border-slate-100 transition-colors flex items-center justify-center">
                                     <i class="ph-bold ph-trash"></i>
                                 </button>
                             </div>
@@ -5552,7 +5581,7 @@ const app = {
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="rsd-extra-toggle" ${this.state.rsdExtraDiscount ? 'checked' : ''} ${this.state.cart.length < 3 ? 'disabled' : ''}
-                                onchange="app.state.rsdExtraDiscount = this.checked; app.renderSales(document.getElementById('app-content'))">
+                                onchange="app.state.rsdExtraDiscount = this.checked; app.refreshCurrentView()">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -5705,7 +5734,7 @@ const app = {
 
     updatePOSCondition(condition) {
         this.state.posCondition = condition;
-        this.renderSales(document.getElementById('app-content'));
+        this.refreshCurrentView();
     },
 
     selectPOSPayment(method) {
@@ -5898,6 +5927,39 @@ const app = {
         this.renderSales(document.getElementById('app-content'));
     },
 
+    // ── Ventas unificadas: canal ─────────────────────────────────────
+    // Normaliza el canal de una venta a 'local' | 'online' | 'discogs'
+    normalizeSaleChannel(s) {
+        const ch = (s.channel || '').toString().toLowerCase().trim();
+        if (ch.includes('discogs')) return 'discogs';
+        if (ch === 'online' || ch.includes('web') || ch.includes('shop')) return 'online';
+        if (ch === 'local' || ch === 'tienda' || ch === 'store' || s.source === 'STORE') return 'local';
+        // Heurísticas para registros viejos sin canal explícito
+        const ord = (s.orderNumber || '').toString();
+        if (/^#?WEB-/i.test(ord)) return 'online';
+        if (s.discogs_order_id || s.discogsOrderId) return 'discogs';
+        if (s.customer && (s.customer.email || s.shipping_method)) return 'online';
+        if (s.source === 'STORE') return 'local';
+        return 'local';
+    },
+
+    // Badge pastel por canal (lenguaje visual de la app)
+    saleChannelBadge(s) {
+        const ch = this.normalizeSaleChannel(s);
+        const map = {
+            local:   { label: 'Local',   cls: 'bg-emerald-100 text-emerald-700' },
+            online:  { label: 'WebShop', cls: 'bg-blue-100 text-blue-700' },
+            discogs: { label: 'Discogs', cls: 'bg-purple-100 text-purple-700' }
+        };
+        const m = map[ch] || map.local;
+        return `<span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${m.cls}">${m.label}</span>`;
+    },
+
+    updateSalesChannelFilter(channel) {
+        this.state.salesChannelFilter = channel;
+        this.renderSales(document.getElementById('app-content'));
+    },
+
     toggleOrderActionMenu(orderId) {
         const menu = document.getElementById(`action-menu-${orderId}`);
         // Close all other menus
@@ -5962,7 +6024,7 @@ const app = {
         this.state.posSelectedItemSku = item.sku;
 
         // Re-render to update the view with selected item
-        this.renderSales(document.getElementById('app-content'));
+        this.refreshCurrentView();
 
         // After re-render, populate inputs that might be present
         setTimeout(() => {
@@ -7461,6 +7523,7 @@ const app = {
                     <div>
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] font-bold text-brand-orange uppercase tracking-widest">Orden #${sale.orderNumber || sale.id.slice(0, 8)}</span>
+                            ${this.saleChannelBadge(sale)}
                             <span class="px-2 py-0.5 rounded-full ${getStatusTheme(sale.status).color} text-[9px] font-bold uppercase">${getStatusTheme(sale.status).label}</span>
                         </div>
                         <h2 class="font-display text-2xl font-bold text-brand-dark">Detalle de Venta</h2>
@@ -9564,388 +9627,7 @@ const app = {
         this.state.cart = [];
         this.renderCartWidget();
     },
-    renderOnlineSales(container) {
-        // Filter only online sales
-        const onlineSales = this.state.sales.filter(s => s.channel === 'online');
-        const completedSales = onlineSales.filter(s => s.status === 'completed');
-        const pendingSales = onlineSales.filter(s => s.status === 'PENDING');
 
-        const totalRevenue = completedSales.reduce((sum, s) => sum + (parseFloat(s.total_amount || s.total) || 0), 0);
-
-        container.innerHTML = `
-        <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-            <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
-                <div>
-                    <h2 class="font-display text-3xl font-bold text-brand-dark">Ventas WebShop</h2>
-                    <p class="text-slate-500 text-sm">Pedidos realizados a través de la tienda online</p>
-                </div>
-                <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ingresos totales</p>
-                    <p class="text-2xl font-display font-bold text-brand-dark">DKK ${totalRevenue.toFixed(2)}</p>
-                    <p class="text-[11px] text-slate-400">${completedSales.length} ventas completadas</p>
-                </div>
-            </div>
-
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-brand-dark">${completedSales.length}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Completadas</div>
-                        </div>
-                        <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-check-circle text-2xl text-green-500"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-brand-dark">${pendingSales.length}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Pendientes</div>
-                        </div>
-                        <div class="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-clock text-2xl text-yellow-500"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-brand-dark">${onlineSales.length}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Total</div>
-                        </div>
-                        <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-storefront text-2xl text-blue-500"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sales List -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-5 border-b border-slate-100">
-                    <h2 class="text-lg font-bold text-brand-dark">Pedidos Recientes</h2>
-                </div>
-                
-                ${onlineSales.length === 0 ? `
-                    <div class="p-12 text-center">
-                        <i class="ph-duotone ph-shopping-cart-simple text-6xl text-slate-300 mb-4"></i>
-                        <p class="text-slate-400">No hay ventas online aún</p>
-                    </div>
-                ` : `
-                    <div class="overflow-x-auto">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="bg-slate-50 border-b border-slate-100">
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Orden</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Dirección</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Método Envío</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Pago</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado Envío</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
-                                    <th class="px-6 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${onlineSales.map(s => {
-            const date = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.date || 0);
-            return { ...s, _sortDate: date.getTime() };
-        }).sort((a, b) => b._sortDate - a._sortDate).map(sale => {
-            const customer = sale.customer || {};
-            const orderNumber = sale.orderNumber || 'N/A';
-            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.date);
-            const completedDate = sale.completed_at?.toDate ? sale.completed_at.toDate() : null;
-            const displayDate = completedDate || saleDate;
-
-            const statusColors = {
-                'completed': 'bg-green-50 text-green-700 border-green-200',
-                'PENDING': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-                'failed': 'bg-red-50 text-red-700 border-red-200'
-            };
-            const statusLabels = {
-                'completed': '✅ Completado',
-                'PENDING': '⏳ Pendiente',
-                'failed': '❌ Fallido'
-            };
-
-            return `
-                                        <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer" onclick="app.openUnifiedOrderDetailModal('${sale.id}')">
-                                            <td class="px-6 py-4">
-                                                <div class="font-mono text-sm font-bold text-brand-orange">${orderNumber}</div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="font-semibold text-brand-dark">${customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || customer.stripe_info?.name || 'Cliente'}</div>
-                                                <div class="text-xs text-slate-500">${customer.email || customer.stripe_info?.email || 'No email'}</div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm text-slate-600 truncate max-w-[200px]">
-                                                    ${customer.shipping?.line1 || customer.address || customer.stripe_info?.shipping?.line1 || 'Sin dirección'}
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm">
-                                                    ${sale.shipping_method ? `
-                                                        <div class="font-semibold text-brand-dark">${sale.shipping_method.method || 'Standard'}</div>
-                                                        <div class="text-xs text-slate-500">DKK ${(sale.shipping_method.price || 0).toFixed(2)}</div>
-                                                        ${sale.shipping_method.estimatedDays ? `<div class="text-[10px] text-slate-400">${sale.shipping_method.estimatedDays} días</div>` : ''}
-                                                    ` : '<span class="text-xs text-slate-400">No especificado</span>'}
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm">
-                                                    <div class="font-medium capitalize text-xs">${sale.payment_method || sale.paymentMethod || 'card'}</div>
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="font-bold text-brand-dark">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full border ${statusColors[sale.status] || 'bg-slate-50 text-slate-700'}">
-                                                    ${statusLabels[sale.status] || sale.status}
-                                                </span>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <span class="inline-flex px-2 py-1 text-[10px] font-bold rounded-full ${sale.fulfillment_status === 'shipped' ? 'bg-blue-100 text-blue-700' :
-                    sale.fulfillment_status === 'preparing' ? 'bg-orange-100 text-orange-700' :
-                        sale.fulfillment_status === 'delivered' ? 'bg-green-100 text-green-700' :
-                            'bg-slate-100 text-slate-600'
-                }">
-                                                    ${(sale.fulfillment_status || 'pendiente').toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-xs text-slate-600">
-                                                    ${displayDate.toLocaleDateString('es-ES')}
-                                                    <div class="text-[10px] text-slate-400">${displayDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4 text-center" onclick="event.stopPropagation()">
-                                                <button onclick="app.deleteSale('${sale.id}')" class="text-slate-300 hover:text-red-500 transition-colors" title="Eliminar Pedido">
-                                                    <i class="ph-fill ph-trash"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    `;
-        }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `}
-            </div>
-        </div>
-    `;
-    },
-
-    openOnlineSaleDetailModal(id) {
-        const sale = this.state.sales.find(s => s.id === id);
-        if (!sale) return;
-
-        const customer = sale.customer || {};
-        const stripeInfo = customer.stripe_info || {};
-        const ship = customer.shipping || stripeInfo.shipping || {};
-
-        // Robust address detection
-        const addr = {
-            line1: ship.line1 || customer.address || 'Sin dirección',
-            line2: ship.line2 || '',
-            city: ship.city || customer.city || '',
-            postal: ship.postal_code || customer.postalCode || '',
-            country: ship.country || customer.country || 'Denmark'
-        };
-
-        const addressHtml = `
-            <p class="font-medium">${addr.line1}</p>
-            ${addr.line2 ? `<p class="font-medium">${addr.line2}</p>` : ''}
-            <p class="text-slate-500">${addr.postal} ${addr.city}</p>
-            <p class="text-slate-500 font-bold mt-1 uppercase tracking-wider">${addr.country}</p>
-        `;
-
-        const html = `
-        <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
-                
-                <!-- Header -->
-                <div class="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
-                    <div>
-                        <div class="text-xs font-bold text-brand-orange uppercase tracking-widest mb-1">Detalle del Pedido</div>
-                        <h2 class="font-display text-2xl font-bold text-brand-dark line-clamp-1">${sale.orderNumber || 'Sin número de orden'}</h2>
-                    </div>
-                    <button onclick="document.getElementById('modal-overlay').remove()" class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
-                        <i class="ph-bold ph-x text-xl"></i>
-                    </a>
-                </div>
-
-                <!-- Content -->
-                <div class="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-8">
-                    
-                    <!-- Top section: Status & Total -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Estado de Pago</p>
-                            <div class="flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full ${sale.status === 'completed' ? 'bg-green-500' : 'bg-yellow-500'}"></span>
-                                <span class="font-bold text-brand-dark capitalize">${sale.status === 'completed' ? 'Pagado' : sale.status}</span>
-                            </div>
-                        </div>
-                        <div class="bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                            <p class="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">Envío</p>
-                            <div class="font-bold text-orange-700 capitalize">${sale.fulfillment_status || 'pendiente'}</div>
-                        </div>
-                        <div class="bg-brand-dark p-4 rounded-2xl text-white">
-                            <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Total</p>
-                            <div class="text-xl font-bold">DKK ${(sale.total_amount || sale.total || 0).toFixed(2)}</div>
-                        </div>
-                    </div>
-
-                    <!-- Fulfillment Controls -->
-                    <div class="space-y-4">
-                         <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                            <i class="ph-fill ph-truck text-brand-orange"></i> Gestión de Envío
-                        </h3>
-                        <div class="flex flex-wrap gap-2">
-                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'preparing' ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                <i class="ph ph-package"></i> Preparación
-                            </a>
-                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'shipped' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                <i class="ph ph-paper-plane-tilt"></i> Enviado
-                            </a>
-                            <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'delivered')" class="px-4 py-2 rounded-lg border ${sale.fulfillment_status === 'delivered' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                <i class="ph ph-check-circle"></i> Entregado
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <!-- Customer Info -->
-                        <div class="space-y-4">
-                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                <i class="ph-fill ph-user-circle text-brand-orange"></i> Datos de Envío
-                            </h3>
-                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3 text-sm">
-                                <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Destinatario</p>
-                                    <p class="font-bold text-brand-dark text-base">${customer.name || (customer.firstName ? `${customer.firstName} ${customer.lastName || ''}` : '') || customer.stripe_info?.name || 'Cliente'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
-                                    <div class="text-brand-dark space-y-0.5">
-                                        ${addressHtml}
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Contacto</p>
-                                    <p class="font-medium text-brand-dark">${customer.email || stripeInfo.email || 'Sin email'}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Payment & Metadata -->
-                        <div class="space-y-4">
-                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                <i class="ph-fill ph-credit-card text-brand-orange"></i> Detalles de Pago
-                            </h3>
-                            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 text-sm text-brand-dark">
-                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                    <span class="text-slate-500 text-xs">Método</span>
-                                    <span class="font-bold capitalize">${sale.payment_method || sale.paymentMethod || 'card'}</span>
-                                </div>
-                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                    <span class="text-slate-500 text-xs">Fecha</span>
-                                    <span class="font-bold">${new Date(sale.timestamp?.toDate ? sale.timestamp.toDate() : (sale.completed_at?.toDate ? sale.completed_at.toDate() : sale.date)).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                </div>
-                                <div class="space-y-1">
-                                    <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Stripe ID</span>
-                                    <p class="font-mono text-[9px] break-all bg-white p-2 rounded border border-slate-200">${sale.paymentId || 'N/A'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Shipping Method Info (NEW) -->
-                    <div class="space-y-4">
-                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                            <i class="ph-fill ph-truck text-brand-orange"></i> Método de Envío
-                        </h3>
-                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4 text-sm text-brand-dark">
-                            ${sale.shipping_method ? `
-                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                    <span class="text-slate-500 text-xs">Método</span>
-                                    <span class="font-bold">${sale.shipping_method.method || 'Standard'}</span>
-                                </div>
-                                <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                    <span class="text-slate-500 text-xs">Costo</span>
-                                    <span class="font-bold">DKK ${(sale.shipping_method.price || 0).toFixed(2)}</span>
-                                </div>
-                                ${sale.shipping_method.estimatedDays ? `
-                                    <div class="flex justify-between items-center pb-2 border-b border-slate-200/50">
-                                        <span class="text-slate-500 text-xs">Tiempo estimado</span>
-                                        <span class="font-bold">${sale.shipping_method.estimatedDays} días</span>
-                                    </div>
-                                ` : ''}
-                                ${sale.shipping_method.id ? `
-                                    <div class="space-y-1">
-                                        <span class="text-slate-500 text-[10px] font-bold uppercase tracking-wider">ID Método</span>
-                                        <p class="font-mono text-[9px] bg-white p-2 rounded border border-slate-200">${sale.shipping_method.id}</p>
-                                    </div>
-                                ` : ''}
-                            ` : `
-                                <div class="text-center py-4">
-                                    <p class="text-slate-400 text-sm">No se especificó método de envío</p>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-
-                    <!-- Order Items -->
-                    <div class="space-y-4">
-                        <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                            <i class="ph-fill ph-package text-brand-orange"></i> Items comprados
-                        </h3>
-                        <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden">
-                            <table class="w-full text-sm">
-                                <thead class="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left">Producto</th>
-                                        <th class="px-4 py-3 text-center">Cant.</th>
-                                        <th class="px-4 py-3 text-right">Precio</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-50">
-                                    ${(sale.items || []).map(item => `
-                                        <tr>
-                                            <td class="px-4 py-3">
-                                                <p class="font-bold text-brand-dark">${item.album || item.record?.album || 'Unknown'}</p>
-                                                <p class="text-xs text-slate-500">${item.artist || item.record?.artist || ''}</p>
-                                            </td>
-                                            <td class="px-4 py-3 text-center font-medium">${item.quantity || 1}</td>
-                                            <td class="px-4 py-3 text-right font-bold text-brand-dark">DKK ${(item.unitPrice || (item.record?.price || 0)).toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Footer / Actions -->
-                <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
-                    <button onclick="window.print()" class="flex-1 bg-white border border-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
-                        <i class="ph-bold ph-printer"></i> Imprimir Packing Slip
-                    </a>
-                    <button onclick="document.getElementById('modal-overlay').remove()" class="flex-1 bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">
-                        Cerrar
-                    </a>
-                </div>
-            </div>
-        </div>
-    `;
-        document.body.insertAdjacentHTML('beforeend', html);
-    },
 
     renderCartWidget() {
         const widget = document.getElementById('cart-widget');
@@ -12133,243 +11815,7 @@ const app = {
     },
 
 
-    renderDiscogsSales(container) {
-        // Filter only Discogs sales
-        const discogsSales = this.state.sales.filter(s => s.channel === 'discogs');
 
-        // Helper to get net total (total minus fees)
-        const getNetTotal = (s) => parseFloat(s.total) || 0;
-        const getOriginalTotal = (s) => parseFloat(s.originalTotal) || (parseFloat(s.total) + (parseFloat(s.discogsFee || 0) + parseFloat(s.paypalFee || 0)));
-        const getFees = (s) => getOriginalTotal(s) - getNetTotal(s);
-
-        const totalRevenue = discogsSales.reduce((sum, s) => sum + getNetTotal(s), 0);
-        const totalFees = discogsSales.reduce((sum, s) => sum + getFees(s), 0);
-
-        const totalProfit = discogsSales.reduce((sum, s) => {
-            const net = getNetTotal(s);
-            let saleCost = 0;
-            if (s.items && Array.isArray(s.items)) {
-                saleCost = s.items.reduce((c, i) => {
-                    const itemCost = parseFloat(i.costAtSale || 0);
-                    const itemQty = parseInt(i.qty || i.quantity) || 1;
-                    return c + (itemCost * itemQty);
-                }, 0);
-            }
-            return sum + (net - saleCost);
-        }, 0);
-
-        container.innerHTML = `
-        <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-            <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
-                <div>
-                    <h2 class="font-display text-3xl font-bold text-brand-dark">Ventas Discogs</h2>
-                    <p class="text-slate-500 text-sm">Ventas realizadas a través de Discogs Marketplace</p>
-                </div>
-                <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ingresos netos (caja)</p>
-                    <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totalRevenue)}</p>
-                    <p class="text-[11px] text-slate-400">${discogsSales.length} ventas registradas</p>
-                </div>
-            </div>
-
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-brand-dark">${discogsSales.length}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Ventas Totales</div>
-                        </div>
-                        <div class="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-shopping-cart text-2xl text-purple-500"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-red-600">${this.formatCurrency(totalFees)}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Fees Acumulados</div>
-                        </div>
-                        <div class="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-percent text-2xl text-red-500"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-2xl font-bold text-green-600">${this.formatCurrency(totalProfit)}</div>
-                            <div class="text-xs text-slate-500 uppercase font-bold tracking-wide">Ganancia Real</div>
-                        </div>
-                        <div class="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-                            <i class="ph-fill ph-coins text-2xl text-green-500"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sales List -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="p-5 border-b border-slate-100 flex items-center justify-between">
-                    <h2 class="text-lg font-bold text-brand-dark">Historial de Ventas</h2>
-                    <button onclick="app.syncWithDiscogs()" class="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1">
-                        <i class="ph-bold ph-arrows-clockwise"></i> Sincronizar para detectar nuevas ventas
-                    </button>
-                </div>
-                
-                ${discogsSales.length === 0 ? `
-                    <div class="p-12 text-center">
-                        <i class="ph-duotone ph-vinyl-record text-6xl text-slate-300 mb-4"></i>
-                        <p class="text-slate-400 mb-4">No hay ventas de Discogs detectadas aún</p>
-                        <p class="text-sm text-slate-500">Las ventas se detectan automáticamente al sincronizar con Discogs</p>
-                        <button onclick="app.syncWithDiscogs()" class="mt-4 bg-purple-500 text-white px-4 py-2 rounded-lg font-bold hover:bg-purple-600 transition-colors">
-                            Sincronizar ahora
-                        </button>
-                    </div>
-                ` : `
-                    <div class="overflow-x-auto">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="bg-slate-50 border-b border-slate-100">
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Producto</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Detalles de Cobro</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fees</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Neto Recibido</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${discogsSales.map(s => {
-            const date = s.timestamp?.toDate ? s.timestamp.toDate() : (s.date ? new Date(s.date) : new Date(0));
-            return { ...s, _sortDate: date.getTime() };
-        }).sort((a, b) => b._sortDate - a._sortDate).map(sale => {
-            const saleDate = sale.timestamp?.toDate ? sale.timestamp.toDate() : new Date(sale.date);
-            const item = sale.items && sale.items[0];
-            const originalTotal = sale.originalTotal || (sale.total + (sale.discogsFee || 0) + (sale.paypalFee || 0));
-            const discogsFee = sale.discogsFee || 0;
-            const paypalFee = sale.paypalFee || 0;
-            const netReceived = sale.total;
-            const isPending = sale.status === 'pending_review' || sale.needsReview;
-
-            return `
-                                        <tr class="border-b border-slate-50 hover:bg-purple-50/30 transition-colors cursor-pointer ${isPending ? 'bg-orange-50/50' : ''}" onclick="app.openUnifiedOrderDetailModal('${sale.id}')">
-                                            <td class="px-6 py-4 text-sm text-slate-600">${saleDate.toLocaleDateString('es-ES')}</td>
-                                            <td class="px-6 py-4">
-                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[200px]">${item?.album || 'Producto'}</div>
-                                                <div class="text-xs text-slate-500">${item?.artist || '-'}</div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-xs text-slate-500">Precio Lista: <span class="font-bold text-slate-700">${this.formatCurrency(originalTotal)}</span></div>
-                                                ${sale.discogs_order_id ? `<div class="text-[10px] text-purple-600 font-medium">Order: ${sale.discogs_order_id}</div>` : ''}
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-[10px] text-red-500 font-bold">Total Fees: -${this.formatCurrency(originalTotal - netReceived)}</div>
-                                                <div class="text-[10px] text-slate-400 font-medium">
-                                                    ${originalTotal > 0 ? `(${(((originalTotal - netReceived) / originalTotal) * 100).toFixed(1)}%)` : ''}
-                                                </div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm font-bold text-brand-dark">${this.formatCurrency(netReceived)}</div>
-                                            </td>
-                                            <td class="px-6 py-4">
-                                                <div class="flex flex-col gap-2">
-                                                    ${isPending ? `
-                                                        <span class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider text-center">Pendiente</span>
-                                                    ` : `
-                                                        <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider text-center">Confirmado</span>
-                                                    `}
-                                                    <button onclick="app.openUpdateSaleValueModal('${sale.id}', ${originalTotal}, ${netReceived})" class="w-full py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[10px] font-bold rounded-lg transition-colors border border-slate-200 flex items-center justify-center gap-1">
-                                                        <i class="ph-bold ph-pencil-simple"></i> Editar Neto
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    `;
-        }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `}
-            </div>
-
-            <!-- Info Note -->
-            <div class="mt-6 bg-purple-50 border border-purple-100 rounded-xl p-5">
-                <div class="flex items-start gap-3">
-                    <i class="ph-fill ph-info text-purple-500 text-xl shrink-0 mt-0.5"></i>
-                    <div class="text-sm text-purple-900">
-                        <p class="font-bold mb-1">¿Cómo gestionar los fees?</p>
-                        <p class="text-purple-700">Las ventas de Discogs se registran inicialmente por el <b>precio bruto</b>. Haz clic en "Actualizar Valor" e ingresa el monto real recibido en PayPal. El sistema calculará automáticamente la diferencia como fee y ajustará tus ingresos netos.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        `;
-    },
-
-    openUpdateSaleValueModal(id, originalTotal) {
-        const modalHtml = `
-            <div id="update-sale-modal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <div class="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm" onclick="this.parentElement.remove()"></div>
-                <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-200">
-                    <div class="p-8">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
-                                <i class="ph-fill ph-currency-circle-dollar text-2xl"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-display text-xl font-bold text-brand-dark">Actualizar Valor Real</h3>
-                                <p class="text-sm text-slate-500">Registra el monto neto recibido</p>
-                            </div>
-                        </div>
-
-                        <form onsubmit="app.handleSaleValueUpdate(event, '${id}', ${originalTotal})">
-                            <div class="space-y-6">
-                                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <div class="text-xs font-bold text-slate-400 uppercase mb-1">Precio Original (Bruto)</div>
-                                    <div class="text-xl font-bold text-slate-600">${this.formatCurrency(originalTotal)}</div>
-                                </div>
-
-                                <div class="space-y-2">
-                                    <label class="text-xs font-bold text-brand-dark uppercase">Monto Neto Recibido (PayPal)</label>
-                                    <div class="relative">
-                                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">kr.</span>
-                                        <input type="number" name="netReceived" step="0.01" required autofocus
-                                            class="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-purple-500 outline-none text-2xl font-bold text-brand-dark transition-all"
-                                            placeholder="0.00" oninput="app.calculateModalFee(this.value, ${originalTotal})">
-                                    </div>
-                                </div>
-
-                                <div id="modal-fee-display" class="p-4 bg-red-50 rounded-2xl border border-red-100 hidden">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <span class="text-xs font-bold text-red-600 uppercase">Fee Calculado</span>
-                                        <span id="modal-fee-value" class="text-sm font-bold text-red-600">- kr. 0.00</span>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-[10px] text-red-400 uppercase font-bold tracking-wider">Porcentaje del Fee</span>
-                                        <span id="modal-fee-percent" class="text-[10px] font-bold text-red-400">0.0%</span>
-                                    </div>
-                                </div>
-
-                                <div class="flex gap-3 pt-2">
-                                    <button type="button" onclick="this.closest('#update-sale-modal').remove()" 
-                                        class="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-colors">
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" id="update-sale-submit-btn"
-                                        class="flex-[2] py-4 bg-purple-600 text-white font-bold rounded-2xl hover:bg-purple-700 transition-all shadow-lg shadow-purple-200 flex items-center justify-center gap-2">
-                                        Confirmar Ajuste
-                                    </button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    },
 
     calculateModalFee(netReceived, originalTotal) {
         const net = parseFloat(netReceived) || 0;
