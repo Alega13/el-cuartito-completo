@@ -4458,6 +4458,10 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                     <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Discogs</span>
                                 </button>
+                                <button onclick="app.openQuickAddWizard()" class="bg-brand-orange text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-orange/30 hover:scale-105 transition-transform" title="Carga rápida paso a paso (Flujo A)">
+                                    <i class="ph-bold ph-lightning text-lg"></i>
+                                    <span class="text-xs font-bold hidden sm:inline">Carga rápida</span>
+                                </button>
                                 <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
                                     <i class="ph-bold ph-plus text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Nuevo</span>
@@ -6006,6 +6010,444 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
     },
 
 
+
+    // ============================================================
+    // Blueprint Sec 12 · FLUJO A: Carga rapida de un nuevo disco
+    // Paso a paso: Identificar (Discogs) -> Duplicados -> Esencial ->
+    // Canales -> Guardar. Reutiliza la API de Discogs ya integrada
+    // (proxy ${BASE_API_URL}/discogs/*) y delega el alta en
+    // handleAddVinyl para no duplicar la logica de persistencia.
+    // ============================================================
+    openQuickAddWizard() {
+        this.state.quickAdd = {
+            step: 1,
+            search: '',
+            searching: false,
+            results: [],
+            manualMode: false,
+            artist: '',
+            album: '',
+            label: '',
+            genre: '',
+            condition: 'NM',
+            productCondition: 'Second-hand',
+            cost: '',
+            price: '',
+            stock: 1,
+            cover: '',
+            discogsId: '',
+            discogsUrl: '',
+            year: '',
+            chPos: true,      // Tienda activa por defecto
+            chWeb: true,
+            chDiscogs: false,
+            dupChecked: false,
+            hardDup: null,
+            softDups: [],
+        };
+        const overlay = document.createElement('div');
+        overlay.id = 'quickadd-overlay';
+        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
+        overlay.innerHTML = `<div id="quickadd-card" class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"></div>`;
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeQuickAddWizard(); });
+        document.body.appendChild(overlay);
+        this.renderQuickAddStep();
+    },
+
+    closeQuickAddWizard() {
+        document.getElementById('quickadd-overlay')?.remove();
+        this.state.quickAdd = null;
+    },
+
+    quickAddGo(step) {
+        const qa = this.state.quickAdd;
+        if (!qa) return;
+        // Validaciones por paso
+        if (step > 1 && qa.step === 1) {
+            if (!qa.manualMode && !qa.artist) {
+                // Si eligio un resultado de Discogs, artist ya viene cargado
+                if (!qa.artist || !qa.album) {
+                    this.showToast('Buscá en Discogs o cargá artista y título manualmente.');
+                    return;
+                }
+            }
+            if (qa.manualMode && (!qa.artist.trim() || !qa.album.trim())) {
+                this.showToast('Completá artista y título para continuar.');
+                return;
+            }
+        }
+        if (step > 3 && qa.step === 3) {
+            const cost = parseFloat(qa.cost), price = parseFloat(qa.price), stock = parseInt(qa.stock, 10);
+            if (isNaN(cost) || cost < 0) { this.showToast('El costo debe ser un número válido.'); return; }
+            if (isNaN(price) || price <= 0) { this.showToast('El precio debe ser un número válido mayor a 0.'); return; }
+            if (isNaN(stock) || stock < 1) { this.showToast('El stock inicial debe ser al menos 1.'); return; }
+        }
+        qa.step = step;
+        if (step === 2 && !qa.dupChecked) this.quickAddCheckDuplicates();
+        this.renderQuickAddStep();
+    },
+
+    quickAddSteps() {
+        return [
+            { n: 1, label: 'Identificar', icon: 'ph-magnifying-glass' },
+            { n: 2, label: 'Duplicados', icon: 'ph-copy' },
+            { n: 3, label: 'Esencial', icon: 'ph-disc' },
+            { n: 4, label: 'Canales', icon: 'ph-storefront' },
+            { n: 5, label: 'Confirmar', icon: 'ph-check-circle' },
+        ];
+    },
+
+    renderQuickAddStep() {
+        const qa = this.state.quickAdd;
+        const card = document.getElementById('quickadd-card');
+        if (!qa || !card) return;
+        const steps = this.quickAddSteps();
+        let body = '';
+        if (qa.step === 1) body = this.quickAddStepIdentify(qa);
+        else if (qa.step === 2) body = this.quickAddStepDuplicates(qa);
+        else if (qa.step === 3) body = this.quickAddStepEssential(qa);
+        else if (qa.step === 4) body = this.quickAddStepChannels(qa);
+        else body = this.quickAddStepReview(qa);
+
+        card.innerHTML = `
+            <div class="p-6 border-b border-slate-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-display text-xl font-bold text-brand-dark flex items-center gap-2">
+                        <i class="ph-bold ph-lightning text-brand-orange"></i> Carga rápida
+                    </h3>
+                    <button onclick="app.closeQuickAddWizard()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+                <div class="flex items-center gap-1">
+                    ${steps.map(s => `
+                        <div class="flex-1 flex items-center gap-2 ${s.n <= qa.step ? '' : 'opacity-40'}">
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${s.n < qa.step ? 'bg-emerald-500 text-white' : s.n === qa.step ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'}">
+                                ${s.n < qa.step ? '<i class="ph-bold ph-check"></i>' : s.n}
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-wide hidden sm:inline ${s.n === qa.step ? 'text-brand-dark' : 'text-slate-400'}">${s.label}</span>
+                            ${s.n < steps.length ? '<div class="flex-1 h-px bg-slate-200 mx-1"></div>' : ''}
+                        </div>`).join('')}
+                </div>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">${body}</div>
+            <div class="p-4 border-t border-slate-100 flex justify-between gap-3 bg-slate-50/50">
+                ${qa.step > 1
+                    ? `<button onclick="app.quickAddGo(${qa.step - 1})" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all flex items-center gap-2"><i class="ph-bold ph-arrow-left"></i> Atrás</button>`
+                    : `<button onclick="app.closeQuickAddWizard()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all">Cancelar</button>`}
+                ${qa.step < 5
+                    ? `<button onclick="app.quickAddGo(${qa.step + 1})" class="px-6 py-2.5 rounded-xl bg-brand-dark text-white font-bold text-sm shadow-lg hover:scale-[1.02] transition-transform flex items-center gap-2">Continuar <i class="ph-bold ph-arrow-right"></i></button>`
+                    : `<button onclick="app.quickAddSave()" class="px-6 py-2.5 rounded-xl bg-brand-orange text-white font-bold text-sm shadow-lg shadow-brand-orange/30 hover:scale-[1.02] transition-transform flex items-center gap-2"><i class="ph-bold ph-check"></i> Guardar disco</button>`}
+            </div>`;
+    },
+
+    // --- Paso 1: Identificar (Discogs API existente) ---
+    quickAddStepIdentify(qa) {
+        return `
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Buscar en Discogs <span class="normal-case font-medium text-slate-300">(o pegá el ID numérico del release)</span></label>
+            <div class="flex gap-2 mb-3">
+                <input id="qa-search" type="text" value="${qa.search.replace(/"/g, '&quot;')}" placeholder="Artista - Título..."
+                    onkeypress="if(event.key==='Enter'){event.preventDefault();app.quickAddSearchDiscogs();}"
+                    class="flex-1 h-11 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-medium focus:border-brand-orange outline-none">
+                <button onclick="app.quickAddSearchDiscogs()" class="h-11 px-5 rounded-xl bg-brand-dark text-white text-sm font-bold hover:scale-[1.02] transition-transform flex items-center gap-2">
+                    <i class="ph-bold ph-magnifying-glass"></i> Buscar
+                </button>
+            </div>
+            <div id="qa-results" class="space-y-2 mb-4 max-h-56 overflow-y-auto">
+                ${qa.searching ? '<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>' : ''}
+                ${!qa.searching && qa.results.length === 0 && qa.search ? '<p class="text-xs text-slate-400 p-2">Sin resultados. Probá con otra búsqueda o cargá manualmente abajo.</p>' : ''}
+                ${qa.results.map((r, i) => `
+                    <div onclick="app.quickAddSelectRelease(${i})" class="flex items-center gap-3 p-3 bg-white rounded-xl border ${String(qa.discogsId) === String(r.id) ? 'border-brand-orange shadow-md' : 'border-slate-200'} cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
+                        <img src="${r.thumb || ''}" class="w-12 h-12 rounded-lg object-cover bg-slate-100 flex-shrink-0" onerror="this.style.display='none'">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-bold text-xs text-brand-dark leading-tight truncate">${r.title || ''}</p>
+                            <p class="text-[10px] text-slate-500">${r.year || '?'} · ${r.country || ''} · ${(r.label && r.label[0]) || ''}</p>
+                        </div>
+                        ${String(qa.discogsId) === String(r.id) ? '<i class="ph-fill ph-check-circle text-brand-orange text-xl"></i>' : '<i class="ph-bold ph-plus-circle text-slate-300 text-xl"></i>'}
+                    </div>`).join('')}
+            </div>
+            <div class="border-t border-dashed border-slate-200 pt-4">
+                <button onclick="app.state.quickAdd.manualMode=!app.state.quickAdd.manualMode;app.renderQuickAddStep()" class="text-xs font-bold text-brand-orange hover:underline flex items-center gap-1">
+                    <i class="ph-bold ${qa.manualMode ? 'ph-caret-up' : 'ph-caret-down'}"></i>
+                    ${qa.manualMode ? 'Ocultar carga manual' : 'Cargar manualmente sin Discogs'}
+                </button>
+                ${qa.manualMode ? `
+                <div class="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Artista *</label>
+                        <input id="qa-artist" type="text" value="${qa.artist.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.artist=this.value" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Título *</label>
+                        <input id="qa-album" type="text" value="${qa.album.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.album=this.value" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none">
+                    </div>
+                </div>` : ''}
+                ${qa.artist && qa.album && !qa.manualMode ? `
+                <div class="mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
+                    ${qa.cover ? `<img src="${qa.cover}" class="w-10 h-10 rounded-lg object-cover">` : ''}
+                    <div class="text-xs"><p class="font-bold text-emerald-800">${qa.artist} — ${qa.album}</p><p class="text-emerald-600">Datos completados desde Discogs</p></div>
+                </div>` : ''}
+            </div>`;
+    },
+
+    async quickAddSearchDiscogs() {
+        const qa = this.state.quickAdd;
+        const input = document.getElementById('qa-search');
+        const q = (input?.value || '').trim();
+        if (!q) return;
+        qa.search = q;
+        qa.searching = true;
+        qa.results = [];
+        this.renderQuickAddStep();
+        try {
+            let data;
+            if (/^\d+$/.test(q)) {
+                const res = await fetch(`${BASE_API_URL}/discogs/release/${q}`);
+                const full = await res.json();
+                const rel = full.release || full;
+                data = { results: [{ id: rel.id, title: `${(rel.artists_sort || '')} - ${rel.title || ''}`, year: rel.year, country: rel.country, label: (rel.labels || []).map(l => l.name), thumb: (rel.images && rel.images[0] || {}).thumb || (rel.images && rel.images[0] || {}).uri, _full: rel }] };
+            } else {
+                const res = await fetch(`${BASE_API_URL}/discogs/search?q=${encodeURIComponent(q)}`);
+                data = await res.json();
+            }
+            qa.results = (data.results || []).slice(0, 10);
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error buscando en Discogs: ' + (err.message || 'desconocido'));
+        }
+        qa.searching = false;
+        this.renderQuickAddStep();
+    },
+
+    async quickAddSelectRelease(idx) {
+        const qa = this.state.quickAdd;
+        const r = qa.results[idx];
+        if (!r) return;
+        qa.discogsId = r.id;
+        qa.dupChecked = false;
+        const parts = (r.title || '').split(' - ');
+        qa.artist = parts[0] || '';
+        qa.album = parts.slice(1).join(' - ') || r.title || '';
+        qa.year = r.year || '';
+        qa.cover = r.thumb || '';
+        qa.label = (r.label && r.label[0]) || '';
+        // Detalle completo para sello/genero/portada
+        try {
+            const res = await fetch(`${BASE_API_URL}/discogs/release/${r.id}`);
+            const data = await res.json();
+            const full = data.release || data;
+            if (full) {
+                const labels = (full.labels || []).map(l => l.name).filter(Boolean);
+                if (labels.length) qa.label = labels[0];
+                const styles = [...new Set(full.styles || [])];
+                if (styles.length) qa.genre = styles[0];
+                const img = (full.images && full.images[0]) || {};
+                if (img.uri || img.thumb) qa.cover = img.uri || img.thumb;
+                if (full.uri) qa.discogsUrl = full.uri.startsWith('http') ? full.uri : 'https://www.discogs.com' + full.uri;
+                qa._tracks = full.tracklist || [];
+            }
+        } catch (err) { console.warn('Detalle Discogs no disponible:', err); }
+        this.showToast('Datos completados desde Discogs');
+        this.renderQuickAddStep();
+    },
+
+    // --- Paso 2: Duplicados ---
+    quickAddCheckDuplicates() {
+        const qa = this.state.quickAdd;
+        qa.dupChecked = true;
+        const norm = (s) => this.normalizeText(s || '');
+        const a = norm(qa.artist), b = norm(qa.album);
+        qa.hardDup = null;
+        qa.softDups = [];
+        (this.state.inventory || []).forEach(item => {
+            if (qa.discogsId && String(item.discogs_release_id || item.discogsId || '') === String(qa.discogsId)) {
+                qa.hardDup = item;
+                return;
+            }
+            const ia = norm(item.artist), ib = norm(item.album);
+            if (a && b && ia === a && ib === b) { qa.hardDup = qa.hardDup || item; return; }
+            if ((a && ia && (ia.includes(a) || a.includes(ia))) || (b && ib && (ib.includes(b) || b.includes(ib)))) {
+                if (qa.softDups.length < 5) qa.softDups.push(item);
+            }
+        });
+    },
+
+    quickAddStepDuplicates(qa) {
+        if (!qa.dupChecked) this.quickAddCheckDuplicates();
+        if (qa.hardDup) {
+            const d = qa.hardDup;
+            return `
+                <div class="bg-red-50 border border-red-200 rounded-2xl p-5">
+                    <h4 class="font-bold text-red-700 flex items-center gap-2 mb-2"><i class="ph-bold ph-warning-circle text-xl"></i> Posible duplicado</h4>
+                    <p class="text-sm text-red-600 mb-4">Ya existe <b>${d.artist} — ${d.album}</b> (${d.sku || 'sin SKU'}, stock: ${d.stock || 0}). El alta está bloqueada hasta que elijas:</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <button onclick="app.quickAddIncreaseStock('${d.id}')" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
+                            <i class="ph-bold ph-plus-circle text-brand-orange text-xl mb-1 block"></i>
+                            <p class="text-xs font-bold text-brand-dark">Aumentar stock</p>
+                            <p class="text-[10px] text-slate-400">Suma ${qa.stock} ud. al existente</p>
+                        </button>
+                        <button onclick="app.closeQuickAddWizard();app.openAddVinylModal('${d.id}')" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
+                            <i class="ph-bold ph-pencil-simple text-brand-orange text-xl mb-1 block"></i>
+                            <p class="text-xs font-bold text-brand-dark">Editar existente</p>
+                            <p class="text-[10px] text-slate-400">Abre la ficha completa</p>
+                        </button>
+                        <button onclick="app.state.quickAdd.hardDup=null;app.renderQuickAddStep()" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
+                            <i class="ph-bold ph-copy text-brand-orange text-xl mb-1 block"></i>
+                            <p class="text-xs font-bold text-brand-dark">Es otra edición</p>
+                            <p class="text-[10px] text-slate-400">Continuar con el alta</p>
+                        </button>
+                    </div>
+                </div>`;
+        }
+        return `
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-4 flex items-center gap-3">
+                <i class="ph-fill ph-check-circle text-emerald-500 text-3xl"></i>
+                <div><p class="font-bold text-emerald-800 text-sm">Sin duplicados exactos</p><p class="text-xs text-emerald-600">Podés continuar con la carga.</p></div>
+            </div>
+            ${qa.softDups.length ? `
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <p class="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1"><i class="ph-bold ph-warning"></i> Coincidencias parciales (revisá antes de guardar):</p>
+                ${qa.softDups.map(d => `<p class="text-xs text-amber-700 truncate">· ${d.artist} — ${d.album} <span class="text-amber-400">(${d.sku || ''})</span></p>`).join('')}
+            </div>` : ''}`;
+    },
+
+    async quickAddIncreaseStock(productId) {
+        const qa = this.state.quickAdd;
+        const qty = parseInt(qa.stock, 10) || 1;
+        try {
+            const ref = db.collection('products').doc(productId);
+            const snap = await ref.get();
+            const cur = (snap.data() || {}).stock || 0;
+            await ref.update({ stock: cur + qty, updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+            this.showToast(`Stock actualizado: ${cur} → ${cur + qty}`);
+            this.closeQuickAddWizard();
+            this.loadData();
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error actualizando stock: ' + err.message);
+        }
+    },
+
+    // --- Paso 3: Esencial ---
+    quickAddStepEssential(qa) {
+        const field = (label, inner) => `
+            <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">${label}</label>${inner}</div>`;
+        const inputCls = 'w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none';
+        return `
+            <div class="grid grid-cols-2 gap-3">
+                ${field('Artista', `<input type="text" value="${qa.artist.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.artist=this.value" class="${inputCls}">`)}
+                ${field('Título', `<input type="text" value="${qa.album.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.album=this.value" class="${inputCls}">`)}
+                ${field('Sello', `<input type="text" value="${qa.label.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.label=this.value" class="${inputCls}" placeholder="Record label">`)}
+                ${field('Género', `<input type="text" value="${qa.genre.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.genre=this.value" class="${inputCls}" placeholder="Minimal">`)}
+                ${field('Condición (vinilo)', `
+                    <select onchange="app.state.quickAdd.condition=this.value" class="${inputCls}">
+                        ${['M', 'NM', 'VG+', 'VG', 'G'].map(c => `<option value="${c}" ${qa.condition === c ? 'selected' : ''}>${c}</option>`).join('')}
+                    </select>`)}
+                ${field('Nuevo / Usado', `
+                    <select onchange="app.state.quickAdd.productCondition=this.value" class="${inputCls}">
+                        <option value="Second-hand" ${qa.productCondition === 'Second-hand' ? 'selected' : ''}>Usado</option>
+                        <option value="New" ${qa.productCondition === 'New' ? 'selected' : ''}>Nuevo</option>
+                    </select>`)}
+                ${field('Costo (kr)', `<input type="number" min="0" step="0.5" value="${qa.cost}" oninput="app.state.quickAdd.cost=this.value" class="${inputCls}" placeholder="0">`)}
+                ${field('Precio (kr)', `<input type="number" min="0" step="0.5" value="${qa.price}" oninput="app.state.quickAdd.price=this.value" class="${inputCls}" placeholder="0">`)}
+                ${field('Stock inicial', `<input type="number" min="1" step="1" value="${qa.stock}" oninput="app.state.quickAdd.stock=this.value" class="${inputCls}">`)}
+                ${field('Portada', qa.cover
+                    ? `<div class="flex items-center gap-2"><img src="${qa.cover}" class="w-10 h-10 rounded-lg object-cover"><span class="text-[10px] text-emerald-600 font-bold">Desde Discogs ✓</span></div>`
+                    : `<span class="text-[11px] text-slate-400">Sin imagen (se puede agregar después)</span>`)}
+            </div>
+            <p class="text-[11px] text-slate-400 mt-4 flex items-center gap-1"><i class="ph-bold ph-info"></i> Año, pressing y más detalles quedan en <b>Opciones avanzadas</b> de la ficha completa.</p>`;
+    },
+
+    // --- Paso 4: Canales ---
+    quickAddStepChannels(qa) {
+        const toggle = (key, label, desc, icon, color) => `
+            <button onclick="app.state.quickAdd.${key}=!app.state.quickAdd.${key};app.renderQuickAddStep()"
+                class="w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${qa[key] ? 'border-brand-orange bg-orange-50/50 shadow-sm' : 'border-slate-200 bg-white'}">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center ${qa[key] ? color : 'bg-slate-100 text-slate-300'}"><i class="ph-fill ${icon} text-xl"></i></div>
+                    <div class="text-left"><p class="text-sm font-bold text-brand-dark">${label}</p><p class="text-[11px] text-slate-400">${desc}</p></div>
+                </div>
+                <div class="w-11 h-6 rounded-full p-1 transition-colors ${qa[key] ? 'bg-brand-orange' : 'bg-slate-200'}">
+                    <div class="w-4 h-4 bg-white rounded-full shadow transition-transform ${qa[key] ? 'translate-x-5' : ''}"></div>
+                </div>
+            </button>`;
+        return `
+            <div class="space-y-3">
+                ${toggle('chPos', 'Tienda (POS)', 'Disponible en caja', 'ph-storefront', 'bg-orange-100 text-brand-orange')}
+                ${toggle('chWeb', 'WebShop', 'Visible en la tienda online', 'ph-globe', 'bg-blue-100 text-blue-600')}
+                ${toggle('chDiscogs', 'Discogs', 'Crea el listing al guardar (requiere datos de Discogs)', 'ph-vinyl-record', 'bg-purple-100 text-purple-600')}
+            </div>
+            ${qa.chDiscogs && !qa.discogsId ? `
+            <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-center gap-2">
+                <i class="ph-bold ph-warning"></i> Para publicar en Discogs necesitás haber elegido un release en el paso 1.
+            </div>` : ''}`;
+    },
+
+    // --- Paso 5: Revisar y guardar ---
+    quickAddStepReview(qa) {
+        const row = (k, v) => `<div class="flex justify-between py-1.5 border-b border-slate-50 last:border-0"><span class="text-xs text-slate-400 font-medium">${k}</span><span class="text-xs font-bold text-brand-dark text-right">${v || '—'}</span></div>`;
+        return `
+            <div class="bg-slate-50 rounded-2xl p-4 mb-4">
+                ${row('Disco', `${qa.artist} — ${qa.album}`)}
+                ${row('Sello / Género', `${qa.label || '—'} · ${qa.genre || '—'}`)}
+                ${row('Condición', `${qa.condition} (${qa.productCondition === 'New' ? 'Nuevo' : 'Usado'})`)}
+                ${row('Costo / Precio', `${qa.cost || 0} kr / ${qa.price || 0} kr`)}
+                ${row('Stock inicial', qa.stock)}
+                ${row('Canales', [qa.chPos && 'Tienda', qa.chWeb && 'WebShop', qa.chDiscogs && 'Discogs'].filter(Boolean).join(' · ') || 'Ninguno')}
+            </div>
+            <p class="text-[11px] text-slate-400">Al guardar se crea el producto con SKU automático, fecha y usuario actual.</p>`;
+    },
+
+    async quickAddSave() {
+        const qa = this.state.quickAdd;
+        if (!qa) return;
+        if (qa.chDiscogs && !qa.discogsId) {
+            this.showToast('Elegí un release de Discogs en el paso 1 para publicar ahí, o desactivá el canal.');
+            return;
+        }
+        // Construir un form real con los names que espera handleAddVinyl y delegar
+        const form = document.createElement('form');
+        const set = (name, value) => {
+            const i = document.createElement('input');
+            i.type = 'hidden'; i.name = name; i.value = value ?? '';
+            form.appendChild(i);
+        };
+        const setCheck = (name, on) => { if (on) set(name, 'on'); };
+        set('artist', qa.artist.trim());
+        set('album', qa.album.trim());
+        set('genre', qa.genre.trim());
+        set('label', qa.label.trim());
+        set('condition', qa.condition);
+        set('product_condition', qa.productCondition);
+        set('provider_origin', qa.productCondition === 'New' ? 'EU_B2B' : 'Local_Used');
+        set('cost', qa.cost || '0');
+        set('price', qa.price || '0');
+        set('stock', qa.stock || '1');
+        set('year', qa.year || '');
+        set('owner', 'El Cuartito');
+        set('cover_image', qa.cover || '');
+        set('discogsId', qa.discogsId || '');
+        set('discogs_release_id', qa.discogsId || '');
+        set('discogsUrl', qa.discogsUrl || '');
+        set('tracks', JSON.stringify(qa._tracks || []));
+        setCheck('publish_local', qa.chPos);
+        setCheck('is_online', qa.chWeb);
+        setCheck('publish_discogs', qa.chDiscogs);
+        setCheck('tag_new', true); // Nuevo ingreso
+        document.body.appendChild(form);
+        const overlayId = 'quickadd-overlay';
+        try {
+            await this.handleAddVinyl({ preventDefault() {}, target: form }, '');
+            this.showToast('Producto creado');
+        } catch (err) {
+            console.error(err);
+            this.showToast('Error: ' + (err.message || 'desconocido'));
+        } finally {
+            form.remove();
+            document.getElementById(overlayId)?.remove();
+            this.state.quickAdd = null;
+        }
+    },
 
     openAddVinylModal(editSku = null) {
         let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'EU_B2B', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
@@ -8809,7 +9251,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                 }
             }
 
-            document.getElementById('modal-overlay').remove();
+            document.getElementById('modal-overlay')?.remove();
             this.loadData();
         } catch (err) {
             console.error(err);
