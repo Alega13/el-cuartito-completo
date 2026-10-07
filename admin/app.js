@@ -742,27 +742,23 @@ const app = {
 
         const html = `
             <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header -->
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">Weekly Drops & <span class="text-brand-orange">Newsletter</span></h1>
-                        <p class="text-slate-500 font-medium">Envía las novedades semanales a tus suscriptores de Resend</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div onclick="app.showSubscribersModal()" class="bg-white px-5 py-3 rounded-2xl border border-orange-100 shadow-sm flex items-center gap-3 cursor-pointer hover:border-brand-orange hover:shadow-md transition-all group">
-                            <div class="w-10 h-10 rounded-xl bg-orange-50 text-brand-orange flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <i class="ph-bold ph-users text-xl"></i>
-                            </div>
-                            <div>
-                                <div class="text-xs text-slate-400 font-bold uppercase flex items-center gap-1">
-                                    Suscriptores Activos
-                                    <i class="ph-bold ph-caret-right text-brand-orange"></i>
-                                </div>
-                                <div class="text-xl font-bold text-brand-dark">${subscriberCount} <span class="text-xs font-normal text-slate-400 underline">(ver lista)</span></div>
-                            </div>
+                ${this.sectionHeader({
+                    title: 'Drops & Newsletter',
+                    subtitle: 'Envía las novedades semanales a tus suscriptores de Resend',
+                    filters: `
+                    <div onclick="app.showSubscribersModal()" class="bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 cursor-pointer hover:border-brand-orange hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-xl bg-orange-50 text-brand-orange flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <i class="ph-bold ph-users text-xl"></i>
                         </div>
-                    </div>
-                </div>
+                        <div>
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                                Suscriptores activos
+                                <i class="ph-bold ph-caret-right text-brand-orange"></i>
+                            </div>
+                            <div class="text-xl font-bold text-brand-dark">${subscriberCount} <span class="text-xs font-normal text-slate-400 underline">(ver lista)</span></div>
+                        </div>
+                    </div>`
+                })}
 
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <!-- Left Column: Form & Selected Items -->
@@ -1157,13 +1153,10 @@ const app = {
 
         const html = `
             <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header -->
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">📑 <span class="text-brand-orange">Contabilidad</span></h1>
-                        <p class="text-slate-500 font-medium">Facturas de venta — Brugtmoms compliance</p>
-                    </div>
-                </div>
+                ${this.sectionHeader({
+                    title: 'Contabilidad',
+                    subtitle: 'Facturas de venta — Brugtmoms compliance'
+                })}
 
                 <!-- Filters + Download Quarter -->
                 <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 mb-6">
@@ -1897,6 +1890,10 @@ const app = {
 
     navigate(view) {
         this.state.currentView = view;
+
+        // Blueprint Sec 04: los drill-downs del dashboard no quedan pegados al navegar a otra pantalla
+        if (view !== 'expenses') this.state.expenseMissingReceiptOnly = false;
+        if (view !== 'inventory') this.state.inventoryLowStockOnly = false;
 
         // Update UI Active States
         document.querySelectorAll('.nav-item, .nav-item-m').forEach(el => {
@@ -3038,10 +3035,12 @@ const app = {
         // Compras sin comprobante
         const missingReceipt = (this.state.expenses || []).filter(e => !e.receiptUrl && !e.comprobante && e.receiptPending !== false && !e.receiptExempt).length;
         setBadge('nav-badge-expenses', missingReceipt);
-        // Envíos pendientes (sin tracking o en preparación)
-        const pendingShip = (this.state.shipments || this.state.sales || []).filter(s => {
-            const st = (s.status || s.shipping_status || '').toLowerCase();
-            return st === 'preparar' || st === 'pendiente' || st === 'pending' || (!s.tracking && st !== 'despachada' && st !== 'despachado');
+        // Envíos pendientes: canal online/discogs con fulfillment no cerrado (misma lógica que renderShipping)
+        const doneFs = ['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'];
+        const pendingShip = (this.state.sales || []).filter(s => {
+            const ch = (s.channel || '').toLowerCase();
+            if (ch !== 'online' && ch !== 'discogs') return false;
+            return !doneFs.includes((s.fulfillment_status || '').toLowerCase());
         }).length;
         setBadge('nav-badge-shipping', pendingShip);
     },
@@ -3517,29 +3516,39 @@ const app = {
             const html = `
             <div class="max-w-7xl mx-auto space-y-8 pb-24 md:pb-8 px-4 md:px-8 pt-6">
                 <!-- Header with Navigation and Filter -->
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div class="flex flex-wrap items-center gap-4">
-                        <div class="w-14 h-14 bg-brand-orange rounded-2xl flex items-center justify-center text-white text-3xl shadow-xl shadow-brand-orange/20">
-                            <i class="ph-fill ph-house-line"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-display text-3xl font-bold text-brand-dark">Resumen Operativo</h2>
-                            <p class="text-slate-500 text-sm">Monitor de actividad: <span class="font-bold text-brand-orange">${periodText}</span></p>
-                        </div>
-                        <button onclick="app.showFinancialReportModal()" class="ml-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm">
-                            <i class="ph-bold ph-microsoft-excel-logo text-lg"></i> Exportar Informe
-                        </button>
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">Resumen Operativo</h2>
+                        <p class="text-slate-500 text-sm">Actividad: <span class="font-bold text-brand-dark">${periodText}</span></p>
                     </div>
 
-                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
-                        <select id="dashboard-year" onchange="app.updateFilter('year', this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
-                            <option value="2026" ${this.state.filterYear === 2026 ? 'selected' : ''}>2026</option>
-                            <option value="2025" ${this.state.filterYear === 2025 ? 'selected' : ''}>2025</option>
-                        </select>
-                        <div class="h-6 w-px bg-slate-100 mx-1"></div>
-                        <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar">
-                            <button onclick="app.state.filterMonths=[0,1,2,3,4,5,6,7,8,9,10,11];app.refreshCurrentView()"
-                                class="px-3 py-1.5 round                <!-- Blueprint Sec 04: 5 indicadores comparables (clicables = drill-down) -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+                            <select id="dashboard-year" onchange="app.updateFilter('year', this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
+                                <option value="2026" ${this.state.filterYear === 2026 ? 'selected' : ''}>2026</option>
+                                <option value="2025" ${this.state.filterYear === 2025 ? 'selected' : ''}>2025</option>
+                            </select>
+                            <div class="h-6 w-px bg-slate-100 mx-1"></div>
+                            <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
+                                <button onclick="app.state.filterMonths=[0,1,2,3,4,5,6,7,8,9,10,11];app.refreshCurrentView()"
+                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${selectedMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                    Todo
+                                </button>
+                                ${monthNames.map((m, i) => `
+                                    <button onclick="app.toggleMonthFilter(${i})"
+                                        class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${selectedMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                        ${m}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <button onclick="app.showFinancialReportModal()" class="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm">
+                            <i class="ph-bold ph-download-simple text-lg"></i> Exportar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Blueprint Sec 04: 5 indicadores comparables (clicables = drill-down) -->
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <button onclick="app.navigate('sales')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
                         <div class="flex items-center gap-2 mb-3">
@@ -3605,20 +3614,6 @@ const app = {
                             <span class="text-2xl font-display font-bold ${lowStockCount > 0 ? 'text-amber-500' : 'text-emerald-500'}">${lowStockCount}</span>
                             <span class="text-xs font-bold text-slate-600 leading-tight">Stock<br>bajo</span>
                         </button>
-                    </div>
-                </div>
-
-endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500'} rounded-xl flex items-center justify-center">
-                                <i class="ph-bold ${pendingOrders.length > 0 ? 'ph-package' : 'ph-check-circle'} text-xl"></i>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Alerta de Pedidos</span>
-                        </div>
-                        <div class="flex items-baseline gap-2">
-                            ${pendingOrders.length > 0
-                    ? `<p class="text-5xl font-display font-bold text-red-500">${pendingOrders.length}</p>`
-                    : `<p class="text-3xl font-display font-bold text-green-600">Al día</p>`}
-                        </div>
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Pedidos por despachar</p>
                     </div>
                 </div>
 
@@ -4458,8 +4453,8 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                     <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Discogs</span>
                                 </button>
-                                <button onclick="app.openQuickAddWizard()" class="bg-brand-orange text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-orange/30 hover:scale-105 transition-transform" title="Carga rápida paso a paso (Flujo A)">
-                                    <i class="ph-bold ph-lightning text-lg"></i>
+                                <button onclick="app.openQuickAddWizard()" class="bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange px-4 h-10 rounded-xl flex items-center gap-2 shadow-sm transition-all" title="Carga rápida paso a paso (Flujo A)">
+                                    <i class="ph-bold ph-lightning text-lg text-brand-orange"></i>
                                     <span class="text-xs font-bold hidden sm:inline">Carga rápida</span>
                                 </button>
                                 <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
@@ -6048,7 +6043,7 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         const overlay = document.createElement('div');
         overlay.id = 'quickadd-overlay';
         overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
-        overlay.innerHTML = `<div id="quickadd-card" class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"></div>`;
+        overlay.innerHTML = `<div id="quickadd-card" class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-100"></div>`;
         overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeQuickAddWizard(); });
         document.body.appendChild(overlay);
         this.renderQuickAddStep();
@@ -9578,17 +9573,16 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         const totalRevenue = completedSales.reduce((sum, s) => sum + (parseFloat(s.total_amount || s.total) || 0), 0);
 
         container.innerHTML = `
-        <div class="p-6">
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-8">
+        <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
                 <div>
-                    <h1 class="font-display text-3xl font-bold text-brand-dark mb-2">🌐 Ventas WebShop</h1>
-                    <p class="text-slate-500">Pedidos realizados a través de la tienda online</p>
+                    <h2 class="font-display text-3xl font-bold text-brand-dark">Ventas WebShop</h2>
+                    <p class="text-slate-500 text-sm">Pedidos realizados a través de la tienda online</p>
                 </div>
-                <div class="bg-gradient-to-br from-green-500 to-emerald-600 text-white px-6 py-4 rounded-2xl shadow-xl">
-                    <div class="text-sm font-medium opacity-90">Ingresos Totales</div>
-                    <div class="text-3xl font-bold">DKK ${totalRevenue.toFixed(2)}</div>
-                    <div class="text-xs opacity-75">${completedSales.length} ventas completadas</div>
+                <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ingresos totales</p>
+                    <p class="text-2xl font-display font-bold text-brand-dark">DKK ${totalRevenue.toFixed(2)}</p>
+                    <p class="text-[11px] text-slate-400">${completedSales.length} ventas completadas</p>
                 </div>
             </div>
 
@@ -10384,10 +10378,10 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
 
         const html = `
     <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6" >
-                <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">
-                    <i class="ph-duotone ph-file-text text-brand-orange mr-2"></i>
-                    Registro de Compras
-                </h2>
+                ${this.sectionHeader({
+                    title: 'Registro de Compras',
+                    subtitle: 'Gastos del negocio con comprobantes, categorías e IVA'
+                })}
                 ${this.state.expenseMissingReceiptOnly ? `
                 <div class="mb-4 flex items-center justify-between bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-bold">
                     <span class="flex items-center gap-2"><i class="ph-bold ph-warning-circle"></i> Mostrando solo gastos sin comprobante</span>
@@ -12165,17 +12159,16 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         }, 0);
 
         container.innerHTML = `
-        <div class="p-6">
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-8">
+        <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
                 <div>
-                    <h1 class="font-display text-3xl font-bold text-brand-dark mb-2">💿 Ventas Discogs</h1>
-                    <p class="text-slate-500">Ventas realizadas a través de Discogs Marketplace</p>
+                    <h2 class="font-display text-3xl font-bold text-brand-dark">Ventas Discogs</h2>
+                    <p class="text-slate-500 text-sm">Ventas realizadas a través de Discogs Marketplace</p>
                 </div>
-                <div class="bg-gradient-to-br from-purple-500 to-indigo-600 text-white px-6 py-4 rounded-2xl shadow-xl">
-                    <div class="text-sm font-medium opacity-90">Ingresos Netos (Caja)</div>
-                    <div class="text-3xl font-bold">${this.formatCurrency(totalRevenue)}</div>
-                    <div class="text-xs opacity-75">${discogsSales.length} ventas registradas</div>
+                <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Ingresos netos (caja)</p>
+                    <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totalRevenue)}</p>
+                    <p class="text-[11px] text-slate-400">${discogsSales.length} ventas registradas</p>
                 </div>
             </div>
 
@@ -13821,24 +13814,24 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
 
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
-                <div class="flex justify-between items-center mb-8">
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
                     <div>
-                        <h2 class="font-display text-3xl font-bold text-brand-dark">Gestión de Envíos</h2>
-                        <p class="text-slate-500 text-sm">Administra el flujo de despacho y retiro de órdenes online y Discogs.</p>
+                        <h2 class="font-display text-3xl font-bold text-brand-dark">Envíos y Logística</h2>
+                        <p class="text-slate-500 text-sm">Bandeja de trabajo Shipmondo y Pickup</p>
                     </div>
-                   <div class="flex gap-4">
-                        <div class="bg-indigo-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-500/20 flex items-center gap-4">
-                            <i class="ph-fill ph-hand-coins text-2xl opacity-80"></i>
+                    <div class="flex flex-wrap gap-3">
+                        <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+                            <i class="ph-fill ph-hand-coins text-indigo-500 text-2xl"></i>
                             <div>
-                                <p class="text-[10px] text-indigo-100 font-bold uppercase leading-none mb-1">Dinero Envíos (Aprox)</p>
-                                <p class="text-2xl font-display font-bold">${this.formatCurrency(this.state.sales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Envíos (aprox)</p>
+                                <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(this.state.sales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
                             </div>
                         </div>
-                        <div class="bg-white px-4 py-2 rounded-xl shadow-sm border border-orange-100 flex items-center gap-3">
-                            <i class="ph-fill ph-clock text-brand-orange text-xl"></i>
+                        <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+                            <i class="ph-fill ph-clock text-brand-orange text-2xl"></i>
                             <div>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase leading-none">Pendientes</p>
-                                <p class="text-xl font-display font-bold text-brand-dark">${activePickups.length + activeShipping.length}</p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Pendientes</p>
+                                <p class="text-2xl font-display font-bold text-brand-dark">${activePickups.length + activeShipping.length}</p>
                             </div>
                         </div>
                     </div>
