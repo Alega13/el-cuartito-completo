@@ -310,6 +310,13 @@ const app = {
         expenseFilterMonths: [new Date().getMonth()],
         expenseCategoryFilter: 'all',
         expenseWizard: null,
+        incomeFilterYear: new Date().getFullYear(),
+        incomeFilterMonths: [new Date().getMonth()],
+        incomeSearch: '',
+        incomeCategoryFilter: 'all',
+        incomeUninvoicedOnly: false,
+        showIncomeForm: false,
+        invoicePrefill: null,
         events: [],
         selectedDate: new Date(),
         vatActive: false,
@@ -1465,6 +1472,8 @@ const app = {
     renderFacturasManual(container) {
         // Load existing manual invoices from state
         const manualInvoices = (this.state.contabilidadInvoices || []).filter(i => i.channel === 'manual' || i.isManual);
+        const prefill = this.state.invoicePrefill || null;
+        const pesc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
         const html = `
             <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
@@ -1473,27 +1482,39 @@ const app = {
                     subtitle: 'Facturas manuales para eventos, servicios y otros'
                 })}
 
+                ${prefill ? `
+                <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0"><i class="ph-bold ph-file-plus text-lg text-blue-600"></i></div>
+                        <div>
+                            <p class="text-sm font-bold text-blue-900">Generando factura desde ingreso extra</p>
+                            <p class="text-xs text-blue-600">${pesc(prefill.description || '')}${prefill.amount !== '' && prefill.amount != null ? ' · ' + this.formatCurrency(Number(prefill.amount) || 0) : ''}</p>
+                        </div>
+                    </div>
+                    <button onclick="app.cancelInvoicePrefill()" class="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap">Cancelar</button>
+                </div>` : ''}
+
                 <!-- Invoice Form -->
                 <form id="manual-invoice-form" onsubmit="app.submitManualInvoice(event)" class="bg-white rounded-3xl shadow-sm border border-orange-100 p-8 mb-8">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <!-- Customer Name -->
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Nombre del Cliente *</label>
-                            <input type="text" name="customerName" required placeholder="Ej: København Festival A/S" 
+                            <input type="text" name="customerName" required placeholder="Ej: København Festival A/S" value="${pesc(prefill?.customerName)}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
                         </div>
 
                         <!-- Customer VAT -->
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">VAT / CVR del Cliente</label>
-                            <input type="text" name="customerVAT" placeholder="Ej: DK12345678"
+                            <input type="text" name="customerVAT" placeholder="Ej: DK12345678" value="${pesc(prefill?.customerVAT)}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
                         </div>
 
                         <!-- Customer Address -->
                         <div class="md:col-span-2">
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Dirección del Cliente</label>
-                            <input type="text" name="customerAddress" placeholder="Ej: Vesterbrogade 100, 1620 København V, Denmark"
+                            <input type="text" name="customerAddress" placeholder="Ej: Vesterbrogade 100, 1620 København V, Denmark" value="${pesc(prefill?.customerAddress)}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
                         </div>
 
@@ -1501,14 +1522,14 @@ const app = {
                         <div class="md:col-span-2">
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Descripción del Servicio *</label>
                             <textarea name="description" required rows="3" placeholder="Ej: DJ Set para evento privado — 4 horas, incluyendo equipo de sonido"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark resize-none"></textarea>
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark resize-none">${pesc(prefill?.description)}</textarea>
                         </div>
 
                         <!-- Amount -->
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Precio Total (DKK) *</label>
                             <div class="relative">
-                                <input type="number" name="amount" required step="0.01" min="0" placeholder="5000"
+                                <input type="number" name="amount" required step="0.01" min="0" placeholder="5000" value="${prefill?.amount ?? ''}"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-bold text-xl text-brand-dark">
                                 <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
                             </div>
@@ -1518,7 +1539,7 @@ const app = {
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Heraf Moms / VAT (DKK)</label>
                             <div class="relative">
-                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="1000"
+                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="1000" value="${prefill?.vatAmount ?? ''}"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
                                 <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
                             </div>
@@ -1528,7 +1549,7 @@ const app = {
                         <!-- Date -->
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Fecha de Factura *</label>
-                            <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
+                            <input type="date" name="date" required value="${pesc(prefill?.date) || new Date().toISOString().split('T')[0]}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
                         </div>
 
@@ -1536,10 +1557,10 @@ const app = {
                         <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Método de Pago</label>
                             <select name="paymentMethod" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                                <option value="Transfer">Transferencia Bancaria</option>
-                                <option value="MobilePay">MobilePay</option>
-                                <option value="CASH">Efectivo / Cash</option>
-                                <option value="CARD">Tarjeta / Card</option>
+                                <option value="Transfer" ${(prefill?.paymentMethod || 'Transfer') === 'Transfer' ? 'selected' : ''}>Transferencia Bancaria</option>
+                                <option value="MobilePay" ${prefill?.paymentMethod === 'MobilePay' ? 'selected' : ''}>MobilePay</option>
+                                <option value="CASH" ${prefill?.paymentMethod === 'CASH' ? 'selected' : ''}>Efectivo / Cash</option>
+                                <option value="CARD" ${prefill?.paymentMethod === 'CARD' ? 'selected' : ''}>Tarjeta / Card</option>
                             </select>
                         </div>
                     </div>
@@ -1665,6 +1686,16 @@ const app = {
             return;
         }
 
+        // Guard anti-doble-facturación: si viene de un ingreso ya facturado, bloquear
+        const _prefill = this.state.invoicePrefill;
+        if (_prefill && _prefill.extraIncomeId) {
+            const _inc = (this.state.extraIncome || []).find(x => x.id === _prefill.extraIncomeId);
+            if (_inc && _inc.invoiced) {
+                this.showToast('⚠️ Este ingreso ya fue facturado', 'error');
+                return;
+            }
+        }
+
         btn.disabled = true;
         btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Generando...';
 
@@ -1685,6 +1716,22 @@ const app = {
             }
 
             const result = await resp.json();
+
+            // Flujo desde Ingresos Extra: vincular la factura al ingreso y volver
+            const _pf = this.state.invoicePrefill;
+            if (_pf && _pf.extraIncomeId) {
+                await this.markExtraIncomeInvoiced(_pf.extraIncomeId, result.invoiceNumber);
+                this.state.invoicePrefill = null;
+                if (result.downloadUrl) window.open(result.downloadUrl, '_blank');
+                this.showToast(`✅ Factura ${result.invoiceNumber} generada y vinculada al ingreso`);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph-bold ph-file-pdf"></i> Generar Factura PDF';
+                // Reload manual invoices list y volver a Ingresos Extra con el badge actualizado
+                this.state.manualInvoicesLoaded = false;
+                this.loadManualInvoices();
+                this.navigate('extraIncome');
+                return;
+            }
 
             // Show success result
             const resultDiv = document.getElementById('manual-invoice-result');
@@ -1715,52 +1762,144 @@ const app = {
     // ── Ingresos Extra (Extra Income) ─────────────────────────────────
 
     renderExtraIncome(container) {
-        const extraIncomeList = this.state.extraIncome || [];
-        const totalAmount = extraIncomeList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-        const totalVat = extraIncomeList.reduce((sum, e) => sum + (Number(e.vatAmount) || 0), 0);
+        const allIncome = this.state.extraIncome || [];
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-        const categoryLabel = (cat) => {
-            const map = { event: '🎵 Evento', service: '🔧 Servicio', other: '📦 Otro' };
-            return map[cat] || cat;
+        // Período propio de la vista (no pisa filtros globales)
+        const fYear = this.state.incomeFilterYear ?? new Date().getFullYear();
+        const fMonths = this.state.incomeFilterMonths ?? [new Date().getMonth()];
+        const periodIncome = allIncome.filter(e => {
+            if (!e.date) return false;
+            const d = new Date(e.date + 'T00:00:00');
+            return d.getFullYear() === fYear && fMonths.includes(d.getMonth());
+        });
+        const periodLabel = fMonths.length === 12 ? `Todo ${fYear}` : `${fMonths.map(m => monthNames[m]).join(', ')} ${fYear}`;
+
+        // KPIs del período
+        const kpiTotal = periodIncome.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+        const kpiVat = periodIncome.reduce((s, e) => s + (Number(e.vatAmount) || 0), 0);
+        const pendingList = periodIncome.filter(e => !e.invoiced);
+        const pendingCount = pendingList.length;
+        const pendingAmount = pendingList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+        // Filtros de tabla
+        const searchTerm = (this.state.incomeSearch || '').toLowerCase();
+        const catFilter = this.state.incomeCategoryFilter || 'all';
+        const uninvoicedOnly = !!this.state.incomeUninvoicedOnly;
+        const filtered = periodIncome.filter(e => {
+            if (uninvoicedOnly && e.invoiced) return false;
+            if (catFilter !== 'all' && (e.category || '') !== catFilter) return false;
+            if (searchTerm) {
+                const hay = `${e.description || ''} ${e.clientName || ''} ${e.category || ''}`.toLowerCase();
+                if (!hay.includes(searchTerm)) return false;
+            }
+            return true;
+        }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        const categoryBadge = (cat) => {
+            const map = {
+                event: { label: 'Evento', cls: 'bg-violet-100 text-violet-700' },
+                service: { label: 'Servicio', cls: 'bg-blue-100 text-blue-700' },
+                other: { label: 'Otro', cls: 'bg-slate-100 text-slate-600' },
+            };
+            const c = map[cat] || { label: cat || '—', cls: 'bg-slate-100 text-slate-600' };
+            return `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${c.cls} whitespace-nowrap">${c.label}</span>`;
         };
+        const invoiceBadge = (e) => e.invoiced
+            ? `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">Facturado${e.invoiceNumber ? ' #' + esc(e.invoiceNumber) : ''}</span>`
+            : `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">Pendiente</span>`;
 
-        const rows = extraIncomeList.map(e => `
+        const rows = filtered.map(e => `
             <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-4 text-sm text-slate-600">${e.date || '-'}</td>
-                <td class="py-3 px-4 text-sm font-medium text-brand-dark">${e.description || '-'}</td>
-                <td class="py-3 px-4"><span class="text-xs font-bold px-2 py-1 rounded-full bg-orange-100 text-orange-700">${categoryLabel(e.category)}</span></td>
-                <td class="py-3 px-4 text-sm font-bold text-brand-dark text-right">${Number(e.amount).toFixed(2)} DKK</td>
-                <td class="py-3 px-4 text-sm text-slate-500 text-right">${Number(e.vatAmount || 0).toFixed(2)} DKK</td>
-                <td class="py-3 px-4 text-sm text-slate-400">${e.paymentMethod || 'Transfer'}</td>
-                <td class="py-3 px-4 text-center">
-                    <button onclick="app.deleteExtraIncome('${e.id}')" class="text-red-400 hover:text-red-600 transition-colors" title="Eliminar">
-                        <i class="ph-bold ph-trash text-lg"></i>
-                    </a>
+                <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${esc(e.date) || '—'}</td>
+                <td class="py-3 px-4 text-sm font-medium text-brand-dark">${esc(e.clientName) || '<span class="text-slate-300">—</span>'}</td>
+                <td class="py-3 px-4 text-sm text-slate-600 max-w-[220px] truncate" title="${esc(e.description)}">${esc(e.description) || '—'}</td>
+                <td class="py-3 px-4">${categoryBadge(e.category)}</td>
+                <td class="py-3 px-4 text-sm font-bold text-brand-dark text-right whitespace-nowrap">${this.formatCurrency(Number(e.amount) || 0)}</td>
+                <td class="py-3 px-4 text-sm text-slate-500 text-right whitespace-nowrap">${this.formatCurrency(Number(e.vatAmount) || 0)}</td>
+                <td class="py-3 px-4">${invoiceBadge(e)}</td>
+                <td class="py-3 px-4">
+                    <div class="flex items-center justify-center gap-1">
+                        ${e.invoiced
+                            ? `<button onclick="app.navigate('facturasManual')" class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1.5 transition-colors" title="Ver factura ${esc(e.invoiceNumber || '')}">
+                                <i class="ph-bold ph-file-text"></i> Ver
+                               </button>`
+                            : `<button onclick="app.invoiceFromExtraIncome('${e.id}')" class="flex items-center gap-1.5 text-[11px] font-bold text-white bg-brand-dark hover:bg-slate-800 rounded-lg px-2.5 py-1.5 transition-colors" title="Generar factura desde este ingreso">
+                                <i class="ph-bold ph-file-plus"></i> Facturar
+                               </button>`}
+                        <button onclick="app.deleteExtraIncome('${e.id}')" class="w-8 h-8 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors" title="Eliminar">
+                            <i class="ph-bold ph-trash text-base"></i>
+                        </button>
+                    </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`).join('');
+
+        const showForm = !!this.state.showIncomeForm;
 
         container.innerHTML = `
-            <div class="max-w-5xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
                 ${this.sectionHeader({
                     title: 'Ingresos Extra',
-                    subtitle: 'Eventos, servicios y otros conceptos no relacionados con ventas de discos'
+                    subtitle: 'Eventos, servicios y otros conceptos no relacionados con ventas de discos',
+                    primary: { label: 'Registrar ingreso', icon: 'ph-plus', onclick: 'app.toggleIncomeForm()' }
                 })}
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div class="flex gap-3">
-                        <div class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl px-5 py-3 text-center">
-                            <p class="text-[10px] font-bold text-green-600 uppercase tracking-wider">Total Ingresos</p>
-                            <p class="text-xl font-black text-green-700">${totalAmount.toFixed(2)} DKK</p>
+
+                <!-- Selector de período -->
+                <div class="flex flex-wrap items-center gap-3 mb-6">
+                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
+                        <select onchange="app.setIncomeFilterYear(this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
+                            <option value="2026" ${fYear === 2026 ? 'selected' : ''}>2026</option>
+                            <option value="2025" ${fYear === 2025 ? 'selected' : ''}>2025</option>
+                        </select>
+                        <div class="h-6 w-px bg-slate-100 mx-1"></div>
+                        <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
+                            <button onclick="app.setIncomeFilterMonthsAll()"
+                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                Todo
+                            </button>
+                            ${monthNames.map((m, i) => `
+                                <button onclick="app.toggleIncomeMonth(${i})"
+                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
+                                    ${m}
+                                </button>
+                            `).join('')}
                         </div>
-                        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl px-5 py-3 text-center">
-                            <p class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Total VAT</p>
-                            <p class="text-xl font-black text-blue-700">${totalVat.toFixed(2)} DKK</p>
+                    </div>
+                    <p class="text-xs text-slate-400">Período: <span class="font-bold text-brand-dark">${periodLabel}</span></p>
+                </div>
+
+                <!-- KPIs del período -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-wallet"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del período</span>
                         </div>
+                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(kpiTotal)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${periodIncome.length} ingreso${periodIncome.length === 1 ? '' : 's'}</p>
+                    </div>
+                    <button onclick="app.toggleIncomeUninvoiced()" class="text-left bg-white p-5 rounded-2xl border ${pendingCount > 0 ? 'border-amber-200' : 'border-slate-100'} shadow-sm hover:shadow-md hover:border-amber-300 transition-all">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-file-text"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pendiente de facturar</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold ${pendingCount > 0 ? 'text-amber-600' : 'text-emerald-600'}">${pendingCount}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">${pendingCount > 0 ? this.formatCurrency(pendingAmount) + ' · clic para filtrar' : 'Todo facturado'}</p>
+                    </button>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600"><i class="ph-bold ph-percent"></i></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA del período</span>
+                        </div>
+                        <p class="text-2xl font-display font-bold text-emerald-600">${this.formatCurrency(kpiVat)}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Del período seleccionado</p>
                     </div>
                 </div>
 
-                <!-- Add Form -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+                ${showForm ? `
+                <!-- Formulario de alta (colapsable) -->
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
                     <h2 class="text-lg font-bold text-brand-dark mb-4">Registrar Nuevo Ingreso</h2>
                     <form onsubmit="app.addExtraIncome(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
@@ -1769,12 +1908,18 @@ const app = {
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
                         </div>
                         <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Cliente / Organizador</label>
+                            <input type="text" name="clientName" placeholder="Ej: Jolene Bar"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
+                            <p class="text-[10px] text-slate-400 mt-1">Se usa para pre-cargar la factura.</p>
+                        </div>
+                        <div>
                             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Categoría *</label>
                             <select name="category" required
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                                <option value="event">🎵 Evento</option>
-                                <option value="service">🔧 Servicio</option>
-                                <option value="other">📦 Otro</option>
+                                <option value="event">Evento</option>
+                                <option value="service">Servicio</option>
+                                <option value="other">Otro</option>
                             </select>
                         </div>
                         <div>
@@ -1809,38 +1954,64 @@ const app = {
                                 <option value="Card">Tarjeta</option>
                             </select>
                         </div>
-                        <div class="md:col-span-2 lg:col-span-3 flex justify-end">
+                        <div class="md:col-span-2 lg:col-span-3 flex justify-end gap-2">
+                            <button type="button" onclick="app.toggleIncomeForm()"
+                                class="px-6 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors text-sm">Cancelar</button>
                             <button type="submit"
-                                class="bg-gradient-to-r from-brand-orange to-orange-500 text-white font-bold py-3 px-8 rounded-xl hover:shadow-lg hover:shadow-orange-200 transition-all">
+                                class="bg-brand-dark text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-800 transition-colors text-sm flex items-center gap-2">
                                 <i class="ph-bold ph-plus-circle"></i> Registrar Ingreso
-                            </a>
+                            </button>
                         </div>
                     </form>
                 </div>
+                ` : ''}
 
-                <!-- List -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-slate-100">
-                        <h2 class="text-lg font-bold text-brand-dark">Historial de Ingresos Extra</h2>
+                <!-- Filtros: mismo patrón de pills que Inventario/Ventas -->
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <div class="relative flex-1 min-w-[220px]">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="income-search-input"
+                            value="${esc(this.state.incomeSearch)}"
+                            oninput="app.setIncomeSearch(this.value)"
+                            placeholder="Buscar por descripción o cliente..."
+                            class="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-full focus:outline-none focus:border-brand-orange shadow-sm text-sm">
                     </div>
-                    ${extraIncomeList.length === 0 ? `
-                        <div class="p-12 text-center text-slate-400">
-                            <i class="ph-duotone ph-coins text-5xl mb-3"></i>
-                            <p class="font-medium">No hay ingresos extra registrados</p>
-                            <p class="text-sm mt-1">Usa el formulario de arriba para agregar uno.</p>
+                    <div class="filter-chip ${catFilter !== 'all' ? 'active' : ''}" title="Filtrar por categoría">
+                        <i class="ph-bold ph-tag text-xs"></i>
+                        <select onchange="app.setIncomeCategoryFilter(this.value)">
+                            <option value="all">Todas las categorías</option>
+                            <option value="event" ${catFilter === 'event' ? 'selected' : ''}>Evento</option>
+                            <option value="service" ${catFilter === 'service' ? 'selected' : ''}>Servicio</option>
+                            <option value="other" ${catFilter === 'other' ? 'selected' : ''}>Otro</option>
+                        </select>
+                    </div>
+                    <button onclick="app.toggleIncomeUninvoiced()" class="quick-pill ${uninvoicedOnly ? 'active' : ''}" title="Mostrar solo ingresos sin facturar">
+                        <i class="ph-bold ph-file-text text-xs"></i> Sin facturar
+                        ${pendingCount > 0 ? `<span class="w-5 h-5 rounded-full ${uninvoicedOnly ? 'bg-white/30' : 'bg-amber-100 text-amber-700'} flex items-center justify-center text-[10px] font-bold">${pendingCount}</span>` : ''}
+                    </button>
+                </div>
+
+                <!-- Tabla -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    ${filtered.length === 0 ? `
+                        <div class="p-12 text-center">
+                            <i class="ph-duotone ph-coins text-5xl text-slate-200 mb-3 block"></i>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sin ingresos registrados</p>
+                            <p class="text-sm text-slate-400 mt-1">Usá "Registrar ingreso" para agregar uno.</p>
                         </div>
                     ` : `
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead>
-                                    <tr class="bg-slate-50">
+                                    <tr class="bg-slate-50 border-b border-slate-100">
                                         <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha</th>
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente</th>
                                         <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Descripción</th>
                                         <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Categoría</th>
                                         <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto</th>
                                         <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT</th>
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pago</th>
-                                        <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider"></th>
+                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facturación</th>
+                                        <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>${rows}</tbody>
@@ -1859,6 +2030,7 @@ const app = {
 
         const data = {
             description: formData.get('description'),
+            clientName: (formData.get('clientName') || '').trim(),
             category: formData.get('category'),
             amount: parseFloat(formData.get('amount')),
             vatAmount: formData.get('vatAmount') ? parseFloat(formData.get('vatAmount')) : 0,
@@ -1870,6 +2042,7 @@ const app = {
         try {
             await db.collection('extra_income').add(data);
             this.showToast('✅ Ingreso extra registrado correctamente');
+            this.state.showIncomeForm = false;
             // Reload and re-render
             const snap = await db.collection('extra_income').get();
             this.state.extraIncome = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1900,6 +2073,11 @@ const app = {
 
         // Blueprint Sec 04: los drill-downs del dashboard no quedan pegados al navegar a otra pantalla
         if (view !== 'expenses') this.state.expenseMissingReceiptOnly = false;
+
+        // El prefill de factura desde ingreso extra solo vive en Generar Factura
+        if (view !== 'facturasManual') this.state.invoicePrefill = null;
+        // El filtro "solo sin facturar" no queda pegado al navegar a otra pantalla
+        if (view !== 'extraIncome') this.state.incomeUninvoicedOnly = false;
 
         // Update UI Active States
         document.querySelectorAll('.nav-item, .nav-item-m').forEach(el => {
@@ -10183,6 +10361,83 @@ const app = {
     toggleExpenseMissingReceipt() {
         this.state.expenseMissingReceiptOnly = !this.state.expenseMissingReceiptOnly;
         this.refreshCurrentView();
+    },
+
+    // --- Filtros propios de Ingresos Extra ---
+    toggleIncomeMonth(i) {
+        const arr = this.state.incomeFilterMonths;
+        const ix = arr.indexOf(i);
+        if (ix >= 0) { if (arr.length > 1) arr.splice(ix, 1); }
+        else arr.push(i);
+        arr.sort((a, b) => a - b);
+        this.refreshCurrentView();
+    },
+
+    setIncomeFilterMonthsAll() {
+        this.state.incomeFilterMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        this.refreshCurrentView();
+    },
+
+    setIncomeFilterYear(y) {
+        this.state.incomeFilterYear = Number(y);
+        this.refreshCurrentView();
+    },
+
+    setIncomeSearch(v) {
+        this.state.incomeSearch = v;
+        this.refreshCurrentView();
+        const el = document.getElementById('income-search-input');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    },
+
+    setIncomeCategoryFilter(v) {
+        this.state.incomeCategoryFilter = v;
+        this.refreshCurrentView();
+    },
+
+    toggleIncomeUninvoiced() {
+        this.state.incomeUninvoicedOnly = !this.state.incomeUninvoicedOnly;
+        this.refreshCurrentView();
+    },
+
+    toggleIncomeForm() {
+        this.state.showIncomeForm = !this.state.showIncomeForm;
+        this.refreshCurrentView();
+    },
+
+    // --- Factura desde ingreso extra ---
+    invoiceFromExtraIncome(id) {
+        const e = (this.state.extraIncome || []).find(x => x.id === id);
+        if (!e) return;
+        if (e.invoiced) { this.navigate('facturasManual'); return; }
+        const pmMap = { Transfer: 'Transfer', MobilePay: 'MobilePay', Cash: 'CASH', Card: 'CARD' };
+        this.state.invoicePrefill = {
+            extraIncomeId: e.id,
+            customerName: e.clientName || '',
+            description: e.description || '',
+            amount: e.amount ?? '',
+            vatAmount: e.vatAmount ?? '',
+            date: e.date || new Date().toISOString().split('T')[0],
+            paymentMethod: pmMap[e.paymentMethod] || 'Transfer',
+        };
+        this.navigate('facturasManual');
+        this.showToast('Datos del ingreso cargados en la factura');
+    },
+
+    cancelInvoicePrefill() {
+        this.state.invoicePrefill = null;
+        this.refreshCurrentView();
+    },
+
+    async markExtraIncomeInvoiced(id, invoiceNumber) {
+        try {
+            await db.collection('extra_income').doc(id).update({ invoiced: true, invoiceNumber: invoiceNumber || '' });
+            const e = (this.state.extraIncome || []).find(x => x.id === id);
+            if (e) { e.invoiced = true; e.invoiceNumber = invoiceNumber || ''; }
+        } catch (err) {
+            console.error('Error marcando ingreso como facturado:', err);
+            this.showToast('⚠️ Factura generada, pero no se pudo marcar el ingreso', 'error');
+        }
     },
 
     setExpenseCategoryFilter(v) {
