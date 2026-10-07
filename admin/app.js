@@ -10358,6 +10358,8 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         // Reset file upload
         document.getElementById('receipt-url').value = '';
         document.getElementById('receipt-file').value = '';
+        const noReceiptBox = document.getElementById('expense-no-receipt');
+        if (noReceiptBox) noReceiptBox.checked = false; // Blueprint Sec 09
         document.getElementById('upload-placeholder').classList.remove('hidden');
         document.getElementById('upload-preview').classList.add('hidden');
         document.getElementById('receipt-preview-img').src = '';
