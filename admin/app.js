@@ -403,6 +403,45 @@ const api = {
         if (!response.ok) throw new Error(await response.text());
         return response.json();
     },
+
+    async setLabelCreated(saleId, { trackingNumber, carrier = '', labelUrl = '' }) {
+        const idToken = await auth.currentUser.getIdToken();
+        const response = await fetch(`${BASE_API_URL}/sales/${saleId}/label-created`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ trackingNumber, carrier, labelUrl })
+        });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+    },
+
+    async notifyCustomer(saleId, type) {
+        const idToken = await auth.currentUser.getIdToken();
+        const response = await fetch(`${BASE_API_URL}/sales/${saleId}/notify`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ type })
+        });
+        if (!response.ok) throw new Error(await response.text());
+        return response.json();
+    },
+
+    async buyShipmondoLabel({ orderId, productCode, servicePointId, shipment, testMode = true }) {
+        const response = await fetch(`${BASE_API_URL}/api/shipmondo/shipments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, productCode, servicePointId, shipment, testMode })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        return data;
+    },
 };
 
 const app = {
@@ -7997,6 +8036,7 @@ const app = {
                 'preparing': { icon: 'ph-package', color: 'bg-blue-100 text-blue-600', label: 'En Preparación' },
                 'ready_for_pickup': { icon: 'ph-storefront', color: 'bg-emerald-100 text-emerald-600', label: 'Listo para Retiro' },
                 'in_transit': { icon: 'ph-truck', color: 'bg-orange-100 text-orange-600', label: 'En Tránsito' },
+                'label_created': { icon: 'ph-tag', color: 'bg-blue-100 text-blue-700', label: 'Etiqueta Creada' },
                 'shipped': { icon: 'ph-archive', color: 'bg-green-100 text-green-600', label: 'Despachado' },
                 'picked_up': { icon: 'ph-check-circle', color: 'bg-green-100 text-green-600', label: 'Retirado' },
                 'completed': { icon: 'ph-check-circle', color: 'bg-green-100 text-green-600', label: 'Confirmado' },
@@ -13123,6 +13163,41 @@ const app = {
         container.innerHTML = html;
     },
 
+    // "Avisar al cliente": envía el email del estado indicado vía Resend (endpoint
+    // POST /sales/:id/notify). No cambia el estado del envío. Muestra aviso si
+    // la venta no tiene email del cliente.
+    async notifyCustomerUI(saleId, type, btn) {
+        const labels = {
+            preparing: 'tu pedido está en preparación',
+            label_created: 'tu etiqueta fue creada',
+            shipped: 'tu paquete fue despachado',
+            pickup_ready: 'tu paquete está listo para recoger'
+        };
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        const ci = sale ? this.getCustomerInfo(sale) : {};
+        if (!ci.email) {
+            this.showToast('⚠️ Esta venta no tiene email del cliente', 'error');
+            return;
+        }
+        const originalHtml = btn ? btn.innerHTML : '';
+        try {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Enviando...';
+            }
+            await api.notifyCustomer(saleId, type);
+            this.showToast(`✅ Cliente notificado: ${labels[type] || type}`);
+        } catch (e) {
+            console.error('notifyCustomerUI:', e);
+            this.showToast('Error al notificar: ' + (e.message || e), 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    },
+
     async setReadyForPickup(id, event) {
         try {
             const currentEvent = event || window.event;
@@ -14415,7 +14490,7 @@ const app = {
         const fs = (s.fulfillment_status || '').toLowerCase();
         const closed = ['shipped', 'picked_up', 'delivered', 'fulfilled', 'canceled'];
         if (!closed.includes(fs) && this.getShippingIssues(s).length > 0) return 'excepcion';
-        if (['preparing', 'ready_for_pickup', 'in_transit'].includes(fs)) return 'etiqueta';
+        if (['preparing', 'ready_for_pickup', 'in_transit', 'label_created'].includes(fs)) return 'etiqueta';
         if (closed.includes(fs)) return 'despachado';
         return 'preparar';
     },
@@ -14448,23 +14523,35 @@ const app = {
                 </div>
             </div>` : '';
 
-        // Acción contextual según la columna (patrón fulfillment por pasos)
+        // Acción contextual según la columna/estado.
+        // Patrón: avance de estado = botón primario sólido; "Avisar al cliente" =
+        // botón secundario outline con campana (usa Resend, no cambia el estado).
+        const notifyBtn = (type) => `
+            <button onclick="event.stopPropagation();app.notifyCustomerUI('${s.id}', '${type}', this)"
+                class="w-full mt-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-500 text-xs font-bold hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
+                <i class="ph-bold ph-bell-ringing"></i>Avisar al cliente
+            </button>`;
         let actionBtn = '';
         if (col === 'preparar') {
-            actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`;
+            actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`
+                + notifyBtn('preparing');
         } else if (col === 'etiqueta') {
             if (isPickup && fs === 'ready_for_pickup') {
                 actionBtn = `<button onclick="app.markPickedUpDiscogs('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-check-circle"></i>Confirmar recogida</button>`;
             } else if (isPickup) {
-                actionBtn = `<button onclick="app.setReadyForPickup('${s.id}', event)" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-bell-ringing"></i>Lista para retiro</button>`;
+                actionBtn = `<button onclick="app.setReadyForPickup('${s.id}', event)" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-bell-ringing"></i>Marcar listo para retiro</button>`;
+            } else if (fs === 'label_created') {
+                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
+                    + notifyBtn('label_created');
+            } else if (fs === 'in_transit') {
+                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
+                    + notifyBtn('shipped');
             } else {
-                actionBtn = `
-                <div class="mt-3 space-y-2">
-                    <input type="text" id="track-${s.id}" placeholder="Tracking # (opcional)" value="${s.tracking_number || ''}"
-                        class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono" onclick="event.stopPropagation()">
-                    <button onclick="app.shipOrderFromKanban('${s.id}', 'track-${s.id}')" class="w-full px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>
-                </div>`;
+                actionBtn = `<button onclick="app.openLabelModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-tag"></i>Generar etiqueta</button>`
+                    + notifyBtn('preparing');
             }
+        } else if (col === 'despachado' && fs === 'shipped') {
+            actionBtn = notifyBtn('shipped');
         } else if (col === 'excepcion') {
             actionBtn = `<button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-warning-circle"></i>Resolver problema</button>`;
         }
@@ -14503,7 +14590,14 @@ const app = {
                 </span>
             </div>
             ${customerBlock}
+            ${fs === 'label_created' && s.tracking_number ? `
+            <div class="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-2.5 py-1.5">
+                <i class="ph-bold ph-barcode text-blue-500"></i>
+                <span class="text-[11px] font-mono font-bold text-blue-800 truncate">${s.tracking_number}</span>
+                ${s.label_carrier ? `<span class="text-[10px] font-bold text-blue-400 uppercase ml-auto shrink-0">${s.label_carrier}</span>` : ''}
+            </div>` : ''}
             ${(!isPickup && col !== "despachado") ? this.ecPreflightBlock(s) : ""}
+            ${(isPickup && col !== "despachado") ? `<div data-quote-section="${s.id}"></div>` : ""}
             ${issues.length > 0 ? `<div class="mt-3 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
             ${actionBtn}
             <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
@@ -14682,12 +14776,6 @@ const app = {
                 ${ui.customs ? "" : `<button onclick="app.openQuickFixModal('${s.id}', 'customs')" class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 underline hover:text-amber-900">Completar</button>`}
             </div>` : ""}
             <div data-quote-section="${s.id}"></div>
-            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-3 mb-2">Etiqueta</div>
-            <button ${canGo ? "" : "disabled"} title="${canGo ? "Generar etiqueta en Shipmondo" : "Faltan datos: " + firstBlocker}"
-                onclick="app.ecGenerateLabel('${s.id}')"
-                class="w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canGo ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
-                <i class="ph-bold ph-tag"></i>Generar Etiqueta
-            </button>
         </div>`;
     },
 
@@ -15344,45 +15432,9 @@ const app = {
     },
 
     /* Generar Etiqueta: barrera pre-flight + payload listo (sin fetch real todavía) */
+    // Alias legacy: el punto único de entrada es openLabelModal
     ecGenerateLabel(saleId) {
-        const sale = (this.state.sales || []).find(s => s.id === saleId);
-        if (!sale) return;
-        const ui = this.ecShipUI(saleId);
-        const input = this.ecBuildShipmentInput(sale, ui);
-
-        // Barrera de seguridad: ningún fetch sale con bloqueadores pendientes
-        if (!ecCanGenerateLabel(input)) {
-            const b = ecValidateShipment(input);
-            this.showToast("⚠️ Faltan datos: " + (b[0] ? b[0].message : ""));
-            return;
-        }
-
-        const payload = ecBuildShipmondoPayload(sale, input);
-        const pretty = JSON.stringify(payload, null, 2).replace(/</g, "&lt;");
-
-        // TODO(API): integración directa con Shipmondo — el fetch vive detrás de la barrera:
-        // if (!ecCanGenerateLabel(input)) return; // pre-flight: 0% error
-        // const res = await fetch("https://api.shipmondo.com/v1/shipments", {
-        //   method: "POST",
-        //   headers: { "Content-Type": "application/json", "Authorization": "Bearer <API_KEY>" },
-        //   body: JSON.stringify(payload),
-        // });
-
-        const html = `
-        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
-            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-shield-check text-emerald-600"></i>Pre-Flight OK · Payload Shipmondo</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · validación 100% superada · copiá el JSON o generá la etiqueta en Shipmondo</p>
-                <pre id="ec-payload-pre" class="bg-slate-900 text-emerald-300 text-[11px] leading-relaxed rounded-xl p-4 overflow-x-auto max-h-72 overflow-y-auto font-mono">${pretty}</pre>
-                <div class="flex justify-end gap-2 mt-5">
-                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cerrar</button>
-                    <button onclick="app.ecCopyPayload()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors flex items-center gap-1.5"><i class="ph-bold ph-copy"></i>Copiar JSON</button>
-                    <a href="https://app.shipmondo.com/" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-1.5"><i class="ph-bold ph-arrow-square-out"></i>Abrir Shipmondo</a>
-                </div>
-                <p class="text-[10px] text-slate-400 mt-3">TODO(API): al integrar la API directa, el fetch va detrás de <span class="font-mono">if (!ecCanGenerateLabel(input)) return;</span></p>
-            </div>
-        </div>`;
-        document.body.insertAdjacentHTML("beforeend", html);
+        return this.openLabelModal(saleId);
     },
 
     ecCopyPayload() {
@@ -15474,6 +15526,27 @@ const app = {
     renderQuoteSection(saleId) {
         const el = document.querySelector(`[data-quote-section="${saleId}"]`);
         if (!el) return;
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        // LOCAL PICKUP: el costo es 0 kr — tarjeta estática, sin llamar a Shipmondo
+        if (sale && this.isPickupOrder(sale)) {
+            el.innerHTML = `
+            <div class="mt-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" onclick="event.stopPropagation()">
+                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <i class="ph-bold ph-tag"></i>Cotización
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2.5">
+                        <i class="ph-bold ph-storefront text-emerald-600 text-lg"></i>
+                        <div>
+                            <p class="text-xs font-extrabold text-brand-dark">Retiro en tienda</p>
+                            <p class="text-[11px] text-slate-500">El cliente pasa a buscarlo</p>
+                        </div>
+                    </div>
+                    <p class="text-base font-extrabold text-emerald-700 whitespace-nowrap">0,00 kr</p>
+                </div>
+            </div>`;
+            return;
+        }
         const st = this.ecQuoteUI(saleId);
         const head = `
             <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
@@ -15636,7 +15709,27 @@ const app = {
     },
 
     /* Compra final: la barrera del Pre-Flight completo va ANTES de cualquier acción */
+    // Punto de entrada del botón "Comprar Etiqueta — X kr." de la cotización
     buyLabel(saleId) {
+        return this.openLabelModal(saleId);
+    },
+
+    // Extrae el tracking de la respuesta cruda de Shipmondo (forma defensiva:
+    // la API devuelve el objeto nativo sin normalizar)
+    ecExtractTracking(res) {
+        const r = (res && res.shipment) || res || {};
+        return r.tracking_number || r.trackingNumber || r.tracking_code || r.trackingCode
+            || r.consignment_number || r.consignmentNumber || '';
+    },
+
+    ecExtractLabelUrl(res) {
+        const r = (res && res.shipment) || res || {};
+        return r.label_url || r.labelUrl || r.label_pdf || r.labelPdf || '';
+    },
+
+    // Modal "Generar etiqueta": dos caminos (comprar por API / cargar tracking
+    // manual). Ambos terminan en POST /sales/:id/label-created → "Etiqueta creada".
+    openLabelModal(saleId) {
         const sale = (this.state.sales || []).find(s => s.id === saleId);
         if (!sale) return;
         const ui = this.ecShipUI(saleId);
@@ -15648,42 +15741,140 @@ const app = {
         }
         const st = this.ecQuoteUI(saleId);
         const bs = ecQuoteBuyState(st);
-        if (!bs.ready) {
-            this.showToast("⚠️ Elegí una tarifa" + (bs.needsPoint ? " y un punto de retiro" : "") + " para continuar");
-            return;
-        }
-        const rate = bs.rate;
-        const point = (st.servicePoints || []).find(p => p.id === st.selectedPointId);
-        const payload = ecBuildShipmondoPayload(sale, input);
-        const pretty = JSON.stringify(payload, null, 2).replace(/</g, "&lt;");
-
-        // TODO(API): POST tu-backend/api/shipmondo/shipments con { orderId, productCode, servicePointId?, parcel }
-        // La API key vive SOLO en el backend (proxy). El fetch va detrás de la barrera de arriba.
+        const rate = bs.ready ? bs.rate : null;
 
         const html = `
         <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
-            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-tag text-brand-orange"></i>Comprar Etiqueta</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · validación 100% superada</p>
-                <div class="flex items-center justify-between rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 mb-4">
-                    <div>
+            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-tag text-brand-orange"></i>Generar etiqueta</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · al guardar, el envío pasa a <b>Etiqueta creada</b></p>
+
+                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Comprar por API</div>
+                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 mb-4">
+                    ${rate ? `<div class="flex items-center justify-between mb-3">
                         <p class="text-xs font-extrabold text-brand-dark">${ecEsc(rate.carrierName || rate.carrier)} · ${ecEsc(rate.serviceLabel || "")}</p>
-                        ${point ? `<p class="text-[11px] text-slate-500 mt-0.5">→ ${ecEsc(point.name)}, ${ecEsc(point.address1)}, ${ecEsc(point.zipcode)} ${ecEsc(point.city)}</p>` : ""}
-                        ${rate.deliveryEstimate ? `<p class="text-[11px] text-slate-400">${ecEsc(rate.deliveryEstimate)}</p>` : ""}
+                        <p class="text-base font-extrabold text-brand-dark">${formatDKK(rate.price)}</p>
+                    </div>` : `<p class="text-xs text-slate-500 mb-3">Sin tarifa seleccionada — elegí una en la cotización o cargá el tracking manual abajo.</p>`}
+                    <div class="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 mb-3">
+                        <i class="ph-bold ph-flask-conical text-emerald-600"></i>
+                        <p class="text-[11px] text-emerald-700 font-bold">Modo prueba por defecto — no se gasta plata</p>
                     </div>
-                    <p class="text-lg font-extrabold text-brand-dark whitespace-nowrap">${formatDKK(rate.price)}</p>
+                    <label class="flex items-start gap-2 mb-3 cursor-pointer">
+                        <input type="checkbox" id="label-real-${saleId}" class="mt-0.5 accent-red-600" onclick="event.stopPropagation()">
+                        <span class="text-[11px] text-slate-600"><b>Compra real</b> — genera una etiqueta de verdad y gasta saldo de Shipmondo. Requiere confirmación explícita.</span>
+                    </label>
+                    <button ${rate ? "" : "disabled"} onclick="app.buyLabelViaAPI('${saleId}', this)"
+                        class="w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${rate ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
+                        <i class="ph-bold ph-tag"></i>Comprar etiqueta
+                    </button>
+                    <div id="label-api-result-${saleId}" class="mt-2"></div>
                 </div>
-                <pre id="ec-payload-pre" class="bg-slate-900 text-emerald-300 text-[11px] leading-relaxed rounded-xl p-4 overflow-x-auto max-h-56 overflow-y-auto font-mono">${pretty}</pre>
-                <div class="flex justify-end gap-2 mt-5">
+
+                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">O cargar tracking manual</div>
+                <div class="rounded-xl border border-slate-200 p-4 mb-4 space-y-2">
+                    <p class="text-[11px] text-slate-500">Si la etiqueta se generó a mano en Shipmondo, pegá el código acá.</p>
+                    <input id="lbl-track-${saleId}" placeholder="Código de seguimiento *" onclick="event.stopPropagation()"
+                        class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="lbl-carrier-${saleId}" placeholder="Transportista (ej. DAO)" onclick="event.stopPropagation()"
+                            class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none">
+                        <input id="lbl-url-${saleId}" placeholder="URL/PDF etiqueta (opcional)" onclick="event.stopPropagation()"
+                            class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none">
+                    </div>
+                    <button onclick="app.saveManualTracking('${saleId}', this)"
+                        class="w-full px-3 py-2.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-check"></i>Guardar y marcar etiqueta creada
+                    </button>
+                </div>
+
+                <div class="flex justify-end">
                     <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cerrar</button>
-                    <button onclick="app.ecCopyPayload()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors flex items-center gap-1.5"><i class="ph-bold ph-copy"></i>Copiar JSON</button>
-                    <a href="https://app.shipmondo.com/" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-1.5"><i class="ph-bold ph-arrow-square-out"></i>Abrir Shipmondo</a>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-3">TODO(API): al integrar la API directa, el POST a <span class="font-mono">/api/shipmondo/shipments</span> va detrás de la barrera Pre-Flight de arriba. Hoy la etiqueta se genera manual en Shipmondo.</p>
             </div>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
-        this.showToast(`✅ Etiqueta lista para comprar — ${formatDKK(rate.price)}`);
+    },
+
+    // Compra la etiqueta vía proxy. testMode=true por defecto; la compra real
+    // solo avanza con confirmación explícita (gasta plata).
+    async buyLabelViaAPI(saleId, btn) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const st = this.ecQuoteUI(saleId);
+        const bs = ecQuoteBuyState(st);
+        if (!bs.ready) {
+            this.showToast("⚠️ Elegí una tarifa" + (bs.needsPoint ? " y un punto de retiro" : "") + " para comprar por API");
+            return;
+        }
+        const real = document.getElementById(`label-real-${saleId}`)?.checked === true;
+        if (real && !confirm("⚠️ COMPRA REAL\n\nEsto genera una etiqueta de verdad y gasta saldo de Shipmondo.\n\n¿Confirmás la compra real?")) {
+            return;
+        }
+        const originalHtml = btn.innerHTML;
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Comprando...';
+            const ui = this.ecShipUI(saleId);
+            const input = this.ecBuildShipmentInput(sale, ui);
+            const payload = ecBuildShipmondoPayload(sale, input);
+            const rate = bs.rate;
+            const point = bs.needsPoint ? (st.servicePoints || []).find(p => p.id === st.selectedPointId) : null;
+            const res = await api.buyShipmondoLabel({
+                orderId: sale.id,
+                productCode: rate.productCode,
+                servicePointId: point ? point.id : undefined,
+                shipment: payload,
+                testMode: !real
+            });
+            const tracking = this.ecExtractTracking(res);
+            const labelUrl = this.ecExtractLabelUrl(res);
+            const carrier = rate.carrierName || rate.carrier || '';
+            if (!tracking) {
+                // Sin tracking en la respuesta: el modal queda abierto para pegarlo manual
+                const box = document.getElementById(`label-api-result-${saleId}`);
+                if (box) box.innerHTML = `<div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-700">⚠️ La API no devolvió tracking (modo ${res.testMode ? 'prueba' : 'real'}). Pegalo manual abajo para completar.</div>`;
+                this.showToast('⚠️ Sin tracking en la respuesta — pegalo manual', 'error');
+                return;
+            }
+            await api.setLabelCreated(saleId, { trackingNumber: tracking, carrier, labelUrl });
+            this.showToast(`✅ Etiqueta creada · tracking ${tracking}${res.testMode ? ' (modo prueba)' : ''}`);
+            this.closeQuickFixModal();
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error('buyLabelViaAPI:', e);
+            this.showToast('Error al comprar la etiqueta: ' + (e.message || e), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    },
+
+    // Guarda el tracking pegado a mano → estado "Etiqueta creada"
+    async saveManualTracking(saleId, btn) {
+        const tracking = document.getElementById(`lbl-track-${saleId}`)?.value.trim() || '';
+        const carrier = document.getElementById(`lbl-carrier-${saleId}`)?.value.trim() || '';
+        const labelUrl = document.getElementById(`lbl-url-${saleId}`)?.value.trim() || '';
+        if (!tracking) {
+            this.showToast('⚠️ Pegá el código de seguimiento', 'error');
+            return;
+        }
+        const originalHtml = btn.innerHTML;
+        try {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph-bold ph-circle-notch animate-spin"></i> Guardando...';
+            await api.setLabelCreated(saleId, { trackingNumber: tracking, carrier, labelUrl });
+            this.showToast(`✅ Etiqueta creada · tracking ${tracking}`);
+            this.closeQuickFixModal();
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error('saveManualTracking:', e);
+            this.showToast('Error al guardar: ' + (e.message || e), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     },
 
     renderShipping(container) {

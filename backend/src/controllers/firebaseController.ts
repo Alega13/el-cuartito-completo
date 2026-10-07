@@ -495,7 +495,10 @@ export const updateSaleValue = async (req: Request, res: Response) => {
 import {
     sendDiscogsOrderPreparingEmail,
     sendDiscogsShippingNotificationEmail,
-    sendPickupReadyEmail
+    sendPickupReadyEmail,
+    sendOrderPreparingEmail,
+    sendLabelReadyEmail,
+    sendShippingNotificationEmail
 } from '../services/mailService';
 
 export const notifyPreparing = async (req: Request, res: Response) => {
@@ -695,6 +698,99 @@ export const markAsPickedUp = async (req: Request, res: Response) => {
         });
 
         res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * Marca un envío como "etiqueta creada": guarda tracking + datos de la etiqueta
+ * y mueve fulfillment_status a 'label_created'. Vale tanto para compra vía API
+ * como para carga manual del tracking (etiqueta generada a mano en Shipmondo).
+ * No envía email — eso lo hace POST /:id/notify con type=label_created.
+ */
+export const setLabelCreated = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { trackingNumber, carrier, labelUrl } = req.body || {};
+        const db = getDb();
+
+        if (!trackingNumber || !String(trackingNumber).trim()) {
+            return res.status(400).json({ error: 'trackingNumber es requerido' });
+        }
+
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+
+        const updateData: any = {
+            tracking_number: String(trackingNumber).trim(),
+            fulfillment_status: 'label_created',
+            label_created_at: admin.firestore.FieldValue.serverTimestamp(),
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            history: admin.firestore.FieldValue.arrayUnion({
+                status: 'label_created',
+                timestamp: new Date().toISOString(),
+                note: `Etiqueta creada. Tracking: ${String(trackingNumber).trim()}${carrier ? ` (${carrier})` : ''}`
+            })
+        };
+        if (carrier) updateData.label_carrier = String(carrier);
+        if (labelUrl) updateData.label_url = String(labelUrl);
+
+        await saleRef.update(updateData);
+        res.json({ success: true, trackingNumber: updateData.tracking_number });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+const NOTIFY_TYPES = ['preparing', 'label_created', 'shipped', 'pickup_ready'] as const;
+type NotifyType = typeof NOTIFY_TYPES[number];
+
+/**
+ * "Avisar al cliente": envía el email correspondiente al estado indicado
+ * usando Resend. Puro notify — NO cambia fulfillment_status.
+ */
+export const notifyCustomer = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { type } = req.body || {} as { type: NotifyType };
+        const db = getDb();
+
+        if (!NOTIFY_TYPES.includes(type)) {
+            return res.status(400).json({ error: `type inválido. Usar uno de: ${NOTIFY_TYPES.join(', ')}` });
+        }
+
+        const saleRef = db.collection('sales').doc(id);
+        const saleDoc = await saleRef.get();
+        if (!saleDoc.exists) {
+            return res.status(404).json({ error: 'Sale not found' });
+        }
+        const saleData = saleDoc.data() as any;
+
+        let mailResult: any;
+        if (type === 'preparing') {
+            mailResult = await sendOrderPreparingEmail(saleData);
+        } else if (type === 'label_created') {
+            const tracking = saleData.tracking_number;
+            if (!tracking) {
+                return res.status(400).json({ error: 'El envío no tiene tracking_number cargado' });
+            }
+            mailResult = await sendLabelReadyEmail(saleData, tracking);
+        } else if (type === 'shipped') {
+            const tracking = saleData.tracking_number;
+            mailResult = await sendShippingNotificationEmail(saleData, {
+                tracking_number: tracking || '—',
+                tracking_link: saleData.tracking_link || '',
+                carrier: saleData.label_carrier || ''
+            });
+        } else {
+            mailResult = await sendPickupReadyEmail(saleData);
+        }
+
+        res.json({ success: true, type, mailResult });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

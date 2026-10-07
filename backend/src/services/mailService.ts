@@ -554,6 +554,115 @@ export const sendDiscogsOrderPreparingEmail = async (orderData: any) => {
 
 // ─── sendDiscogsShippingNotificationEmail ─────────────────────────────────────
 
+// ─── sendOrderPreparingEmail (generic, any channel) ───────────────────────────
+
+export const sendOrderPreparingEmail = async (orderData: any) => {
+    try {
+        if (isKeyMissing(config.RESEND_API_KEY)) {
+            return { success: false, error: 'Resend API Key missing' };
+        }
+
+        const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email || orderData.customer?.email;
+        const customerName = orderData.customerName || orderData.customer?.firstName || 'there';
+        const items = await enrichItemImages(orderData.items || []);
+        const itemsHtml = items.map((item: any) => itemRow(item)).join('');
+
+        const html = emailOpen("We're packing your order — tracking info coming soon.") + `
+
+      <!-- BODY -->
+      <tr><td style="padding:40px 32px 8px 32px;">
+        <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999999;">Order received</p>
+        <h1 style="margin:0 0 24px 0;font-size:26px;font-weight:500;color:#111111;line-height:1.25;">Hi ${customerName}, we're packing your order.</h1>
+        <p style="margin:0 0 32px 0;font-size:15px;line-height:1.6;color:#555555;">
+          Thanks for shopping with us. Your order is being prepared and you'll get another email with the tracking number as soon as your package leaves the shop.
+        </p>
+      </td></tr>
+
+      <!-- ORDER SUMMARY -->
+      <tr><td style="padding:0 32px 8px 32px;">
+        <p style="margin:0 0 16px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999999;">Order summary</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          ${itemsHtml}
+        </table>
+        <div style="height:1px;background-color:#ececec;line-height:1px;font-size:1px;">&nbsp;</div>
+      </td></tr>
+
+      ${inlineDivider()}
+      ${signature('With love,')}
+      ${emailClose()}`;
+
+        const { data, error } = await resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [customerEmail],
+            subject: `We are preparing your order — El Cuartito Records`,
+            html,
+        });
+
+        if (error) return { success: false, error };
+        return { success: true, id: data?.id };
+    } catch (error: any) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendOrderPreparingEmail:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+// ─── sendLabelReadyEmail ──────────────────────────────────────────────────────
+
+export const sendLabelReadyEmail = async (orderData: any, trackingNumber: string) => {
+    try {
+        if (isKeyMissing(config.RESEND_API_KEY)) {
+            return { success: false, error: 'Resend API Key missing' };
+        }
+
+        const customerEmail = orderData.customerEmail || orderData.email || orderData.customer_email || orderData.customer?.email;
+        const customerName = orderData.customerName || orderData.customer?.firstName || 'there';
+        const carrier = orderData.label_carrier || '';
+        const trackingLink = orderData.tracking_link || '';
+        const trackButton = trackingLink
+            ? `<a href="${trackingLink}" style="display:inline-block;background-color:#111111;color:#ffffff;padding:12px 24px;text-decoration:none;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Track my order</a>`
+            : '';
+
+        const html = emailOpen(`Your shipping label is ready — tracking: ${trackingNumber}`) + `
+
+      <!-- BODY -->
+      <tr><td style="padding:40px 32px 8px 32px;">
+        <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999999;">Label created</p>
+        <h1 style="margin:0 0 24px 0;font-size:26px;font-weight:500;color:#111111;line-height:1.25;">Hi ${customerName}, your shipping label is ready.</h1>
+        <p style="margin:0 0 32px 0;font-size:15px;line-height:1.6;color:#555555;">
+          Your package is packed and labeled${carrier ? ` via <strong style="color:#111111;">${carrier}</strong>` : ''}. Keep this tracking number — you'll get another email as soon as it's dispatched.
+        </p>
+      </td></tr>
+
+      <!-- TRACKING -->
+      <tr><td style="padding:0 32px 32px 32px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #ececec;">
+          <tr><td style="padding:24px 24px 24px 24px;">
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999999;">Tracking number</p>
+            <p style="margin:0 0 20px 0;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:20px;color:#111111;letter-spacing:1px;">${trackingNumber}</p>
+            ${trackButton}
+          </td></tr>
+        </table>
+      </td></tr>
+
+      ${inlineDivider()}
+      ${signature('Enjoy the spin,')}
+      ${emailClose()}`;
+
+        const { data, error } = await resend.emails.send({
+            from: 'El Cuartito Records <hola@elcuartito.dk>',
+            to: [customerEmail],
+            subject: `Your shipping label is ready — El Cuartito Records`,
+            html,
+        });
+
+        if (error) return { success: false, error };
+        return { success: true, id: data?.id };
+    } catch (error: any) {
+        console.error('❌ [MAIL-SERVICE] Exception in sendLabelReadyEmail:', error);
+        return { success: false, error: error.message };
+    }
+};
+
 export const sendDiscogsShippingNotificationEmail = async (orderData: any, trackingNumber: string) => {
     try {
         if (isKeyMissing(config.RESEND_API_KEY)) {
