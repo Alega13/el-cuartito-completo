@@ -1827,6 +1827,9 @@ const app = {
                                </button>`
                             : `<button onclick="app.invoiceFromExtraIncome('${e.id}')" class="flex items-center gap-1.5 text-[11px] font-bold text-white bg-brand-dark hover:bg-slate-800 rounded-lg px-2.5 py-1.5 transition-colors" title="Generar factura desde este ingreso">
                                 <i class="ph-bold ph-file-plus"></i> Facturar
+                               </button>
+                               <button onclick="app.openLinkInvoiceModal('${e.id}')" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 transition-colors" title="Vincular una factura ya generada">
+                                <i class="ph-bold ph-link"></i> Vincular
                                </button>`}
                         <button onclick="app.deleteExtraIncome('${e.id}')" class="w-8 h-8 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors" title="Eliminar">
                             <i class="ph-bold ph-trash text-base"></i>
@@ -5623,13 +5626,16 @@ const app = {
 
                 const mainItem = s.items && s.items.length > 0 ? s.items[0] : { album: s.album || 'Venta Manual', artist: s.artist || 'Desconocido' };
                 const extraItems = s.items && s.items.length > 1 ? s.items.length - 1 : 0;
+                const mainCover = this.resolveItemCover(mainItem);
 
                 return `
                                 <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all cursor-pointer group flex items-center gap-4 relative" onclick="app.openUnifiedOrderDetailModal('${s.id}')">
-                                    <!-- Source Icon -->
-                                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isDiscogs ? 'bg-slate-900 text-white' : (isStore ? 'bg-orange-100 text-brand-orange' : 'bg-blue-100 text-blue-600')}">
+                                    <!-- Tapa real del disco vendido (fallback: icono de canal) -->
+                                    ${mainCover
+                                        ? `<img src="${mainCover}" class="w-12 h-12 rounded-2xl object-cover shrink-0 border border-slate-100" alt="">`
+                                        : `<div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isDiscogs ? 'bg-slate-900 text-white' : (isStore ? 'bg-orange-100 text-brand-orange' : 'bg-blue-100 text-blue-600')}">
                                         <i class="ph-bold ${isDiscogs ? 'ph-disc' : (isStore ? 'ph-storefront' : 'ph-globe')} text-xl"></i>
-                                    </div>
+                                    </div>`}
 
                                     <!-- Details -->
                                     <div class="flex-1 min-w-0">
@@ -6157,6 +6163,49 @@ const app = {
         };
         const m = map[ch] || map.local;
         return `<span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${m.cls}">${m.label}</span>`;
+    },
+
+    // --- Tapas reales para ítems vendidos ---
+    // Resuelve la imagen de tapa de un ítem vendido contra el inventario en memoria
+    // (por SKU, luego por título+artista). Null si no hay match → el render usa fallback genérico.
+    _normCoverKey(s) {
+        return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    },
+
+    _buildCoverCache() {
+        const inv = this.state.inventory || [];
+        if (this._coverCache && this._coverCacheSrc === inv) return this._coverCache;
+        const bySku = {}, byTitle = {};
+        for (const p of inv) {
+            const cover = p.cover_image || p.image || null;
+            if (!cover) continue;
+            const sku = String(p.sku || '').trim().toUpperCase();
+            if (sku && !bySku[sku]) bySku[sku] = cover;
+            const t = this._normCoverKey(p.album || p.title);
+            const a = this._normCoverKey(p.artist);
+            if (t) {
+                const k = t + '|' + a;
+                if (!byTitle[k]) byTitle[k] = cover;
+                if (!byTitle[t]) byTitle[t] = cover;
+            }
+        }
+        this._coverCache = { bySku, byTitle };
+        this._coverCacheSrc = inv;
+        return this._coverCache;
+    },
+
+    resolveItemCover(item) {
+        if (!item) return null;
+        const direct = item.image || item.cover_image || (item.record && item.record.cover_image);
+        if (direct) return direct;
+        const { bySku, byTitle } = this._buildCoverCache();
+        const sku = String(item.sku || (item.record && item.record.sku) || '').trim().toUpperCase();
+        if (sku && bySku[sku]) return bySku[sku];
+        const t = this._normCoverKey(item.album || item.title || (item.record && (item.record.album || item.record.title)));
+        const a = this._normCoverKey(item.artist || (item.record && item.record.artist));
+        if (t && byTitle[t + '|' + a]) return byTitle[t + '|' + a];
+        if (t && byTitle[t]) return byTitle[t];
+        return null;
     },
 
     updateSalesChannelFilter(channel) {
@@ -7807,7 +7856,7 @@ const app = {
                                                 <tr>
                                                     <td class="px-4 py-4">
                                                         <div class="flex items-center gap-3">
-                                                            <img src="${item.image || item.cover_image || item.record?.cover_image || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-lg object-cover shadow-sm">
+                                                            <img src="${this.resolveItemCover(item) || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-lg object-cover shadow-sm">
                                                             <div>
                                                                 <p class="font-bold text-brand-dark">${item.album || item.record?.album || 'Desconocido'}</p>
                                                                 <p class="text-[10px] text-slate-500">${item.artist || item.record?.artist || ''}</p>
@@ -10440,6 +10489,91 @@ const app = {
         }
     },
 
+    // --- Vincular factura existente a un ingreso extra ---
+    async openLinkInvoiceModal(id) {
+        const e = (this.state.extraIncome || []).find(x => x.id === id);
+        if (!e || e.invoiced) return;
+        if (!this.state.manualInvoicesLoaded) {
+            try { await this.loadManualInvoices(); } catch (err) { console.error(err); }
+        }
+        const invoices = (this.state.contabilidadInvoices || []).slice()
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const rows = invoices.length === 0
+            ? `<div class="py-10 text-center"><i class="ph-duotone ph-note-blank text-4xl text-slate-300 mb-2 block"></i><p class="text-sm text-slate-400 font-medium">No hay facturas en el sistema</p></div>`
+            : invoices.map(inv => {
+                const num = esc(inv.invoiceNumber || 's/n');
+                const search = `${inv.invoiceNumber || ''} ${inv.customerName || ''} ${inv.itemsSummary || ''}`.toLowerCase().replace(/"/g, '');
+                return `
+                <div class="link-inv-row flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:border-brand-orange hover:bg-orange-50/30 cursor-pointer transition-colors" data-search="${esc(search)}" onclick="app.linkInvoiceToExtraIncome('${id}', '${num}')">
+                    <div class="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 shrink-0"><i class="ph-bold ph-file-text"></i></div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-brand-dark">#${num}</p>
+                        <p class="text-xs text-slate-500 truncate">${esc(inv.customerName || '—')} · ${esc(inv.date || '')}</p>
+                    </div>
+                    <span class="text-sm font-bold text-brand-dark whitespace-nowrap">${this.formatCurrency(inv.totalAmount || 0)}</span>
+                </div>`;
+            }).join('');
+
+        const modalHtml = `
+            <div id="link-invoice-modal" class="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target === this) this.remove()">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden max-h-[85vh] flex flex-col">
+                    <div class="p-5 border-b border-slate-100">
+                        <h3 class="font-bold text-brand-dark text-lg">Vincular factura</h3>
+                        <p class="text-sm text-slate-500 mt-0.5 truncate">${esc(e.description || 'Ingreso')} · ${this.formatCurrency(Number(e.amount) || 0)}</p>
+                        <input id="link-invoice-search" placeholder="Buscar por nº, cliente..." oninput="app.filterLinkInvoiceList(this.value)"
+                            class="mt-3 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-orange">
+                    </div>
+                    <div id="link-invoice-list" class="overflow-y-auto flex-1 p-3 space-y-2">
+                        ${rows}
+                    </div>
+                    <div class="p-5 border-t border-slate-100 bg-slate-50">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">¿La factura no está en el sistema?</p>
+                        <div class="flex gap-2">
+                            <input id="manual-invoice-number" placeholder="Nº de factura (ej. 2026-014)"
+                                class="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-orange">
+                            <button onclick="app.markExtraIncomeManual('${id}')"
+                                class="px-4 py-2.5 bg-brand-dark text-white text-sm font-bold rounded-xl hover:bg-black transition-colors whitespace-nowrap">
+                                Marcar facturado
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    filterLinkInvoiceList(q) {
+        const term = (q || '').toLowerCase();
+        document.querySelectorAll('#link-invoice-list .link-inv-row').forEach(r => {
+            r.style.display = (r.dataset.search || '').toLowerCase().includes(term) ? '' : 'none';
+        });
+    },
+
+    async linkInvoiceToExtraIncome(incomeId, invoiceNumber) {
+        const e = (this.state.extraIncome || []).find(x => x.id === incomeId);
+        if (!e || e.invoiced) { this.showToast('Este ingreso ya está facturado', 'error'); return; }
+        try {
+            await db.collection('extra_income').doc(incomeId).update({ invoiced: true, invoiceNumber: invoiceNumber || '', linkedManually: true });
+            e.invoiced = true;
+            e.invoiceNumber = invoiceNumber || '';
+            e.linkedManually = true;
+            document.getElementById('link-invoice-modal')?.remove();
+            this.refreshCurrentView();
+            this.showToast(`✅ Factura ${invoiceNumber} vinculada al ingreso`);
+        } catch (err) {
+            console.error('Error vinculando factura:', err);
+            this.showToast('⚠️ Error al vincular: ' + err.message, 'error');
+        }
+    },
+
+    async markExtraIncomeManual(incomeId) {
+        const num = (document.getElementById('manual-invoice-number')?.value || '').trim();
+        if (!num) { this.showToast('Ingresá el número de factura', 'error'); return; }
+        await this.linkInvoiceToExtraIncome(incomeId, num);
+    },
+
     setExpenseCategoryFilter(v) {
         this.state.expenseCategoryFilter = v;
         this.refreshCurrentView();
@@ -10642,7 +10776,7 @@ const app = {
                                     </thead>
                                     <tbody class="divide-y divide-slate-50">
                                         ${filteredExpenses.length > 0 ? filteredExpenses.map(e => `
-                                            <tr class="hover:bg-slate-50 transition-colors group">
+                                            <tr id="expense-${e.id}" class="hover:bg-slate-50 transition-colors group ${this.state.expenseIdHighlight === e.id ? 'bg-amber-50' : ''}">
                                                 <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
                                                     ${this.formatDate(e.fecha_factura || e.date)}
                                                 </td>
@@ -13814,6 +13948,7 @@ const app = {
                                     <tr>
                                         <th class="p-4">Fecha</th>
                                         <th class="p-4">Descripción</th>
+                                        <th class="p-4">Gasto vinculado</th>
                                         <th class="p-4 text-right">Monto</th>
                                         <th class="p-4 text-center">Acciones</th>
                                     </tr>
@@ -13821,22 +13956,28 @@ const app = {
                                 <tbody class="divide-y divide-slate-100">
                                     ${partnerInvestments.length === 0 ? `
                                         <tr>
-                                            <td colspan="4" class="p-8 text-center text-slate-400 italic">
+                                            <td colspan="5" class="p-8 text-center text-slate-400 italic">
                                                 Sin inversiones registradas
                                             </td>
                                         </tr>
-                                    ` : partnerInvestments.map(inv => `
+                                    ` : partnerInvestments.map(inv => {
+                                        const linkedExpense = inv.expenseId ? (this.state.expenses || []).find(x => x.id === inv.expenseId) : null;
+                                        return `
                                         <tr class="hover:bg-slate-50 transition-colors">
                                             <td class="p-4 text-sm text-slate-500">${this.formatDate(inv.date)}</td>
                                             <td class="p-4 text-sm font-medium text-brand-dark">${inv.description}</td>
+                                            <td class="p-4">${this.investmentExpenseBadge(inv, linkedExpense)}</td>
                                             <td class="p-4 text-sm font-bold text-brand-orange text-right">${this.formatCurrency(inv.amount)}</td>
-                                            <td class="p-4 text-center">
-                                                <button onclick="app.deleteInvestment('${inv.id}')" class="text-slate-400 hover:text-red-500 transition-colors">
+                                            <td class="p-4 text-center whitespace-nowrap">
+                                                <button onclick="app.openEditInvestmentModal('${inv.id}')" class="text-slate-400 hover:text-brand-orange transition-colors mr-3" title="Editar">
+                                                    <i class="ph-bold ph-pencil-simple"></i>
+                                                </button>
+                                                <button onclick="app.deleteInvestment('${inv.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
                                                     <i class="ph-bold ph-trash"></i>
-                                                </a>
+                                                </button>
                                             </td>
-                                        </tr>
-                                    `).join('')}
+                                        </tr>`;
+                                    }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -13848,47 +13989,114 @@ const app = {
         container.innerHTML = html;
     },
 
+    // Badge del gasto vinculado a una inversión (clicable → va al gasto; icono si hay comprobante)
+    investmentExpenseBadge(inv, linkedExpense) {
+        if (!inv.expenseId) return `<span class="text-slate-300 text-xs">—</span>`;
+        if (!linkedExpense) return `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">Gasto no encontrado</span>`;
+        const prov = linkedExpense.proveedor || linkedExpense.supplier || 'Gasto';
+        const amt = this.formatCurrency(linkedExpense.monto_total || 0);
+        const receiptUrl = linkedExpense.receiptUrl || linkedExpense.comprobante || '';
+        const desc = (linkedExpense.descripcion || '').slice(0, 40);
+        return `
+            <div class="flex items-center gap-1.5">
+                <button onclick="app.goToExpense('${linkedExpense.id}')" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap transition-colors" title="${desc ? desc + ' · ' : ''}Ir al gasto">
+                    <i class="ph-bold ph-receipt"></i> ${prov} · ${amt}
+                </button>
+                ${receiptUrl ? `<a href="${receiptUrl}" target="_blank" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 hover:text-brand-orange hover:bg-orange-50 flex items-center justify-center transition-colors" title="Abrir comprobante"><i class="ph-bold ph-paperclip"></i></a>` : ''}
+            </div>`;
+    },
+
+    goToExpense(expenseId) {
+        const x = (this.state.expenses || []).find(e => e.id === expenseId);
+        if (x) {
+            const d = new Date(((x.fecha_factura || x.date) || '') + 'T00:00:00');
+            if (!isNaN(d)) {
+                this.state.expenseFilterYear = d.getFullYear();
+                this.state.expenseFilterMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+            }
+        }
+        this.state.expensesSearch = '';
+        this.state.expenseCategoryFilter = 'all';
+        this.state.expenseMissingReceiptOnly = false;
+        this.state.expenseIdHighlight = expenseId;
+        this.navigate('expenses');
+        setTimeout(() => {
+            const el = document.getElementById('expense-' + expenseId);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+    },
+
     openAddInvestmentModal() {
+        this.openInvestmentModal(null);
+    },
+
+    openEditInvestmentModal(id) {
+        this.openInvestmentModal(id);
+    },
+
+    openInvestmentModal(id) {
         const partners = ['Alejo', 'Facundo', 'Rafael'];
         const today = new Date().toISOString().split('T')[0];
+        const inv = id ? (this.state.investments || []).find(x => x.id === id) : null;
+        const isEdit = !!inv;
+        const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const expenses = (this.state.expenses || []).slice()
+            .sort((a, b) => new Date(b.fecha_factura || b.date || 0) - new Date(a.fecha_factura || a.date || 0));
+        const expenseOptions = expenses.map(x => {
+            const prov = x.proveedor || x.supplier || 'Sin proveedor';
+            const d = x.fecha_factura || x.date || '';
+            const desc = (x.descripcion || '').slice(0, 35);
+            const sel = inv && inv.expenseId === x.id ? 'selected' : '';
+            return `<option value="${x.id}" ${sel}>${esc(d)} · ${esc(prov)} · ${esc(desc)} · ${this.formatCurrency(x.monto_total || 0)}</option>`;
+        }).join('');
 
         const modalHtml = `
             <div id="add-investment-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
                     <div class="bg-brand-dark p-6 text-white">
-                        <h2 class="font-display font-bold text-xl">Nueva Inversión</h2>
-                        <p class="text-white/60 text-sm">Registrar aporte de socio</p>
+                        <h2 class="font-display font-bold text-xl">${isEdit ? 'Editar Inversión' : 'Nueva Inversión'}</h2>
+                        <p class="text-white/60 text-sm">${isEdit ? 'Modificar aporte de socio' : 'Registrar aporte de socio'}</p>
                     </div>
                     <form onsubmit="app.saveInvestment(event)" class="p-6 space-y-4">
+                        <input type="hidden" name="investmentId" value="${inv ? inv.id : ''}">
                         <div>
                             <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Socio</label>
                             <select name="partner" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
-                                ${partners.map(p => `<option value="${p}">${p}</option>`).join('')}
+                                ${partners.map(p => `<option value="${p}" ${inv && inv.partner === p ? 'selected' : ''}>${p}</option>`).join('')}
                             </select>
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Monto (DKK)</label>
-                            <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" 
+                            <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" value="${inv ? esc(inv.amount) : ''}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Descripción</label>
-                            <input type="text" name="description" required placeholder="Compra de vinilos, gastos locación, etc." 
+                            <input type="text" name="description" required placeholder="Compra de vinilos, gastos locación, etc." value="${inv ? esc(inv.description) : ''}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Fecha</label>
-                            <input type="date" name="date" required value="${today}"
+                            <input type="date" name="date" required value="${inv ? esc(inv.date) : today}"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
                         </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Gasto vinculado (Registro de Compras)</label>
+                            <select name="expenseId" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                                <option value="">Sin vincular</option>
+                                ${expenseOptions}
+                            </select>
+                            <p class="text-[11px] text-slate-400 mt-1.5">Vincula esta inversión con el gasto y su factura correspondiente.</p>
+                        </div>
                         <div class="flex gap-3 pt-4">
-                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()" 
+                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()"
                                 class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
                                 Cancelar
-                            </a>
+                            </button>
                             <button type="submit" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                                <i class="ph-bold ph-plus"></i> Guardar
-                            </a>
+                                <i class="ph-bold ${isEdit ? 'ph-check' : 'ph-plus'}"></i> ${isEdit ? 'Guardar cambios' : 'Guardar'}
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -13900,18 +14108,26 @@ const app = {
     async saveInvestment(event) {
         event.preventDefault();
         const form = event.target;
+        const invId = form.investmentId && form.investmentId.value ? form.investmentId.value : null;
         const data = {
             partner: form.partner.value,
             amount: parseFloat(form.amount.value),
             description: form.description.value,
             date: form.date.value,
-            created_at: firebase.firestore.FieldValue.serverTimestamp()
+            expenseId: form.expenseId.value || null,
         };
 
         try {
-            await db.collection('investments').add(data);
-            document.getElementById('add-investment-modal').remove();
-            this.showToast('✅ Inversión registrada');
+            if (invId) {
+                await db.collection('investments').doc(invId).update(data);
+                document.getElementById('add-investment-modal').remove();
+                this.showToast('✅ Inversión actualizada');
+            } else {
+                data.created_at = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection('investments').add(data);
+                document.getElementById('add-investment-modal').remove();
+                this.showToast('✅ Inversión registrada');
+            }
             await this.loadInvestments();
             this.refreshCurrentView();
         } catch (error) {
@@ -13981,6 +14197,7 @@ const app = {
         const items = s.items || [];
         const displayName = ci.name && ci.name !== 'Cliente' ? ci.name : (ci.email || 'Cliente');
         const firstTitle = items[0] ? (items[0].album || items[0].title || items[0].name || 'Item') : '';
+        const firstCover = items[0] ? this.resolveItemCover(items[0]) : null;
 
         // Bloque de datos del cliente: solo lo que existe, sin placeholders inventados
         const customerBlock = `
@@ -14027,7 +14244,9 @@ const app = {
             </div>
             <div class="mt-2 font-bold text-brand-dark text-[15px] truncate" title="${displayName}">${displayName}</div>
             <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                <i class="ph-bold ph-disc text-brand-orange"></i>
+                ${firstCover
+                    ? `<img src="${firstCover}" class="w-9 h-9 rounded-lg object-cover border border-slate-100 shrink-0" alt="">`
+                    : `<i class="ph-bold ph-disc text-brand-orange"></i>`}
                 <span class="font-bold text-slate-600">${items.length}</span>
                 ${firstTitle ? `<span class="truncate">${firstTitle}${items.length > 1 ? ` <span class="text-slate-400">+${items.length - 1}</span>` : ''}</span>` : ''}
             </div>
