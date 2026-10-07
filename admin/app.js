@@ -639,10 +639,21 @@ const app = {
     async updateFulfillmentStatus(event, id, status) {
         try {
             const btn = event?.target?.closest('button') || (window.event?.target?.closest('button'));
+            let originalContent = '';
             if (btn) {
                 btn.disabled = true;
-                const originalContent = btn.innerHTML;
+                originalContent = btn.innerHTML;
                 btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i>';
+            }
+
+            // Al cerrar el envío, descontar stock del disco vinculado (idempotente)
+            if (['shipped', 'delivered', 'picked_up'].includes((status || '').toLowerCase())) {
+                const stockRes = await this.decrementLinkedStock(id);
+                if (!stockRes.ok) {
+                    if (btn) { btn.disabled = false; btn.innerHTML = originalContent; }
+                    this.showToast("⚠️ " + stockRes.message, "error");
+                    return;
+                }
             }
 
             // Update fulfillment status directly in Firestore
@@ -14389,6 +14400,13 @@ const app = {
         if (!ci.email && !ci.phone) {
             issues.push('Sin datos de contacto');
         }
+        // Disco vinculado sin stock: avisa antes de despachar
+        if (s.linkedInventory?.productId && !s.stockDecremented) {
+            const p = (this.state.inventory || []).find(x => x.id === s.linkedInventory.productId);
+            if (p && (Number(p.stock) || 0) < 1) {
+                issues.push('Sin stock del disco vinculado');
+            }
+        }
         return issues;
     },
 
@@ -14448,6 +14466,16 @@ const app = {
             actionBtn = `<button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-warning-circle"></i>Resolver problema</button>`;
         }
 
+        // Disco del inventario vinculado (envíos manuales): chip + vincular/desvincular
+        const li = s.linkedInventory;
+        const isManualCh = this.normalizeSaleChannel(s) === "manual";
+        const linkedBlock = li ? `
+            <div class="mt-2 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-2.5 py-1.5">
+                <span class="min-w-0 text-[11px] font-bold text-emerald-800 truncate" title="${ecEsc(li.artist || "")} — ${ecEsc(li.album || "")}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")}</span>
+                ${isManualCh ? `<button onclick="event.stopPropagation();app.unlinkInventory('${s.id}')" class="text-emerald-600 hover:text-emerald-800 shrink-0" title="Desvincular disco"><i class="ph-bold ph-x"></i></button>` : ""}
+            </div>` : (isManualCh ? `
+            <button onclick="event.stopPropagation();app.openLinkInventoryModal('${s.id}')" class="mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors flex items-center gap-1"><i class="ph-bold ph-link"></i>Vincular disco del inventario</button>` : "");
+
         return `
         <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow">
             <div class="flex items-center justify-between gap-2">
@@ -14465,6 +14493,7 @@ const app = {
                 <span class="font-bold text-slate-600">${items.length}</span>
                 ${firstTitle ? `<span class="truncate">${firstTitle}${items.length > 1 ? ` <span class="text-slate-400">+${items.length - 1}</span>` : ''}</span>` : ''}
             </div>
+            ${linkedBlock}
             <div class="mt-1.5">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${isPickup ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}">
                     <i class="ph-bold ${isPickup ? 'ph-storefront' : 'ph-truck'}"></i>${isPickup ? 'Retiro' : 'Envío'}
@@ -14478,9 +14507,15 @@ const app = {
         </div>`;
     },
 
-    // Despacha desde el kanban: guarda tracking (si hay), notifica al comprador de Discogs y marca shipped
+    // Despacha desde el kanban: guarda tracking (si hay), descuenta stock del disco
+    // vinculado (idempotente), notifica al comprador de Discogs y marca shipped
     async shipOrderFromKanban(saleId, inputId) {
         try {
+            const stockRes = await this.decrementLinkedStock(saleId);
+            if (!stockRes.ok) {
+                this.showToast("⚠️ " + stockRes.message, "error");
+                return;
+            }
             const input = document.getElementById(inputId);
             const tracking = input ? input.value.trim() : '';
             const sale = (this.state.sales || []).find(s => s.id === saleId);
@@ -14873,6 +14908,7 @@ const app = {
 
     openManualShipmentModal() {
         document.getElementById("ms-modal-overlay")?.remove();
+        this._msLinkedItem = null; // disco del inventario vinculado (temporal del modal)
         const inp = "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white";
         const lab = "text-[10px] font-bold text-slate-400 uppercase tracking-widest";
         const html = `
@@ -14909,6 +14945,14 @@ const app = {
                 <div><label class="${lab}">Descripción de ítems *</label>
                     <textarea id="ms-desc" rows="2" oninput="app.msRevalidate()" class="${inp} mt-1 resize-none" placeholder="Ej: 2× vinilos — artista / título"></textarea></div>
 
+                <p class="${lab} mt-5 mb-2">Disco del inventario (opcional)</p>
+                <div class="relative">
+                    <div id="ms-linked-chip"></div>
+                    <input id="ms-inv-search" type="text" oninput="app.msInvSearch(this.value)" class="${inp}" placeholder="Buscar por artista, título o SKU…" autocomplete="off">
+                    <div id="ms-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1.5">Al despachar el envío, el stock de este disco se descuenta en 1.</p>
+
                 <p class="${lab} mt-5 mb-2">Paquete y método</p>
                 <div class="grid grid-cols-2 gap-3">
                     <div><label class="${lab}">Peso (g) *</label>
@@ -14934,6 +14978,7 @@ const app = {
 
     closeManualShipmentModal() {
         document.getElementById("ms-modal-overlay")?.remove();
+        this._msLinkedItem = null;
     },
 
     /* Arma el input de validación desde el formulario (mismo shape que ecBuildShipmentInput) */
@@ -14996,6 +15041,179 @@ const app = {
         if (box && !box.classList.contains("hidden")) this.msRenderBlockers();
     },
 
+    /* ── Vincular disco del inventario ───────────────────────────────
+       Buscador con autocomplete sobre el inventario en memoria
+       (artista, título, SKU). onclickTpl recibe {ID} = id del producto. */
+    invSearchResultsHTML(q, onclickTpl) {
+        q = (q || "").trim().toLowerCase();
+        if (q.length < 2) return "";
+        const hits = (this.state.inventory || []).filter(p =>
+            `${p.artist || ""} ${p.album || ""} ${p.sku || ""}`.toLowerCase().includes(q)
+        ).slice(0, 8);
+        if (!hits.length) return `<div class="px-3 py-2.5 text-xs text-slate-400 font-semibold">Sin resultados</div>`;
+        return hits.map(p => `
+            <button type="button" onclick="${onclickTpl.split("{ID}").join(p.id)}"
+                class="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 border-b border-slate-50 last:border-0">
+                <span class="min-w-0">
+                    <span class="block text-xs font-bold text-brand-dark truncate">${ecEsc(p.artist || "Sin artista")} — ${ecEsc(p.album || "Sin título")}</span>
+                    <span class="block text-[10px] text-slate-400 font-mono">${ecEsc(p.sku || "")}</span>
+                </span>
+                <span class="text-[10px] font-bold uppercase tracking-widest ${Number(p.stock) > 0 ? "text-emerald-600" : "text-red-500"} shrink-0">Stock: ${Number(p.stock) || 0}</span>
+            </button>`).join("");
+    },
+
+    msInvSearch(q) {
+        const box = document.getElementById("ms-inv-results");
+        if (!box) return;
+        const html = this.invSearchResultsHTML(q, "app.msSelectLinkedItem('{ID}')");
+        box.innerHTML = html;
+        box.classList.toggle("hidden", !html);
+    },
+
+    msSelectLinkedItem(productId) {
+        const p = (this.state.inventory || []).find(x => x.id === productId);
+        if (!p) return;
+        this._msLinkedItem = { productId: p.id, artist: p.artist || "", album: p.album || "", sku: p.sku || "" };
+        const inp = document.getElementById("ms-inv-search");
+        if (inp) inp.value = "";
+        const box = document.getElementById("ms-inv-results");
+        if (box) { box.classList.add("hidden"); box.innerHTML = ""; }
+        this.msRenderLinkedChip();
+    },
+
+    msClearLinkedItem() {
+        this._msLinkedItem = null;
+        this.msRenderLinkedChip();
+    },
+
+    msRenderLinkedChip() {
+        const el = document.getElementById("ms-linked-chip");
+        if (!el) return;
+        const li = this._msLinkedItem;
+        el.innerHTML = li ? `
+            <div class="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mb-2">
+                <span class="min-w-0 text-xs font-bold text-emerald-800 truncate" title="${ecEsc(li.artist)} — ${ecEsc(li.album)}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")} <span class="font-mono font-medium text-emerald-600">${ecEsc(li.sku)}</span></span>
+                <button type="button" onclick="app.msClearLinkedItem()" class="text-emerald-600 hover:text-emerald-800 shrink-0" title="Quitar vínculo"><i class="ph-bold ph-x"></i></button>
+            </div>` : "";
+    },
+
+    /* Modal para vincular un disco a un envío manual ya existente */
+    openLinkInventoryModal(saleId) {
+        document.getElementById("li-modal-overlay")?.remove();
+        const html = `
+        <div id="li-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='li-modal-overlay')app.closeLinkInventoryModal()">
+            <div class="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark">Vincular disco del inventario</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Al despachar el envío, el stock de este disco se descuenta en 1.</p>
+                <div class="relative">
+                    <input id="li-inv-search" type="text" oninput="app.liInvSearch('${saleId}', this.value)"
+                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white"
+                        placeholder="Buscar por artista, título o SKU…" autocomplete="off">
+                    <div id="li-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
+                </div>
+                <div class="flex justify-end gap-2 mt-6">
+                    <button onclick="app.closeLinkInventoryModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+        setTimeout(() => document.getElementById("li-inv-search")?.focus(), 50);
+    },
+
+    closeLinkInventoryModal() {
+        document.getElementById("li-modal-overlay")?.remove();
+    },
+
+    liInvSearch(saleId, q) {
+        const box = document.getElementById("li-inv-results");
+        if (!box) return;
+        const html = this.invSearchResultsHTML(q, `app.liSelectItem('${saleId}', '{ID}')`);
+        box.innerHTML = html;
+        box.classList.toggle("hidden", !html);
+    },
+
+    async liSelectItem(saleId, productId) {
+        const p = (this.state.inventory || []).find(x => x.id === productId);
+        if (!p) return;
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        const fs = (sale?.fulfillment_status || "").toLowerCase();
+        // Si el envío ya se despachó, vincular sin descontar retroactivamente
+        const alreadyClosed = ["shipped", "picked_up", "delivered", "fulfilled", "canceled"].includes(fs);
+        try {
+            await db.collection("sales").doc(saleId).update({
+                linkedInventory: { productId: p.id, artist: p.artist || "", album: p.album || "", sku: p.sku || "" },
+                stockDecremented: alreadyClosed ? true : false
+            });
+            this.closeLinkInventoryModal();
+            this.showToast(alreadyClosed
+                ? "Disco vinculado (sin descontar: el envío ya estaba despachado)"
+                : "✅ Disco vinculado al envío");
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error("liSelectItem:", e);
+            this.showToast("Error al vincular: " + e.message, "error");
+        }
+    },
+
+    async unlinkInventory(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        const wasDecremented = !!sale?.stockDecremented;
+        try {
+            await db.collection("sales").doc(saleId).update({ linkedInventory: null });
+            this.showToast(wasDecremented
+                ? "Vínculo eliminado (el stock ya descontado no se restaura)"
+                : "Vínculo eliminado");
+            await this.loadData();
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error("unlinkInventory:", e);
+            this.showToast("Error al desvincular: " + e.message, "error");
+        }
+    },
+
+    /* Descuenta 1 del stock del disco vinculado al despachar.
+       Idempotente vía stockDecremented; corre en transacción para no
+       dejar stock en negativo. Devuelve { ok, message }. */
+    async decrementLinkedStock(saleId) {
+        const saleRef = db.collection("sales").doc(saleId);
+        try {
+            await db.runTransaction(async (tx) => {
+                const saleDoc = await tx.get(saleRef);
+                if (!saleDoc.exists) throw new Error("La venta ya no existe.");
+                const sale = saleDoc.data();
+                const link = sale.linkedInventory;
+                if (!link || !link.productId || sale.stockDecremented) return; // nada que descontar
+                const prodRef = db.collection("products").doc(link.productId);
+                const prodDoc = await tx.get(prodRef);
+                if (!prodDoc.exists) {
+                    const lbl = [link.artist, link.album].filter(Boolean).join(" — ") || "vinculado";
+                    throw new Error(`El disco ${lbl} ya no existe en el inventario. Desvincúlalo o elige otro antes de despachar.`);
+                }
+                const pd = prodDoc.data();
+                const stock = Number(pd.stock) || 0;
+                if (stock < 1) {
+                    const lbl = [pd.artist, pd.album].filter(Boolean).join(" — ") || "Sin título";
+                    throw new Error(`Sin stock para ${lbl} (stock: ${stock}). No se despachó ni se movió el stock.`);
+                }
+                tx.update(prodRef, { stock: firebase.firestore.FieldValue.increment(-1) });
+                tx.update(saleRef, { stockDecremented: true });
+                tx.set(db.collection("inventory_logs").doc(), {
+                    type: "SHIPPED",
+                    sku: pd.sku || "Unknown",
+                    album: pd.album || "Unknown",
+                    artist: pd.artist || "Unknown",
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    details: `Envío manual despachado (${sale.orderNumber || saleId})`
+                });
+            });
+            return { ok: true };
+        } catch (e) {
+            console.error("decrementLinkedStock:", e);
+            return { ok: false, message: e.message };
+        }
+    },
+
     async saveManualShipment() {
         const btn = document.getElementById("ms-save-btn");
         const { input, hard } = this.msRenderBlockers();
@@ -15033,6 +15251,8 @@ const app = {
             service_point: input.service_point || null,
             parcel_weight: input.parcel.weight,
             weight_confirmed: input.parcel.weightConfirmed,
+            linkedInventory: this._msLinkedItem || null, // disco del inventario (descuenta stock al despachar)
+            stockDecremented: false,
             date: now.toISOString().split("T")[0],
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             note: "Envío manual creado desde Envíos"
