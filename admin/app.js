@@ -5,6 +5,146 @@ console.log('🚀 El Cuartito Admin v' + APP_VERSION + ' loaded');
 
 const auth = window.auth;
 
+/* ============================================================
+   PRE-FLIGHT Shipmondo — validadores sin dependencias
+   Spec: ~/workspace/your_files/shipmondo-preflight/shipmondo-preflight-validacion.md
+   Reglas idénticas a los esquemas Zod de la Parte A.
+   Cada validador devuelve un array de { field, message } (vacío = OK).
+   ============================================================ */
+
+const EC_EU_COUNTRIES = new Set([
+  "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU",
+  "IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
+]);
+
+/* Métodos que exigen retiro en punto de servicio (shop delivery).
+   "shop" es el valor genérico de la UI; el resto son códigos reales de
+   producto de Shipmondo — agregar aquí los que se usen al integrar la API. */
+const EC_SHOP_DELIVERY_METHODS = new Set([
+  "shop",
+  "dao_shop", "gls_shop", "postnord_shop", "dhl_shop", "bring_shop",
+]);
+
+const EC_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const EC_HAS_LETTER = (s) => /[\p{L}]/u.test(s || "");
+const EC_HAS_DIGIT  = (s) => /\d/.test(s || "");
+const ecDigits = (s) => String(s || "").replace(/\D/g, "");
+
+/* Etiquetas cortas para las píldoras de alerta de la tarjeta */
+const EC_FIELD_LABELS = {
+  "receiver.name":         "Falta nombre",
+  "receiver.address1":     "Falta dirección",
+  "receiver.zipcode":      "Falta código postal",
+  "receiver.city":         "Falta ciudad",
+  "receiver.country_code": "Falta país",
+  "receiver.email":        "Falta email",
+  "receiver.phone":        "Falta teléfono",
+  "parcel.weight":         "Falta peso",
+  "shippingMethod":        "Falta método",
+  "service_point.id":      "Falta punto de retiro",
+  "customs":               "Falta aduana",
+};
+
+/* ---------- 1. Destinatario (Receiver Strict Schema) ---------- */
+function ecValidateReceiver(r = {}) {
+  const out = [];
+  const name = String(r.name || "").trim();
+  if (!name) out.push({ field: "receiver.name", message: "Falta nombre del destinatario" });
+  else if (!EC_HAS_LETTER(name)) out.push({ field: "receiver.name", message: "El nombre no puede contener solo caracteres especiales" });
+
+  const a1 = String(r.address1 || "").trim();
+  if (a1.length <= 5) out.push({ field: "receiver.address1", message: "La dirección debe tener más de 5 caracteres" });
+  else {
+    if (!EC_HAS_LETTER(a1)) out.push({ field: "receiver.address1", message: "La dirección debe contener letras" });
+    if (!EC_HAS_DIGIT(a1))  out.push({ field: "receiver.address1", message: "La dirección debe incluir el número de puerta" });
+  }
+
+  if (!String(r.zipcode || "").trim()) out.push({ field: "receiver.zipcode", message: "Falta código postal" });
+  if (!String(r.city || "").trim())    out.push({ field: "receiver.city", message: "Falta ciudad" });
+
+  const cc = String(r.country_code || "").trim();
+  if (!/^[A-Z]{2}$/.test(cc)) out.push({ field: "receiver.country_code", message: "El país debe ser ISO alpha-2 en mayúsculas (ej. DK)" });
+
+  const email = String(r.email || "").trim();
+  if (!EC_EMAIL_RE.test(email)) out.push({ field: "receiver.email", message: "Email inválido" });
+
+  const phone = String(r.phone || "").trim();
+  if (!/^\+?[0-9\s\-().]{8,20}$/.test(phone) || ecDigits(phone).length < 8)
+    out.push({ field: "receiver.phone", message: "Teléfono inválido: solo números con prefijo internacional (ej. +45) y mínimo 8 dígitos" });
+
+  return out;
+}
+
+/* ---------- 2. Paquete (Parcel Schema) ---------- */
+function ecValidateParcel(p = {}) {
+  const out = [];
+  const w = p.weight;
+  if (!Number.isInteger(w) || w <= 0)
+    out.push({ field: "parcel.weight", message: "El peso debe ser un entero mayor a 0 (gramos)" });
+  else if (w === 500 && !p.weightConfirmed)
+    // 500 g es el default para un disco simple: válido solo si el operador lo confirmó
+    out.push({ field: "parcel.weight", message: "Confirmá el peso del paquete (500 g pre-cargados)" });
+  return out;
+}
+
+/* ---------- 3 + 4. Shipment completo (validaciones condicionales) ---------- */
+function ecValidateShipment(input = {}) {
+  const blockers = [
+    ...ecValidateReceiver(input.receiver),
+    ...ecValidateParcel(input.parcel),
+  ];
+
+  if (!String(input.shippingMethod || "").trim())
+    blockers.push({ field: "shippingMethod", message: "Falta método de envío" });
+
+  // Regla 3: shop delivery -> service_point.id obligatorio
+  if (EC_SHOP_DELIVERY_METHODS.has(input.shippingMethod) && !String(input.service_point?.id || "").trim()) {
+    blockers.push({ field: "service_point.id", message: "Este método exige retiro en tienda: ingresá el ID del punto de servicio" });
+  }
+
+  // Regla 4: fuera de la UE -> customs obligatorio
+  const cc = String(input.receiver?.country_code || "").trim();
+  const customs = input.customs || [];
+  if (cc && !EC_EU_COUNTRIES.has(cc)) {
+    if (!customs.length) {
+      blockers.push({ field: "customs", message: `Destino fuera de la UE (${cc}): la declaración de aduana es obligatoria` });
+    } else customs.forEach((c, i) => {
+      if (!String(c.description || "").trim()) blockers.push({ field: `customs.${i}.description`, message: "Falta descripción del ítem para aduana" });
+      if (!(Number(c.value) > 0))                 blockers.push({ field: `customs.${i}.value`, message: "El valor declarado debe ser mayor a 0" });
+      if (!/^[A-Z]{3}$/.test(String(c.currency || ""))) blockers.push({ field: `customs.${i}.currency`, message: "Moneda ISO 4217 (ej. DKK, EUR)" });
+    });
+  }
+  return blockers;
+}
+
+const ecCanGenerateLabel = (input) => ecValidateShipment(input).length === 0;
+
+/* ---------- Payload Shipmondo (se arma solo si ecCanGenerateLabel es true) ---------- */
+function ecBuildShipmondoPayload(sale, input) {
+  const r = input.receiver;
+  const payload = {
+    order_id: sale.orderNumber || sale.id,
+    receiver_name: r.name,
+    receiver_address1: r.address1,
+    receiver_zipcode: r.zipcode,
+    receiver_city: r.city,
+    receiver_country_code: r.country_code,
+    receiver_email: r.email,
+    receiver_mobile: r.phone,
+    parcels: [{ weight: input.parcel.weight }],
+    // TODO(API): reemplazar por los product_code reales de Shipmondo al integrar
+    product_code: input.shippingMethod === "shop" ? "SHOP_PRODUCT_CODE" : "HOME_PRODUCT_CODE",
+    service_codes: "email_notification,sms_notification",
+  };
+  if (input.service_point && input.service_point.id) {
+    payload.parties = [{ type: "service_point", service_point_id: input.service_point.id }];
+  }
+  if (input.customs && input.customs.length) {
+    payload.customs = input.customs;
+  }
+  return payload;
+}
+
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const BASE_API_URL = isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app';
 
@@ -14256,6 +14396,7 @@ const app = {
                 </span>
             </div>
             ${customerBlock}
+            ${(!isPickup && col !== "despachado") ? this.ecPreflightBlock(s) : ""}
             ${issues.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
             ${actionBtn}
             <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
@@ -14300,6 +14441,461 @@ const app = {
         a.download = `envios-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         this.showToast('Lista de envíos exportada');
+    },
+
+    // ============================================================
+    // PRE-FLIGHT Shipmondo — estado efímero, alertas y modales
+    // Spec: ~/workspace/your_files/shipmondo-preflight/shipmondo-preflight-validacion.md
+    // ============================================================
+
+    /* Estado efímero por pedido: peso, confirmación, método, service point, customs.
+       Los datos del cliente viven en Firestore; esto solo guarda contexto de UI. */
+    ecShipUI(saleId) {
+        this._shipUI = this._shipUI || {};
+        if (!this._shipUI[saleId]) this._shipUI[saleId] = {};
+        return this._shipUI[saleId];
+    },
+
+    /* Arma el input de validación desde la venta + contexto de UI (derivado, no duplicado) */
+    ecBuildShipmentInput(sale, ui = {}) {
+        const c = sale.customer || {};
+        const ship = c.shipping || {};
+        let line1 = ship.line1 || "", line2 = ship.line2 || "";
+        let zip = ship.postal_code || ship.zip || "", city = ship.city || "", country = ship.country || "";
+        if (!line1 && !city && !zip) {
+            // Formato legacy "calle número, CP ciudad, país" — parseo best-effort
+            const parts = String(sale.address || c.address || "").split(",").map(s => s.trim()).filter(Boolean);
+            if (parts[0]) line1 = parts[0];
+            if (parts[1]) { const t = parts[1].split(/\s+/); zip = t[0] || ""; city = t.slice(1).join(" "); }
+            if (parts[2]) country = parts[2];
+        }
+        return {
+            receiver: {
+                name: String(sale.customerName || c.name || "").trim(),
+                address1: [line1, line2].filter(Boolean).join(", "),
+                zipcode: String(zip).trim(),
+                city: String(city).trim(),
+                country_code: String(country).trim().toUpperCase(),
+                email: String(sale.customerEmail || c.email || "").trim(),
+                phone: String(c.phone || sale.customerPhone || sale.phone || "").trim(),
+            },
+            parcel: {
+                weight: Number.isInteger(ui.weight) ? ui.weight : 500,
+                weightConfirmed: ui.weightConfirmed === true,
+            },
+            shippingMethod: ui.shippingMethod || sale.shipping_method || "home",
+            service_point: ui.servicePointId ? { id: ui.servicePointId } : undefined,
+            customs: ui.customs || undefined,
+        };
+    },
+
+    ecShipmentBlockers(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return [];
+        return ecValidateShipment(this.ecBuildShipmentInput(sale, this.ecShipUI(saleId)));
+    },
+
+    /* Píldoras de alerta roja por cada dato faltante (clicables → modal rápido) */
+    ecReadinessAlerts(saleId) {
+        const blockers = this.ecShipmentBlockers(saleId);
+        if (!blockers.length) {
+            return `<span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full"><i class="ph-bold ph-check-circle"></i>Listo para etiqueta</span>`;
+        }
+        return blockers.map(b => {
+            const key = b.field.startsWith("customs") ? "customs" : b.field;
+            const label = EC_FIELD_LABELS[key] || "Falta dato";
+            const safeMsg = b.message.replace(/"/g, "&quot;");
+            return `<button onclick="app.openQuickFixModal('${saleId}', '${key}')" title="${safeMsg}"
+                class="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full cursor-pointer hover:bg-red-100 transition-colors">
+                <i class="ph-bold ph-warning-circle"></i>${label}</button>`;
+        }).join("");
+    },
+
+    /* Bloque Pre-Flight dentro de la tarjeta del kanban */
+    ecPreflightBlock(s) {
+        const ui = this.ecShipUI(s.id);
+        const input = this.ecBuildShipmentInput(s, ui);
+        const blockers = ecValidateShipment(input);
+        const canGo = blockers.length === 0;
+        const isShop = EC_SHOP_DELIVERY_METHODS.has(input.shippingMethod);
+        const cc = input.receiver.country_code;
+        const needsCustoms = cc && !EC_EU_COUNTRIES.has(cc);
+        const firstBlocker = blockers.length ? blockers[0].message.replace(/"/g, "&quot;") : "";
+        const weightConfirmed = !!ui.weightConfirmed;
+
+        return `
+        <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3" onclick="event.stopPropagation()">
+            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <i class="ph-bold ph-shield-check"></i>Pre-Flight · Etiqueta Shipmondo
+            </div>
+            <div class="flex flex-wrap gap-1.5 mb-2.5">${this.ecReadinessAlerts(s.id)}</div>
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Peso (g)</label>
+                    <div class="flex gap-1 mt-1">
+                        <input type="number" min="1" step="1" value="${input.parcel.weight}"
+                            onchange="app.ecOnWeightChange('${s.id}', this.value)" onclick="event.stopPropagation()"
+                            class="w-full text-xs font-bold border ${weightConfirmed ? "border-emerald-300 bg-emerald-50/50" : "border-slate-200 bg-white"} rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange">
+                        <button onclick="app.ecConfirmWeight('${s.id}')" title="Confirmar peso"
+                            class="shrink-0 w-8 rounded-lg text-sm font-black transition-colors ${weightConfirmed ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500 hover:bg-slate-300"}">
+                            <i class="ph-bold ${weightConfirmed ? "ph-check" : "ph-question"}"></i>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Método</label>
+                    <select onchange="app.ecSetShippingMethod('${s.id}', this.value)" onclick="event.stopPropagation()"
+                        class="mt-1 w-full text-xs font-bold border border-slate-200 bg-white rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange">
+                        <option value="home" ${input.shippingMethod === "home" ? "selected" : ""}>Envío a domicilio</option>
+                        <option value="shop" ${isShop ? "selected" : ""}>Retiro en punto de servicio</option>
+                    </select>
+                </div>
+            </div>
+            ${isShop ? `
+            <div class="mt-2">
+                <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">ID punto de servicio</label>
+                <input type="text" value="${(ui.servicePointId || "").replace(/"/g, "&quot;")}" placeholder="Ej. 9743"
+                    onchange="app.ecSetServicePoint('${s.id}', this.value)" onclick="event.stopPropagation()"
+                    class="mt-1 w-full text-xs font-bold border border-slate-200 bg-white rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange font-mono">
+                <p class="text-[10px] text-slate-400 mt-1">Por ahora se ingresa el ID manual. Al integrar la API irá aquí el selector de puntos de retiro.</p>
+            </div>` : ""}
+            ${needsCustoms ? `
+            <div class="mt-2 flex items-center justify-between gap-2 rounded-lg ${ui.customs ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"} px-2.5 py-2">
+                <span class="text-[10px] font-extrabold uppercase tracking-wider ${ui.customs ? "text-emerald-700" : "text-amber-700"}">
+                    <i class="ph-bold ${ui.customs ? "ph-check-circle" : "ph-warning"}"></i>
+                    ${ui.customs ? `Aduana lista (${ui.customs.length} ítems)` : `Fuera de la UE (${cc}): falta aduana`}
+                </span>
+                ${ui.customs ? "" : `<button onclick="app.openQuickFixModal('${s.id}', 'customs')" class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 underline hover:text-amber-900">Completar</button>`}
+            </div>` : ""}
+            <button ${canGo ? "" : "disabled"} title="${canGo ? "Generar etiqueta en Shipmondo" : "Faltan datos: " + firstBlocker}"
+                onclick="app.ecGenerateLabel('${s.id}')"
+                class="w-full mt-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canGo ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
+                <i class="ph-bold ph-tag"></i>Generar Etiqueta
+            </button>
+        </div>`;
+    },
+
+    ecOnWeightChange(saleId, value) {
+        const ui = this.ecShipUI(saleId);
+        const w = parseInt(value, 10);
+        ui.weight = Number.isInteger(w) ? w : 500;
+        ui.weightConfirmed = false; // cualquier edición exige nueva confirmación
+        this.refreshCurrentView();
+    },
+
+    ecConfirmWeight(saleId) {
+        const ui = this.ecShipUI(saleId);
+        const w = Number.isInteger(ui.weight) ? ui.weight : 500;
+        if (!Number.isInteger(w) || w <= 0) { this.showToast("⚠️ El peso debe ser un entero mayor a 0"); return; }
+        ui.weight = w;
+        ui.weightConfirmed = true;
+        this.showToast("✅ Peso confirmado: " + w + " g");
+        this.refreshCurrentView();
+    },
+
+    ecSetShippingMethod(saleId, value) {
+        const ui = this.ecShipUI(saleId);
+        ui.shippingMethod = value;
+        if (!EC_SHOP_DELIVERY_METHODS.has(value)) delete ui.servicePointId;
+        this.refreshCurrentView();
+    },
+
+    ecSetServicePoint(saleId, value) {
+        const ui = this.ecShipUI(saleId);
+        ui.servicePointId = String(value || "").trim();
+        this.refreshCurrentView();
+    },
+
+    /* Config del modal rápido por campo */
+    ecQuickFixConfig(field) {
+        const cfgs = {
+            "receiver.name":         { label: "Nombre del destinatario", placeholder: "Piotr Zaleś", type: "text" },
+            "receiver.email":        { label: "Email", placeholder: "cliente@mail.com", type: "email" },
+            "receiver.phone":        { label: "Teléfono", placeholder: "+45 31 22 33 44", type: "tel" },
+            "receiver.address1":     { label: "Dirección", placeholder: "Kartuska 104/1", type: "text" },
+            "receiver.zipcode":      { label: "Código postal", placeholder: "80-111", type: "text" },
+            "receiver.city":         { label: "Ciudad", placeholder: "Gdańsk", type: "text" },
+            "receiver.country_code": { label: "País (ISO alpha-2)", placeholder: "PL", type: "text", maxlength: 2, upper: true },
+            "parcel.weight":         { label: "Peso (gramos)", placeholder: "500", type: "number" },
+            "service_point.id":      { label: "ID del punto de servicio", placeholder: "Ej. 9743", type: "text", note: "Por ahora se ingresa el ID manual. Al integrar la API de Shipmondo, aquí irá el selector de puntos de retiro." },
+            "shippingMethod":        { label: "Método de envío", type: "select", options: [["home", "Envío a domicilio"], ["shop", "Retiro en punto de servicio"]] },
+        };
+        return cfgs[field] || null;
+    },
+
+    ecQuickFixCurrentValue(sale, field) {
+        const ui = this.ecShipUI(sale.id);
+        if (field === "parcel.weight") return ui.weight ?? 500;
+        if (field === "service_point.id") return ui.servicePointId || "";
+        if (field === "shippingMethod") return this.ecBuildShipmentInput(sale, ui).shippingMethod;
+        const keys = field.split(".");
+        let o = this.ecBuildShipmentInput(sale, ui);
+        for (const k of keys) o = o?.[k];
+        return o ?? "";
+    },
+
+    /* Modal rápido: un solo campo, guardar sin recargar la página */
+    openQuickFixModal(saleId, field) {
+        if (field === "customs") { this.openCustomsFixModal(saleId); return; }
+        const cfg = this.ecQuickFixConfig(field);
+        if (!cfg) return;
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const current = this.ecQuickFixCurrentValue(sale, field);
+        const shortLabel = EC_FIELD_LABELS[field] || "Completar dato";
+        let inputHtml;
+        if (cfg.type === "select") {
+            inputHtml = `<select id="qf-input" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white">
+                ${cfg.options.map(([v, t]) => `<option value="${v}" ${String(current) === v ? "selected" : ""}>${t}</option>`).join("")}
+            </select>`;
+        } else {
+            inputHtml = `<input id="qf-input" type="${cfg.type}" value="${String(current).replace(/"/g, "&quot;")}"
+                placeholder="${cfg.placeholder || ""}" ${cfg.maxlength ? `maxlength="${cfg.maxlength}"` : ""}
+                class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange">`;
+        }
+        const html = `
+        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
+            <div class="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark">Completar dato</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · ${shortLabel} · se valida al guardar</p>
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${cfg.label}</label>
+                ${inputHtml}
+                ${cfg.note ? `<p class="text-[11px] text-slate-400 mt-2">${cfg.note}</p>` : ""}
+                <p id="qf-error" class="hidden text-xs text-red-600 font-semibold mt-2"></p>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                    <button onclick="app.saveQuickFix('${saleId}', '${field}')" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors">Guardar</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+        setTimeout(() => document.getElementById("qf-input")?.focus(), 50);
+    },
+
+    closeQuickFixModal() {
+        document.getElementById("qf-modal-overlay")?.remove();
+        document.getElementById("qf-customs-overlay")?.remove();
+    },
+
+    /* Update de Firestore con dot-notation (paths canónicos + espejos legacy) */
+    ecQuickFixUpdates(sale, field, v) {
+        const up = {};
+        switch (field) {
+            case "receiver.name":
+                up["customer.name"] = v;
+                if (sale.customerName !== undefined) up["customerName"] = v;
+                break;
+            case "receiver.email":
+                up["customer.email"] = v;
+                if (sale.customerEmail !== undefined) up["customerEmail"] = v;
+                break;
+            case "receiver.phone":
+                up["customer.phone"] = v;
+                if (sale.customerPhone !== undefined) up["customerPhone"] = v;
+                if (sale.phone !== undefined) up["phone"] = v;
+                break;
+            case "receiver.address1": up["customer.shipping.line1"] = v; break;
+            case "receiver.zipcode": up["customer.shipping.postal_code"] = v; break;
+            case "receiver.city": up["customer.shipping.city"] = v; break;
+            case "receiver.country_code": up["customer.shipping.country"] = v.toUpperCase(); break;
+        }
+        return up;
+    },
+
+    /* Merge en memoria para re-render inmediato */
+    ecQuickFixApplyMemory(sale, field, v) {
+        sale.customer = sale.customer || {};
+        const cmap = { "receiver.name": "name", "receiver.email": "email", "receiver.phone": "phone" };
+        const smap = { "receiver.address1": "line1", "receiver.zipcode": "postal_code", "receiver.city": "city", "receiver.country_code": "country" };
+        if (cmap[field]) {
+            sale.customer[cmap[field]] = v;
+            if (field === "receiver.name" && sale.customerName !== undefined) sale.customerName = v;
+            if (field === "receiver.email" && sale.customerEmail !== undefined) sale.customerEmail = v;
+            if (field === "receiver.phone") {
+                if (sale.customerPhone !== undefined) sale.customerPhone = v;
+                if (sale.phone !== undefined) sale.phone = v;
+            }
+        }
+        if (smap[field]) {
+            sale.customer.shipping = sale.customer.shipping || {};
+            sale.customer.shipping[smap[field]] = v;
+        }
+    },
+
+    /* Guarda el campo (Firestore o estado efímero), valida antes y re-renderiza sin reload */
+    async saveQuickFix(saleId, field) {
+        const cfg = this.ecQuickFixConfig(field);
+        if (!cfg) return;
+        let value = document.getElementById("qf-input").value;
+        if (cfg.upper) value = value.trim().toUpperCase();
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const ui = this.ecShipUI(saleId);
+        const errEl = document.getElementById("qf-error");
+
+        // Validar lo tipeado ANTES de guardar: parche temporal sobre el input
+        const tmp = this.ecBuildShipmentInput(sale, { ...ui });
+        if (field === "parcel.weight") { tmp.parcel.weight = parseInt(value, 10); tmp.parcel.weightConfirmed = true; }
+        else if (field === "service_point.id") { tmp.service_point = { id: value.trim() }; }
+        else if (field === "shippingMethod") { tmp.shippingMethod = value; }
+        else {
+            const keys = field.split(".");
+            let o = tmp;
+            for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]];
+            o[keys[keys.length - 1]] = value.trim();
+        }
+        const errs = ecValidateShipment(tmp).filter(e => e.field === field || e.field.startsWith(field + "."));
+        if (errs.length) {
+            errEl.textContent = errs[0].message;
+            errEl.classList.remove("hidden");
+            return;
+        }
+
+        try {
+            if (field === "parcel.weight") {
+                ui.weight = parseInt(value, 10);
+                ui.weightConfirmed = true;
+            } else if (field === "service_point.id") {
+                ui.servicePointId = value.trim();
+            } else if (field === "shippingMethod") {
+                ui.shippingMethod = value;
+                if (!EC_SHOP_DELIVERY_METHODS.has(value)) delete ui.servicePointId;
+            } else {
+                await db.collection("sales").doc(saleId).update(this.ecQuickFixUpdates(sale, field, value.trim()));
+                this.ecQuickFixApplyMemory(sale, field, value.trim());
+            }
+            this.closeQuickFixModal();
+            this.showToast("✅ Dato guardado");
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error("saveQuickFix:", e);
+            errEl.textContent = "⚠️ Error al guardar: " + e.message;
+            errEl.classList.remove("hidden");
+        }
+    },
+
+    /* Modal de aduana: genera las líneas desde los ítems del pedido y las confirma */
+    openCustomsFixModal(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const items = sale.items || [];
+        const lines = items.map((it) => {
+            const title = it.album || it.title || it.name || "Vinilo";
+            const artist = it.artist ? ` — ${it.artist}` : "";
+            const qty = it.qty || it.quantity || 1;
+            const price = Number(it.priceAtSale || it.price || 0);
+            return {
+                description: `Vinyl record: ${title}${artist}`.slice(0, 120),
+                value: Math.round(price * qty * 100) / 100,
+                currency: "DKK",
+            };
+        });
+        const rows = lines.map((l, i) => `
+            <div class="grid grid-cols-[1fr_90px_70px] gap-2 items-center">
+                <input id="qc-desc-${i}" type="text" value="${l.description.replace(/"/g, "&quot;")}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange">
+                <input id="qc-val-${i}" type="number" min="0" step="0.01" value="${l.value}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange">
+                <input id="qc-cur-${i}" type="text" value="${l.currency}" maxlength="3" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange uppercase">
+            </div>`).join("");
+        const html = `
+        <div id="qf-customs-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-customs-overlay')app.closeQuickFixModal()">
+            <div class="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark">Declaración de aduana</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · destino fuera de la UE · revisá y confirmá</p>
+                <div class="grid grid-cols-[1fr_90px_70px] gap-2 mb-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <span>Descripción</span><span>Valor</span><span>Moneda</span>
+                </div>
+                <div class="space-y-2 max-h-64 overflow-y-auto">${rows || `<p class="text-xs text-slate-400">Sin ítems en el pedido.</p>`}</div>
+                <p id="qf-error" class="hidden text-xs text-red-600 font-semibold mt-2"></p>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                    <button onclick="app.saveCustomsFix('${saleId}', ${lines.length})" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors">Confirmar aduana</button>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+    },
+
+    saveCustomsFix(saleId, n) {
+        const customs = [];
+        for (let i = 0; i < n; i++) {
+            customs.push({
+                description: document.getElementById(`qc-desc-${i}`).value.trim(),
+                value: Number(document.getElementById(`qc-val-${i}`).value),
+                currency: document.getElementById(`qc-cur-${i}`).value.trim().toUpperCase(),
+            });
+        }
+        const ui = this.ecShipUI(saleId);
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        const tmp = this.ecBuildShipmentInput(sale, { ...ui, customs });
+        const errs = ecValidateShipment(tmp).filter(e => e.field.startsWith("customs"));
+        const errEl = document.getElementById("qf-error");
+        if (errs.length) {
+            errEl.textContent = errs[0].message;
+            errEl.classList.remove("hidden");
+            return;
+        }
+        ui.customs = customs;
+        this.closeQuickFixModal();
+        this.showToast("✅ Aduana confirmada");
+        this.refreshCurrentView();
+    },
+
+    /* Generar Etiqueta: barrera pre-flight + payload listo (sin fetch real todavía) */
+    ecGenerateLabel(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const ui = this.ecShipUI(saleId);
+        const input = this.ecBuildShipmentInput(sale, ui);
+
+        // Barrera de seguridad: ningún fetch sale con bloqueadores pendientes
+        if (!ecCanGenerateLabel(input)) {
+            const b = ecValidateShipment(input);
+            this.showToast("⚠️ Faltan datos: " + (b[0] ? b[0].message : ""));
+            return;
+        }
+
+        const payload = ecBuildShipmondoPayload(sale, input);
+        const pretty = JSON.stringify(payload, null, 2).replace(/</g, "&lt;");
+
+        // TODO(API): integración directa con Shipmondo — el fetch vive detrás de la barrera:
+        // if (!ecCanGenerateLabel(input)) return; // pre-flight: 0% error
+        // const res = await fetch("https://api.shipmondo.com/v1/shipments", {
+        //   method: "POST",
+        //   headers: { "Content-Type": "application/json", "Authorization": "Bearer <API_KEY>" },
+        //   body: JSON.stringify(payload),
+        // });
+
+        const html = `
+        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
+            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
+                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-shield-check text-emerald-600"></i>Pre-Flight OK · Payload Shipmondo</h3>
+                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · validación 100% superada · copiá el JSON o generá la etiqueta en Shipmondo</p>
+                <pre id="ec-payload-pre" class="bg-slate-900 text-emerald-300 text-[11px] leading-relaxed rounded-xl p-4 overflow-x-auto max-h-72 overflow-y-auto font-mono">${pretty}</pre>
+                <div class="flex justify-end gap-2 mt-5">
+                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cerrar</button>
+                    <button onclick="app.ecCopyPayload()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors flex items-center gap-1.5"><i class="ph-bold ph-copy"></i>Copiar JSON</button>
+                    <a href="https://app.shipmondo.com/" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-1.5"><i class="ph-bold ph-arrow-square-out"></i>Abrir Shipmondo</a>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-3">TODO(API): al integrar la API directa, el fetch va detrás de <span class="font-mono">if (!ecCanGenerateLabel(input)) return;</span></p>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML("beforeend", html);
+    },
+
+    ecCopyPayload() {
+        const pre = document.getElementById("ec-payload-pre");
+        const text = pre ? pre.innerText : "";
+        const done = () => this.showToast("✅ Payload copiado al portapapeles");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(() => this.showToast("⚠️ No se pudo copiar"));
+        } else {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand("copy"); done(); } catch (e) { this.showToast("⚠️ No se pudo copiar"); }
+            ta.remove();
+        }
     },
 
     renderShipping(container) {
