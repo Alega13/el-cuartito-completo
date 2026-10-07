@@ -1032,13 +1032,10 @@ const app = {
     renderDatosLegales(container) {
         const html = `
             <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header Section -->
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">Datos <span class="text-brand-orange">Legales</span></h1>
-                        <p class="text-slate-500 font-medium">Información corporativa y de contacto</p>
-                    </div>
-                </div>
+                ${this.sectionHeader({
+                    title: 'Datos Legales',
+                    subtitle: 'Información corporativa y de contacto'
+                })}
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Company Info Card -->
@@ -1473,13 +1470,10 @@ const app = {
 
         const html = `
             <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header -->
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 class="font-display text-3xl font-bold text-brand-dark mb-1">🧾 <span class="text-brand-orange">Generar Factura</span></h1>
-                        <p class="text-slate-500 font-medium">Facturas manuales para eventos, servicios y otros</p>
-                    </div>
-                </div>
+                ${this.sectionHeader({
+                    title: 'Generar Factura',
+                    subtitle: 'Facturas manuales para eventos, servicios y otros'
+                })}
 
                 <!-- Invoice Form -->
                 <form id="manual-invoice-form" onsubmit="app.submitManualInvoice(event)" class="bg-white rounded-3xl shadow-sm border border-orange-100 p-8 mb-8">
@@ -1750,11 +1744,11 @@ const app = {
 
         container.innerHTML = `
             <div class="max-w-5xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+                ${this.sectionHeader({
+                    title: 'Ingresos Extra',
+                    subtitle: 'Eventos, servicios y otros conceptos no relacionados con ventas de discos'
+                })}
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div>
-                        <h1 class="text-2xl font-black text-brand-dark">💰 Ingresos Extra</h1>
-                        <p class="text-sm text-slate-400 mt-1">Registra ingresos por eventos, servicios y otros conceptos no relacionados con ventas de discos.</p>
-                    </div>
                     <div class="flex gap-3">
                         <div class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl px-5 py-3 text-center">
                             <p class="text-[10px] font-bold text-green-600 uppercase tracking-wider">Total Ingresos</p>
@@ -2203,7 +2197,10 @@ const app = {
     renderBackup(container) {
         const html = `
             <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Backup y Restauración</h2>
+                ${this.sectionHeader({
+                    title: 'Respaldo',
+                    subtitle: 'Copias de seguridad y restauración de datos'
+                })}
                 
                 <div class="space-y-6">
                     <!-- Export Card -->
@@ -2256,7 +2253,10 @@ const app = {
         const token = localStorage.getItem('discogs_token') || '';
         const html = `
             <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <h2 class="font-display text-2xl font-bold text-brand-dark mb-6">Configuración</h2>
+                ${this.sectionHeader({
+                    title: 'Configuración',
+                    subtitle: 'Preferencias y conexiones del panel'
+                })}
                 
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
                     <h3 class="font-bold text-lg text-brand-dark mb-4">Integraciones</h3>
@@ -11070,13 +11070,11 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
 
         const html = `
     <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn" >
-                                                                    <div class="flex justify-between items-center mb-8">
-                                                                        <h2 class="font-display text-2xl font-bold text-brand-dark">Socios y Consignación</h2>
-                                                                        <button onclick="app.openAddConsignorModal()" class="bg-brand-dark text-white px-4 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors flex items-center gap-2">
-                                                                            <i class="ph-bold ph-plus"></i>
-                                                                            Nuevo Socio
-                                                                        </button>
-                                                                    </div>
+                                                                    ${this.sectionHeader({
+                                                                        title: 'Socios y Consignación',
+                                                                        subtitle: 'Saldos y stock en consignación por socio',
+                                                                        primary: { label: 'Nuevo Socio', icon: 'ph-plus', onclick: "app.openAddConsignorModal()" }
+                                                                    })}
 
                                                                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                                                         ${this.state.consignors.map(c => {
@@ -13143,15 +13141,11 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
 
         const html = `
             <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
-                <div class="flex justify-between items-center mb-8">
-                    <div>
-                        <h2 class="font-display text-3xl font-bold text-brand-dark">💰 Inversiones</h2>
-                        <p class="text-slate-500 text-sm">Registro de inversiones de los socios</p>
-                    </div>
-                    <button onclick="app.openAddInvestmentModal()" class="bg-brand-dark text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-lg">
-                        <i class="ph-bold ph-plus"></i> Nueva Inversión
-                    </a>
-                </div>
+                ${this.sectionHeader({
+                    title: 'Inversiones',
+                    subtitle: 'Registro de inversiones de los socios · Total: ' + this.formatCurrency(grandTotal),
+                    primary: { label: 'Nueva Inversión', icon: 'ph-plus', onclick: "app.openAddInvestmentModal()" }
+                })}
 
                 <!-- Summary Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
