@@ -460,7 +460,11 @@ const api = {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${idToken}` }
         });
-        if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) {
+            const err = new Error(await response.text());
+            err.status = response.status;
+            throw err;
+        }
         return response.json();
     },
 
@@ -978,6 +982,7 @@ const app = {
             case 'facturasManual': this.renderFacturasManual(container); break;
             case 'extraIncome': this.renderExtraIncome(container); break;
             case 'newsletter': this.renderNewsletter(container); break;
+            case 'webshop': this.renderWebshop(container); break;
         }
     },
 
@@ -9958,6 +9963,23 @@ const app = {
         }
     },
 
+    /* Escribe el array de tags de un producto en Firestore y sincroniza el estado local.
+       Lógica compartida entre toggleProductTag y la sección Webshop (no duplicar). */
+    async _writeProductTags(product, tags) {
+        const docRef = db.collection('products').doc(product.id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            this.showToast('❌ Error: Documento no encontrado', 'error');
+            return false;
+        }
+        await docRef.update({
+            tags: tags,
+            updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        product.tags = tags;
+        return true;
+    },
+
     async toggleProductTag(sku, tag) {
         try {
             const product = this.state.inventory.find(i => i.id === sku || i.sku === sku);
@@ -9973,26 +9995,205 @@ const app = {
                 tags.push(tag);
             }
 
-            // Use document ID directly to find the correct Firestore document
-            const docRef = db.collection('products').doc(product.id);
-            const docSnap = await docRef.get();
-            if (!docSnap.exists) {
-                this.showToast('❌ Error: Documento no encontrado', 'error');
-                return;
-            }
-            await docRef.update({ 
-                tags: tags,
-                updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            if (!await this._writeProductTags(product, tags)) return;
 
             this.showToast(`✅ ${tag === 'hero' ? 'Héroe' : 'Novedad'} actualizado`);
-            
-            // Sync local state
-            product.tags = tags;
+
             this.refreshCurrentView();
         } catch (error) {
             console.error("Error toggling product tag:", error);
             this.showToast("❌ Error al actualizar tag", "error");
+        }
+    },
+
+    /* ================= Webshop (fase 1: Hero + New Arrivals) =================
+       La tienda elcuartito.dk arma sus secciones desde los tags de `products`:
+         'hero'        → Hero (el shop solo muestra is_online == true)
+         'new_arrival' → New Arrivals
+         'Nuevos'      → tag legacy que el shop ignora (se avisa, no se toca) */
+
+    wsFilterByTag(products, tag) {
+        return (products || []).filter(p => Array.isArray(p.tags) && p.tags.includes(tag));
+    },
+
+    wsIsEligible(p) {
+        return Number(p.stock) > 0 && !!p.is_online;
+    },
+
+    wsCountLegacyNuevos(products) {
+        return this.wsFilterByTag(products, 'Nuevos').length;
+    },
+
+    wsTabLabel(tag) {
+        return tag === 'hero' ? 'Hero' : 'New Arrivals';
+    },
+
+    _wsSort(a, b) {
+        const ka = `${a.artist || ''} ${a.album || ''}`.toLowerCase();
+        const kb = `${b.artist || ''} ${b.album || ''}`.toLowerCase();
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+    },
+
+    wsSetTab(tab) {
+        this.state.webshopTab = tab;
+        this.refreshCurrentView();
+    },
+
+    async renderWebshop(container) {
+        const tab = this.state.webshopTab || 'hero';
+        let products = this.state.inventory || [];
+        if (!products.length) {
+            try {
+                const snap = await db.collection('products').get();
+                products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                this.state.inventory = products;
+            } catch (e) {
+                console.warn('Webshop: no se pudo cargar el inventario', e);
+            }
+        }
+        const hero = this.wsFilterByTag(products, 'hero').slice().sort(this._wsSort);
+        const arrivals = this.wsFilterByTag(products, 'new_arrival').slice().sort(this._wsSort);
+        const legacyNuevos = this.wsCountLegacyNuevos(products);
+        const tag = tab === 'hero' ? 'hero' : 'new_arrival';
+        const list = tab === 'hero' ? hero : arrivals;
+        const label = this.wsTabLabel(tag);
+
+        container.innerHTML = `
+        <div class="p-4 md:p-8 max-w-6xl mx-auto animate-slide-up">
+            <div class="mb-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">elcuartito.dk</p>
+                <h1 class="text-2xl font-display font-bold text-brand-dark">Webshop</h1>
+                <p class="text-sm text-slate-500 mt-1">Administrá qué discos aparecen en el Hero y en New Arrivals de la tienda.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 mb-6">
+                ${[
+                    { id: 'hero', tag: 'hero', icon: 'ph-star' },
+                    { id: 'new_arrivals', tag: 'new_arrival', icon: 'ph-sparkle' }
+                ].map(t => {
+                    const count = t.id === 'hero' ? hero.length : arrivals.length;
+                    const active = tab === t.id;
+                    return `
+                    <button onclick="app.wsSetTab('${t.id}')"
+                        class="px-4 py-2 rounded-xl text-[11px] font-bold transition-all border flex items-center gap-2 ${active
+                            ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}">
+                        <i class="ph-duotone ${t.icon} text-sm"></i>
+                        ${this.wsTabLabel(t.tag)}
+                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}">${count}</span>
+                    </button>`;
+                }).join('')}
+            </div>
+
+            ${tab === 'new_arrivals' && legacyNuevos > 0 ? `
+            <div class="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                <i class="ph-duotone ph-warning text-amber-500 text-lg mt-0.5"></i>
+                <p class="text-xs text-amber-800 font-medium leading-relaxed">
+                    <span class="font-bold">${legacyNuevos} disco${legacyNuevos === 1 ? '' : 's'} con el tag 'Nuevos'</span>,
+                    que la tienda no usa (solo lee 'new_arrival'). No se borró nada automáticamente.
+                </p>
+            </div>` : ''}
+
+            <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Agregar a ${label}</p>
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="ws-search" type="text" oninput="app.wsInvSearch('${tag}', this.value)"
+                        class="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-brand-orange bg-white"
+                        placeholder="Buscar por artista, título o SKU…" autocomplete="off">
+                    <div id="ws-search-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto"></div>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">Solo se pueden sumar discos con stock y publicados online.</p>
+            </div>
+
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">${label}</h3>
+                    <div class="h-px w-16 bg-slate-100"></div>
+                </div>
+                <span class="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-full px-3 py-1">${list.length} disco${list.length === 1 ? '' : 's'} en ${tab === 'hero' ? 'el hero' : 'New Arrivals'}</span>
+            </div>
+
+            ${list.length === 0 ? `
+            <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center">
+                <i class="ph-duotone ph-disc text-4xl text-slate-200"></i>
+                <p class="text-sm text-slate-400 font-medium mt-3">Todavía no hay discos en ${tab === 'hero' ? 'el hero' : 'New Arrivals'}.</p>
+            </div>` : `
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${list.map(p => this._wsCardHTML(p, tag)).join('')}
+            </div>`}
+        </div>`;
+    },
+
+    _wsCardHTML(p, tag) {
+        const cover = p.cover_image || p.image || 'logo.jpg';
+        const online = !!p.is_online;
+        const stock = Number(p.stock) || 0;
+        return `
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 flex gap-3 hover:shadow-md transition-shadow">
+            <img src="${cover}" onerror="this.onerror=null;this.src='logo.jpg'" class="w-16 h-16 rounded-xl object-cover bg-slate-100 shrink-0" alt="">
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-bold text-brand-dark truncate">${ecEsc(p.artist || 'Sin artista')} — ${ecEsc(p.album || 'Sin título')}</p>
+                <p class="text-[10px] text-slate-400 font-mono truncate">${ecEsc(p.sku || '')}</p>
+                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(p.price || 0, false)}</span>
+                    ${!online ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700">No online</span>' : ''}
+                    ${stock <= 0 ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-red-100 text-red-700">Sin stock</span>' : ''}
+                </div>
+            </div>
+            <button onclick="app.wsRemoveProduct('${p.id}', '${tag}')" title="Quitar de ${this.wsTabLabel(tag)}"
+                class="self-start w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors shrink-0">
+                <i class="ph-bold ph-x text-sm"></i>
+            </button>
+        </div>`;
+    },
+
+    wsInvSearch(tag, q) {
+        const box = document.getElementById('ws-search-results');
+        if (!box) return;
+        const html = this.invSearchResultsHTML(q, `app.wsAddProduct('{ID}', '${tag}')`);
+        box.innerHTML = html;
+        box.classList.toggle('hidden', !html);
+    },
+
+    async wsAddProduct(productId, tag) {
+        const p = (this.state.inventory || []).find(x => x.id === productId);
+        if (!p) return;
+        const label = this.wsTabLabel(tag);
+        if ((p.tags || []).includes(tag)) {
+            this.showToast(`ℹ️ Ya está en ${label}`);
+            return;
+        }
+        const problems = [];
+        if (!(Number(p.stock) > 0)) problems.push('no tiene stock');
+        if (!p.is_online) problems.push('no está publicado online');
+        if (problems.length) {
+            this.showToast(`⚠️ No se puede agregar: ${problems.join(' y ')}`);
+            return;
+        }
+        try {
+            const tags = [...(p.tags || []), tag];
+            if (!await this._writeProductTags(p, tags)) return;
+            this.showToast(`✅ Agregado a ${label}`);
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error('wsAddProduct:', e);
+            this.showToast('❌ Error al agregar');
+        }
+    },
+
+    async wsRemoveProduct(productId, tag) {
+        const p = (this.state.inventory || []).find(x => x.id === productId);
+        if (!p) return;
+        const label = this.wsTabLabel(tag);
+        try {
+            const tags = (p.tags || []).filter(t => t !== tag);
+            if (!await this._writeProductTags(p, tags)) return;
+            this.showToast(`Quitado de ${label}`);
+            this.refreshCurrentView();
+        } catch (e) {
+            console.error('wsRemoveProduct:', e);
+            this.showToast('❌ Error al quitar');
         }
     },
 
@@ -13288,7 +13489,18 @@ const app = {
         const modal = document.getElementById('delete-shipment-modal');
         if (modal) modal.remove();
         try {
-            const res = await api.deleteSale(saleId);
+            let res;
+            try {
+                res = await api.deleteSale(saleId);
+            } catch (apiErr) {
+                // Fallback: si el backend de producción todavía no tiene DELETE /sales/:id
+                // (endpoint en la rama, pre-merge), borrar directo en Firestore.
+                if (apiErr && apiErr.status === 404) {
+                    res = await this.deleteShipmentDirect(saleId);
+                } else {
+                    throw apiErr;
+                }
+            }
             this.state.sales = (this.state.sales || []).filter(s => s.id !== saleId);
             const card = document.querySelector(`[data-sale-id="${saleId}"]`);
             if (card) card.remove();
@@ -13299,6 +13511,39 @@ const app = {
             console.error('confirmDeleteShipment:', e);
             this.showToast('Error al eliminar: ' + (e.message || e), 'error');
         }
+    },
+
+    /* Fallback cuando el backend no expone DELETE /sales/:id (ej. producción
+       antes del merge): borra la ficha directo en Firestore en transacción.
+       Si se había descontado stock, devuelve 1 unidad al producto vinculado. */
+    async deleteShipmentDirect(saleId) {
+        const saleRef = db.collection('sales').doc(saleId);
+        let stockReturned = false;
+        await db.runTransaction(async (tx) => {
+            const saleDoc = await tx.get(saleRef);
+            if (!saleDoc.exists) throw new Error('La ficha ya no existe.');
+            const sale = saleDoc.data();
+            const link = sale.linkedInventory;
+            if (sale.stockDecremented && link && link.productId) {
+                const prodRef = db.collection('products').doc(link.productId);
+                const prodDoc = await tx.get(prodRef);
+                if (prodDoc.exists) {
+                    const pd = prodDoc.data();
+                    tx.update(prodRef, { stock: firebase.firestore.FieldValue.increment(1) });
+                    tx.set(db.collection('inventory_logs').doc(), {
+                        type: 'STOCK_RETURN',
+                        sku: pd.sku || 'Unknown',
+                        album: pd.album || 'Unknown',
+                        artist: pd.artist || 'Unknown',
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        details: `Ficha de envío eliminada (${sale.orderNumber || saleId}) — stock devuelto`
+                    });
+                    stockReturned = true;
+                }
+            }
+            tx.delete(saleRef);
+        });
+        return { success: true, stockReturned };
     },
 
     async setReadyForPickup(id, event) {

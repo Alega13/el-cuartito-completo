@@ -783,6 +783,11 @@
                     <i class="ph-duotone ph-handshake text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Consignaciones</span>
                 </button>
+                <button onclick="app.navigate('webshop')" id="nav-d-webshop"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-storefront text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Webshop</span>
+                </button>
                     </div>
                 </div>
                 <div class="nav-group" data-group="finanzas">
@@ -957,6 +962,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-coins text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Extras</span>
+            </button>
+            <button onclick="app.navigate('webshop'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-storefront text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Webshop</span>
             </button>
         </div>
     </div>
