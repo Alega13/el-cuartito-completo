@@ -40,8 +40,9 @@ export const config: Config = {
 
     FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
     RESEND_API_KEY: process.env.RESEND_API_KEY || 're_placeholder',
-    SHIPMONDO_API_USER: process.env.SHIPMONDO_API_USER || '',
-    SHIPMONDO_API_KEY: process.env.SHIPMONDO_API_KEY || '',
+    // Official names first (shipmondo-cli / API docs), legacy short names as fallback.
+    SHIPMONDO_API_USER: process.env.SHIPMONDO_API_USER || process.env.SHIPMONDO_USER || '',
+    SHIPMONDO_API_KEY: process.env.SHIPMONDO_API_KEY || process.env.SHIPMONDO_KEY || '',
     SHIPMONDO_SANDBOX: process.env.SHIPMONDO_SANDBOX === 'true',
 };
 
