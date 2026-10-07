@@ -25,6 +25,28 @@ const EC_SHOP_DELIVERY_METHODS = new Set([
   "dao_shop", "gls_shop", "postnord_shop", "dhl_shop", "bring_shop",
 ]);
 
+/* Mapea un método shop delivery al carrier que exige el endpoint
+   GET /api/shipmondo/service-points (carrier requerido).
+   Devuelve "" para el "shop" genérico: ahí el usuario elige el transportista. */
+function ecShopMethodCarrier(method) {
+  const m = String(method || "").toLowerCase();
+  if (m.includes("dao")) return "dao";
+  if (m.includes("gls")) return "gls";
+  if (m.includes("postnord")) return "postnord";
+  if (m.includes("bring")) return "bring";
+  if (m.includes("dhl")) return "dhl";
+  return "";
+}
+
+/* Transportistas ofrecidos cuando el método es el "shop" genérico */
+const EC_SP_CARRIERS = [
+  ["dao", "DAO"],
+  ["gls", "GLS"],
+  ["postnord", "PostNord"],
+  ["bring", "Bring"],
+  ["dhl", "DHL"],
+];
+
 const EC_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const EC_HAS_LETTER = (s) => /[\p{L}]/u.test(s || "");
 const EC_HAS_DIGIT  = (s) => /\d/.test(s || "");
@@ -14874,14 +14896,7 @@ const app = {
                     </select>
                 </div>
             </div>
-            ${isShop ? `
-            <div class="mt-2">
-                <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">ID punto de servicio</label>
-                <input type="text" value="${(ui.servicePointId || "").replace(/"/g, "&quot;")}" placeholder="Ej. 9743"
-                    onchange="app.ecSetServicePoint('${s.id}', this.value)" onclick="event.stopPropagation()"
-                    class="mt-1 w-full text-xs font-bold border border-slate-200 bg-white rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange font-mono">
-                <p class="text-[10px] text-slate-400 mt-1">Por ahora se ingresa el ID manual. Al integrar la API irá aquí el selector de puntos de retiro.</p>
-            </div>` : ""}
+            ${isShop ? this.ecServicePointBlockHTML(s.id, ui, input) : ""}
             ${needsCustoms ? `
             <div class="mt-2 flex items-center justify-between gap-2 rounded-lg ${ui.customs ? "bg-emerald-50 border border-emerald-200" : "bg-amber-50 border border-amber-200"} px-2.5 py-2">
                 <span class="text-[10px] font-extrabold uppercase tracking-wider ${ui.customs ? "text-emerald-700" : "text-amber-700"}">
@@ -14916,7 +14931,9 @@ const app = {
     ecSetShippingMethod(saleId, value) {
         const ui = this.ecShipUI(saleId);
         ui.shippingMethod = value;
-        if (!EC_SHOP_DELIVERY_METHODS.has(value)) delete ui.servicePointId;
+        if (!EC_SHOP_DELIVERY_METHODS.has(value)) { delete ui.servicePointId; delete ui.spSelected; }
+        // Cambió el método: se resetea la búsqueda de puntos
+        ui.spSearchStatus = "idle"; ui.spPoints = []; ui.spManual = false;
         this.ecInvalidateQuote(saleId); // el método manual cambió: re-cotizar
         this.refreshCurrentView();
     },
@@ -14924,7 +14941,154 @@ const app = {
     ecSetServicePoint(saleId, value) {
         const ui = this.ecShipUI(saleId);
         ui.servicePointId = String(value || "").trim();
+        delete ui.spSelected; // ID manual: no hay nombre/dirección asociados
         this.refreshCurrentView();
+    },
+
+    /* Carrier efectivo para buscar puntos: del método, o el elegido a mano
+       cuando el método es el "shop" genérico. */
+    ecSpCarrier(ui, method) {
+        return ecShopMethodCarrier(method) || String(ui.spCarrier || "").toLowerCase();
+    },
+
+    ecSetSpCarrier(saleId, value) {
+        const ui = this.ecShipUI(saleId);
+        ui.spCarrier = String(value || "").toLowerCase();
+        ui.spSearchStatus = "idle"; ui.spPoints = [];
+        this.refreshCurrentView();
+    },
+
+    /* Busca puntos de retiro cercanos vía el proxy de Shipmondo.
+       Usa país + CP del destinatario y el carrier del método elegido. */
+    async ecSearchServicePoints(saleId) {
+        const sale = (this.state.sales || []).find(s => s.id === saleId);
+        if (!sale) return;
+        const ui = this.ecShipUI(saleId);
+        const input = this.ecBuildShipmentInput(sale, ui);
+        const carrier = this.ecSpCarrier(ui, input.shippingMethod);
+        const cc = String(input.receiver.country_code || "").trim().toUpperCase();
+        const zip = String(input.receiver.zipcode || "").trim();
+        if (!carrier || !cc || !zip) {
+            this.showToast("⚠️ Para buscar puntos completá transportista, país y código postal");
+            return;
+        }
+        ui.spSearchStatus = "loading"; ui.spPoints = [];
+        this.refreshCurrentView();
+        try {
+            const q = new URLSearchParams({ country_code: cc, zipcode: zip, carrier, limit: "5" });
+            const res = await fetch(`${BASE_API_URL}/api/shipmondo/service-points?${q.toString()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            ui.spPoints = (data.servicePoints || []).slice(0, 5);
+            ui.spSearchStatus = "ready";
+            if (!ui.spPoints.length) this.showToast("ℹ️ No se encontraron puntos cercanos — podés ingresar el ID manual");
+        } catch (e) {
+            console.error("ecSearchServicePoints:", e);
+            ui.spSearchStatus = "error"; ui.spPoints = [];
+            this.showToast("⚠️ No se pudo buscar puntos — podés ingresar el ID manual", "error");
+        }
+        this.refreshCurrentView();
+    },
+
+    /* Elige un punto de la lista: alimenta el mismo servicePointId que el
+       Pre-Flight valida y que el payload de la etiqueta usa. */
+    ecPickServicePoint(saleId, pointId) {
+        const ui = this.ecShipUI(saleId);
+        const p = (ui.spPoints || []).find(x => String(x.id) === String(pointId));
+        if (!p) return;
+        ui.servicePointId = String(p.id);
+        ui.spSelected = { id: String(p.id), name: p.name || "", address1: p.address1 || "", city: p.city || "" };
+        ui.spSearchStatus = "idle"; ui.spPoints = []; ui.spManual = false;
+        this.refreshCurrentView();
+    },
+
+    ecClearServicePoint(saleId) {
+        const ui = this.ecShipUI(saleId);
+        const old = ui.servicePointId;
+        delete ui.servicePointId; delete ui.spSelected;
+        ui.spSearchStatus = "idle"; ui.spPoints = []; ui.spManual = false;
+        // Si el punto venía de la cotización, se deselecciona ahí también
+        const st = this.ecQuoteUI(saleId);
+        if (st && String(st.selectedPointId) === String(old)) st.selectedPointId = null;
+        this.refreshCurrentView();
+    },
+
+    ecToggleSpManual(saleId) {
+        const ui = this.ecShipUI(saleId);
+        ui.spManual = !ui.spManual;
+        this.refreshCurrentView();
+    },
+
+    /* Bloque "Punto de retiro" del Pre-Flight: selector con la API de
+       Shipmondo + fallback a ID manual si la búsqueda falla o no trae puntos. */
+    ecServicePointBlockHTML(saleId, ui, input) {
+        const escId = String(saleId).replace(/"/g, "&quot;");
+
+        // Punto ya elegido: chip de resumen + cambiar
+        if (ui.servicePointId) {
+            const sel = ui.spSelected || {};
+            const title = sel.name || ("Punto " + ui.servicePointId);
+            const sub = [sel.address1, sel.city].filter(Boolean).join(", ");
+            return `
+            <div class="mt-2">
+                <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Punto de retiro</label>
+                <div class="mt-1 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2" onclick="event.stopPropagation()">
+                    <i class="ph-bold ph-check-circle text-emerald-600 shrink-0"></i>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-brand-dark truncate">${ecEsc(title)}</p>
+                        <p class="text-[10px] text-slate-500 truncate">${sub ? ecEsc(sub) + " · " : ""}<span class="font-mono">ID ${ecEsc(String(ui.servicePointId))}</span></p>
+                    </div>
+                    <button onclick="app.ecClearServicePoint('${escId}')" class="shrink-0 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 hover:text-brand-orange underline">Cambiar</button>
+                </div>
+            </div>`;
+        }
+
+        const methodCarrier = ecShopMethodCarrier(input.shippingMethod);
+        const carrier = methodCarrier || String(ui.spCarrier || "").toLowerCase();
+        const cc = String(input.receiver.country_code || "").trim();
+        const zip = String(input.receiver.zipcode || "").trim();
+        const canSearch = !!(carrier && cc && zip);
+        const st = ui.spSearchStatus || "idle";
+        const showManual = ui.spManual || st === "error" || (st === "ready" && !(ui.spPoints || []).length);
+
+        const carrierLabel = (EC_SP_CARRIERS.find(c => c[0] === carrier) || [])[1] || carrier;
+
+        return `
+        <div class="mt-2">
+            <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Punto de retiro</label>
+            <div class="mt-1 flex gap-2" onclick="event.stopPropagation()">
+                ${methodCarrier ? "" : `
+                <select onchange="app.ecSetSpCarrier('${escId}', this.value)"
+                    class="shrink-0 text-xs font-bold border border-slate-200 bg-white rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange max-w-[130px]">
+                    <option value="">Transportista</option>
+                    ${EC_SP_CARRIERS.map(c => `<option value="${c[0]}" ${carrier === c[0] ? "selected" : ""}>${c[1]}</option>`).join("")}
+                </select>`}
+                <button onclick="app.ecSearchServicePoints('${escId}')" ${canSearch && st !== "loading" ? "" : "disabled"}
+                    class="flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canSearch && st !== "loading" ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-100 text-slate-400 cursor-not-allowed"}">
+                    <i class="ph-bold ${st === "loading" ? "ph-circle-notch ph-spin" : "ph-magnifying-glass"}"></i>${st === "loading" ? "Buscando…" : "Buscar puntos cercanos"}
+                </button>
+            </div>
+            ${canSearch ? "" : `<p class="text-[10px] text-slate-400 mt-1">Para buscar puntos completá ${methodCarrier ? "" : "transportista, "}país y código postal del destinatario.</p>`}
+            ${st === "ready" && (ui.spPoints || []).length ? `
+            <span class="sp-list" role="radiogroup" aria-label="Punto de retiro" onclick="event.stopPropagation()">
+                ${(ui.spPoints || []).map(p => `
+                <label class="sp-item">
+                    <input type="radio" name="pf-sp-${escId}" value="${ecEsc(String(p.id))}" class="sr-only"
+                        onchange="app.ecPickServicePoint('${escId}', this.value)" />
+                    <span class="sp-radio" aria-hidden="true"></span>
+                    <span class="sp-name">${ecEsc(p.name || "Punto de retiro")}</span>
+                    <span class="sp-addr">${ecEsc([p.address1, p.zipcode, p.city].filter(Boolean).join(", "))}</span>
+                    <span class="sp-dist">${p.distanceKm != null ? ecEsc(String(p.distanceKm)) + " km" : ""}</span>
+                </label>`).join("")}
+            </span>` : ""}
+            ${showManual ? `
+            <input type="text" value="" placeholder="ID manual (Ej. 9743)"
+                onchange="app.ecSetServicePoint('${escId}', this.value)" onclick="event.stopPropagation()"
+                class="mt-2 w-full text-xs font-bold border border-slate-200 bg-white rounded-lg px-2 py-1.5 outline-none focus:border-brand-orange font-mono">
+            ${st === "error" || (st === "ready" && !(ui.spPoints || []).length) ? `<p class="text-[10px] text-slate-400 mt-1">No se encontraron puntos — ingresá el ID manual.</p>` : ""}
+            <button onclick="app.ecToggleSpManual('${escId}')" class="mt-1.5 text-[10px] font-bold text-slate-400 hover:text-brand-orange underline">← volver a buscar puntos</button>` : `
+            <button onclick="app.ecToggleSpManual('${escId}')" class="mt-1.5 text-[10px] font-bold text-slate-400 hover:text-brand-orange underline">o ingresar el ID manual</button>`}
+        </div>`;
     },
 
     /* Config del modal rápido por campo */
@@ -14938,7 +15102,7 @@ const app = {
             "receiver.city":         { label: "Ciudad", placeholder: "Gdańsk", type: "text" },
             "receiver.country_code": { label: "País (ISO alpha-2)", placeholder: "PL", type: "text", maxlength: 2, upper: true },
             "parcel.weight":         { label: "Peso (gramos)", placeholder: "500", type: "number" },
-            "service_point.id":      { label: "ID del punto de servicio", placeholder: "Ej. 9743", type: "text", note: "Por ahora se ingresa el ID manual. Al integrar la API de Shipmondo, aquí irá el selector de puntos de retiro." },
+            "service_point.id":      { label: "ID del punto de servicio", placeholder: "Ej. 9743", type: "text", note: "Si no conocés el ID, en la tarjeta del envío podés buscar el punto con el selector." },
             "shippingMethod":        { label: "Método de envío", type: "select", options: [["home", "Envío a domicilio"], ["shop", "Retiro en punto de servicio"]] },
         };
         return cfgs[field] || null;
@@ -15814,12 +15978,14 @@ const app = {
 
     selectServicePoint(saleId, pointId) {
         const st = this.ecQuoteUI(saleId);
-        if (!(st.servicePoints || []).some(p => p.id === pointId)) return;
+        const p = (st.servicePoints || []).find(x => x.id === pointId);
+        if (!p) return;
         st.selectedPointId = pointId;
         st.status = QUOTE_SELECTED;
         // El Pre-Flight exige service_point.id para shop delivery: se lo entregamos
         const ui = this.ecShipUI(saleId);
         ui.servicePointId = pointId;
+        ui.spSelected = { id: String(p.id), name: p.name || "", address1: p.address1 || "", city: p.city || "" };
         this.refreshCurrentView(); // re-render + ecRestoreQuoteSections mantiene la sección
     },
 

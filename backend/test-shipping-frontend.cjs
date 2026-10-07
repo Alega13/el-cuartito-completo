@@ -100,5 +100,58 @@ ok(src.includes('data-sale-id'), 'la tarjeta tiene data-sale-id para quitarla de
 ok(src.includes('delete-shipment-modal') && src.includes('Esta acción no se puede deshacer'), 'modal propio de confirmación');
 ok(!/openDeleteShipmentModal[\s\S]{0,400}window\.confirm/.test(src), 'el borrado no usa window.confirm');
 
+// Selector de punto de retiro en el Pre-Flight (reemplaza el ID manual)
+console.log('ecShopMethodCarrier');
+function extractTopFn(name) {
+    const startMark = `function ${name}(`;
+    const start = src.indexOf(startMark);
+    if (start < 0) throw new Error(`fn no encontrada: ${name}`);
+    const braceOpen = src.indexOf('{', start);
+    let depth = 0;
+    for (let i = braceOpen; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        if (src[i] === '}') { depth--; if (depth === 0) return src.slice(start, i + 1); }
+    }
+    throw new Error(`llave sin cerrar: ${name}`);
+}
+const ecShopMethodCarrier = new Function('method', `return (${extractTopFn('ecShopMethodCarrier')})(method);`);
+ok(ecShopMethodCarrier('dao_shop') === 'dao', 'dao_shop → dao');
+ok(ecShopMethodCarrier('gls_shop') === 'gls', 'gls_shop → gls');
+ok(ecShopMethodCarrier('postnord_shop') === 'postnord', 'postnord_shop → postnord');
+ok(ecShopMethodCarrier('bring_shop') === 'bring', 'bring_shop → bring');
+ok(ecShopMethodCarrier('dhl_shop') === 'dhl', 'dhl_shop → dhl');
+ok(ecShopMethodCarrier('GLSDK_PS') === 'gls', 'product code real GLSDK_PS → gls');
+ok(ecShopMethodCarrier('shop') === '', 'shop genérico → "" (elige el usuario)');
+ok(ecShopMethodCarrier('home') === '', 'home → ""');
+ok(ecShopMethodCarrier('') === '' && ecShopMethodCarrier(null) === '', 'vacío/null → ""');
+
+console.log('ecServicePointBlockHTML');
+const spPreamble = extractTopFn('ecEsc') + '\n' + extractTopFn('ecShopMethodCarrier') + '\n'
+    + src.match(/const EC_SP_CARRIERS = \[[\s\S]*?\];/)[0] + '\n';
+const ecServicePointBlockHTML = new Function('saleId', 'ui', 'input',
+    spPreamble + 'const fn = function(saleId, ui, input) {' + extractMethod('ecServicePointBlockHTML') + '}; return fn(saleId, ui, input);');
+const spInput = (method, cc = 'DK', zip = '8000') => ({ shippingMethod: method, receiver: { country_code: cc, zipcode: zip } });
+
+let h = ecServicePointBlockHTML('s1', { servicePointId: '9743', spSelected: { name: 'Pakkeshop Aarhus', address1: 'Gade 1', city: 'Aarhus' } }, spInput('dao_shop'));
+ok(h.includes('Pakkeshop Aarhus') && h.includes('Cambiar') && !h.includes('Buscar puntos cercanos'), 'punto elegido → chip con nombre + Cambiar');
+h = ecServicePointBlockHTML('s1', { servicePointId: '9743' }, spInput('dao_shop'));
+ok(h.includes('Punto 9743') && h.includes('ID 9743'), 'punto manual → chip con fallback al ID');
+h = ecServicePointBlockHTML('s1', {}, spInput('gls_shop'));
+ok(h.includes('Buscar puntos cercanos') && !h.includes('>Transportista<') && !h.includes('disabled'), 'gls_shop → busca directo, botón habilitado');
+h = ecServicePointBlockHTML('s1', {}, spInput('shop'));
+ok(h.includes('>Transportista<') && h.includes('value="dao"') && h.includes('>DAO<'), 'shop genérico → select de transportista');
+h = ecServicePointBlockHTML('s1', {}, spInput('dao_shop', 'DK', ''));
+ok(h.includes('disabled') && h.includes('código postal'), 'sin CP → botón deshabilitado con hint');
+h = ecServicePointBlockHTML('s1', { spSearchStatus: 'ready', spPoints: [{ id: '9743', name: 'Pakkeshop X', address1: 'Gade 1', zipcode: '8000', city: 'Aarhus', distanceKm: 1.2 }] }, spInput('dao_shop'));
+ok(h.includes('sp-item') && h.includes('Pakkeshop X') && h.includes('1.2 km') && h.includes("ecPickServicePoint"), 'resultados → lista elegible con distancia');
+h = ecServicePointBlockHTML('s1', { spSearchStatus: 'error', spPoints: [] }, spInput('dao_shop'));
+ok(h.includes('ID manual') && h.includes('No se encontraron puntos'), 'error API → fallback manual con aviso');
+h = ecServicePointBlockHTML('s1', { spSearchStatus: 'ready', spPoints: [] }, spInput('dao_shop'));
+ok(h.includes('ID manual') && h.includes('No se encontraron puntos'), 'sin resultados → fallback manual con aviso');
+h = ecServicePointBlockHTML('s1', { spManual: true }, spInput('dao_shop'));
+ok(h.includes('ID manual') && h.includes('volver a buscar puntos'), 'toggle manual → input + link para volver');
+ok(!src.includes('Al integrar la API'), 'el placeholder viejo ya no existe en el código');
+ok(src.includes('ecSearchServicePoints') && src.includes('/api/shipmondo/service-points'), 'la búsqueda usa el endpoint real del proxy');
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
