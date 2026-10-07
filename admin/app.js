@@ -316,6 +316,7 @@ const app = {
         filterGenre: 'all',
         filterOwner: 'all',
         filterLabel: 'all',
+        filterLot: 'all',
         filterStorage: 'all',
         filterDiscogs: 'all',
         filterStock: 'all',
@@ -4119,7 +4120,7 @@ const app = {
                 <!-- GRID VIEW -->
                 ${
                 // FOLDER LOGIC: If Grid Mode + No Specific Filter is active -> Show Folders
-                (this.state.filterGenre === 'all' && this.state.filterOwner === 'all' && this.state.filterLabel === 'all' && this.state.filterStorage === 'all' && this.state.inventorySearch === '') ? `
+                (this.state.filterGenre === 'all' && this.state.filterOwner === 'all' && this.state.filterLabel === 'all' && this.state.filterLot === 'all' && this.state.filterStorage === 'all' && this.state.inventorySearch === '') ? `
                     
                     <div class="space-y-8 animate-fade-in">
                         <!-- Genres Folder -->
@@ -4180,7 +4181,7 @@ const app = {
                     ` : ` <!-- ITEMS GRID (Filtered) -->
                     <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 animate-fade-in">
                         <!-- Back Button if Filtered -->
-                        ${(this.state.filterGenre !== 'all' || this.state.filterOwner !== 'all' || this.state.filterLabel !== 'all' || this.state.filterStorage !== 'all') ? `
+                        ${(this.state.filterGenre !== 'all' || this.state.filterOwner !== 'all' || this.state.filterLabel !== 'all' || this.state.filterLot !== 'all' || this.state.filterStorage !== 'all') ? `
                             <div onclick="app.clearAllFilters()" 
                                 class="col-span-full mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-orange cursor-pointer w-fit pl-1 group">
                                 <div class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:bg-brand-orange group-hover:text-white group-hover:border-brand-orange transition-all shadow-sm">
@@ -4388,6 +4389,7 @@ const app = {
         }))].sort();
         const allOwners = [...new Set(this.state.inventory.map(i => i.owner).filter(Boolean))].sort();
         const allLabels = [...new Set(this.state.inventory.map(i => i.label).filter(Boolean))].sort();
+        const allLots = [...new Set(this.state.inventory.map(i => i.lot).filter(Boolean))].sort();
         const allStorage = [...new Set(this.state.inventory.map(i => i.storageLocation).filter(Boolean))].sort();
 
         const filteredInventory = this.getFilteredInventory();
@@ -4425,6 +4427,7 @@ const app = {
         if (this.state.filterCondition === 'new') activeFiltersList.push({ key: 'filterCondition', label: 'Nuevos', icon: 'ph-sparkle' });
         if (this.state.filterGenre !== 'all') activeFiltersList.push({ key: 'filterGenre', label: `Género: ${this.state.filterGenre}`, icon: 'ph-music-notes' });
         if (this.state.filterLabel !== 'all') activeFiltersList.push({ key: 'filterLabel', label: `Sello: ${this.state.filterLabel}`, icon: 'ph-vinyl-record' });
+        if (this.state.filterLot !== 'all') activeFiltersList.push({ key: 'filterLot', label: `Lote: ${this.state.filterLot}`, icon: 'ph-package' });
         if (this.state.filterOwner !== 'all') activeFiltersList.push({ key: 'filterOwner', label: `Dueño: ${this.state.filterOwner}`, icon: 'ph-user' });
         if (this.state.filterStorage !== 'all') activeFiltersList.push({ key: 'filterStorage', label: `Disquería: ${this.state.filterStorage}`, icon: 'ph-tag' });
         if (this.state.filterHero === 'yes') activeFiltersList.push({ key: 'filterHero', label: 'Destacados', icon: 'ph-star' });
@@ -4591,9 +4594,9 @@ const app = {
                 <div class="h-6 w-px bg-slate-200 mx-1"></div>
 
                 <!-- Advanced Filters button -->
-                <button onclick="app.toggleAdvancedFilters()" class="quick-pill ${isFiltered && activeFiltersList.some(f => ['filterGenre','filterLabel','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)) ? 'active' : ''}">
+                <button onclick="app.toggleAdvancedFilters()" class="quick-pill ${isFiltered && activeFiltersList.some(f => ['filterGenre','filterLabel','filterLot','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)) ? 'active' : ''}">
                     <i class="ph-bold ph-sliders-horizontal text-xs"></i> Más Filtros
-                    ${(() => { const advCount = activeFiltersList.filter(f => ['filterGenre','filterLabel','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)).length; return advCount > 0 ? `<span class="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px]">${advCount}</span>` : ''; })()}
+                    ${(() => { const advCount = activeFiltersList.filter(f => ['filterGenre','filterLabel','filterLot','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)).length; return advCount > 0 ? `<span class="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px]">${advCount}</span>` : ''; })()}
                 </button>
 
                 <!-- Stats Toggle -->
@@ -4644,6 +4647,13 @@ const app = {
                     <select onchange="app.state.filterLabel = this.value; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
                         <option value="all">Todos los sellos</option>
                         ${allLabels.map(l => `<option value="${l}" ${this.state.filterLabel === l ? 'selected' : ''}>${l}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Lote</label>
+                    <select onchange="app.state.filterLot = this.value; app.state.invPage = 1; app.refreshCurrentView()" class="w-full h-10 bg-white border border-slate-200 rounded-xl px-3 text-sm font-medium text-brand-dark focus:border-brand-orange outline-none">
+                        <option value="all">Todos los lotes</option>
+                        ${allLots.map(l => `<option value="${l}" ${this.state.filterLot === l ? 'selected' : ''}>${l}</option>`).join('')}
                     </select>
                 </div>
                 <div class="space-y-1">
@@ -4910,6 +4920,7 @@ const app = {
         this.state.filterGenre = 'all';
         this.state.filterOwner = 'all';
         this.state.filterLabel = 'all';
+        this.state.filterLot = 'all';
         this.state.filterStorage = 'all';
         this.state.filterDiscogs = 'all';
         this.state.filterHero = 'all';
@@ -6086,7 +6097,7 @@ const app = {
     // (proxy ${BASE_API_URL}/discogs/*) y delega el alta en
     // handleAddVinyl para no duplicar la logica de persistencia.
     // ============================================================
-    openQuickAddWizard() {
+    openQuickAddWizard(presetLot = '') {
         this.state.quickAdd = {
             step: 1,
             search: '',
@@ -6106,6 +6117,7 @@ const app = {
             discogsId: '',
             discogsUrl: '',
             year: '',
+            lot: '',
             chPos: true,      // Tienda activa por defecto
             chWeb: true,
             chDiscogs: false,
@@ -6113,6 +6125,7 @@ const app = {
             hardDup: null,
             softDups: [],
         };
+        if (presetLot) this.state.quickAdd.lot = presetLot;
         const overlay = document.createElement('div');
         overlay.id = 'quickadd-overlay';
         overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
@@ -6422,6 +6435,9 @@ const app = {
                 ${field('Portada', qa.cover
                     ? `<div class="flex items-center gap-2"><img src="${qa.cover}" class="w-10 h-10 rounded-lg object-cover"><span class="text-[10px] text-emerald-600 font-bold">Desde Discogs ✓</span></div>`
                     : `<span class="text-[11px] text-slate-400">Sin imagen (se puede agregar después)</span>`)}
+                ${field('Lote <span class="normal-case font-medium text-slate-300">(opcional)</span>', `
+                    <input list="qa-lot-list" value="${(qa.lot || '').replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.lot=this.value" class="${inputCls}" placeholder="RUSHOUR-123">
+                    <datalist id="qa-lot-list">${this.getRecentLots(20).map(l => `<option value="${l}">`).join('')}</datalist>`)}
             </div>
             <p class="text-[11px] text-slate-400 mt-4 flex items-center gap-1"><i class="ph-bold ph-info"></i> Año, pressing y más detalles quedan en <b>Opciones avanzadas</b> de la ficha completa.</p>`;
     },
@@ -6461,6 +6477,7 @@ const app = {
                 ${row('Condición', `${qa.condition} (${qa.productCondition === 'New' ? 'Nuevo' : 'Usado'})`)}
                 ${row('Costo / Precio', `${qa.cost || 0} kr / ${qa.price || 0} kr`)}
                 ${row('Stock inicial', qa.stock)}
+                ${row('Lote', qa.lot || '—')}
                 ${row('Canales', [qa.chPos && 'Tienda', qa.chWeb && 'WebShop', qa.chDiscogs && 'Discogs'].filter(Boolean).join(' · ') || 'Ninguno')}
             </div>
             <p class="text-[11px] text-slate-400">Al guardar se crea el producto con SKU automático, fecha y usuario actual.</p>`;
@@ -6497,6 +6514,7 @@ const app = {
         set('discogsId', qa.discogsId || '');
         set('discogs_release_id', qa.discogsId || '');
         set('discogsUrl', qa.discogsUrl || '');
+        set('lot', (qa.lot || '').trim());
         set('tracks', JSON.stringify(qa._tracks || []));
         setCheck('publish_local', qa.chPos);
         setCheck('is_online', qa.chWeb);
@@ -6776,6 +6794,11 @@ const app = {
                                         <label class="text-[9px] font-black text-slate-400 uppercase block">Storage Location</label>
                                         <input name="storageLocation" value="${item.storageLocation || ''}" placeholder="e.g. Shelf A" class="dashboard-input w-full h-10 bg-white">
                                     </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Lote</label>
+                                        <input name="lot" list="vinyl-lot-list" value="${(item.lot || '').replace(/"/g, '&quot;')}" placeholder="RUSHOUR-123" class="dashboard-input w-full h-10 bg-white">
+                                        <datalist id="vinyl-lot-list">${this.getRecentLots(20).map(l => `<option value="${l}">`).join('')}</datalist>
+                                    </div>
                                 </div>
                                 <div class="grid grid-cols-3 gap-3">
                                     <div class="space-y-1">
@@ -6988,6 +7011,13 @@ const app = {
                                     <span class="text-sm text-slate-500 font-medium">Ubicación / Storage</span>
                                     <span class="text-sm font-bold text-brand-dark">${item.storageLocation || '-'}</span>
                                 </div>
+                                ${item.lot ? `
+                                <div class="flex justify-between items-center py-2 border-b border-slate-50">
+                                    <span class="text-sm text-slate-500 font-medium">Lote</span>
+                                    <button onclick="document.getElementById('modal-overlay').remove(); app.gotoInventoryLot('${item.lot}')" class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full hover:bg-indigo-100 transition-all" title="Ver discos de este lote">
+                                        <i class="ph-bold ph-package"></i>${item.lot}
+                                    </button>
+                                </div>` : ''}
                                 ${item.provider_origin ? `
                                 <div class="flex justify-between items-center py-2 border-b border-slate-50">
                                     <span class="text-sm text-slate-500 font-medium">Origen Proveedor</span>
@@ -9019,6 +9049,7 @@ const app = {
                 { name: 'label', weight: 0.15 },
                 { name: 'storageLocation', weight: 0.15 },
                 { name: 'sku', weight: 0.1 },
+                { name: 'lot', weight: 0.1 },
                 { name: 'quickId', weight: 0.1 },
                 { name: 'genre', weight: 0.03 },
                 { name: 'notes', weight: 0.02 }
@@ -9057,6 +9088,7 @@ const app = {
         const currentGenreFilter = this.state.filterGenre || 'all';
         const currentOwnerFilter = this.state.filterOwner || 'all';
         const currentLabelFilter = this.state.filterLabel || 'all';
+        const currentLotFilter = this.state.filterLot || 'all';
         const currentStorageFilter = this.state.filterStorage || 'all';
         const currentDiscogsFilter = this.state.filterDiscogs || 'all';
         const currentHeroFilter = this.state.filterHero || 'all';
@@ -9090,6 +9122,7 @@ const app = {
                             (item.storageLocation || '').toLowerCase().includes(term) ||
                             (item.genre || '').toLowerCase().includes(term) ||
                             (item.notes || '').toLowerCase().includes(term) ||
+                            (item.lot || '').toLowerCase().includes(term) ||
                             (item.sku || '').toLowerCase().includes(term);
                     });
                 });
@@ -9110,6 +9143,7 @@ const app = {
             const matchesGenre = currentGenreFilter === 'all' || effectiveGenres.includes(currentGenreFilter);
             const matchesOwner = currentOwnerFilter === 'all' || item.owner === currentOwnerFilter;
             const matchesLabel = currentLabelFilter === 'all' || item.label === currentLabelFilter;
+            const matchesLot = currentLotFilter === 'all' || (item.lot || '') === currentLotFilter;
             const matchesStorage = currentStorageFilter === 'all' || item.storageLocation === currentStorageFilter;
 
             const hasDiscogs = !!item.discogs_listing_id;
@@ -9135,7 +9169,7 @@ const app = {
                 (currentConditionFilter === 'used' && itemCondition === 'Second-hand') ||
                 (currentConditionFilter === 'new' && itemCondition !== 'Second-hand');
 
-            return matchesGenre && matchesOwner && matchesLabel && matchesStorage && matchesDiscogs && matchesHero && matchesStockTime && matchesStock && matchesCondition;
+            return matchesGenre && matchesOwner && matchesLabel && matchesLot && matchesStorage && matchesDiscogs && matchesHero && matchesStockTime && matchesStock && matchesCondition;
         });
     },
     toggleSelectAll() {
@@ -9275,6 +9309,7 @@ const app = {
             genre5: formData.get('genre5') || null,
             label: formData.get('label'),
             collection: collection || null,
+            lot: (formData.get('lot') || '').trim(),
             collectionNote: formData.get('collectionNote') || null,
             year: formData.get('year') ? parseInt(formData.get('year')) : null,
             condition: formData.get('condition'),
@@ -10187,6 +10222,7 @@ const app = {
             return !searchTerm ||
                 (e.description || e.proveedor || '').toLowerCase().includes(searchTerm) ||
                 (e.category || e.categoria || '').toLowerCase().includes(searchTerm) ||
+                (e.lotRef || '').toLowerCase().includes(searchTerm) ||
                 (e.proveedor || '').toLowerCase().includes(searchTerm);
         });
 
@@ -10255,9 +10291,29 @@ const app = {
                                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
                                         Proveedor *
                                     </label>
-                                    <input name="proveedor" id="expense-proveedor" required 
-                                        placeholder="Nombre de tienda/empresa"
+                                    <input name="proveedor" id="expense-proveedor" required list="expense-supplier-list"
+                                        placeholder="Nombre de tienda/empresa" oninput="app.updateLotPreview()"
                                         class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                                    <datalist id="expense-supplier-list">
+                                        ${[...new Set((this.state.expenses || []).map(e => e.proveedor).filter(Boolean))].sort().map(p => `<option value="${p.replace(/"/g, '&quot;')}">`).join('')}
+                                    </datalist>
+                                </div>
+
+                                <!-- Lote: solo compras de stock (vinilos) -->
+                                <div id="expense-lot-fields" class="hidden">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                            Nº de Factura <span class="normal-case font-medium text-slate-400">(del proveedor)</span>
+                                        </label>
+                                        <input name="invoice_number" id="expense-invoice-number"
+                                            placeholder="Ej. 12345" oninput="app.updateLotPreview()"
+                                            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                                    </div>
+                                    <div class="mt-2 flex items-center gap-2 text-xs">
+                                        <span class="text-slate-400 font-bold uppercase tracking-wide">Lote:</span>
+                                        <span id="expense-lot-preview" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">—</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-1">Vincula esta factura con los discos que ingresen al inventario.</p>
                                 </div>
 
                                 <!-- Invoice Date -->
@@ -10430,6 +10486,11 @@ const app = {
                                                 <td class="p-4">
                                                     <p class="text-sm font-bold text-brand-dark">${e.proveedor || e.description || '-'}</p>
                                                     ${e.descripcion ? `<p class="text-xs text-slate-400 truncate max-w-[200px]">${e.descripcion}</p>` : ''}
+                                                    ${e.lotRef ? `
+                                                    <button onclick="app.gotoInventoryLot('${e.lotRef}')" class="mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full hover:bg-indigo-100 transition-all" title="Ver discos vinculados a este lote">
+                                                        <i class="ph-bold ph-package"></i>${e.lotRef}
+                                                        <span class="bg-white/80 px-1.5 rounded-full">${app.countDiscsInLot(e.lotRef)} discos</span>
+                                                    </button>` : ''}
                                                 </td>
                                                 <td class="p-4">
                                                     <span class="text-[11px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
@@ -10558,6 +10619,7 @@ const app = {
         document.getElementById('expense-iva').value = expense.monto_iva || 0;
         document.getElementById('expense-categoria').value = expense.categoria || expense.category || 'Otros';
         document.getElementById('expense-descripcion').value = expense.descripcion || '';
+        document.getElementById('expense-invoice-number').value = expense.invoiceNumber || '';
 
         // Restoring Inventory Invoice toggle
         const invToggle = document.getElementById('expense-inventory-invoice');
@@ -10576,6 +10638,7 @@ const app = {
                 this.handleExpenseCategoryChange(catSelect);
             }
         }
+        this.updateLotPreview();
 
         // Handle receipt preview if exists
         if (expense.receiptUrl) {
@@ -10601,6 +10664,10 @@ const app = {
         document.getElementById('expense-iva').value = '0';
         document.getElementById('expense-iva').disabled = false;
         document.getElementById('expense-iva').classList.remove('bg-slate-100', 'cursor-not-allowed');
+        // Ocultar campos de lote hasta elegir categoria de stock
+        document.getElementById('expense-lot-fields')?.classList.add('hidden');
+        const lotPreview = document.getElementById('expense-lot-preview');
+        if (lotPreview) lotPreview.textContent = '—';
         document.getElementById('expense-form-title').innerHTML = '<i class="ph-duotone ph-plus-circle text-brand-orange"></i> Nueva Compra';
         document.getElementById('expense-submit-btn').innerHTML = '<i class="ph-bold ph-floppy-disk"></i> Guardar Gasto';
         document.getElementById('expense-cancel-btn').classList.add('hidden');
@@ -10636,16 +10703,84 @@ const app = {
         }) || null;
     },
 
+    // Referencia de lote: linkeo liviano factura -> inventario
+    // Proveedor normalizado en mayusculas sin espacios ni tildes: "Rush Hour" -> "RUSHOUR"
+    normalizeLotSupplier(s) {
+        return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '').toUpperCase();
+    },
+
+    // Deriva un lotRef estable y unico por compra: PROVEEDOR-FACTURA o PROVEEDOR-YYYYMMDD
+    buildLotRef(supplier, invoiceNumber, dateStr, excludeId) {
+        const sup = this.normalizeLotSupplier(supplier);
+        if (!sup) return '';
+        const inv = (invoiceNumber || '').trim().replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+        const datePart = (dateStr || '').slice(0, 10).replace(/-/g, '');
+        let base = inv ? `${sup}-${inv}` : `${sup}-${datePart || 'SINF'}`;
+        let lot = base, n = 2;
+        const taken = new Set((this.state.expenses || []).filter(e => e.id !== excludeId).map(e => e.lotRef).filter(Boolean));
+        while (taken.has(lot)) lot = `${base}-${n++}`;
+        return lot;
+    },
+
+    // Lotes recientes (de compras y de discos) para selectores con autocompletado
+    getRecentLots(limit = 20) {
+        const lots = new Map();
+        (this.state.expenses || []).forEach(e => {
+            if (e.lotRef) lots.set(e.lotRef, (e.fecha_factura || e.date || '').slice(0, 10));
+        });
+        (this.state.inventory || []).forEach(i => {
+            if (i.lot && !lots.has(i.lot)) lots.set(i.lot, '');
+        });
+        return [...lots.keys()].slice(0, limit);
+    },
+
+    countDiscsInLot(lotRef) {
+        if (!lotRef) return 0;
+        return (this.state.inventory || []).filter(i => (i.lot || '') === lotRef).length;
+    },
+
+    gotoInventoryLot(lotRef) {
+        if (!lotRef) return;
+        this.state.filterLot = lotRef;
+        this.state.invPage = 1;
+        this.navigate('inventory');
+    },
+
+    // Muestra/oculta los campos de lote segun la categoria (solo compras de stock)
+    toggleExpenseLotFields() {
+        const cat = document.getElementById('expense-categoria')?.value || '';
+        const wrap = document.getElementById('expense-lot-fields');
+        if (!wrap) return;
+        const isStock = cat === 'stock_nuevo' || cat === 'stock_usado';
+        wrap.classList.toggle('hidden', !isStock);
+        if (isStock) this.updateLotPreview();
+    },
+
+    // Vista previa en vivo del lotRef mientras se escribe
+    updateLotPreview() {
+        const el = document.getElementById('expense-lot-preview');
+        if (!el) return;
+        const prov = document.getElementById('expense-proveedor')?.value || '';
+        const inv = document.getElementById('expense-invoice-number')?.value || '';
+        const fecha = document.getElementById('expense-fecha')?.value || '';
+        const editingId = document.getElementById('expense-id')?.value || null;
+        const lot = this.buildLotRef(prov, inv, fecha, editingId);
+        el.textContent = lot || '—';
+    },
+
     // Blueprint Sec 09: exportar compras a CSV (con IVA visible)
     exportExpensesToCSV() {
         const rows = this.state.expenses || [];
         const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        const header = ['Fecha', 'Proveedor', 'Descripcion', 'Categoria', 'Total (kr)', 'IVA (kr)', 'Comprobante'];
+        const header = ['Fecha', 'Proveedor', 'N Factura', 'Lote', 'Descripcion', 'Categoria', 'Total (kr)', 'IVA (kr)', 'Comprobante'];
         const lines = [header.map(esc).join(';')];
         rows.forEach(e => {
             lines.push([
                 esc((e.fecha_factura || e.date || '').slice(0, 10)),
                 esc(e.proveedor || e.description || ''),
+                esc(e.invoiceNumber || ''),
+                esc(e.lotRef || ''),
                 esc(e.descripcion || ''),
                 esc(e.categoria_label || e.categoria || e.category || ''),
                 esc(Number(e.monto_total || e.amount || 0).toFixed(2)),
@@ -10702,6 +10837,15 @@ const app = {
             if (!ok) return;
         }
 
+        // Referencia de lote: solo para compras de stock (vinilos)
+        const invoiceNumber = (formData.get('invoice_number') || '').trim();
+        const isStockCat = catValue === 'stock_nuevo' || catValue === 'stock_usado';
+        expenseData.invoiceNumber = invoiceNumber;
+        expenseData.supplier = expenseData.proveedor;
+        expenseData.lotRef = (isStockCat && expenseData.proveedor)
+            ? this.buildLotRef(expenseData.proveedor, invoiceNumber, expenseData.fecha_factura, editingId || null)
+            : '';
+
         // If it's a global B2B inventory invoice, neutralise its VAT and ensure it bypasses the VAT reports
         // since the VAT and deductions are already handled at the item-level Micro-IVA
         if (isInventoryInvoice) {
@@ -10750,6 +10894,9 @@ const app = {
         const warning = document.getElementById('category-warning');
         const invToggle = document.getElementById('expense-inventory-invoice');
 
+        // Campos de lote: solo para compras de stock
+        this.toggleExpenseLotFields();
+
         // If inventory invoice is toggled, ignore category rules changing VAT
         if (invToggle && invToggle.checked) {
             ivaInput.value = '0';
@@ -10774,12 +10921,9 @@ const app = {
         const expense = this.state.expenses.find(e => e.id === expenseId);
         if (!expense) return;
 
-        // Open "Add Item" modal and pre-fill data if possible
-        // For now, navigate to inventory and show prompt
-        this.navigate('inventory');
-        this.showToast('ℹ️ Usa "Añadir Disco" para ingresar el stock de esta compra.');
-
-        // FUTURE: Automate this by passing expense data to the modal
+        // Abrir el wizard de carga rapida con el lote de la compra pre-seleccionado
+        this.openQuickAddWizard(expense.lotRef || '');
+        if (expense.lotRef) this.showToast(`Cargando discos del lote ${expense.lotRef}`);
     },
 
     deleteExpense(id) {
