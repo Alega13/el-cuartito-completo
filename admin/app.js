@@ -14432,18 +14432,21 @@ const app = {
         const firstTitle = items[0] ? (items[0].album || items[0].title || items[0].name || 'Item') : '';
         const firstCover = items[0] ? this.resolveItemCover(items[0]) : null;
 
-        // Bloque de datos del cliente: solo lo que existe, sin placeholders inventados
-        const customerBlock = `
-            ${ci.hasAddress ? `
-            <div class="flex items-start gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2 mt-2">
-                <i class="ph-bold ph-map-pin text-slate-400 text-sm mt-0.5"></i>
-                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide leading-snug">${ci.address}</span>
-            </div>` : ''}
-            ${(ci.phone || ci.email) ? `
-            <div class="mt-2 space-y-1">
-                ${ci.phone ? `<div class="flex items-center gap-2 text-xs text-slate-600"><i class="ph-bold ph-phone text-slate-400"></i><a href="tel:${ci.phone}" class="font-semibold hover:text-brand-orange">${ci.phone}</a></div>` : ''}
-                ${ci.email ? `<div class="flex items-center gap-2 text-xs text-slate-600 truncate"><i class="ph-bold ph-envelope-simple text-slate-400"></i><span class="truncate font-medium" title="${ci.email}">${ci.email}</span></div>` : ''}
-            </div>` : ''}`;
+        // Bloque de datos del cliente: solo lo que existe, sin placeholders inventados.
+        // Jerarquía: micro-etiqueta DESTINATARIO + cuerpo regular (nada en negrita compite con el nombre).
+        const customerBlock = (ci.hasAddress || ci.phone || ci.email) ? `
+            <div class="mt-3">
+                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Destinatario</div>
+                <div class="space-y-1">
+                    ${ci.hasAddress ? `
+                    <div class="flex items-start gap-2">
+                        <i class="ph-bold ph-map-pin text-slate-300 text-sm mt-0.5 shrink-0"></i>
+                        <span class="text-xs text-slate-600 leading-snug">${ci.address}</span>
+                    </div>` : ''}
+                    ${ci.phone ? `<div class="flex items-center gap-2 text-xs text-slate-600"><i class="ph-bold ph-phone text-slate-300"></i><a href="tel:${ci.phone}" class="hover:text-brand-orange">${ci.phone}</a></div>` : ''}
+                    ${ci.email ? `<div class="flex items-center gap-2 text-xs text-slate-600 truncate"><i class="ph-bold ph-envelope-simple text-slate-300"></i><span class="truncate" title="${ci.email}">${ci.email}</span></div>` : ''}
+                </div>
+            </div>` : '';
 
         // Acción contextual según la columna (patrón fulfillment por pasos)
         let actionBtn = '';
@@ -14481,17 +14484,17 @@ const app = {
             <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                     ${this.saleChannelBadge(s)}
-                    <span class="font-bold text-sm text-brand-dark truncate">#${s.orderNumber || s.id.slice(0, 6)}</span>
+                    <span class="text-xs font-semibold text-slate-400 truncate">#${s.orderNumber || s.id.slice(0, 6)}</span>
                 </div>
                 <span class="text-[11px] text-slate-400 font-medium whitespace-nowrap">${this.formatDate(s.date)}</span>
             </div>
-            <div class="mt-2 font-bold text-brand-dark text-[15px] truncate" title="${displayName}">${displayName}</div>
-            <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+            <div class="mt-2 text-base font-bold text-brand-dark truncate" title="${displayName}">${displayName}</div>
+            <div class="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                 ${firstCover
                     ? `<img src="${firstCover}" class="w-9 h-9 rounded-lg object-cover border border-slate-100 shrink-0" alt="">`
-                    : `<i class="ph-bold ph-disc text-brand-orange"></i>`}
-                <span class="font-bold text-slate-600">${items.length}</span>
-                ${firstTitle ? `<span class="truncate">${firstTitle}${items.length > 1 ? ` <span class="text-slate-400">+${items.length - 1}</span>` : ''}</span>` : ''}
+                    : `<i class="ph-bold ph-disc text-slate-300"></i>`}
+                <span>${items.length} ${items.length === 1 ? 'ítem' : 'ítems'}</span>
+                ${firstTitle ? `<span class="truncate text-slate-400">· ${firstTitle}${items.length > 1 ? ` +${items.length - 1}` : ''}</span>` : ''}
             </div>
             ${linkedBlock}
             <div class="mt-1.5">
@@ -14501,7 +14504,7 @@ const app = {
             </div>
             ${customerBlock}
             ${(!isPickup && col !== "despachado") ? this.ecPreflightBlock(s) : ""}
-            ${issues.length > 0 ? `<div class="mt-2 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
+            ${issues.length > 0 ? `<div class="mt-3 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
             ${actionBtn}
             <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
         </div>`;
@@ -14638,10 +14641,8 @@ const app = {
 
         return `
         <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3" onclick="event.stopPropagation()">
-            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <i class="ph-bold ph-shield-check"></i>Pre-Flight · Etiqueta Shipmondo
-            </div>
-            <div class="flex flex-wrap gap-1.5 mb-2.5">${this.ecReadinessAlerts(s.id)}</div>
+            <div class="flex flex-wrap gap-1.5 mb-3">${this.ecReadinessAlerts(s.id)}</div>
+            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Paquete</div>
             <div class="grid grid-cols-2 gap-2">
                 <div>
                     <label class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Peso (g)</label>
@@ -14681,9 +14682,10 @@ const app = {
                 ${ui.customs ? "" : `<button onclick="app.openQuickFixModal('${s.id}', 'customs')" class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 underline hover:text-amber-900">Completar</button>`}
             </div>` : ""}
             <div data-quote-section="${s.id}"></div>
+            <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-3 mb-2">Etiqueta</div>
             <button ${canGo ? "" : "disabled"} title="${canGo ? "Generar etiqueta en Shipmondo" : "Faltan datos: " + firstBlocker}"
                 onclick="app.ecGenerateLabel('${s.id}')"
-                class="w-full mt-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canGo ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
+                class="w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${canGo ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
                 <i class="ph-bold ph-tag"></i>Generar Etiqueta
             </button>
         </div>`;
