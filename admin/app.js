@@ -15408,10 +15408,16 @@ const app = {
         this.renderQuoteSection(saleId);
     },
 
-    /* Re-renderiza las secciones de cotización visibles (tras refreshCurrentView) */
+    /* Re-renderiza las secciones de cotización visibles (tras refreshCurrentView).
+       Itera los divs presentes en el DOM (no solo el estado ya creado) para que
+       la sección aparezca también en la primera vista de cada tarjeta. */
     ecRestoreQuoteSections() {
-        if (!this._quoteUI) return;
-        Object.keys(this._quoteUI).forEach(saleId => this.renderQuoteSection(saleId));
+        this._quoteUI = this._quoteUI || {};
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('[data-quote-section]').forEach(el => {
+            const saleId = el.getAttribute('data-quote-section');
+            if (saleId) this.renderQuoteSection(saleId);
+        });
     },
 
     /* Disparo: solo si CP + país + peso pasan el prereq lite.
