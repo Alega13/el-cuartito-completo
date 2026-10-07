@@ -9987,6 +9987,14 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                     </div>
                                 </div>
                                 <input type="hidden" id="receipt-url" name="receiptUrl">
+                                <!-- Blueprint Sec 09: comprobante obligatorio con override explicito -->
+                                <label class="mt-3 flex items-start gap-3 p-3 rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-amber-300 hover:bg-amber-50/50 transition-all">
+                                    <input type="checkbox" id="expense-no-receipt" class="mt-0.5 w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300">
+                                    <span class="text-xs text-slate-500">
+                                        <span class="font-bold text-slate-700">Cargar sin comprobante por ahora</span><br>
+                                        El registro quedará marcado <strong>en revisión</strong> hasta que subas el comprobante.
+                                    </span>
+                                </label>
                             </div>
 
                             <form id="expense-form" onsubmit="app.handleExpenseSubmit(event)" class="space-y-4">
@@ -10106,6 +10114,49 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                 </div>
                             </div>
 
+                            <!-- Blueprint Sec 09: totales por categoria + exportacion -->
+                            ${(() => {
+                                const byCat = {};
+                                let totIva = 0;
+                                filteredExpenses.forEach(e => {
+                                    const label = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || 'Sin categoría';
+                                    const amt = Number(e.monto_total || e.amount) || 0;
+                                    byCat[label] = (byCat[label] || 0) + amt;
+                                    totIva += Number(e.monto_iva) || 0;
+                                });
+                                const tot = Object.values(byCat).reduce((a, b) => a + b, 0);
+                                const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                                return `
+                                <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
+                                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                                        <div class="flex items-center gap-4">
+                                            <div>
+                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total filtrado</p>
+                                                <p class="text-xl font-display font-bold text-brand-dark">${this.formatCurrency(tot)}</p>
+                                            </div>
+                                            <div>
+                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA total</p>
+                                                <p class="text-xl font-display font-bold text-emerald-600">${this.formatCurrency(totIva)}</p>
+                                            </div>
+                                            <div>
+                                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registros</p>
+                                                <p class="text-xl font-display font-bold text-slate-500">${filteredExpenses.length}</p>
+                                            </div>
+                                        </div>
+                                        <button onclick="app.exportExpensesToCSV()" class="flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-orange hover:text-brand-orange text-slate-500 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
+                                            <i class="ph-bold ph-download-simple"></i> Exportar CSV
+                                        </button>
+                                    </div>
+                                    ${top.length > 0 ? `
+                                    <div class="flex flex-wrap gap-2">
+                                        ${top.map(([label, amt]) => `
+                                            <span class="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1 text-[11px] font-bold text-slate-600">
+                                                ${label} <span class="text-brand-dark">${this.formatCurrency(amt)}</span>
+                                            </span>`).join('')}
+                                    </div>` : ''}
+                                </div>`;
+                            })()}
+
                             <!-- Table -->
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left">
@@ -10148,7 +10199,11 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
                                                     ${this.formatCurrency(e.monto_iva || 0)}
                                                 </td>
                                                 <td class="p-4 text-center">
-                                                    ${e.receiptUrl ? `
+                                                    ${e.receiptPending && !e.receiptUrl ? `
+                                                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold" title="Comprobante pendiente de subir">
+                                                            <i class="ph-bold ph-clock"></i> En revisión
+                                                        </span>
+                                                    ` : e.receiptUrl ? `
                                                         <div class="relative inline-block group/preview">
                                                             <a href="${e.receiptUrl}" target="_blank" 
                                                                 class="inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors" 
@@ -10309,6 +10364,52 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
         document.getElementById('receipt-filename').textContent = '';
     },
 
+    // Blueprint Sec 09: normalizacion para deteccion de duplicados
+    normalizeText(s) {
+        return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    },
+
+    findDuplicateExpense(fecha, monto, proveedor, descripcion, excludeId) {
+        const target = this.normalizeText(`${proveedor || ''} ${descripcion || ''}`);
+        const targetDate = (fecha || '').slice(0, 10);
+        const targetAmount = Number(monto) || 0;
+        if (!targetDate || !targetAmount) return null;
+        return (this.state.expenses || []).find(e => {
+            if (excludeId && e.id === excludeId) return false;
+            if ((e.fecha_factura || e.date || '').slice(0, 10) !== targetDate) return false;
+            if (Math.abs((Number(e.monto_total || e.amount) || 0) - targetAmount) > 0.005) return false;
+            const existing = this.normalizeText(`${e.proveedor || e.description || ''} ${e.descripcion || ''}`);
+            if (!target || !existing) return false;
+            return existing.includes(target) || target.includes(existing);
+        }) || null;
+    },
+
+    // Blueprint Sec 09: exportar compras a CSV (con IVA visible)
+    exportExpensesToCSV() {
+        const rows = this.state.expenses || [];
+        const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const header = ['Fecha', 'Proveedor', 'Descripcion', 'Categoria', 'Total (kr)', 'IVA (kr)', 'Comprobante'];
+        const lines = [header.map(esc).join(';')];
+        rows.forEach(e => {
+            lines.push([
+                esc((e.fecha_factura || e.date || '').slice(0, 10)),
+                esc(e.proveedor || e.description || ''),
+                esc(e.descripcion || ''),
+                esc(e.categoria_label || e.categoria || e.category || ''),
+                esc(Number(e.monto_total || e.amount || 0).toFixed(2)),
+                esc(Number(e.monto_iva || 0).toFixed(2)),
+                esc(e.receiptUrl ? 'Si' : (e.receiptPending ? 'En revision' : 'No'))
+            ].join(';'));
+        });
+        const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `registro_compras_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this.showToast('✅ CSV exportado (' + rows.length + ' registros)');
+    },
+
     handleExpenseSubmit(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -10332,6 +10433,22 @@ endingOrders.length > 0 ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-500
             receiptUrl: document.getElementById('receipt-url').value || '',
             timestamp: new Date().toISOString()
         };
+
+        // Blueprint Sec 09: comprobante obligatorio, salvo override explicito ("en revision")
+        const noReceiptOverride = document.getElementById('expense-no-receipt')?.checked;
+        if (!expenseData.receiptUrl && !noReceiptOverride) {
+            this.showToast('⚠️ Subí el comprobante o marcá "Cargar sin comprobante por ahora".');
+            return;
+        }
+        expenseData.receiptPending = !expenseData.receiptUrl && !!noReceiptOverride;
+
+        // Blueprint Sec 09: validacion de duplicados al guardar
+        const editingId = formData.get('id');
+        const dup = this.findDuplicateExpense(expenseData.fecha_factura, expenseData.monto_total, expenseData.proveedor, expenseData.descripcion, editingId || null);
+        if (dup) {
+            const ok = confirm(`Parece duplicado de "${dup.proveedor || dup.description || ''}" (${this.formatDate(dup.fecha_factura || dup.date)} \u00b7 ${Number(dup.monto_total || dup.amount || 0).toFixed(2)} kr).\n\n¿Guardar igual?`);
+            if (!ok) return;
+        }
 
         // If it's a global B2B inventory invoice, neutralise its VAT and ensure it bypasses the VAT reports
         // since the VAT and deductions are already handled at the item-level Micro-IVA
