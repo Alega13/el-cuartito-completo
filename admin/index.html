@@ -596,6 +596,51 @@
             pointer-events: none;
             transition: filter 0.3s ease;
         }
+
+        /* ---- Live Rates · Radio Card Group (Shipmondo) ---- */
+        .quote-title{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin:12px 0 8px; }
+        .rate-group{ display:flex; flex-direction:column; gap:8px; }
+        .rate-card{
+            display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px; align-items:center;
+            background:#fff; border:1.5px solid #e8edf3; border-radius:16px; padding:12px 14px;
+            cursor:pointer; transition:border-color .15s, box-shadow .15s; position:relative;
+        }
+        .rate-card:hover{ border-color:#cbd5e1; }
+        .rate-card.selected{ border-color:#f97316; box-shadow:0 0 0 3px rgba(249,115,22,.15); }
+        .rate-radio{ width:18px; height:18px; border-radius:50%; border:2px solid #cbd5e1; grid-row:span 2; position:relative; }
+        .rate-card.selected .rate-radio{ border-color:#f97316; }
+        .rate-card.selected .rate-radio::after{
+            content:""; position:absolute; inset:3px; border-radius:50%; background:#f97316;
+        }
+        .rate-carrier{ font-weight:800; font-size:13px; }
+        .rate-carrier[data-carrier="dao"]::before{ content:"⬢ "; color:#e11d48; }
+        .rate-carrier[data-carrier="gls"]::before{ content:"⬢ "; color:#1d4ed8; }
+        .rate-carrier[data-carrier="postnord"]::before{ content:"⬢ "; color:#0ea5e9; }
+        .rate-service{ font-size:11px; color:#64748b; font-weight:600; }
+        .rate-eta{ font-size:11px; color:#94a3b8; grid-column:2; }
+        .rate-price{ font-size:15px; font-weight:800; grid-row:span 2; white-space:nowrap; }
+        .rate-card.skeleton{ pointer-events:none; }
+        .sk-line{ height:12px; border-radius:6px; background:linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9); }
+        .sk-line.short{ width:40%; }
+        .quote-error{
+            display:flex; align-items:center; gap:8px; background:#FDECEC; color:#C81E1E;
+            border:1px solid #F8C9C9; border-radius:12px; padding:10px 12px; font-size:12px; font-weight:600;
+        }
+        .sp-list{ display:flex; flex-direction:column; gap:6px; grid-column:1/-1; margin-top:6px;
+            border-top:1px dashed #e2e8f0; padding-top:8px; }
+        .sp-item{
+            display:grid; grid-template-columns:auto 1fr auto; gap:2px 8px; align-items:center;
+            background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:12px; padding:8px 10px; cursor:pointer;
+        }
+        .sp-item.selected{ border-color:#f97316; background:#fff7ed; }
+        .sp-radio{ width:14px; height:14px; border-radius:50%; border:2px solid #cbd5e1; grid-row:span 2; }
+        .sp-item.selected .sp-radio{ border-color:#f97316; }
+        .sp-name{ font-size:12px; font-weight:700; }
+        .sp-addr{ font-size:11px; color:#64748b; grid-column:2; }
+        .sp-dist{ font-size:11px; font-weight:700; color:#0f172a; grid-row:span 2; }
+        .sp-loading,.sp-empty{ grid-column:1/-1; font-size:12px; color:#94a3b8; padding:6px 2px; }
+        .buy-hint{ font-size:10px; color:#94a3b8; text-align:center; margin-top:6px; font-weight:600; }
+        .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
     </style>
 </head>
 
@@ -654,10 +699,7 @@
         <header
             class="md:hidden bg-white border-b border-orange-100 p-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
             <div class="flex items-center gap-2">
-                <div class="w-10 h-10 rounded-full overflow-hidden shadow-md border-2 border-white">
-                    <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover">
-                </div>
-                <h1 class="font-display text-xl font-bold text-brand-dark">El Cuartito</h1>
+                <img src="logo.png" alt="El Cuartito" class="h-9 w-auto">
                 <button onclick="app.togglePrivacyMode()" id="privacy-toggle-mobile" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center ml-1">
                     <i class="ph-bold ph-eye"></i>
                 </button>
@@ -679,97 +721,119 @@
         <aside class="hidden md:flex flex-col w-64 bg-white border-r border-orange-100 h-screen sticky top-0 z-40">
             <div class="p-6 border-b border-orange-50">
                 <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-xl overflow-hidden shadow-lg border-2 border-white shrink-0">
-                        <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover">
-                    </div>
-                    <div>
-                        <h1 class="font-display text-xl font-bold text-brand-dark leading-tight">El Cuartito</h1>
-                        <p class="text-xs text-slate-400 font-medium">Records Management</p>
-                    </div>
+                    <img src="logo.png" alt="El Cuartito" class="h-11 w-auto">
                     <button onclick="app.togglePrivacyMode()" id="privacy-toggle-desktop" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-brand-orange hover:bg-orange-50 flex items-center justify-center transition-all ml-auto" title="Modo Privacidad">
                         <i class="ph-bold ph-eye"></i>
                     </button>
                 </div>
             </div>
 
-            <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <nav class="flex-1 p-4 space-y-3 overflow-y-auto" id="desktop-nav">
+                <div class="nav-group" data-group="operacion">
+                    <button onclick="app.toggleNavGroup('operacion')" class="w-full flex items-center justify-between px-4 pt-1 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-brand-orange transition-colors">
+                        <span>Operación</span>
+                        <i id="nav-caret-operacion" class="ph-bold ph-caret-down text-xs transition-transform duration-200"></i>
+                    </button>
+                    <div id="nav-group-operacion" class="space-y-1">
                 <button onclick="app.navigate('dashboard')" id="nav-d-dashboard"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-chart-pie-slice text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Dashboard</span>
-                </button>
-
-                <button onclick="app.navigate('inventory')" id="nav-d-inventory"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-disc text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>Inventario</span>
                 </button>
                 <button onclick="app.navigate('sales')" id="nav-d-sales"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-shopping-cart text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Ventas</span>
                 </button>
-                <button onclick="app.navigate('onlineSales')" id="nav-d-onlineSales"
+                <button onclick="app.navigate('pos')" id="nav-d-pos"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-storefront text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>🌐 Ventas WebShop</span>
-                </button>
-                <button onclick="app.navigate('newsletter')" id="nav-d-newsletter"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-paper-plane-tilt text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>📧 Drops & Newsletter</span>
+                    <i class="ph-duotone ph-cash-register text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>POS</span>
                 </button>
                 <button onclick="app.navigate('shipping')" id="nav-d-shipping"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-truck text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>📦 Envíos</span>
-                </button>
-                <button onclick="app.navigate('discogsSales')" id="nav-d-discogsSales"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-vinyl-record text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>💿 Ventas Discogs</span>
-                </button>
-                <button onclick="app.navigate('expenses')" id="nav-d-expenses"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-file-text text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>Registro Compras</span>
-                </button>
-                <button onclick="app.navigate('investments')" id="nav-d-investments"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-piggy-bank text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>💰 Inversiones</span>
-                </button>
-                <button onclick="app.navigate('consignments')" id="nav-d-consignments"
-                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-handshake text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>Consignaciones</span>
+                    <span>Envíos</span><span id="nav-badge-shipping" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold flex items-center justify-center">0</span>
                 </button>
                 <button onclick="app.navigate('calendar')" id="nav-d-calendar"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-calendar-blank text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Calendario</span>
                 </button>
-                <button onclick="app.navigate('vatReport')" id="nav-d-vatReport"
+                    </div>
+                </div>
+                <div class="nav-group" data-group="catalogo">
+                    <button onclick="app.toggleNavGroup('catalogo')" class="w-full flex items-center justify-between px-4 pt-1 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-brand-orange transition-colors">
+                        <span>Catálogo</span>
+                        <i id="nav-caret-catalogo" class="ph-bold ph-caret-down text-xs transition-transform duration-200"></i>
+                    </button>
+                    <div id="nav-group-catalogo" class="space-y-1">
+                <button onclick="app.navigate('inventory')" id="nav-d-inventory"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>📊 Reporte VAT</span>
+                    <i class="ph-duotone ph-disc text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Inventario</span>
                 </button>
-                <button onclick="app.navigate('contabilidad')" id="nav-d-contabilidad"
+                <button onclick="app.navigate('newsletter')" id="nav-d-newsletter"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>📑 Contabilidad</span>
+                    <i class="ph-duotone ph-paper-plane-tilt text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Drops & Newsletter</span>
                 </button>
-                <button onclick="app.navigate('facturasManual')" id="nav-d-facturasManual"
+                <button onclick="app.navigate('consignments')" id="nav-d-consignments"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
-                    <i class="ph-duotone ph-note-pencil text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>🧾 Generar Factura</span>
+                    <i class="ph-duotone ph-handshake text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Consignaciones</span>
+                </button>
+                <button onclick="app.navigate('webshop')" id="nav-d-webshop"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-storefront text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Web shop</span>
+                </button>
+                    </div>
+                </div>
+                <div class="nav-group" data-group="finanzas">
+                    <button onclick="app.toggleNavGroup('finanzas')" class="w-full flex items-center justify-between px-4 pt-1 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-brand-orange transition-colors">
+                        <span>Finanzas</span>
+                        <i id="nav-caret-finanzas" class="ph-bold ph-caret-down text-xs transition-transform duration-200"></i>
+                    </button>
+                    <div id="nav-group-finanzas" class="space-y-1">
+                <button onclick="app.navigate('expenses')" id="nav-d-expenses"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-file-text text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Registro Compras</span><span id="nav-badge-expenses" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold flex items-center justify-center">0</span>
                 </button>
                 <button onclick="app.navigate('extraIncome')" id="nav-d-extraIncome"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-coins text-xl group-hover:scale-110 transition-transform"></i>
-                    <span>💰 Ingresos Extra</span>
+                    <span>Ingresos Extra</span>
                 </button>
-
+                <button onclick="app.navigate('investments')" id="nav-d-investments"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-piggy-bank text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Inversiones</span>
+                </button>
+                <button onclick="app.navigate('contabilidad')" id="nav-d-contabilidad"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-receipt text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Contabilidad</span>
+                </button>
+                <button onclick="app.navigate('vatReport')" id="nav-d-vatReport"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-bank text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Reporte VAT</span>
+                </button>
+                <button onclick="app.navigate('facturasManual')" id="nav-d-facturasManual"
+                    class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
+                    <i class="ph-duotone ph-note-pencil text-xl group-hover:scale-110 transition-transform"></i>
+                    <span>Generar Factura</span>
+                </button>
+                    </div>
+                </div>
+                <div class="nav-group" data-group="administracion">
+                    <button onclick="app.toggleNavGroup('administracion')" class="w-full flex items-center justify-between px-4 pt-1 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-brand-orange transition-colors">
+                        <span>Administración</span>
+                        <i id="nav-caret-administracion" class="ph-bold ph-caret-down text-xs transition-transform duration-200"></i>
+                    </button>
+                    <div id="nav-group-administracion" class="space-y-1">
                 <button onclick="app.navigate('backup')" id="nav-d-backup"
                     class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-orange-50 hover:text-brand-orange transition-all font-medium group">
                     <i class="ph-duotone ph-cloud-arrow-up text-xl group-hover:scale-110 transition-transform"></i>
@@ -785,6 +849,8 @@
                     <i class="ph-duotone ph-info text-xl group-hover:scale-110 transition-transform"></i>
                     <span>Datos Legales</span>
                 </button>
+                    </div>
+                </div>
             </nav>
 
             <div class="p-4 border-t border-orange-50">
@@ -896,6 +962,11 @@
                 class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
                 <i class="ph-duotone ph-coins text-3xl text-brand-orange"></i>
                 <span class="text-xs font-bold">Extras</span>
+            </button>
+            <button onclick="app.navigate('webshop'); app.toggleMobileMenu()"
+                class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-orange-50 text-brand-dark">
+                <i class="ph-duotone ph-storefront text-3xl text-brand-orange"></i>
+                <span class="text-xs font-bold">Web shop</span>
             </button>
         </div>
     </div>
