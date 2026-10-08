@@ -2,18 +2,26 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserQRCodeReader } from '@zxing/browser';
 
 // ── Theme tokens (must match App.jsx) ─────────────────────────
-const ORANGE = '#F05A28';
+// ── Paleta del admin (cx-*) ───────────────────────────────────
+const INK = '#1A1A1A';
+const YELLOW = '#F2E14C';
+const PEACH = '#F2955E';
+const ACCENT = '#F05A28';
+const ORANGE = INK; // acento principal = tinta, como en el admin
 const T = {
-  bg:        'oklch(97.5% 0.011 58)',
-  surface:   '#ffffff',
-  surface2:  'oklch(95% 0.009 55)',
-  border:    'rgba(0,0,0,0.07)',
-  text:      'oklch(15% 0.02 265)',
-  textSub:   'oklch(50% 0.012 265)',
-  textMuted: 'oklch(68% 0.008 265)',
+  bg:        'radial-gradient(700px 420px at 100% -5%, rgba(255,255,255,.9) 0%, rgba(255,255,255,0) 60%), radial-gradient(600px 420px at 0% 100%, rgba(242,225,76,.16) 0%, rgba(242,225,76,0) 60%), linear-gradient(160deg, #ECEAE4 0%, #E2E0DA 55%, #E8E5DE 100%)',
+  surface:   '#FBFAF7',
+  card:      'rgba(255,255,255,0.62)',
+  surface2:  '#F1EEE8',
+  border:    'rgba(26,26,26,0.07)',
+  text:      INK,
+  textSub:   '#77736C',
+  textMuted: '#A19D95',
   orange:    ORANGE,
-  orangeBg:  'oklch(95% 0.055 48)',
-  navBg:     'rgba(255,254,250,0.94)',
+  orangeBg:  YELLOW,
+  inputBg:   'rgba(255,255,255,0.7)',
+  navBg:     'rgba(246,244,239,0.82)',
+  shadowSm:  '0 10px 24px -18px rgba(60,45,20,.45)',
 };
 
 // ── Vinyl cover (mini, copied from App.jsx) ────────────────────
@@ -147,14 +155,14 @@ function ScanConfirmSheet({ record, scanCount, onContinue, onCheckout, onDismiss
             <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>Precio</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               {record.is_rsd_discount && (
-                <span style={{ fontSize: 13, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'DM Mono, monospace' }}>{record.price}</span>
+                <span style={{ fontSize: 13, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'Manrope, sans-serif' }}>{record.price}</span>
               )}
-              <span style={{ fontSize: 34, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{eff}</span>
+              <span style={{ fontSize: 34, fontWeight: 300, color: ORANGE, fontFamily: 'Manrope, sans-serif', letterSpacing: -1, lineHeight: 1 }}>{eff}</span>
               <span style={{ fontSize: 15, color: T.textMuted, fontWeight: 600 }}>DKK</span>
             </div>
           </div>
           {record.is_rsd_discount && (
-            <span style={{ fontSize: 11, fontWeight: 800, background: ORANGE, color: '#fff', padding: '4px 10px', borderRadius: 8 }}>RSD −10%</span>
+            <span style={{ fontSize: 11, fontWeight: 800, background: ACCENT, color: '#fff', padding: '4px 10px', borderRadius: 8 }}>RSD −10%</span>
           )}
         </div>
 
@@ -170,7 +178,7 @@ function ScanConfirmSheet({ record, scanCount, onContinue, onCheckout, onDismiss
               background: T.surface,
               color: T.text,
               fontSize: 15, fontWeight: 700,
-              fontFamily: 'DM Sans, sans-serif',
+              fontFamily: 'Manrope, sans-serif',
               cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
             }}
@@ -193,9 +201,9 @@ function ScanConfirmSheet({ record, scanCount, onContinue, onCheckout, onDismiss
               background: ORANGE,
               color: '#fff',
               fontSize: 16, fontWeight: 700,
-              fontFamily: 'DM Sans, sans-serif',
+              fontFamily: 'Manrope, sans-serif',
               cursor: 'pointer',
-              boxShadow: '0 6px 20px rgba(240,90,40,0.40)',
+              boxShadow: '0 12px 24px -14px rgba(26,26,26,.55)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
           >
@@ -243,13 +251,13 @@ function NotFoundSheet({ sku, onDismiss }) {
         <div style={{ textAlign: 'center', paddingBottom: 8 }}>
           <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
           <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 6 }}>Disco no encontrado</div>
-          <div style={{ fontSize: 13, color: T.textSub, fontFamily: 'DM Mono, monospace', marginBottom: 20 }}>SKU: {sku}</div>
+          <div style={{ fontSize: 13, color: T.textSub, fontFamily: 'Manrope, sans-serif', marginBottom: 20 }}>SKU: {sku}</div>
           <button
             onClick={onDismiss}
             style={{
               width: '100%', padding: '14px', borderRadius: 16, border: 'none',
               background: T.surface2, color: T.text,
-              fontSize: 15, fontWeight: 700, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+              fontSize: 15, fontWeight: 700, fontFamily: 'Manrope, sans-serif', cursor: 'pointer',
             }}
           >
             Volver a escanear
@@ -369,7 +377,7 @@ export default function QRScannerScreen({ records, onAddToCart, onGoToCart, onCl
   // ── Viewfinder corner SVG ────────────────────────────────────
   const Corner = ({ style }) => (
     <svg width={28} height={28} viewBox="0 0 28 28" fill="none" style={style}>
-      <path d="M2 14V2h12" stroke={ORANGE} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 14V2h12" stroke={YELLOW} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 
@@ -391,7 +399,7 @@ export default function QRScannerScreen({ records, onAddToCart, onGoToCart, onCl
           marginTop: 8, padding: '14px 28px', borderRadius: 14,
           border: `1.5px solid rgba(255,255,255,0.25)`,
           background: 'transparent', color: '#fff',
-          fontSize: 15, fontWeight: 700, fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+          fontSize: 15, fontWeight: 700, fontFamily: 'Manrope, sans-serif', cursor: 'pointer',
         }}>
           Volver
         </button>
@@ -425,7 +433,7 @@ export default function QRScannerScreen({ records, onAddToCart, onGoToCart, onCl
           <div style={{
             width: 40, height: 40, borderRadius: '50%',
             border: `3px solid rgba(255,255,255,0.15)`,
-            borderTopColor: ORANGE,
+            borderTopColor: YELLOW,
             animation: 'spin 0.8s linear infinite',
           }} />
           <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: 600 }}>
@@ -517,10 +525,10 @@ export default function QRScannerScreen({ records, onAddToCart, onGoToCart, onCl
           {/* Scanning line animation */}
           <div style={{
             position: 'absolute', left: 8, right: 8, height: 2,
-            background: `linear-gradient(90deg, transparent, ${ORANGE}, transparent)`,
+            background: `linear-gradient(90deg, transparent, ${YELLOW}, transparent)`,
             borderRadius: 99,
             animation: 'scanLine 2s ease-in-out infinite',
-            boxShadow: `0 0 8px ${ORANGE}`,
+            boxShadow: `0 0 8px ${YELLOW}`,
           }} />
         </div>
       )}

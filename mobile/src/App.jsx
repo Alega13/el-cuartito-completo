@@ -5,20 +5,26 @@ import { db, auth } from './firebase';
 import QRScannerScreen from './QRScannerScreen';
 
 // ── Theme tokens (light) ───────────────────────────────────────
-const ORANGE = '#F05A28';
+// ── Paleta del admin (cx-*) ───────────────────────────────────
+const INK = '#1A1A1A';
+const YELLOW = '#F2E14C';
+const PEACH = '#F2955E';
+const ACCENT = '#F05A28';
+const ORANGE = INK; // acento principal = tinta, como en el admin
 const T = {
-  bg:        'oklch(97.5% 0.011 58)',
-  surface:   '#ffffff',
-  surface2:  'oklch(95% 0.009 55)',
-  border:    'rgba(0,0,0,0.07)',
-  text:      'oklch(15% 0.02 265)',
-  textSub:   'oklch(50% 0.012 265)',
-  textMuted: 'oklch(68% 0.008 265)',
+  bg:        'radial-gradient(700px 420px at 100% -5%, rgba(255,255,255,.9) 0%, rgba(255,255,255,0) 60%), radial-gradient(600px 420px at 0% 100%, rgba(242,225,76,.16) 0%, rgba(242,225,76,0) 60%), linear-gradient(160deg, #ECEAE4 0%, #E2E0DA 55%, #E8E5DE 100%)',
+  surface:   '#FBFAF7',
+  card:      'rgba(255,255,255,0.62)',
+  surface2:  '#F1EEE8',
+  border:    'rgba(26,26,26,0.07)',
+  text:      INK,
+  textSub:   '#77736C',
+  textMuted: '#A19D95',
   orange:    ORANGE,
-  orangeBg:  'oklch(95% 0.055 48)',
-  inputBg:   'oklch(92.5% 0.008 55)',
-  navBg:     'rgba(255,254,250,0.94)',
-  shadowSm:  '0 2px 8px rgba(0,0,0,0.05)',
+  orangeBg:  YELLOW,
+  inputBg:   'rgba(255,255,255,0.7)',
+  navBg:     'rgba(246,244,239,0.82)',
+  shadowSm:  '0 10px 24px -18px rgba(60,45,20,.45)',
 };
 
 // ── Vinyl cover palette ────────────────────────────────────────
@@ -67,7 +73,7 @@ function Chip({ label, active, onClick }) {
       background: active ? ORANGE : T.inputBg,
       color: active ? '#fff' : T.textSub,
       fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
-      fontFamily: 'DM Sans, sans-serif',
+      fontFamily: 'Manrope, sans-serif',
     }}>{label}</button>
   );
 }
@@ -183,12 +189,12 @@ function BottomNav({ activeTab, setActiveTab, cartCount }) {
             background: 'none', border: 'none', cursor: 'pointer',
             color: active ? ORANGE : T.textMuted,
             position: 'relative', padding: '4px 24px',
-            fontFamily: 'DM Sans, sans-serif',
+            fontFamily: 'Manrope, sans-serif',
           }}>
             {tab.id === 'cart' && cartCount > 0 && (
               <div style={{
                 position: 'absolute', top: 0, right: 8,
-                background: ORANGE, color: '#fff',
+                background: ACCENT, color: '#fff',
                 fontSize: 9, fontWeight: 700, borderRadius: 999,
                 minWidth: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 padding: '0 3px',
@@ -262,19 +268,9 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
       <div style={{
         position: 'relative', overflow: 'hidden',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(160deg, oklch(95% 0.03 48) 0%, oklch(97.5% 0.011 58) 100%)',
         padding: '40px 20px 24px',
         paddingTop: 'max(40px, calc(env(safe-area-inset-top, 40px) + 20px))',
       }}>
-        {[360, 260, 180, 110, 60].map((r, i) => (
-          <div key={i} style={{
-            position: 'absolute', top: '45%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: r, height: r, borderRadius: '50%',
-            border: '1px solid rgba(240,90,40,0.1)',
-            pointerEvents: 'none',
-          }} />
-        ))}
         <img src="/logo.png" alt="El Cuartito" style={{ height: 32, objectFit: 'contain' }} />
         <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: 'uppercase', color: T.textSub, marginTop: 6, marginBottom: 0 }}>
           Discos de Vinilo · Copenhague
@@ -284,35 +280,35 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* Stock card */}
         <div style={{
-          background: T.surface, borderRadius: 18, padding: '18px 20px', border: `1px solid ${T.border}`, boxShadow: T.shadowSm,
+          background: YELLOW, borderRadius: 26, padding: '20px 22px', boxShadow: T.shadowSm,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Discos en Stock</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>Discos en stock</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 36, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{totalStock}</span>
-              <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>unidades</span>
+              <span style={{ fontSize: 36, fontWeight: 300, color: T.text, fontFamily: 'Manrope, sans-serif', letterSpacing: -1, lineHeight: 1 }}>{totalStock}</span>
+              <span style={{ fontSize: 13, color: INK, opacity: .6, fontWeight: 600 }}>unidades</span>
             </div>
-            <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, marginTop: 2 }}>{stockCount} títulos distintos</div>
+            <div style={{ fontSize: 12, color: INK, opacity: .7, fontWeight: 600, marginTop: 4 }}>{stockCount} títulos distintos</div>
           </div>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: T.orangeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth={2} strokeLinecap="round"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4" /><path d="M4 6v12c0 1.1.9 2 2 2h14v-4" /><circle cx="18" cy="16" r="2" /></svg>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={YELLOW} strokeWidth={2} strokeLinecap="round"><path d="M20 12V8H6a2 2 0 01-2-2c0-1.1.9-2 2-2h12v4" /><path d="M4 6v12c0 1.1.9 2 2 2h14v-4" /><circle cx="18" cy="16" r="2" /></svg>
           </div>
         </div>
 
         {/* Sales card */}
         <div style={{
-          background: T.surface, borderRadius: 18, padding: '18px 20px', border: `1px solid ${T.border}`, boxShadow: T.shadowSm,
+          background: PEACH, borderRadius: 26, padding: '20px 22px', boxShadow: T.shadowSm,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 }}>Vendidos</div>
-            <div style={{ display: 'flex', background: T.inputBg, borderRadius: 10, padding: 2 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>Vendidos</div>
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,.45)', borderRadius: 999, padding: 3 }}>
               {PERIODS.map(p => (
                 <button key={p.id} onClick={() => setSalesPeriod(p.id)} style={{
-                  padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
                   background: salesPeriod === p.id ? ORANGE : 'transparent',
                   color: salesPeriod === p.id ? '#fff' : T.textSub,
-                  fontSize: 11, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'Manrope, sans-serif',
                   transition: 'all 0.15s',
                 }}>{p.label}</button>
               ))}
@@ -327,10 +323,10 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 36, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{salesTotal}</span>
-                  <span style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>DKK</span>
+                  <span style={{ fontSize: 36, fontWeight: 300, color: T.text, fontFamily: 'Manrope, sans-serif', letterSpacing: -1, lineHeight: 1 }}>{salesTotal}</span>
+                  <span style={{ fontSize: 14, color: INK, opacity: .6, fontWeight: 600 }}>DKK</span>
                 </div>
-                <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, marginTop: 4 }}>{salesCount} {salesCount === 1 ? 'venta' : 'ventas'}</div>
+                <div style={{ fontSize: 12, color: INK, opacity: .7, fontWeight: 600, marginTop: 4 }}>{salesCount} {salesCount === 1 ? 'venta' : 'ventas'}</div>
               </div>
             </div>
           )}
@@ -339,12 +335,12 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
         {/* Action tiles */}
         <button onClick={() => onNavigate('search')} style={{
           display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
-          background: ORANGE, color: '#fff', border: 'none', borderRadius: 18,
-          cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
-          boxShadow: '0 6px 20px rgba(240,90,40,0.38)',
+          background: INK, color: '#fff', border: 'none', borderRadius: 24,
+          cursor: 'pointer', textAlign: 'left', fontFamily: 'Manrope, sans-serif',
+          boxShadow: '0 12px 24px -14px rgba(26,26,26,.55)',
         }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.1} strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: YELLOW, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={2.1} strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.1 }}>Buscar Discos</div>
@@ -356,12 +352,12 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
         {/* QR Scanner */}
         <button onClick={onOpenScanner} style={{
           display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px',
-          background: 'oklch(15% 0.02 265)', color: '#fff', border: 'none', borderRadius: 18,
-          cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
-          boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+          background: T.card, color: INK, border: '1px solid rgba(255,255,255,.85)', borderRadius: 24,
+          cursor: 'pointer', textAlign: 'left', fontFamily: 'Manrope, sans-serif',
+          boxShadow: T.shadowSm,
         }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth={2.1} strokeLinecap="round">
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: PEACH, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={2.1} strokeLinecap="round">
               <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2" />
               <rect x="9" y="9" width="6" height="6" rx="1" />
             </svg>
@@ -370,7 +366,7 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
             <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.1 }}>Escanear Disco</div>
             <div style={{ fontSize: 12, opacity: 0.65, marginTop: 3, fontWeight: 500 }}>Lee el QR de la etiqueta para agregar</div>
           </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth={2.5} strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2.5} strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
         </button>
 
         {/* Small history link */}
@@ -378,7 +374,7 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           background: 'none', border: 'none', cursor: 'pointer',
           padding: '8px 0', marginTop: 2,
-          fontFamily: 'DM Sans, sans-serif',
+          fontFamily: 'Manrope, sans-serif',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2} strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /><polyline points="14 2 14 8 20 8" /></svg>
           <span style={{ fontSize: 12, fontWeight: 600, color: T.textMuted }}>Ver historial de ventas</span>
@@ -441,7 +437,7 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Artista, álbum, sello o SKU..."
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: T.text, fontFamily: 'DM Sans, sans-serif' }}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: T.text, fontFamily: 'Manrope, sans-serif' }}
           />
           {searchQuery && (
             <button onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }} style={{ background: T.textMuted, border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -495,10 +491,10 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.album || 'Sin Título'}</div>
                 <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{record.artist || 'Artista Desconocido'}</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, fontFamily: 'DM Mono, monospace', marginTop: 2, letterSpacing: 0.5 }}>{record.sku || 'N/A'}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, fontFamily: 'Manrope, sans-serif', marginTop: 2, letterSpacing: 0.5 }}>{record.sku || 'N/A'}</div>
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace' }}>{record.price || 0} DKK</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'Manrope, sans-serif' }}>{record.price || 0} DKK</div>
                 <div style={{ fontSize: 10, color: out ? '#ef4444' : T.textMuted, fontWeight: 600, marginTop: 2 }}>
                   {out ? 'Agotado' : `Disp. ${record.stock}`}
                 </div>
@@ -539,13 +535,13 @@ function DetailModal({ record, onClose, onAddToCart }) {
           <div>
             <SectionLabel>Precio</SectionLabel>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{ fontSize: 30, fontWeight: 800, color: ORANGE, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>{eff}</span>
+              <span style={{ fontSize: 30, fontWeight: 300, color: ORANGE, fontFamily: 'Manrope, sans-serif', letterSpacing: -1, lineHeight: 1 }}>{eff}</span>
               <span style={{ fontSize: 14, color: T.textMuted, fontWeight: 600 }}>DKK</span>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <SectionLabel>Stock</SectionLabel>
-            <div style={{ fontSize: 28, fontWeight: 800, color: out ? '#ef4444' : T.text, fontFamily: 'DM Mono, monospace', lineHeight: 1 }}>
+            <div style={{ fontSize: 28, fontWeight: 300, color: out ? '#ef4444' : T.text, fontFamily: 'Manrope, sans-serif', lineHeight: 1 }}>
               {out ? '0' : record.stock}
             </div>
           </div>
@@ -555,7 +551,7 @@ function DetailModal({ record, onClose, onAddToCart }) {
           {[['SKU', record.sku || 'N/A'], ['Ubicación', record.storageLocation || '—']].map(([lbl, val]) => (
             <div key={lbl} style={{ flex: 1, padding: '10px 14px', background: T.surface2, borderRadius: 12, border: `1px solid ${T.border}` }}>
               <SectionLabel>{lbl}</SectionLabel>
-              <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: 'DM Mono, monospace' }}>{val}</div>
+              <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: 'Manrope, sans-serif' }}>{val}</div>
             </div>
           ))}
         </div>
@@ -567,10 +563,10 @@ function DetailModal({ record, onClose, onAddToCart }) {
             style={{
               width: '100%', padding: '16px', borderRadius: 16, border: 'none',
               cursor: out ? 'not-allowed' : 'pointer',
-              background: out ? T.surface2 : ORANGE,
-              color: out ? T.textMuted : '#fff',
-              fontSize: 16, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
-              boxShadow: out ? 'none' : '0 4px 16px rgba(240,90,40,0.38)',
+              background: out ? T.surface2 : YELLOW,
+              color: out ? T.textMuted : INK,
+              fontSize: 16, fontWeight: 700, fontFamily: 'Manrope, sans-serif',
+              boxShadow: 'none',
             }}
           >
             {out ? 'Sin stock disponible' : '+ Agregar al carrito'}
@@ -602,7 +598,7 @@ function CartScreen({ liveCart, onRemove, onSetDiscount, onCheckout }) {
           </div>
         ) : (
           <>
-            <div style={{ background: T.surface, borderRadius: 18, overflow: 'hidden', border: `1px solid ${T.border}` }}>
+            <div style={{ background: T.card, borderRadius: 24, overflow: 'hidden', border: `1px solid ${T.border}` }}>
               {liveCart.map((item, i) => {
                 const isOpen = openId === item.id;
                 return (
@@ -612,10 +608,10 @@ function CartScreen({ liveCart, onRemove, onSetDiscount, onCheckout }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.album}</div>
                       <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500 }}>{item.artist}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: ORANGE, fontFamily: 'DM Mono, monospace', marginTop: 2 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: ORANGE, fontFamily: 'Manrope, sans-serif', marginTop: 2 }}>
                         {item.discountPct > 0 && <span style={{ color: T.textMuted, fontWeight: 500, textDecoration: 'line-through', marginRight: 6 }}>{item.price}</span>}
                         {item.unitPrice} DKK <span style={{ color: T.textMuted, fontWeight: 500, fontSize: 12 }}>×{item.quantity}</span>
-                        {item.discountPct > 0 && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, color: '#fff', background: ORANGE, borderRadius: 99, padding: '1px 7px', fontFamily: 'DM Sans, sans-serif' }}>−{item.discountPct}%</span>}
+                        {item.discountPct > 0 && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, color: '#fff', background: ACCENT, borderRadius: 99, padding: '1px 7px', fontFamily: 'Manrope, sans-serif' }}>−{item.discountPct}%</span>}
                       </div>
                     </div>
                     <button onClick={e => { e.stopPropagation(); onRemove(item.id); }} style={{ background: T.surface2, border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -633,7 +629,7 @@ function CartScreen({ liveCart, onRemove, onSetDiscount, onCheckout }) {
                             background: active ? T.orangeBg : T.surface2,
                             color: active ? ORANGE : T.textSub,
                             cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                            fontFamily: 'DM Sans, sans-serif',
+                            fontFamily: 'Manrope, sans-serif',
                           }}>
                             <span style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>{pct}%</span>
                             <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{Math.round(item.price * (100 - pct) / 100)} DKK</span>
@@ -646,18 +642,18 @@ function CartScreen({ liveCart, onRemove, onSetDiscount, onCheckout }) {
                 );
               })}
             </div>
-            <div style={{ background: T.surface, borderRadius: 18, padding: '18px 20px', border: `1px solid ${T.border}` }}>
+            <div style={{ background: T.card, borderRadius: 24, padding: '18px 20px', border: `1px solid ${T.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 16 }}>
                 <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Total</span>
                 <div>
-                  <span style={{ fontSize: 32, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1 }}>{total}</span>
+                  <span style={{ fontSize: 32, fontWeight: 300, color: T.text, fontFamily: 'Manrope, sans-serif', letterSpacing: -1 }}>{total}</span>
                   <span style={{ fontSize: 14, color: T.textMuted, fontWeight: 600, marginLeft: 4 }}>DKK</span>
                 </div>
               </div>
               <button onClick={onCheckout} style={{
                 width: '100%', padding: '16px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                background: ORANGE, color: '#fff', fontSize: 17, fontWeight: 700,
-                fontFamily: 'DM Sans, sans-serif', boxShadow: '0 4px 16px rgba(240,90,40,0.38)',
+                background: YELLOW, color: INK, fontSize: 17, fontWeight: 700,
+                fontFamily: 'Manrope, sans-serif', boxShadow: '0 12px 24px -14px rgba(26,26,26,.55)',
               }}>Cobrar →</button>
             </div>
           </>
@@ -715,7 +711,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
               display: 'flex', alignItems: 'center', gap: 5,
               background: 'none', border: 'none', cursor: isProcessing ? 'default' : 'pointer',
               color: isProcessing ? T.textMuted : ORANGE,
-              fontSize: 14, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
+              fontSize: 14, fontWeight: 700, fontFamily: 'Manrope, sans-serif',
               padding: 0, opacity: isProcessing ? 0.4 : 1,
             }}
           >
@@ -735,13 +731,13 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
         <div style={{ textAlign: 'center', padding: '12px 20px 20px', borderBottom: `0.5px solid ${T.border}` }}>
           <SectionLabel>Total a Cobrar</SectionLabel>
           {discountPercent > 0 && (
-            <div style={{ fontSize: 14, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'DM Mono, monospace' }}>{subtotal} DKK</div>
+            <div style={{ fontSize: 14, color: T.textMuted, textDecoration: 'line-through', fontFamily: 'Manrope, sans-serif' }}>{subtotal} DKK</div>
           )}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6 }}>
-            <span style={{ fontSize: 52, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -2, lineHeight: 1 }}>{total}</span>
+            <span style={{ fontSize: 52, fontWeight: 300, color: T.text, fontFamily: 'Manrope, sans-serif', letterSpacing: -2, lineHeight: 1 }}>{total}</span>
             <span style={{ fontSize: 18, fontWeight: 600, color: T.textSub }}>DKK</span>
           </div>
-          {discountPercent > 0 && <div style={{ fontSize: 12, color: ORANGE, fontWeight: 700, marginTop: 4 }}>−{discountPercent}% descuento aplicado (−{discountAmount} DKK)</div>}
+          {discountPercent > 0 && <div style={{ fontSize: 12, color: ACCENT, fontWeight: 700, marginTop: 4 }}>−{discountPercent}% descuento aplicado (−{discountAmount} DKK)</div>}
         </div>
 
         <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -758,7 +754,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
                     background: active ? `${m.col}15` : T.surface2,
                     color: active ? m.col : T.textSub,
                     cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
-                    fontFamily: 'DM Sans, sans-serif',
+                    fontFamily: 'Manrope, sans-serif',
                   }}>
                     <span style={{ fontSize: 22 }}>{m.emoji}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>{m.label}</span>
@@ -776,7 +772,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
                 <img src="/mobilepay-qr.png" alt="MobilePay QR" style={{ width: 180, height: 180, objectFit: 'contain', borderRadius: 8 }} />
               </div>
               <div style={{ fontSize: 13, color: T.textSub, fontWeight: 600, textAlign: 'center' }}>
-                El cliente escanea · <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 800, color: T.text }}>{total} DKK</span>
+                El cliente escanea · <span style={{ fontFamily: 'Manrope, sans-serif', fontWeight: 800, color: T.text }}>{total} DKK</span>
               </div>
             </div>
           )}
@@ -805,7 +801,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
                     background: active ? T.orangeBg : T.surface2,
                     color: active ? ORANGE : T.textSub,
                     cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s',
+                    fontFamily: 'Manrope, sans-serif', transition: 'all 0.15s',
                   }}>
                     <span style={{ fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{pct}%</span>
                     <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{active ? `−${Math.round(subtotal * pct / 100)} DKK` : 'Descuento'}</span>
@@ -825,7 +821,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
                   border: `1.5px solid ${channel === v ? ORANGE : T.border}`,
                   background: channel === v ? T.orangeBg : T.surface2,
                   color: channel === v ? ORANGE : T.textSub,
-                  cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: 12, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'Manrope, sans-serif', fontSize: 12, fontWeight: 700,
                 }}>{l}</button>
               ))}
             </div>
@@ -842,8 +838,8 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
           <button onClick={handleConfirm} disabled={isProcessing} style={{
             width: '100%', padding: '16px', borderRadius: 16, border: 'none',
             cursor: isProcessing ? 'default' : 'pointer',
-            background: 'oklch(15% 0.02 265)', color: '#fff',
-            fontSize: 17, fontWeight: 700, fontFamily: 'DM Sans, sans-serif',
+            background: INK, color: '#fff',
+            fontSize: 17, fontWeight: 700, fontFamily: 'Manrope, sans-serif',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             opacity: isProcessing ? 0.7 : 1,
           }}>
@@ -863,7 +859,7 @@ function SalesHistoryScreen({ salesHistory, isLoadingSales, onClose, onRefresh }
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 55, background: T.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 20px', paddingTop: 'max(14px, env(safe-area-inset-top, 14px))', borderBottom: `0.5px solid ${T.border}`, background: T.navBg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: ORANGE, fontSize: 14, fontWeight: 600, fontFamily: 'DM Sans, sans-serif' }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: ORANGE, fontSize: 14, fontWeight: 600, fontFamily: 'Manrope, sans-serif' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
           Volver
         </button>
@@ -886,11 +882,11 @@ function SalesHistoryScreen({ salesHistory, isLoadingSales, onClose, onRefresh }
           const date = sale.date || (sale.timestamp?.toDate ? sale.timestamp.toDate().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha');
           const channelLabel = { tienda: 'Tienda', local: 'Local', feria: 'Feria', online: 'Online', discogs: 'Discogs' }[sale.channel] || sale.channel;
           return (
-            <div key={sale.id} style={{ background: T.surface, borderRadius: 18, padding: '16px', border: `1px solid ${T.border}` }}>
+            <div key={sale.id} style={{ background: T.card, borderRadius: 24, padding: '16px', border: `1px solid ${T.border}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, marginBottom: 3 }}>{date}</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: T.text, fontFamily: 'DM Mono, monospace', letterSpacing: -1, lineHeight: 1 }}>
+                  <div style={{ fontSize: 26, fontWeight: 300, color: T.text, fontFamily: 'Manrope, sans-serif', letterSpacing: -1, lineHeight: 1 }}>
                     {total} <span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>DKK</span>
                   </div>
                 </div>
@@ -900,7 +896,7 @@ function SalesHistoryScreen({ salesHistory, isLoadingSales, onClose, onRefresh }
                 {(sale.items || []).slice(0, 3).map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                     <span style={{ color: T.text, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, paddingRight: 8 }}>{item.album || item.title || 'Artículo'}</span>
-                    <span style={{ color: T.textSub, fontFamily: 'DM Mono, monospace', flexShrink: 0 }}>{item.qty || item.quantity || 1}×{item.priceAtSale || item.unitPrice || 0}</span>
+                    <span style={{ color: T.textSub, fontFamily: 'Manrope, sans-serif', flexShrink: 0 }}>{item.qty || item.quantity || 1}×{item.priceAtSale || item.unitPrice || 0}</span>
                   </div>
                 ))}
                 {(sale.items || []).length > 3 && <span style={{ fontSize: 11, color: T.textMuted }}>+{sale.items.length - 3} más</span>}
@@ -1015,7 +1011,7 @@ function App() {
   const cartCount = liveCart.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, fontFamily: 'DM Sans, sans-serif', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', background: T.bg, overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, fontFamily: 'Manrope, sans-serif', WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', background: T.bg, overflow: 'hidden' }}>
       <Toast message={toastMessage} />
 
       {activeTab === 'home' && (
