@@ -582,8 +582,9 @@ function DetailModal({ record, onClose, onAddToCart }) {
 }
 
 // ── CartScreen ─────────────────────────────────────────────────
-function CartScreen({ liveCart, onRemove, onCheckout }) {
-  const total = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
+function CartScreen({ liveCart, onRemove, onSetDiscount, onCheckout }) {
+  const total = liveCart.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+  const [openId, setOpenId] = useState(null);
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden' }}>
       <div style={{ padding: '12px 20px 14px', paddingTop: 'max(12px, env(safe-area-inset-top, 12px))', borderBottom: `0.5px solid ${T.border}`, background: T.navBg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', flexShrink: 0 }}>
@@ -603,19 +604,44 @@ function CartScreen({ liveCart, onRemove, onCheckout }) {
           <>
             <div style={{ background: T.surface, borderRadius: 18, overflow: 'hidden', border: `1px solid ${T.border}` }}>
               {liveCart.map((item, i) => {
+                const isOpen = openId === item.id;
                 return (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < liveCart.length - 1 ? `0.5px solid ${T.border}` : 'none' }}>
+                  <div key={item.id} style={{ borderBottom: i < liveCart.length - 1 ? `0.5px solid ${T.border}` : 'none' }}>
+                  <div onClick={() => setOpenId(isOpen ? null : item.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer' }}>
                     <VinylCover record={item} size={44} radius={8} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.album}</div>
                       <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500 }}>{item.artist}</div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: ORANGE, fontFamily: 'DM Mono, monospace', marginTop: 2 }}>
-                        {item.price} DKK <span style={{ color: T.textMuted, fontWeight: 500, fontSize: 12 }}>×{item.quantity}</span>
+                        {item.discountPct > 0 && <span style={{ color: T.textMuted, fontWeight: 500, textDecoration: 'line-through', marginRight: 6 }}>{item.price}</span>}
+                        {item.unitPrice} DKK <span style={{ color: T.textMuted, fontWeight: 500, fontSize: 12 }}>×{item.quantity}</span>
+                        {item.discountPct > 0 && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, color: '#fff', background: ORANGE, borderRadius: 99, padding: '1px 7px', fontFamily: 'DM Sans, sans-serif' }}>−{item.discountPct}%</span>}
                       </div>
                     </div>
-                    <button onClick={() => onRemove(item.id)} style={{ background: T.surface2, border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button onClick={e => { e.stopPropagation(); onRemove(item.id); }} style={{ background: T.surface2, border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke={T.textMuted} strokeWidth={2.2} strokeLinecap="round"><path d="M1 1l8 8M9 1L1 9" /></svg>
                     </button>
+                  </div>
+                  {isOpen && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '0 16px 14px' }}>
+                      {[10, 20, 30].map(pct => {
+                        const active = item.discountPct === pct;
+                        return (
+                          <button key={pct} onClick={() => onSetDiscount(item.id, active ? 0 : pct)} style={{
+                            padding: '10px 6px', borderRadius: 12,
+                            border: `1.5px solid ${active ? ORANGE : T.border}`,
+                            background: active ? T.orangeBg : T.surface2,
+                            color: active ? ORANGE : T.textSub,
+                            cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                            fontFamily: 'DM Sans, sans-serif',
+                          }}>
+                            <span style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>{pct}%</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{Math.round(item.price * (100 - pct) / 100)} DKK</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                   </div>
                 );
               })}
@@ -650,7 +676,7 @@ function CheckoutModal({ liveCart, onClose, onConfirm, onSuccess }) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState(null);
 
-  const subtotal = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const subtotal = liveCart.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
   const discountAmount = discountPercent > 0 ? Math.round(subtotal * discountPercent / 100) : 0;
   const total = subtotal - discountAmount;
 
@@ -925,8 +951,15 @@ function App() {
 
   const liveCart = useMemo(() => cart.map(cartItem => {
     const record = records.find(r => r.id === cartItem.id);
-    return { ...record, ...cartItem, price: record?.price ?? cartItem.price };
+    const price = record?.price ?? cartItem.price;
+    const discountPct = cartItem.discountPct || 0;
+    // unitPrice = precio final por disco con su descuento individual
+    return { ...record, ...cartItem, price, discountPct, unitPrice: Math.round(price * (100 - discountPct) / 100) };
   }), [cart, records]);
+
+  const setItemDiscount = useCallback((id, pct) => {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, discountPct: pct } : i));
+  }, []);
 
   const showToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -966,9 +999,9 @@ function App() {
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error('No autenticado. Reiniciá la app.');
     const idToken = await currentUser.getIdToken();
-    const subtotal = liveCart.reduce((s, i) => s + i.price * i.quantity, 0);
+    const subtotal = liveCart.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
     const totalAmount = subtotal - (discountAmount || 0);
-    const items = liveCart.map(i => ({ productId: i.id, qty: i.quantity, priceAtSale: i.price, album: i.album || 'Venta App' }));
+    const items = liveCart.map(i => ({ productId: i.id, qty: i.quantity, priceAtSale: i.unitPrice, album: i.album || 'Venta App' }));
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     const res = await fetch(`${apiUrl}/sales`, {
       method: 'POST',
@@ -997,7 +1030,7 @@ function App() {
         <SearchScreen records={records} isLoading={isLoading} onSelectRecord={setSelectedRecord} />
       )}
       {activeTab === 'cart' && (
-        <CartScreen liveCart={liveCart} onRemove={id => setCart(p => p.filter(i => i.id !== id))} onCheckout={() => setIsCheckoutOpen(true)} />
+        <CartScreen liveCart={liveCart} onRemove={id => setCart(p => p.filter(i => i.id !== id))} onSetDiscount={setItemDiscount} onCheckout={() => setIsCheckoutOpen(true)} />
       )}
 
       {selectedRecord && (
