@@ -1046,119 +1046,85 @@ const app = {
 
         const selectedProducts = products.filter(p => this.state.newsletterSelectedIds.includes(p.id));
 
+        const subject = this.state.newsletterSubject ?? 'New This Week — El Cuartito Records';
+        const intro = this.state.newsletterIntro ?? "Fresh drops just landed at El Cuartito Records. Here's what's new this week.";
         const html = `
-            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Drops & Newsletter',
-                    subtitle: 'Envía las novedades semanales a tus suscriptores de Resend',
+                    subtitle: 'Elegí los discos nuevos y mandá el drop semanal a tus suscriptores',
                     filters: `
-                    <div onclick="app.showSubscribersModal()" class="bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3 cursor-pointer hover:border-brand-orange hover:shadow-md transition-all group">
-                        <div class="w-10 h-10 rounded-xl bg-orange-50 text-brand-orange flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <i class="ph-bold ph-users text-xl"></i>
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                Suscriptores activos
-                                <i class="ph-bold ph-caret-right text-brand-orange"></i>
-                            </div>
-                            <div class="text-xl font-bold text-brand-dark">${subscriberCount} <span class="text-xs font-normal text-slate-400 underline">(ver lista)</span></div>
-                        </div>
-                    </div>`
+                    <button onclick="app.showSubscribersModal()" class="cx-btn">
+                        <i class="ph ph-users"></i> ${subscriberCount} suscriptores activos <span class="text-stone-500 font-medium hidden sm:inline">· ver lista</span>
+                    </button>`
                 })}
 
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <!-- Left Column: Form & Selected Items -->
-                    <div class="lg:col-span-7 space-y-6">
-                        <!-- Campaign Settings Card -->
-                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
-                            <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
-                                <i class="ph-bold ph-paper-plane-tilt text-brand-orange"></i>
-                                Configuración del Envío
-                            </h2>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                    <!-- Izquierda: mensaje + selección + envío -->
+                    <div class="lg:col-span-7 space-y-4">
+                        <section class="vf-card">
+                            <h3 class="vf-h">El mail</h3>
+                            <label class="vf-field"><span>Asunto</span>
+                                <input type="text" id="newsletter-subject" value="${subject.replace(/"/g, '&quot;')}"
+                                    oninput="app.state.newsletterSubject = this.value"
+                                    placeholder="Ej: Fresh Drops This Week" class="vf-input"></label>
+                            <label class="vf-field mt-3"><span>Introducción</span>
+                                <textarea id="newsletter-intro" rows="3" oninput="app.state.newsletterIntro = this.value"
+                                    placeholder="Un par de líneas antes de los discos" class="vf-input !h-auto py-2.5 resize-none">${intro}</textarea></label>
+                        </section>
 
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Asunto del Email</label>
-                                <input type="text" id="newsletter-subject" 
-                                    value="New This Week — El Cuartito Records" 
-                                    placeholder="Ej: Fresh Drops This Week 🎵"
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mensaje de Introducción</label>
-                                <textarea id="newsletter-intro" rows="3"
-                                    placeholder="Mensaje personalizado de introducción..."
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">Fresh drops just landed at El Cuartito Records. Here's what's new this week.</textarea>
-                            </div>
-                        </div>
-
-                        <!-- Selected Vinyls Box -->
-                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
-                            <div class="flex items-center justify-between">
-                                <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-bold ph-disc text-brand-orange"></i>
-                                    Discos Seleccionados (${selectedProducts.length})
-                                </h2>
+                        <section class="vf-card !p-2">
+                            <div class="flex items-center justify-between px-3 pt-2 pb-1">
+                                <h3 class="vf-h !mb-0">Discos del drop <span class="cx-count">${selectedProducts.length}</span></h3>
                                 ${selectedProducts.length > 0 ? `
-                                    <button onclick="app.state.newsletterSelectedIds=[]; app.renderNewsletter(document.getElementById('app-content'));" className="text-xs font-bold text-red-500 hover:underline">
-                                        Limpiar Selección
-                                    </button>
+                                    <button onclick="app.state.newsletterSelectedIds=[]; app.renderNewsletter(document.getElementById('app-content'));" class="text-xs font-semibold text-stone-500 hover:text-red-700">Quitar todos</button>
                                 ` : ''}
                             </div>
-
                             ${selectedProducts.length === 0 ? `
-                                <div class="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
-                                    <i class="ph-duotone ph-disc text-4xl text-slate-300 mb-2"></i>
-                                    <p class="text-sm font-medium text-slate-500">No has seleccionado ningún disco aún.</p>
-                                    <p class="text-xs text-slate-400 mt-1">Elige los discos de la lista de la derecha para incluirlos en el drop.</p>
+                                <div class="m-2 rounded-2xl border border-dashed border-black/15 p-8 text-center">
+                                    <i class="ph ph-vinyl-record text-3xl text-stone-400 block mb-2"></i>
+                                    <p class="text-sm text-stone-600">Todavía no elegiste discos. Sumalos desde la lista de la derecha.</p>
                                 </div>
                             ` : `
-                                <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
+                                <div class="max-h-80 overflow-y-auto custom-scrollbar">
                                     ${selectedProducts.map(p => `
-                                        <div class="py-3 flex items-center justify-between gap-3">
-                                            <div class="flex items-center gap-3">
-                                                <img src="${p.cover_image || p.image || 'logo.jpg'}" class="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0">
-                                                <div>
-                                                    <div class="text-sm font-bold text-brand-dark leading-tight">${p.title || p.album || 'Sin Título'}</div>
-                                                    <div class="text-xs text-slate-500 uppercase">${p.artist || 'Desconocido'} · DKK ${p.price || 0}</div>
-                                                </div>
+                                        <div class="cx-feed-row !cursor-default">
+                                            <span class="cx-cover"><img src="${p.cover_image || p.image || 'logo.jpg'}" class="w-full h-full object-cover" alt=""></span>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-semibold truncate">${p.title || p.album || 'Sin título'}</p>
+                                                <p class="text-xs text-stone-500 truncate">${p.artist || 'Desconocido'}</p>
                                             </div>
-                                            <button onclick="app.toggleNewsletterProduct('${p.id}')" class="w-8 h-8 rounded-xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors">
-                                                <i class="ph-bold ph-x text-xs"></i>
-                                            </button>
+                                            <span class="text-sm font-semibold">${this.formatCurrency(Number(p.price) || 0, false)}</span>
+                                            <button onclick="app.toggleNewsletterProduct('${p.id}')" class="cx-row-btn is-danger" aria-label="Quitar del drop"><i class="ph ph-x"></i></button>
                                         </div>
                                     `).join('')}
                                 </div>
                             `}
+                        </section>
 
-                            <button onclick="app.sendNewsletterDrop()" id="send-drop-btn"
-                                ${selectedProducts.length === 0 || subscriberCount === 0 ? 'disabled' : ''}
-                                class="w-full bg-brand-dark text-white font-bold py-4 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center gap-2">
-                                <i class="ph-bold ph-paper-plane-tilt"></i>
-                                <span>Enviar Weekly Drop a ${subscriberCount} Suscriptores</span>
-                            </button>
-                        </div>
+                        <button onclick="app.sendNewsletterDrop()" id="send-drop-btn"
+                            ${selectedProducts.length === 0 || subscriberCount === 0 ? 'disabled' : ''}
+                            class="cx-pos-cta disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="ph-bold ph-paper-plane-tilt"></i>
+                            <span>Enviar el drop a ${subscriberCount} suscriptores</span>
+                        </button>
                     </div>
 
-                    <!-- Right Column: Product Picker -->
-                    <div class="lg:col-span-5">
-                        <div class="bg-white rounded-3xl p-6 border border-orange-100 shadow-sm space-y-4">
-                            <h2 class="text-lg font-bold text-brand-dark flex items-center gap-2">
-                                <i class="ph-bold ph-magnifying-glass text-brand-orange"></i>
-                                Buscar e Incluir Discos (${products.length})
-                            </h2>
-
-                            <input type="text" id="newsletter-product-search" 
-                                oninput="app.filterNewsletterProducts(this.value)"
-                                placeholder="Buscar por título, artista o sello..."
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white text-sm font-medium text-brand-dark">
-
-                            <div id="newsletter-product-list" class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                                ${this.renderNewsletterProductList(products, '')}
-                            </div>
+                    <!-- Derecha: elegir discos -->
+                    <section class="cx-panel lg:col-span-5 !p-4">
+                        <h3 class="vf-h px-1">Elegir discos <span class="text-stone-500 font-medium text-sm">(${products.length}, los más nuevos primero)</span></h3>
+                        <div class="cx-search mb-3">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" id="newsletter-product-search" oninput="app.filterNewsletterProducts(this.value)"
+                                value="${(this.state.newsletterQuery || '').replace(/"/g, '&quot;')}" placeholder="Título, artista o sello">
                         </div>
-                    </div>
+                        <div id="newsletter-product-list" class="space-y-1 max-h-[560px] overflow-y-auto custom-scrollbar">
+                            ${this.renderNewsletterProductList(products, this.state.newsletterQuery || '')}
+                        </div>
+                    </section>
                 </div>
+            </div>
             </div>
         `;
 
@@ -1182,24 +1148,18 @@ const app = {
         return filtered.slice(0, 50).map(p => {
             const isSelected = selectedIds.includes(p.id);
             return `
-                <div onclick="app.toggleNewsletterProduct('${p.id}')" 
-                    class="p-3 rounded-2xl border ${isSelected ? 'border-brand-orange bg-orange-50/50' : 'border-slate-100 hover:border-slate-200'} cursor-pointer flex items-center justify-between gap-3 transition-all">
-                    <div class="flex items-center gap-3 overflow-hidden">
-                        <img src="${p.cover_image || p.image || 'logo.jpg'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0">
-                        <div class="truncate">
-                            <div class="text-sm font-bold text-brand-dark truncate">${p.title || p.album || 'Sin Título'}</div>
-                            <div class="text-xs text-slate-500 uppercase truncate">${p.artist || 'Desconocido'} · DKK ${p.price || 0}</div>
-                        </div>
-                    </div>
-                    <div class="w-6 h-6 rounded-lg ${isSelected ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'} flex items-center justify-center shrink-0">
-                        <i class="ph-bold ${isSelected ? 'ph-check' : 'ph-plus'} text-xs"></i>
-                    </div>
-                </div>
+                <button type="button" onclick="app.toggleNewsletterProduct('${p.id}')" class="gs-row ${isSelected ? 'is-picked' : ''}">
+                    <span class="gs-thumb"><img src="${p.cover_image || p.image || 'logo.jpg'}" alt=""></span>
+                    <span class="gs-main"><b>${p.title || p.album || 'Sin título'}</b><small>${p.artist || 'Desconocido'} · ${this.formatCurrency(Number(p.price) || 0, false)}</small></span>
+                    <span class="cx-stock ${Number(p.stock) > 0 ? '' : 'is-out'}">${Number(p.stock) > 0 ? 'Stock ' + p.stock : 'Agotado'}</span>
+                    <span class="cx-pick" aria-hidden="true"><i class="ph-bold ${isSelected ? 'ph-check' : 'ph-plus'}"></i></span>
+                </button>
             `;
         }).join('');
     },
 
     filterNewsletterProducts(query) {
+        this.state.newsletterQuery = query;
         const listEl = document.getElementById('newsletter-product-list');
         const products = (this.state.inventory && this.state.inventory.length > 0) ? this.state.inventory : (this.state.products || []);
         if (listEl) {
@@ -1218,50 +1178,36 @@ const app = {
 
         const modalOverlay = document.createElement('div');
         modalOverlay.id = 'subscribers-modal';
-        modalOverlay.className = 'fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn';
+        modalOverlay.className = 'vf-overlay cx-dialog-wrap !z-[100]';
+        modalOverlay.onclick = (e) => { if (e.target === modalOverlay) modalOverlay.remove(); };
 
         const modalContent = `
-            <div class="bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 relative max-h-[85vh] flex flex-col">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-2xl bg-orange-50 text-brand-orange flex items-center justify-center">
-                            <i class="ph-bold ph-users text-xl"></i>
-                        </div>
-                        <div>
-                            <h2 class="text-xl font-bold text-brand-dark">Lista de Suscriptores</h2>
-                            <p class="text-xs text-slate-400 font-medium">${subscribers.length} correos registrados</p>
-                        </div>
+            <div class="cx-dialog cx-view !max-w-xl flex flex-col !max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="subs-title">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h2 id="subs-title" class="cx-dialog-title">Suscriptores</h2>
+                        <p class="cx-sub !mt-1">${subscribers.length} mails registrados, ${subscribers.filter(s => s.active !== false).length} activos</p>
                     </div>
-                    <button onclick="document.getElementById('subscribers-modal').remove()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors">
-                        <i class="ph-bold ph-x text-sm"></i>
-                    </button>
+                    <button onclick="document.getElementById('subscribers-modal').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
                 </div>
-
-                <div class="overflow-y-auto flex-1 divide-y divide-slate-100 pr-1">
+                <div class="overflow-y-auto flex-1 custom-scrollbar rounded-2xl bg-white/50 p-1">
                     ${subscribers.length === 0 ? `
-                        <div class="p-8 text-center text-slate-400 font-medium">No hay suscriptores registrados aún.</div>
+                        <p class="p-8 text-center text-sm text-stone-500">Todavía no hay suscriptores.</p>
                     ` : subscribers.map(sub => `
-                        <div class="py-3 flex items-center justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-xs flex items-center justify-center uppercase">
-                                    ${(sub.email || 'U')[0]}
-                                </div>
-                                <div>
-                                    <div class="text-sm font-bold text-brand-dark">${sub.email}</div>
-                                    <div class="text-xs text-slate-400">Suscrito: ${sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleDateString() : 'Reciente'}</div>
+                        <div class="flex items-center justify-between gap-4 px-3 py-2.5 border-b border-black/5 last:border-0">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <span class="cx-sq !w-9 !h-9 !text-sm !rounded-xl uppercase font-bold">${(sub.email || 'U')[0]}</span>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-semibold truncate">${sub.email}</div>
+                                    <div class="text-xs text-stone-500">Desde ${sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleDateString('es-ES') : 'hace poco'}</div>
                                 </div>
                             </div>
-                            <span class="px-3 py-1 rounded-full text-xs font-bold ${sub.active !== false ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}">
-                                ${sub.active !== false ? 'ACTIVO' : 'INACTIVO'}
-                            </span>
+                            <span class="cx-state ${sub.active !== false ? 'is-ok' : 'is-done'}">${sub.active !== false ? 'Activo' : 'Inactivo'}</span>
                         </div>
                     `).join('')}
                 </div>
-
-                <div class="pt-4 border-t border-slate-100 flex justify-end">
-                    <button onclick="document.getElementById('subscribers-modal').remove()" class="bg-brand-dark text-white font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800 transition-colors text-sm">
-                        Cerrar
-                    </button>
+                <div class="pt-4 flex justify-end">
+                    <button onclick="document.getElementById('subscribers-modal').remove()" class="cx-btn is-primary">Cerrar</button>
                 </div>
             </div>
         `;
@@ -1332,103 +1278,47 @@ const app = {
     },
 
     renderDatosLegales(container) {
+        const fact = (label, value) => `
+            <div class="flex justify-between gap-4 py-2.5 border-b border-black/5 last:border-0">
+                <span class="text-sm text-stone-500">${label}</span>
+                <span class="text-sm font-semibold text-right">${value}</span>
+            </div>`;
+        const link = (href, icon, label, value) => `
+            <a href="${href}" target="_blank" rel="noopener" class="cx-feed-row !px-3 bg-white/50">
+                <span class="cx-sq !w-10 !h-10 !text-lg !bg-white"><i class="ph ${icon}"></i></span>
+                <span class="flex-1 min-w-0"><span class="block text-xs text-stone-500">${label}</span><span class="block text-sm font-semibold truncate">${value}</span></span>
+                <i class="ph ph-arrow-up-right text-stone-500"></i>
+            </a>`;
         const html = `
-            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Datos Legales',
-                    subtitle: 'Información corporativa y de contacto'
+                    subtitle: 'Datos de la empresa y canales de contacto'
                 })}
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Company Info Card -->
-                    <div class="bg-white rounded-3xl p-8 border border-orange-100 shadow-sm">
-                        <div class="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-brand-orange mb-6">
-                            <i class="ph-duotone ph-buildings text-2xl"></i>
-                        </div>
-                        <h2 class="text-xl font-bold text-brand-dark mb-6">Empresa</h2>
-                        
-                        <div class="space-y-6">
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nombre Comercial</label>
-                                <p class="text-lg font-semibold text-slate-700">El Cuartito Records I/S</p>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">CVR Number</label>
-                                    <p class="text-slate-700 font-medium">45943216</p>
-                                </div>
-                                <div>
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">VAT Number</label>
-                                    <p class="text-slate-700 font-medium">DK45943216</p>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dirección</label>
-                                <p class="text-slate-700 leading-relaxed font-medium">
-                                    Dybbølsgade 14 st tv<br>
-                                    1721 København V<br>
-                                    Denmark
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                    <section class="vf-card">
+                        <h3 class="vf-h">Empresa</h3>
+                        <p class="cx-dialog-title mb-3">El Cuartito Records I/S</p>
+                        ${fact('CVR', '45943216')}
+                        ${fact('VAT', 'DK45943216')}
+                        ${fact('Dirección', 'Dybbølsgade 14 st tv<br>1721 København V<br>Denmark')}
+                    </section>
 
-                    <!-- Contact & Links Card -->
-                    <div class="bg-white rounded-3xl p-8 border border-orange-100 shadow-sm flex flex-col">
-                        <div class="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 mb-6">
-                            <i class="ph-duotone ph-at text-2xl"></i>
-                        </div>
-                        <h2 class="text-xl font-bold text-brand-dark mb-6">Contacto & Canales</h2>
-
-                        <div class="space-y-6 flex-1">
-                            <a href="mailto:el.cuartito.cph@gmail.com" class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-orange-50 group transition-all">
-                                <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-brand-orange transition-colors">
-                                    <i class="ph-bold ph-envelope"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase block">Email</label>
-                                    <p class="text-sm font-bold text-slate-700">el.cuartito.cph@gmail.com</p>
-                                </div>
-                            </a>
-
-                            <a href="https://elcuartito.dk" target="_blank" class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 hover:bg-orange-50 group transition-all">
-                                <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-brand-orange transition-colors">
-                                    <i class="ph-bold ph-browser"></i>
-                                </div>
-                                <div class="flex-1">
-                                    <label class="text-[10px] font-bold text-slate-400 uppercase block">Web Oficial</label>
-                                    <p class="text-sm font-bold text-slate-700">elcuartito.dk</p>
-                                </div>
-                            </a>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <a href="https://instagram.com/el.cuartito.records" target="_blank" class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50 hover:bg-pink-50 text-slate-400 hover:text-pink-500 transition-all group">
-                                    <i class="ph-bold ph-instagram-logo text-2xl"></i>
-                                    <span class="text-[10px] font-bold uppercase">Instagram</span>
-                                </a>
-                                <a href="https://www.discogs.com/es/user/elcuartitorecords.dk" target="_blank" class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50 hover:bg-slate-200 text-slate-400 hover:text-brand-dark transition-all group">
-                                    <i class="ph-bold ph-vinyl-record text-2xl"></i>
-                                    <span class="text-[10px] font-bold uppercase">Discogs</span>
-                                </a>
-                            </div>
-                        </div>
-
-                        <div class="mt-8 pt-6 border-t border-slate-100">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase block mb-3">Logística & Envíos</label>
-                            <a href="https://app.shipmondo.com/" target="_blank" class="flex items-center justify-between p-4 rounded-2xl bg-brand-dark text-white hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20 group">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                                        <i class="ph-bold ph-package"></i>
-                                    </div>
-                                    <span class="font-bold text-sm">Shipmondo App</span>
-                                </div>
-                                <i class="ph-bold ph-arrow-square-out group-hover:translate-x-1 transition-transform"></i>
-                            </a>
-                        </div>
-                    </div>
+                    <section class="vf-card space-y-2">
+                        <h3 class="vf-h">Contacto y canales</h3>
+                        ${link('mailto:el.cuartito.cph@gmail.com', 'ph-envelope', 'Email', 'el.cuartito.cph@gmail.com')}
+                        ${link('https://elcuartito.dk', 'ph-browser', 'Web', 'elcuartito.dk')}
+                        ${link('https://instagram.com/el.cuartito.records', 'ph-instagram-logo', 'Instagram', '@el.cuartito.records')}
+                        ${link('https://www.discogs.com/es/user/elcuartitorecords.dk', 'ph-vinyl-record', 'Discogs', 'elcuartitorecords.dk')}
+                        <a href="https://app.shipmondo.com/" target="_blank" rel="noopener" class="cx-tile cx-dark !min-h-0 !flex-row !items-center !justify-between mt-3">
+                            <span class="flex items-center gap-3"><i class="ph ph-package text-xl text-[#F2E14C]"></i><span class="font-semibold text-sm">Abrir Shipmondo</span></span>
+                            <i class="ph ph-arrow-up-right"></i>
+                        </a>
+                    </section>
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -1452,111 +1342,86 @@ const app = {
         const loading = this.state.contabilidadLoading;
 
         const channelBadge = (ch) => {
-            const colors = { local: 'bg-emerald-100 text-emerald-700', online: 'bg-blue-100 text-blue-700', discogs: 'bg-purple-100 text-purple-700' };
-            const labels = { local: 'Tienda', online: 'Webshop', discogs: 'Discogs' };
-            return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${colors[ch] || 'bg-slate-100 text-slate-600'}">${labels[ch] || ch}</span>`;
+            const labels = { local: 'Tienda', online: 'Web shop', discogs: 'Discogs' };
+            return `<span class="cx-channel is-${ch}">${labels[ch] || ch || '—'}</span>`;
         };
+        const qNames = ['Ene a Mar', 'Abr a Jun', 'Jul a Sep', 'Oct a Dic'];
 
         const html = `
-            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Contabilidad',
-                    subtitle: 'Facturas de venta — Brugtmoms compliance'
+                    subtitle: 'Facturas de venta por trimestre, con la leyenda de Brugtmoms',
+                    filters: `
+                        <button onclick="app.loadInvoices()" class="cx-btn is-icon" title="Actualizar" aria-label="Actualizar"><i class="ph ph-arrows-clockwise"></i></button>
+                        <button onclick="app.backfillInvoices()" class="cx-btn" title="Crear las facturas de ventas viejas que no tienen"><i class="ph ph-database"></i><span class="hidden sm:inline">Generar facturas anteriores</span></button>`,
+                    primary: { label: `Descargar Q${quarter}`, icon: 'ph-download-simple', onclick: 'app.downloadQuarterInvoices()' }
                 })}
 
-                <!-- Filters + Download Quarter -->
-                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 mb-6">
-                    <div class="flex flex-wrap items-center gap-4">
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-bold text-slate-400 uppercase">Año</label>
-                            <select id="contab-year" onchange="app.state.contabilidadYear = parseInt(this.value); app.loadInvoices()" class="dashboard-input bg-white h-10 px-3 rounded-lg border border-slate-200 font-semibold text-sm">
-                                ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <label class="text-xs font-bold text-slate-400 uppercase">Trimestre</label>
-                            <select id="contab-quarter" onchange="app.state.contabilidadQuarter = parseInt(this.value); app.loadInvoices()" class="dashboard-input bg-white h-10 px-3 rounded-lg border border-slate-200 font-semibold text-sm">
-                                ${[1, 2, 3, 4].map(q => `<option value="${q}" ${q === quarter ? 'selected' : ''}>Q${q} (${['Ene-Mar', 'Abr-Jun', 'Jul-Sep', 'Oct-Dic'][q - 1]})</option>`).join('')}
-                            </select>
-                        </div>
-
-                        <div class="flex-1"></div>
-
-                        <button onclick="app.loadInvoices()" class="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-sm text-slate-600 transition-colors">
-                            <i class="ph-bold ph-arrows-clockwise"></i> Actualizar
-                        </a>
-
-                        <button onclick="app.backfillInvoices()" class="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl font-semibold text-sm text-emerald-700 transition-colors">
-                            <i class="ph-bold ph-database"></i> Generar facturas anteriores
-                        </a>
-
-                        <button onclick="app.downloadQuarterInvoices()" class="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
-                            <i class="ph-bold ph-download-simple"></i> Descargar Trimestre Q${quarter}
-                        </a>
+                <div class="flex flex-wrap items-center gap-2 mb-5">
+                    <select id="contab-year" onchange="app.state.contabilidadYear = parseInt(this.value); app.loadInvoices()" class="cx-frost-pill !pr-10 appearance-none cursor-pointer" aria-label="Año"
+                        style="background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2377736C' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E&quot;), linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.34)); background-repeat: no-repeat; background-position: right 16px center, 0 0;">
+                        ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
+                    </select>
+                    <div class="cx-glass flex p-1 rounded-full" role="group" aria-label="Trimestre">
+                        ${[1, 2, 3, 4].map(q => `
+                            <button onclick="app.state.contabilidadQuarter = ${q}; app.loadInvoices()" class="cx-month ${q === quarter ? 'is-on' : ''}" title="${qNames[q - 1]}">Q${q} <span class="hidden md:inline font-medium opacity-70">${qNames[q - 1]}</span></button>
+                        `).join('')}
                     </div>
                 </div>
 
-                <!-- KPI Cards -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="kpi-card">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Total Facturas</div>
-                        <div class="text-2xl font-bold text-brand-dark">${invoices.length}</div>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                    <div class="cx-tile cx-yellow">
+                        <span class="cx-tile-label">Facturas</span>
+                        <b class="cx-tile-value">${invoices.length}</b>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
-                    <div class="kpi-card">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Ventas Totales</div>
-                        <div class="text-2xl font-bold text-brand-orange">${this.formatCurrency(invoices.reduce((s, i) => s + (i.totalAmount || 0), 0))}</div>
+                    <div class="cx-tile cx-orange">
+                        <span class="cx-tile-label">Ventas facturadas</span>
+                        <b class="cx-tile-value">${this.formatCurrency(invoices.reduce((s, i) => s + (i.totalAmount || 0), 0))}</b>
                     </div>
-                    <div class="kpi-card">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Tienda</div>
-                        <div class="text-2xl font-bold text-emerald-600">${invoices.filter(i => i.channel === 'local').length}</div>
+                    <div class="cx-tile cx-frost">
+                        <span class="cx-tile-label">De la tienda</span>
+                        <b class="cx-tile-value">${invoices.filter(i => i.channel === 'local').length}</b>
                     </div>
-                    <div class="kpi-card">
-                        <div class="text-[10px] font-bold text-slate-400 uppercase mb-1">Online + Discogs</div>
-                        <div class="text-2xl font-bold text-blue-600">${invoices.filter(i => i.channel !== 'local').length}</div>
+                    <div class="cx-tile cx-dark">
+                        <span class="cx-tile-label">Web shop y Discogs</span>
+                        <b class="cx-tile-value">${invoices.filter(i => i.channel !== 'local').length}</b>
                     </div>
                 </div>
 
-                <!-- Invoice Table -->
-                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+                <section class="cx-panel !p-0 overflow-hidden">
                     ${loading ? `
                         <div class="flex items-center justify-center py-20">
                             <div class="text-center">
-                                <div class="animate-spin w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full mx-auto mb-4"></div>
-                                <p class="text-slate-400 font-medium">Cargando facturas...</p>
+                                <div class="animate-spin w-9 h-9 border-[3px] border-[#1A1A1A] border-t-transparent rounded-full mx-auto mb-3"></div>
+                                <p class="text-sm text-stone-600">Cargando facturas…</p>
                             </div>
                         </div>
                     ` : invoices.length === 0 ? `
-                        <div class="flex flex-col items-center justify-center py-20">
-                            <i class="ph-duotone ph-receipt text-6xl text-slate-300 mb-4"></i>
-                            <p class="text-slate-400 font-medium text-lg">No hay facturas para Q${quarter} ${year}</p>
-                            <p class="text-slate-300 text-sm mt-1">Las facturas se generan automáticamente con cada venta</p>
+                        <div class="py-16 text-center">
+                            <i class="ph ph-receipt text-4xl text-stone-400 block mb-2"></i>
+                            <p class="text-sm text-stone-600">No hay facturas en Q${quarter} ${year}. Se crean solas con cada venta.</p>
                         </div>
                     ` : `
                         <div class="overflow-x-auto">
-                            <table class="w-full">
+                            <table class="cx-inv-table w-full text-left">
                                 <thead>
-                                    <tr class="border-b border-orange-100 bg-orange-50/50">
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">#</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Fecha</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Canal</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Cliente</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Descripción</th>
-                                        <th class="text-right px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Total</th>
-                                        <th class="text-center px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">PDF</th>
-                                    </tr>
+                                    <tr><th>Número</th><th>Fecha</th><th>Canal</th><th>Cliente</th><th>Discos</th><th class="text-right">Total</th><th class="text-center">PDF</th></tr>
                                 </thead>
                                 <tbody>
-                                    ${invoices.map((inv, idx) => `
-                                        <tr class="inv-row border-b border-slate-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}">
-                                            <td class="px-5 py-3 text-sm font-mono font-bold text-brand-dark">${inv.invoiceNumber || '-'}</td>
-                                            <td class="px-5 py-3 text-sm text-slate-600">${inv.date || '-'}</td>
-                                            <td class="px-5 py-3">${channelBadge(inv.channel)}</td>
-                                            <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || 'Butikskunde'}</td>
-                                            <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
-                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${this.formatCurrency(inv.totalAmount || 0)}</td>
-                                            <td class="px-5 py-3 text-center">
-                                                <a href="${inv.downloadUrl || '#'}" target="_blank" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
-                                                    <i class="ph-bold ph-file-pdf"></i>
+                                    ${invoices.map(inv => `
+                                        <tr class="inv-row">
+                                            <td class="text-sm font-mono font-semibold">${inv.invoiceNumber || '-'}</td>
+                                            <td class="text-xs text-stone-500 whitespace-nowrap">${inv.date ? this.formatDate(inv.date) : '-'}</td>
+                                            <td>${channelBadge(inv.channel)}</td>
+                                            <td class="text-sm font-semibold max-w-[160px] truncate">${inv.customerName || 'Butikskunde'}</td>
+                                            <td class="text-sm text-stone-600 max-w-[220px] truncate" title="${(inv.itemsSummary || '').replace(/"/g, '&quot;')}">${inv.itemsSummary || '-'}</td>
+                                            <td class="text-sm font-semibold text-right whitespace-nowrap">${this.formatCurrency(inv.totalAmount || 0)}</td>
+                                            <td class="text-center">
+                                                <a href="${inv.downloadUrl || '#'}" target="_blank" rel="noopener" class="cx-row-btn mx-auto hover:!bg-[#1A1A1A] hover:!text-white" title="Descargar PDF" aria-label="Descargar PDF de la factura ${inv.invoiceNumber || ''}">
+                                                    <i class="ph ph-file-pdf"></i>
                                                 </a>
                                             </td>
                                         </tr>
@@ -1565,18 +1430,16 @@ const app = {
                             </table>
                         </div>
                     `}
-                </div>
+                </section>
 
-                <!-- Brugtmoms Notice -->
-                <div class="mt-6 bg-orange-50 border border-orange-200 rounded-2xl p-5">
-                    <div class="flex items-start gap-3">
-                        <i class="ph-duotone ph-scales text-2xl text-brand-orange mt-1"></i>
-                        <div>
-                            <p class="font-bold text-brand-dark text-sm mb-1">Brugtmoms — Margin Scheme Compliance</p>
-                            <p class="text-sm text-slate-600">Todas las facturas incluyen la frase legal: <em>"Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen."</em></p>
-                        </div>
+                <div class="mt-4 vf-card flex items-start gap-3">
+                    <span class="cx-sq !w-10 !h-10 !text-lg shrink-0"><i class="ph ph-scales"></i></span>
+                    <div>
+                        <p class="font-semibold text-sm mb-1">Brugtmoms (régimen de margen)</p>
+                        <p class="text-sm text-stone-600">Todas las facturas llevan la frase legal: <em>"Varen sælges efter de særlige regler for brugte varer - køber har ikke fradrag for momsen."</em></p>
                     </div>
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -1769,161 +1632,88 @@ const app = {
         const prefill = this.state.invoicePrefill || null;
         const pesc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+        const field = (label, inner, cls = '', hint = '') => `<label class="vf-field ${cls}"><span>${label}</span>${inner}${hint ? `<small class="block text-xs text-stone-500 mt-1">${hint}</small>` : ''}</label>`;
         const html = `
-            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Generar Factura',
-                    subtitle: 'Facturas manuales para eventos, servicios y otros'
+                    subtitle: 'Facturas a mano para eventos, servicios y otros ingresos'
                 })}
 
                 ${prefill ? `
-                <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0"><i class="ph-bold ph-file-plus text-lg text-blue-600"></i></div>
-                        <div>
-                            <p class="text-sm font-bold text-blue-900">Generando factura desde ingreso extra</p>
-                            <p class="text-xs text-blue-600">${pesc(prefill.description || '')}${prefill.amount !== '' && prefill.amount != null ? ' · ' + this.formatCurrency(Number(prefill.amount) || 0) : ''}</p>
+                <div class="rounded-2xl bg-[#F2E14C] p-4 mb-5 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="cx-sq !bg-white/70 !w-10 !h-10 !text-lg shrink-0"><i class="ph ph-file-plus"></i></span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold">Factura para un ingreso extra</p>
+                            <p class="text-xs truncate">${pesc(prefill.description || '')}${prefill.amount !== '' && prefill.amount != null ? ' · ' + this.formatCurrency(Number(prefill.amount) || 0) : ''}</p>
                         </div>
                     </div>
-                    <button onclick="app.cancelInvoicePrefill()" class="text-xs font-bold text-blue-600 hover:text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap">Cancelar</button>
+                    <button onclick="app.cancelInvoicePrefill()" class="cx-btn !h-9 !bg-white/70">Cancelar</button>
                 </div>` : ''}
 
-                <!-- Invoice Form -->
-                <form id="manual-invoice-form" onsubmit="app.submitManualInvoice(event)" class="bg-white rounded-3xl shadow-sm border border-orange-100 p-8 mb-8">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Customer Name -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Nombre del Cliente *</label>
-                            <input type="text" name="customerName" required placeholder="Ej: København Festival A/S" value="${pesc(prefill?.customerName)}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
+                <form id="manual-invoice-form" onsubmit="app.submitManualInvoice(event)" class="space-y-4 mb-6">
+                    <section class="vf-card">
+                        <h3 class="vf-h">Cliente</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            ${field('Nombre', `<input type="text" name="customerName" required placeholder="Ej: København Festival A/S" value="${pesc(prefill?.customerName)}" class="vf-input">`)}
+                            ${field('CVR o VAT <em>(opcional)</em>', `<input type="text" name="customerVAT" placeholder="Ej: DK12345678" value="${pesc(prefill?.customerVAT)}" class="vf-input">`)}
+                            ${field('Dirección <em>(opcional)</em>', `<input type="text" name="customerAddress" placeholder="Ej: Vesterbrogade 100, 1620 København V" value="${pesc(prefill?.customerAddress)}" class="vf-input">`, 'md:col-span-2')}
                         </div>
-
-                        <!-- Customer VAT -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">VAT / CVR del Cliente</label>
-                            <input type="text" name="customerVAT" placeholder="Ej: DK12345678" value="${pesc(prefill?.customerVAT)}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                        </div>
-
-                        <!-- Customer Address -->
-                        <div class="md:col-span-2">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Dirección del Cliente</label>
-                            <input type="text" name="customerAddress" placeholder="Ej: Vesterbrogade 100, 1620 København V, Denmark" value="${pesc(prefill?.customerAddress)}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                        </div>
-
-                        <!-- Description -->
-                        <div class="md:col-span-2">
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Descripción del Servicio *</label>
-                            <textarea name="description" required rows="3" placeholder="Ej: DJ Set para evento privado — 4 horas, incluyendo equipo de sonido"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark resize-none">${pesc(prefill?.description)}</textarea>
-                        </div>
-
-                        <!-- Amount -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Precio Total (DKK) *</label>
-                            <div class="relative">
-                                <input type="number" name="amount" required step="0.01" min="0" placeholder="5000" value="${prefill?.amount ?? ''}"
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-bold text-xl text-brand-dark">
-                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
-                            </div>
-                        </div>
-
-                        <!-- VAT Amount -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Heraf Moms / VAT (DKK)</label>
-                            <div class="relative">
-                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="1000" value="${prefill?.vatAmount ?? ''}"
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
-                            </div>
-                            <p class="text-[10px] text-slate-400 mt-1">Opcional. Cantidad de IVA incluida en el total.</p>
-                        </div>
-
-                        <!-- Date -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Fecha de Factura *</label>
-                            <input type="date" name="date" required value="${pesc(prefill?.date) || new Date().toISOString().split('T')[0]}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                        </div>
-
-                        <!-- Payment Method -->
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Método de Pago</label>
-                            <select name="paymentMethod" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all font-medium text-brand-dark">
-                                <option value="Transfer" ${(prefill?.paymentMethod || 'Transfer') === 'Transfer' ? 'selected' : ''}>Transferencia Bancaria</option>
+                    </section>
+                    <section class="vf-card">
+                        <h3 class="vf-h">Qué se factura</h3>
+                        ${field('Descripción', `<textarea name="description" required rows="3" placeholder="Ej: DJ set para evento privado, 4 horas con equipo de sonido" class="vf-input !h-auto py-2.5 resize-none">${pesc(prefill?.description)}</textarea>`)}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                            ${field('Total (kr)', `<input type="number" name="amount" required step="0.01" min="0" placeholder="5000" value="${prefill?.amount ?? ''}" class="vf-input is-strong !h-12 !text-lg">`)}
+                            ${field('Heraf moms (kr) <em>(opcional)</em>', `<input type="number" name="vatAmount" step="0.01" min="0" placeholder="1000" value="${prefill?.vatAmount ?? ''}" class="vf-input !h-12">`, '', 'El IVA incluido en el total.')}
+                            ${field('Fecha de factura', `<input type="date" name="date" required value="${pesc(prefill?.date) || new Date().toISOString().split('T')[0]}" class="vf-input">`)}
+                            ${field('Método de pago', `<select name="paymentMethod" class="vf-input">
+                                <option value="Transfer" ${(prefill?.paymentMethod || 'Transfer') === 'Transfer' ? 'selected' : ''}>Transferencia</option>
                                 <option value="MobilePay" ${prefill?.paymentMethod === 'MobilePay' ? 'selected' : ''}>MobilePay</option>
-                                <option value="CASH" ${prefill?.paymentMethod === 'CASH' ? 'selected' : ''}>Efectivo / Cash</option>
-                                <option value="CARD" ${prefill?.paymentMethod === 'CARD' ? 'selected' : ''}>Tarjeta / Card</option>
-                            </select>
+                                <option value="CASH" ${prefill?.paymentMethod === 'CASH' ? 'selected' : ''}>Efectivo</option>
+                                <option value="CARD" ${prefill?.paymentMethod === 'CARD' ? 'selected' : ''}>Tarjeta</option>
+                            </select>`)}
                         </div>
-                    </div>
-
-                    <!-- Submit -->
-                    <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                        <p class="text-xs text-slate-400">La factura se generará en PDF y se guardará automáticamente</p>
-                        <button type="submit" id="manual-invoice-btn"
-                            class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-orange to-orange-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-200 hover:shadow-orange-300 transition-all hover:scale-[1.02]">
-                            <i class="ph-bold ph-file-pdf"></i> Generar Factura PDF
-                        </button>
+                    </section>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <p class="text-sm text-stone-500">Se genera el PDF y queda guardado en Contabilidad.</p>
+                        <button type="submit" id="manual-invoice-btn" class="cx-btn is-primary !h-12 !px-6"><i class="ph-bold ph-file-pdf"></i> Generar factura PDF</button>
                     </div>
                 </form>
 
-                <!-- Result area (shown after generation) -->
-                <div id="manual-invoice-result" class="hidden mb-8">
-                    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                                <i class="ph-bold ph-check-circle text-xl text-emerald-600"></i>
-                            </div>
-                            <div>
-                                <p class="font-bold text-emerald-800" id="result-invoice-number"></p>
-                                <p class="text-sm text-emerald-600">Factura generada correctamente</p>
-                            </div>
+                <div id="manual-invoice-result" class="hidden mb-6">
+                    <div class="cx-tile cx-dark !min-h-0 !flex-row !items-center !justify-between flex-wrap">
+                        <div>
+                            <p class="font-semibold" id="result-invoice-number"></p>
+                            <p class="text-sm opacity-70">Factura generada</p>
                         </div>
-                        <a id="result-download-link" href="#" target="_blank"
-                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors">
-                            <i class="ph-bold ph-download-simple"></i> Descargar PDF
-                        </a>
+                        <a id="result-download-link" href="#" target="_blank" rel="noopener" class="cx-btn is-primary"><i class="ph-bold ph-download-simple"></i> Descargar PDF</a>
                     </div>
                 </div>
 
-                <!-- Recent Manual Invoices -->
-                <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-orange-100 bg-orange-50/30">
-                        <h3 class="font-bold text-brand-dark">Facturas Manuales Recientes</h3>
-                    </div>
+                <section class="cx-panel !p-0 overflow-hidden">
+                    <h3 class="cx-h px-6 pt-5 pb-2">Facturas manuales recientes</h3>
                     ${manualInvoices.length === 0 ? `
-                        <div class="py-16 text-center">
-                            <i class="ph-duotone ph-note-blank text-5xl text-slate-300 mb-3 block"></i>
-                            <p class="text-slate-400 font-medium">No hay facturas manuales aún</p>
-                            <p class="text-slate-300 text-sm mt-1">Las facturas generadas aparecerán aquí</p>
+                        <div class="py-14 text-center">
+                            <i class="ph ph-note-blank text-4xl text-stone-400 block mb-2"></i>
+                            <p class="text-sm text-stone-600">Todavía no hay facturas manuales. Las que generes aparecen acá.</p>
                         </div>
                     ` : `
                         <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-orange-100">
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">#</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Fecha</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Cliente</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Descripción</th>
-                                        <th class="text-right px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">Total</th>
-                                        <th class="text-center px-5 py-3 text-[10px] font-black text-brand-orange uppercase tracking-wider">PDF</th>
-                                    </tr>
-                                </thead>
+                            <table class="cx-inv-table w-full text-left">
+                                <thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Concepto</th><th class="text-right">Total</th><th class="text-center">PDF</th></tr></thead>
                                 <tbody>
-                                    ${manualInvoices.map((inv, idx) => `
-                                        <tr class="inv-row border-b border-slate-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}">
-                                            <td class="px-5 py-3 text-sm font-mono font-bold text-brand-dark">${inv.invoiceNumber || '-'}</td>
-                                            <td class="px-5 py-3 text-sm text-slate-600">${inv.date || '-'}</td>
-                                            <td class="px-5 py-3 text-sm font-medium text-slate-700 max-w-[150px] truncate">${inv.customerName || '-'}</td>
-                                            <td class="px-5 py-3 text-sm text-slate-500 max-w-[200px] truncate">${inv.itemsSummary || '-'}</td>
-                                            <td class="px-5 py-3 text-sm font-bold text-brand-dark text-right">${this.formatCurrency(inv.totalAmount || 0)}</td>
-                                            <td class="px-5 py-3 text-center">
-                                                <a href="${inv.downloadUrl || '#'}" target="_blank" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center mx-auto" title="Descargar PDF">
-                                                    <i class="ph-bold ph-file-pdf"></i>
-                                                </a>
+                                    ${manualInvoices.map(inv => `
+                                        <tr class="inv-row">
+                                            <td class="text-sm font-mono font-semibold">${inv.invoiceNumber || '-'}</td>
+                                            <td class="text-xs text-stone-500 whitespace-nowrap">${inv.date ? this.formatDate(inv.date) : '-'}</td>
+                                            <td class="text-sm font-semibold max-w-[160px] truncate">${inv.customerName || '-'}</td>
+                                            <td class="text-sm text-stone-600 max-w-[220px] truncate">${inv.itemsSummary || '-'}</td>
+                                            <td class="text-sm font-semibold text-right whitespace-nowrap">${this.formatCurrency(inv.totalAmount || 0)}</td>
+                                            <td class="text-center">
+                                                <a href="${inv.downloadUrl || '#'}" target="_blank" rel="noopener" class="cx-row-btn mx-auto hover:!bg-[#1A1A1A] hover:!text-white" title="Descargar PDF" aria-label="Descargar PDF"><i class="ph ph-file-pdf"></i></a>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -1931,7 +1721,8 @@ const app = {
                             </table>
                         </div>
                     `}
-                </div>
+                </section>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -2057,18 +1848,19 @@ const app = {
 
     renderExtraIncome(container) {
         const allIncome = this.state.extraIncome || [];
-        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
         // Período propio de la vista (no pisa filtros globales)
-        const fYear = this.state.incomeFilterYear ?? new Date().getFullYear();
-        const fMonths = this.state.incomeFilterMonths ?? [new Date().getMonth()];
+        if (this.state.incomeFilterYear == null) this.state.incomeFilterYear = new Date().getFullYear();
+        if (this.state.incomeFilterMonths == null) this.state.incomeFilterMonths = [new Date().getMonth()];
+        const fYear = this.state.incomeFilterYear;
+        const fMonths = this.state.incomeFilterMonths;
         const periodIncome = allIncome.filter(e => {
             if (!e.date) return false;
             const d = new Date(e.date + 'T00:00:00');
             return d.getFullYear() === fYear && fMonths.includes(d.getMonth());
         });
-        const periodLabel = fMonths.length === 12 ? `Todo ${fYear}` : `${fMonths.map(m => monthNames[m]).join(', ')} ${fYear}`;
+        const periodLabel = this.cxPeriodLabel(fYear, fMonths);
 
         // KPIs del período
         const kpiTotal = periodIncome.reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -2092,231 +1884,149 @@ const app = {
         }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
         const categoryBadge = (cat) => {
-            const map = {
-                event: { label: 'Evento', cls: 'bg-violet-100 text-violet-700' },
-                service: { label: 'Servicio', cls: 'bg-blue-100 text-blue-700' },
-                other: { label: 'Otro', cls: 'bg-slate-100 text-slate-600' },
-            };
-            const c = map[cat] || { label: cat || '—', cls: 'bg-slate-100 text-slate-600' };
-            return `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full ${c.cls} whitespace-nowrap">${c.label}</span>`;
+            const map = { event: 'Evento', service: 'Servicio', other: 'Otro' };
+            return `<span class="cx-state is-ok whitespace-nowrap">${map[cat] || cat || '—'}</span>`;
         };
         const invoiceBadge = (e) => e.invoiced
-            ? `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">Facturado${e.invoiceNumber ? ' #' + esc(e.invoiceNumber) : ''}</span>`
-            : `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">Pendiente</span>`;
+            ? `<span class="cx-state is-done whitespace-nowrap">Facturado${e.invoiceNumber ? ' #' + esc(e.invoiceNumber) : ''}</span>`
+            : `<span class="cx-state is-wait whitespace-nowrap">Sin facturar</span>`;
 
         const rows = filtered.map(e => `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                <td class="py-3 px-4 text-sm text-slate-500 whitespace-nowrap">${esc(e.date) || '—'}</td>
-                <td class="py-3 px-4 text-sm font-medium text-brand-dark">${esc(e.clientName) || '<span class="text-slate-300">—</span>'}</td>
-                <td class="py-3 px-4 text-sm text-slate-600 max-w-[220px] truncate" title="${esc(e.description)}">${esc(e.description) || '—'}</td>
-                <td class="py-3 px-4">${categoryBadge(e.category)}</td>
-                <td class="py-3 px-4 text-sm font-bold text-brand-dark text-right whitespace-nowrap">${this.formatCurrency(Number(e.amount) || 0)}</td>
-                <td class="py-3 px-4 text-sm text-slate-500 text-right whitespace-nowrap">${this.formatCurrency(Number(e.vatAmount) || 0)}</td>
-                <td class="py-3 px-4">${invoiceBadge(e)}</td>
-                <td class="py-3 px-4">
-                    <div class="flex items-center justify-center gap-1">
+            <tr class="inv-row group">
+                <td class="text-xs text-stone-500 whitespace-nowrap">${e.date ? this.formatDate(e.date) : '—'}</td>
+                <td class="text-sm font-semibold">${esc(e.clientName) || '<span class="text-stone-400">—</span>'}</td>
+                <td class="text-sm text-stone-600 max-w-[220px] truncate" title="${esc(e.description)}">${esc(e.description) || '—'}</td>
+                <td>${categoryBadge(e.category)}</td>
+                <td class="text-sm font-semibold text-right whitespace-nowrap">${this.formatCurrency(Number(e.amount) || 0)}</td>
+                <td class="text-sm text-stone-500 text-right whitespace-nowrap">${this.formatCurrency(Number(e.vatAmount) || 0)}</td>
+                <td>${invoiceBadge(e)}</td>
+                <td>
+                    <div class="flex items-center justify-end gap-1">
                         ${e.invoiced
-                            ? `<button onclick="app.navigate('facturasManual')" class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1.5 transition-colors" title="Ver factura ${esc(e.invoiceNumber || '')}">
-                                <i class="ph-bold ph-file-text"></i> Ver
-                               </button>`
-                            : `<button onclick="app.invoiceFromExtraIncome('${e.id}')" class="flex items-center gap-1.5 text-[11px] font-bold text-white bg-brand-dark hover:bg-slate-800 rounded-lg px-2.5 py-1.5 transition-colors" title="Generar factura desde este ingreso">
-                                <i class="ph-bold ph-file-plus"></i> Facturar
-                               </button>
-                               <button onclick="app.openLinkInvoiceModal('${e.id}')" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 transition-colors" title="Vincular una factura ya generada">
-                                <i class="ph-bold ph-link"></i> Vincular
-                               </button>`}
-                        <button onclick="app.deleteExtraIncome('${e.id}')" class="w-8 h-8 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors" title="Eliminar">
-                            <i class="ph-bold ph-trash text-base"></i>
-                        </button>
+                            ? `<button onclick="app.navigate('facturasManual')" class="cx-btn !h-8 !px-3 !text-xs" title="Ver factura ${esc(e.invoiceNumber || '')}"><i class="ph ph-file-text"></i> Ver</button>`
+                            : `<button onclick="app.invoiceFromExtraIncome('${e.id}')" class="cx-btn is-primary !h-8 !px-3 !text-xs" title="Generar factura desde este ingreso"><i class="ph-bold ph-file-plus"></i> Facturar</button>
+                               <button onclick="app.openLinkInvoiceModal('${e.id}')" class="cx-btn !h-8 !px-3 !text-xs" title="Vincular una factura ya generada"><i class="ph ph-link"></i> Vincular</button>`}
+                        <button onclick="app.deleteExtraIncome('${e.id}')" class="cx-row-btn is-danger opacity-0 group-hover:opacity-100 focus:opacity-100" title="Eliminar" aria-label="Eliminar"><i class="ph ph-trash"></i></button>
                     </div>
                 </td>
             </tr>`).join('');
 
         const showForm = !!this.state.showIncomeForm;
+        const field = (label, inner, hint = '') => `<label class="vf-field"><span>${label}</span>${inner}${hint ? `<small class="block text-xs text-stone-500 mt-1">${hint}</small>` : ''}</label>`;
 
         container.innerHTML = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Ingresos Extra',
-                    subtitle: 'Eventos, servicios y otros conceptos no relacionados con ventas de discos',
+                    subtitle: 'Eventos, servicios y otros ingresos que no son venta de discos',
                     primary: { label: 'Registrar ingreso', icon: 'ph-plus', onclick: 'app.toggleIncomeForm()' }
                 })}
 
-                <!-- Selector de período -->
-                <div class="flex flex-wrap items-center gap-3 mb-6">
-                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
-                        <select onchange="app.setIncomeFilterYear(this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
-                            <option value="2026" ${fYear === 2026 ? 'selected' : ''}>2026</option>
-                            <option value="2025" ${fYear === 2025 ? 'selected' : ''}>2025</option>
-                        </select>
-                        <div class="h-6 w-px bg-slate-100 mx-1"></div>
-                        <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
-                            <button onclick="app.setIncomeFilterMonthsAll()"
-                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                Todo
-                            </button>
-                            ${monthNames.map((m, i) => `
-                                <button onclick="app.toggleIncomeMonth(${i})"
-                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                    ${m}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-400">Período: <span class="font-bold text-brand-dark">${periodLabel}</span></p>
-                </div>
+                <div class="mb-5">${this.cxPeriodPicker('income')}</div>
 
-                <!-- KPIs del período -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-wallet"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del período</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(kpiTotal)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${periodIncome.length} ingreso${periodIncome.length === 1 ? '' : 's'}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    <div class="cx-tile cx-yellow">
+                        <span class="cx-tile-label">Ingresado</span>
+                        <b class="cx-tile-value">${this.formatCurrency(kpiTotal)}</b>
+                        <span class="cx-tile-sub">${periodLabel}, ${periodIncome.length} ingreso${periodIncome.length === 1 ? '' : 's'}</span>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
-                    <button onclick="app.toggleIncomeUninvoiced()" class="text-left bg-white p-5 rounded-2xl border ${pendingCount > 0 ? 'border-amber-200' : 'border-slate-100'} shadow-sm hover:shadow-md hover:border-amber-300 transition-all">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-file-text"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pendiente de facturar</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold ${pendingCount > 0 ? 'text-amber-600' : 'text-emerald-600'}">${pendingCount}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${pendingCount > 0 ? this.formatCurrency(pendingAmount) + ' · clic para filtrar' : 'Todo facturado'}</p>
+                    <button onclick="app.toggleIncomeUninvoiced()" class="cx-tile ${pendingCount > 0 ? 'cx-orange' : 'cx-frost'} text-left">
+                        <span class="cx-tile-label">Sin facturar</span>
+                        <b class="cx-tile-value">${pendingCount}</b>
+                        <span class="cx-tile-sub">${pendingCount > 0 ? this.formatCurrency(pendingAmount) + ', tocá para verlos' : 'Todo facturado'}</span>
                     </button>
-                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600"><i class="ph-bold ph-percent"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA del período</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-emerald-600">${this.formatCurrency(kpiVat)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">Del período seleccionado</p>
+                    <div class="cx-tile cx-dark">
+                        <span class="cx-tile-label">IVA del período</span>
+                        <b class="cx-tile-value">${this.formatCurrency(kpiVat)}</b>
                     </div>
                 </div>
 
-                ${showForm ? `
-                <!-- Formulario de alta (colapsable) -->
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-6">
-                    <h2 class="text-lg font-bold text-brand-dark mb-4">Registrar Nuevo Ingreso</h2>
-                    <form onsubmit="app.addExtraIncome(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Descripción *</label>
-                            <input type="text" name="description" required placeholder="DJ Event - Venue X"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Cliente / Organizador</label>
-                            <input type="text" name="clientName" placeholder="Ej: Jolene Bar"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                            <p class="text-[10px] text-slate-400 mt-1">Se usa para pre-cargar la factura.</p>
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Categoría *</label>
-                            <select name="category" required
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                                <option value="event">Evento</option>
-                                <option value="service">Servicio</option>
-                                <option value="other">Otro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Monto Total (DKK) *</label>
-                            <div class="relative">
-                                <input type="number" name="amount" required step="0.01" min="0" placeholder="3750"
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all font-bold text-lg text-brand-dark">
-                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Monto VAT (DKK)</label>
-                            <div class="relative">
-                                <input type="number" name="vatAmount" step="0.01" min="0" placeholder="750"
-                                    class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 pr-16 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">DKK</span>
-                            </div>
-                            <p class="text-[10px] text-slate-400 mt-1">Opcional. Cantidad de IVA incluida en el total.</p>
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Fecha *</label>
-                            <input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Método de Pago</label>
-                            <select name="paymentMethod"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange focus:bg-white transition-all text-sm">
-                                <option value="Transfer">Transferencia</option>
-                                <option value="MobilePay">MobilePay</option>
-                                <option value="Cash">Efectivo</option>
-                                <option value="Card">Tarjeta</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-2 lg:col-span-3 flex justify-end gap-2">
-                            <button type="button" onclick="app.toggleIncomeForm()"
-                                class="px-6 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors text-sm">Cancelar</button>
-                            <button type="submit"
-                                class="bg-brand-dark text-white font-bold py-3 px-8 rounded-xl hover:bg-slate-800 transition-colors text-sm flex items-center gap-2">
-                                <i class="ph-bold ph-plus-circle"></i> Registrar Ingreso
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                ` : ''}
-
-                <!-- Filtros: mismo patrón de pills que Inventario/Ventas -->
                 <div class="flex flex-wrap items-center gap-2 mb-4">
-                    <div class="relative flex-1 min-w-[220px]">
-                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="income-search-input"
-                            value="${esc(this.state.incomeSearch)}"
-                            oninput="app.setIncomeSearch(this.value)"
-                            placeholder="Buscar por descripción o cliente..."
-                            class="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-full focus:outline-none focus:border-brand-orange shadow-sm text-sm">
+                    <div class="cx-search flex-1 min-w-[240px]">
+                        <i class="ph ph-magnifying-glass"></i>
+                        <input type="text" id="income-search-input" value="${esc(this.state.incomeSearch)}"
+                            oninput="app.setIncomeSearch(this.value)" placeholder="Descripción o cliente">
                     </div>
-                    <div class="filter-chip ${catFilter !== 'all' ? 'active' : ''}" title="Filtrar por categoría">
-                        <i class="ph-bold ph-tag text-xs"></i>
-                        <select onchange="app.setIncomeCategoryFilter(this.value)">
-                            <option value="all">Todas las categorías</option>
-                            <option value="event" ${catFilter === 'event' ? 'selected' : ''}>Evento</option>
-                            <option value="service" ${catFilter === 'service' ? 'selected' : ''}>Servicio</option>
-                            <option value="other" ${catFilter === 'other' ? 'selected' : ''}>Otro</option>
-                        </select>
-                    </div>
-                    <button onclick="app.toggleIncomeUninvoiced()" class="quick-pill ${uninvoicedOnly ? 'active' : ''}" title="Mostrar solo ingresos sin facturar">
-                        <i class="ph-bold ph-file-text text-xs"></i> Sin facturar
-                        ${pendingCount > 0 ? `<span class="w-5 h-5 rounded-full ${uninvoicedOnly ? 'bg-white/30' : 'bg-amber-100 text-amber-700'} flex items-center justify-center text-[10px] font-bold">${pendingCount}</span>` : ''}
+                    <select onchange="app.setIncomeCategoryFilter(this.value)" class="cx-pill-select ${catFilter !== 'all' ? '!bg-[#1A1A1A] !text-white' : ''}" aria-label="Categoría">
+                        <option value="all">Todas las categorías</option>
+                        <option value="event" ${catFilter === 'event' ? 'selected' : ''}>Evento</option>
+                        <option value="service" ${catFilter === 'service' ? 'selected' : ''}>Servicio</option>
+                        <option value="other" ${catFilter === 'other' ? 'selected' : ''}>Otro</option>
+                    </select>
+                    <button onclick="app.toggleIncomeUninvoiced()" class="cx-btn !h-12 ${uninvoicedOnly ? '!bg-[#1A1A1A] !text-white !border-[#1A1A1A]' : ''}">
+                        <i class="ph ph-file-text"></i> Sin facturar ${pendingCount > 0 ? `<span class="cx-count">${pendingCount}</span>` : ''}
                     </button>
                 </div>
 
-                <!-- Tabla -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <section class="cx-panel !p-0 overflow-hidden">
                     ${filtered.length === 0 ? `
-                        <div class="p-12 text-center">
-                            <i class="ph-duotone ph-coins text-5xl text-slate-200 mb-3 block"></i>
-                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sin ingresos registrados</p>
-                            <p class="text-sm text-slate-400 mt-1">Usá "Registrar ingreso" para agregar uno.</p>
+                        <div class="p-14 text-center">
+                            <i class="ph ph-coins text-4xl text-stone-400 block mb-2"></i>
+                            <p class="text-sm text-stone-600">No hay ingresos en este período. Usá "Registrar ingreso" para sumar uno.</p>
                         </div>
                     ` : `
                         <div class="overflow-x-auto">
-                            <table class="w-full">
+                            <table class="cx-inv-table w-full text-left">
                                 <thead>
-                                    <tr class="bg-slate-50 border-b border-slate-100">
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha</th>
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente</th>
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Descripción</th>
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Categoría</th>
-                                        <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monto</th>
-                                        <th class="text-right py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">VAT</th>
-                                        <th class="text-left py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facturación</th>
-                                        <th class="text-center py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Acciones</th>
+                                    <tr>
+                                        <th>Fecha</th><th>Cliente</th><th>Descripción</th><th>Categoría</th>
+                                        <th class="text-right">Monto</th><th class="text-right">IVA</th><th>Factura</th><th></th>
                                     </tr>
                                 </thead>
                                 <tbody>${rows}</tbody>
                             </table>
                         </div>
                     `}
-                </div>
+                </section>
             </div>
+            </div>
+
+            ${showForm ? `
+            <div class="vf-overlay" onclick="if (event.target === this) app.toggleIncomeForm()">
+                <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="inc-title">
+                    <header class="vf-head">
+                        <div>
+                            <h3 id="inc-title" class="vf-title">Registrar ingreso</h3>
+                            <p class="cx-sub !mt-1">Un evento, un servicio u otro ingreso que no sea venta de discos.</p>
+                        </div>
+                        <button type="button" onclick="app.toggleIncomeForm()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+                    </header>
+                    <form onsubmit="app.addExtraIncome(event)" class="vf-form">
+                        <div class="vf-body">
+                            <section class="vf-card space-y-3">
+                                ${field('Descripción', `<input type="text" name="description" required placeholder="DJ set en Bootleggers" class="vf-input">`)}
+                                ${field('Cliente u organizador', `<input type="text" name="clientName" placeholder="Ej: Jolene Bar" class="vf-input">`, 'Se usa para completar la factura.')}
+                                <div class="vf-field"><span>Categoría</span>
+                                    <div class="vf-segs is-wide">
+                                        <label class="vf-seg"><input type="radio" name="category" value="event" checked><span>Evento</span></label>
+                                        <label class="vf-seg"><input type="radio" name="category" value="service"><span>Servicio</span></label>
+                                        <label class="vf-seg"><input type="radio" name="category" value="other"><span>Otro</span></label>
+                                    </div>
+                                </div>
+                            </section>
+                            <section class="vf-card">
+                                <div class="grid grid-cols-2 gap-3">
+                                    ${field('Monto total (kr)', `<input type="number" name="amount" required step="0.01" min="0" placeholder="3750" class="vf-input is-strong">`)}
+                                    ${field('IVA incluido (kr)', `<input type="number" name="vatAmount" step="0.01" min="0" placeholder="750" class="vf-input">`, 'Opcional.')}
+                                    ${field('Fecha', `<input type="date" name="date" required value="${new Date().toISOString().split('T')[0]}" class="vf-input">`)}
+                                    ${field('Método de pago', `<select name="paymentMethod" class="vf-input">
+                                        <option value="Transfer">Transferencia</option>
+                                        <option value="MobilePay">MobilePay</option>
+                                        <option value="Cash">Efectivo</option>
+                                        <option value="Card">Tarjeta</option>
+                                    </select>`)}
+                                </div>
+                            </section>
+                        </div>
+                        <footer class="vf-foot">
+                            <button type="button" onclick="app.toggleIncomeForm()" class="cx-btn">Cancelar</button>
+                            <button type="submit" class="cx-btn is-primary"><i class="ph-bold ph-plus"></i> Registrar ingreso</button>
+                        </footer>
+                    </form>
+                </aside>
+            </div>` : ''}
         `;
     },
 
@@ -2367,6 +2077,11 @@ const app = {
         // Legacy: las vistas separadas de ventas ahora redirigen a la bandeja unificada
         if (view === 'onlineSales' || view === 'discogsSales') view = 'sales';
         this.state.currentView = view;
+        this.state.periodOpen = null;
+        // El riel lateral se cierra al elegir una sección (vuelve a abrir con el próximo hover)
+        const rail = document.querySelector('.cx-rail');
+        if (rail && rail.matches(':hover')) rail.classList.add('is-collapsed');
+        if (document.activeElement && document.activeElement.closest && document.activeElement.closest('.cx-rail')) document.activeElement.blur();
 
         // Blueprint Sec 04: los drill-downs del dashboard no quedan pegados al navegar a otra pantalla
         if (view !== 'expenses') this.state.expenseMissingReceiptOnly = false;
@@ -2378,7 +2093,7 @@ const app = {
 
         // Update UI Active States
         document.querySelectorAll('.nav-item, .nav-item-m').forEach(el => {
-            el.classList.remove('bg-orange-50', 'text-brand-orange');
+            el.classList.remove('bg-orange-50', 'text-brand-orange', 'is-active');
             el.classList.add('text-slate-500');
         });
 
@@ -2386,7 +2101,7 @@ const app = {
         const activeNavD = document.getElementById(`nav-d-${view}`);
         if (activeNavD) {
             activeNavD.classList.remove('text-slate-500');
-            activeNavD.classList.add('bg-orange-50', 'text-brand-orange');
+            activeNavD.classList.add('bg-orange-50', 'text-brand-orange', 'is-active');
         }
 
         // Mobile
@@ -2419,39 +2134,33 @@ const app = {
         // Helper to check for activity on a date
         const hasActivity = (day) => {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const hasSales = this.state.sales.some(s => s.date === dateStr);
-            const hasExpenses = this.state.expenses.some(e => e.date === dateStr);
+            const hasSales = this.state.sales.some(s => s.date === dateStr && this.normalizeSaleChannel(s) !== 'manual');
+            const hasExpenses = this.state.expenses.some(e => (e.date || e.fecha_factura) === dateStr);
             const hasEvents = this.state.events.some(e => e.date === dateStr);
             return { hasSales, hasExpenses, hasEvents };
         };
 
         const html = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <div class="flex flex-col lg:flex-row gap-8 h-[calc(100vh-140px)]">
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
+                ${this.sectionHeader({
+                    title: `${monthNames[month]} ${year}`,
+                    subtitle: 'Ventas, gastos y notas de cada día',
+                    filters: `
+                        <div class="cx-glass flex p-1 rounded-full">
+                            <button onclick="app.changeCalendarMonth(-1)" class="cx-month" aria-label="Mes anterior"><i class="ph-bold ph-caret-left"></i></button>
+                            <button onclick="app.state.selectedDate = new Date(); app.refreshCurrentView()" class="cx-month">Hoy</button>
+                            <button onclick="app.changeCalendarMonth(1)" class="cx-month" aria-label="Mes siguiente"><i class="ph-bold ph-caret-right"></i></button>
+                        </div>`
+                })}
+                <div class="flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-220px)] lg:min-h-[560px]">
                     <!-- Calendar Grid -->
-                    <div class="flex-1 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col">
-                        <div class="flex justify-between items-center mb-6">
-                            <h2 class="font-display text-2xl font-bold text-brand-dark capitalize">
-                                ${monthNames[month]} <span class="text-brand-orange">${year}</span>
-                            </h2>
-                            <div class="flex gap-2">
-                                <button onclick="app.changeCalendarMonth(-1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
-                                    <i class="ph-bold ph-caret-left"></i>
-                                </a>
-                                <button onclick="app.changeCalendarMonth(1)" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-orange-50 text-slate-600 hover:text-brand-orange transition-colors flex items-center justify-center">
-                                    <i class="ph-bold ph-caret-right"></i>
-                                </a>
-                            </div>
-                        </div>
-
+                    <section class="cx-panel flex-1 flex flex-col !p-4">
                         <div class="grid grid-cols-7 gap-2 mb-2 text-center">
-                            ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `
-                                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider py-2">${d}</div>
-                            `).join('')}
+                            ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<div class="text-xs font-semibold text-stone-500 py-1">${d}</div>`).join('')}
                         </div>
-
                         <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
-                            ${Array(startingDay).fill('<div class="bg-slate-50/50 rounded-xl"></div>').join('')}
+                            ${Array(startingDay).fill('<div></div>').join('')}
                             ${Array.from({ length: daysInMonth }, (_, i) => {
             const day = i + 1;
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -2460,27 +2169,30 @@ const app = {
             const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
 
             return `
-                                    <button onclick="app.selectCalendarDate('${dateStr}')" 
-                                        class="relative rounded-xl p-2 flex flex-col items-center justify-start gap-1 transition-all border-2
-                                        ${isSelected ? 'border-brand-orange bg-orange-50' : 'border-transparent hover:bg-slate-50'}
-                                        ${isToday ? 'bg-blue-50' : ''}">
-                                        <span class="text-sm font-bold ${isSelected ? 'text-brand-orange' : 'text-slate-700'} ${isToday ? 'text-blue-600' : ''}">${day}</span>
-                                        <div class="flex gap-1 mt-1">
-                                            ${activity.hasSales ? '<div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>' : ''}
-                                            ${activity.hasExpenses ? '<div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>' : ''}
-                                            ${activity.hasEvents ? '<div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>' : ''}
-                                        </div>
-                                    </a>
+                                    <button onclick="app.selectCalendarDate('${dateStr}')" class="cx-day ${isSelected ? 'is-selected' : ''} ${isToday ? 'is-today' : ''}" aria-label="${day} de ${monthNames[month]}">
+                                        <span>${day}</span>
+                                        <i class="cx-day-dots">
+                                            ${activity.hasSales ? '<b class="is-sale" title="Ventas"></b>' : ''}
+                                            ${activity.hasExpenses ? '<b class="is-expense" title="Gastos"></b>' : ''}
+                                            ${activity.hasEvents ? '<b class="is-event" title="Notas"></b>' : ''}
+                                        </i>
+                                    </button>
                                 `;
         }).join('')}
                         </div>
-                    </div>
+                        <div class="flex flex-wrap gap-4 pt-3 px-1 text-xs text-stone-600">
+                            <span class="flex items-center gap-1.5"><b class="cx-legend-dot is-sale"></b>Ventas</span>
+                            <span class="flex items-center gap-1.5"><b class="cx-legend-dot is-expense"></b>Gastos</span>
+                            <span class="flex items-center gap-1.5"><b class="cx-legend-dot is-event"></b>Notas</span>
+                        </div>
+                    </section>
 
                     <!-- Day Summary -->
-                    <div class="w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-orange-100 p-6 flex flex-col h-full overflow-hidden">
+                    <section class="cx-panel w-full lg:w-[400px] flex flex-col lg:h-full overflow-hidden">
                         ${this.renderCalendarDaySummary(currentDate)}
-                    </div>
+                    </section>
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -2515,101 +2227,93 @@ const app = {
         const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         const displayDate = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
-        const daySales = this.state.sales.filter(s => s.date === dateStr);
-        const dayExpenses = this.state.expenses.filter(e => e.date === dateStr);
+        // Envíos manuales son logística, no ventas (misma regla que dashboard y Ventas)
+        const daySales = this.state.sales.filter(s => s.date === dateStr && this.normalizeSaleChannel(s) !== 'manual');
+        const dayExpenses = this.state.expenses.filter(e => (e.date || e.fecha_factura) === dateStr);
         const dayEvents = this.state.events.filter(e => e.date === dateStr);
 
-        const totalSales = daySales.reduce((sum, s) => sum + s.total, 0);
-        const totalExpenses = dayExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const totalSales = daySales.reduce((sum, s) => sum + (parseFloat(s.total) || 0), 0);
+        const totalExpenses = dayExpenses.reduce((sum, e) => sum + (parseFloat(e.monto_total ?? e.amount) || 0), 0);
+        const saleTitle = (s) => {
+            const items = s.items || [];
+            const first = items[0] ? (items[0].album || items[0].title) : s.album;
+            return `${first || 'Venta'}${items.length > 1 ? ` y ${items.length - 1} más` : ''}`;
+        };
 
         return `
-            <div class="flex justify-between items-start mb-6">
+            <div class="flex justify-between items-start gap-3 mb-4">
                 <div>
-                    <h3 class="font-display text-xl font-bold text-brand-dark capitalize">${displayDate}</h3>
-                    <p class="text-xs text-slate-500 mt-1">Resumen del día</p>
+                    <h3 class="cx-dialog-title first-letter:uppercase">${displayDate}</h3>
+                    <p class="cx-sub !mt-1">Resumen del día</p>
                 </div>
-                <button onclick="app.openAddEventModal('${dateStr}')" class="text-brand-orange hover:bg-orange-50 p-2 rounded-lg transition-colors" title="Agregar Evento">
-                    <i class="ph-bold ph-plus"></i>
-                </a>
+                <button onclick="app.openAddEventModal('${dateStr}')" class="cx-btn is-primary shrink-0"><i class="ph-bold ph-plus"></i>Nota</button>
             </div>
 
-            <div class="space-y-6 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                <!-- Financial Summary -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-green-50 p-3 rounded-xl border border-green-100">
-                        <p class="text-[10px] font-bold text-green-600 uppercase">Ventas</p>
-                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(totalSales)}</p>
+            <div class="space-y-5 overflow-y-auto pr-1 custom-scrollbar flex-1">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="cx-tile cx-yellow !min-h-0">
+                        <span class="cx-tile-label">Ventas (${daySales.length})</span>
+                        <b class="cx-tile-value !text-2xl">${this.formatCurrency(totalSales)}</b>
                     </div>
-                    <div class="bg-red-50 p-3 rounded-xl border border-red-100">
-                        <p class="text-[10px] font-bold text-red-600 uppercase">Gastos</p>
-                        <p class="text-lg font-bold text-brand-dark">${this.formatCurrency(totalExpenses)}</p>
+                    <div class="cx-tile cx-dark !min-h-0">
+                        <span class="cx-tile-label">Gastos (${dayExpenses.length})</span>
+                        <b class="cx-tile-value !text-2xl">${this.formatCurrency(totalExpenses)}</b>
                     </div>
                 </div>
 
-                <!-- Events -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Eventos / Notas</h4>
+                    <h4 class="vf-mini-label block mb-2">Notas</h4>
                     ${dayEvents.length > 0 ? `
                         <div class="space-y-2">
                             ${dayEvents.map(e => `
-                                <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 group relative">
-                                    <p class="text-sm font-medium text-brand-dark">${e.title}</p>
-                                    ${e.description ? `<p class="text-xs text-slate-500 mt-1">${e.description}</p>` : ''}
-                                    <button onclick="app.deleteEvent('${e.id}')" class="absolute top-2 right-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600">
-                                        <i class="ph-bold ph-trash"></i>
-                                    </a>
+                                <div class="p-3 rounded-2xl bg-[#F2E14C]/60 group relative">
+                                    <p class="text-sm font-semibold pr-6">${e.title}</p>
+                                    ${e.description ? `<p class="text-xs text-stone-600 mt-1">${e.description}</p>` : ''}
+                                    <button onclick="app.deleteEvent('${e.id}')" class="absolute top-2.5 right-2.5 text-stone-500 hover:text-red-700 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity" aria-label="Borrar nota">
+                                        <i class="ph ph-trash"></i>
+                                    </button>
                                 </div>
                             `).join('')}
                         </div>
-                    ` : `
-                        <div class="text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <p class="text-xs text-slate-400">No hay eventos registrados</p>
-                            <button onclick="app.openAddEventModal('${dateStr}')" class="text-xs text-brand-orange font-bold mt-2 hover:underline">Agregar nota</a>
-                        </div>
-                    `}
+                    ` : `<p class="text-sm text-stone-500">Sin notas. Usá "Nota" para agregar una.</p>`}
                 </div>
 
-                <!-- Sales List -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Ventas (${daySales.length})</h4>
-                    ${daySales.length > 0 ? `
-                        <div class="space-y-2">
-                            ${daySales.map(s => `
-                                <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
-                                    <div class="truncate flex-1 pr-2">
-                                        <span class="font-bold text-slate-700 block truncate">${s.album || 'Venta rápida'}</span>
-                                        <span class="text-slate-400 text-[10px]">${s.sku || '-'}</span>
-                                    </div>
-                                    <span class="font-bold text-brand-dark">${this.formatCurrency(s.total)}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    ` : '<p class="text-xs text-slate-400 italic">Sin ventas</p>'}
+                    <h4 class="vf-mini-label block mb-1">Ventas</h4>
+                    ${daySales.length > 0 ? daySales.map(s => {
+                        const cover = s.items && s.items[0] ? this.resolveItemCover(s.items[0]) : null;
+                        return `
+                        <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="cx-feed-row w-full text-left !px-2">
+                            <span class="cx-cover !w-10 !h-10 !text-base">${cover ? `<img src="${cover}" class="w-full h-full object-cover" alt="">` : '<i class="ph ph-vinyl-record"></i>'}</span>
+                            <span class="flex-1 min-w-0">
+                                <span class="block text-sm font-semibold truncate">${saleTitle(s)}</span>
+                                <span class="block text-xs text-stone-500">${s.paymentMethod || ''}</span>
+                            </span>
+                            <span class="text-sm font-semibold">${this.formatCurrency(s.total)}</span>
+                        </button>`;
+                    }).join('') : '<p class="text-sm text-stone-500">Sin ventas.</p>'}
                 </div>
 
-                <!-- Expenses List -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Detalle Gastos (${dayExpenses.length})</h4>
-                    ${dayExpenses.length > 0 ? `
-                        <div class="space-y-2">
-                            ${dayExpenses.map(e => `
-                                <div class="flex justify-between items-center p-2 bg-white border border-slate-100 rounded-lg text-xs">
-                                    <div class="truncate flex-1 pr-2">
-                                        <span class="font-bold text-slate-700 block truncate">${e.description}</span>
-                                        <span class="text-slate-400 text-[10px]">${e.category}</span>
-                                    </div>
-                                    <span class="font-bold text-brand-dark">${this.formatCurrency(e.amount)}</span>
-                                </div>
-                            `).join('')}
+                    <h4 class="vf-mini-label block mb-1">Gastos</h4>
+                    ${dayExpenses.length > 0 ? dayExpenses.map(e => `
+                        <div class="cx-feed-row !cursor-default !px-2">
+                            <span class="cx-cover !w-10 !h-10 !text-base"><i class="ph ph-receipt"></i></span>
+                            <span class="flex-1 min-w-0">
+                                <span class="block text-sm font-semibold truncate">${e.proveedor || e.descripcion || e.description || 'Gasto'}</span>
+                                <span class="block text-xs text-stone-500 truncate">${e.categoria_label || e.categoria || e.category || ''}</span>
+                            </span>
+                            <span class="text-sm font-semibold">${this.formatCurrency(parseFloat(e.monto_total ?? e.amount) || 0)}</span>
                         </div>
-                    ` : '<p class="text-xs text-slate-400 italic">Sin gastos</p>'}
+                    `).join('') : '<p class="text-sm text-stone-500">Sin gastos.</p>'}
                 </div>
             </div>
         `;
     },
 
     changeCalendarMonth(offset) {
-        const newDate = new Date(this.state.selectedDate);
+        const newDate = new Date(this.state.selectedDate || new Date());
+        newDate.setDate(1); // evita saltar dos meses desde el día 31
         newDate.setMonth(newDate.getMonth() + offset);
         this.state.selectedDate = newDate;
         this.renderCalendar(document.getElementById('app-content'));
@@ -2621,37 +2325,33 @@ const app = {
     },
 
     openAddEventModal(dateStr) {
+        const nice = new Date(dateStr).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
         const modalHtml = `
-            <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-display text-xl font-bold text-brand-dark">Nuevo Evento</h3>
-                        <button onclick="document.getElementById('modal-overlay').remove()" class="text-slate-400 hover:text-brand-dark transition-colors">
-                            <i class="ph-bold ph-x text-xl"></i>
-                        </a>
+            <div id="modal-overlay" class="vf-overlay cx-dialog-wrap" onclick="if (event.target === this) this.remove()">
+                <div class="cx-dialog cx-view" role="dialog" aria-modal="true" aria-labelledby="ev-title">
+                    <div class="flex justify-between items-start mb-5">
+                        <div>
+                            <h3 id="ev-title" class="cx-dialog-title">Nueva nota</h3>
+                            <p class="cx-sub !mt-1 first-letter:uppercase">${nice}</p>
+                        </div>
+                        <button onclick="document.getElementById('modal-overlay').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
                     </div>
-
-                    <form onsubmit="app.handleAddEvent(event)" class="space-y-4">
+                    <form onsubmit="app.handleAddEvent(event)" class="space-y-3">
                         <input type="hidden" name="date" value="${dateStr}">
-                        
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Título</label>
-                            <input name="title" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Ej. Evento Especial">
+                        <label class="vf-field"><span>Título</span>
+                            <input name="title" required class="vf-input" placeholder="Ej. Funky Night en Bootleggers"></label>
+                        <label class="vf-field"><span>Detalle</span>
+                            <textarea name="description" rows="3" class="vf-input !h-auto py-2.5 resize-none" placeholder="Opcional"></textarea></label>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="cx-btn">Cancelar</button>
+                            <button type="submit" class="cx-btn is-primary">Guardar nota</button>
                         </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Descripción</label>
-                            <textarea name="description" rows="3" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none" placeholder="Detalles..."></textarea>
-                        </div>
-
-                        <button type="submit" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors shadow-lg shadow-brand-dark/20">
-                            Guardar Evento
-                        </a>
                     </form>
                 </div>
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+        setTimeout(() => document.querySelector('#modal-overlay input[name="title"]')?.focus(), 50);
     },
 
     handleAddEvent(e) {
@@ -2685,54 +2385,41 @@ const app = {
 
     renderBackup(container) {
         const html = `
-            <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-3xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Respaldo',
-                    subtitle: 'Copias de seguridad y restauración de datos'
+                    subtitle: 'Copias de seguridad de tus datos'
                 })}
-                
-                <div class="space-y-6">
-                    <!-- Export Card -->
-                    <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100">
-                        <div class="flex items-start gap-4 mb-6">
-                            <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-2xl">
-                                <i class="ph-fill ph-download-simple"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-bold text-lg text-brand-dark">Exportar Datos</h3>
-                                <p class="text-sm text-slate-500 mt-1">Descarga un archivo con todo tu inventario, ventas y gastos. Úsalo para mover tus datos a otra computadora.</p>
-                            </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <section class="cx-tile cx-yellow !min-h-[200px] !justify-between">
+                        <div>
+                            <span class="cx-tile-label">Descargar copia</span>
+                            <p class="text-sm mt-2 relative z-10">Un archivo con todo el inventario, las ventas y los gastos. Sirve para guardarlo o pasarlo a otra compu.</p>
                         </div>
-                        <button onclick="app.exportData()" class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
-                            <i class="ph-bold ph-download"></i> Descargar Copia de Seguridad
-                        </a>
-                        
-                        <div class="flex-1 relative">
-                            <input type="file" id="import-file" accept=".json" class="hidden" onchange="app.importData(this)">
-                            <button onclick="document.getElementById('import-file').click()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors flex items-center justify-center gap-2">
-                                <i class="ph-fill ph-upload-simple text-xl"></i>
-                                Importar Backup
-                            </a>
+                        <button onclick="app.exportData()" class="cx-btn !bg-[#1A1A1A] !text-white !border-[#1A1A1A] self-start relative z-10"><i class="ph-bold ph-download-simple"></i> Descargar copia</button>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
+                    </section>
+                    <section class="cx-tile cx-frost !min-h-[200px] !justify-between">
+                        <div>
+                            <span class="cx-tile-label">Restaurar una copia</span>
+                            <p class="text-sm text-stone-600 mt-2">Cargá un archivo .json descargado antes desde acá.</p>
                         </div>
-                    </div>
+                        <input type="file" id="import-file" accept=".json" class="hidden" onchange="app.importData(this)">
+                        <button onclick="document.getElementById('import-file').click()" class="cx-btn self-start"><i class="ph ph-upload-simple"></i> Elegir archivo</button>
+                    </section>
                 </div>
 
-                <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
-                    <h3 class="font-bold text-lg mb-4 text-red-700">Zona de Peligro</h3>
-                    <p class="text-red-600/80 text-sm mb-4">Estas acciones borran datos permanentemente y no se pueden deshacer.</p>
-                    
-                    <div class="space-y-3">
-                        <button type="button" onclick="app.resetSales()" class="w-full bg-white border-2 border-orange-200 text-orange-600 py-3 rounded-xl font-bold hover:bg-orange-50 transition-colors flex items-center justify-center gap-2">
-                            <i class="ph-fill ph-receipt-x text-xl"></i>
-                            Borrar Todas las Ventas
-                        </a>
-                        <button type="button" onclick="app.resetApplication()" class="w-full bg-white border-2 border-red-200 text-red-600 py-3 rounded-xl font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
-                            <i class="ph-fill ph-trash text-xl"></i>
-                            Restablecer de Fábrica
-                        </a>
+                <section class="vf-card !bg-[#F2955E]/25 !border-[#F2955E]/50">
+                    <h3 class="vf-h flex items-center gap-2"><i class="ph-bold ph-warning"></i> Zona de peligro</h3>
+                    <p class="text-sm text-stone-700 mb-4">Estas acciones borran datos para siempre y no se pueden deshacer.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="app.resetSales()" class="cx-btn"><i class="ph ph-receipt-x"></i> Borrar todas las ventas</button>
+                        <button type="button" onclick="app.resetApplication()" class="cx-btn is-danger"><i class="ph ph-trash"></i> Restablecer de fábrica</button>
                     </div>
-                </div>
-                </div>
+                </section>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -2740,84 +2427,49 @@ const app = {
 
     renderSettings(container) {
         const token = localStorage.getItem('discogs_token') || '';
+        const migration = (title, desc, onclick, icon, label) => `
+            <div class="flex items-center justify-between gap-4 py-3 border-b border-black/5 last:border-0">
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold">${title}</p>
+                    <p class="text-xs text-stone-500">${desc}</p>
+                </div>
+                <button onclick="${onclick}" class="cx-btn !h-9 shrink-0"><i class="ph ${icon}"></i> ${label}</button>
+            </div>`;
         const html = `
-            <div class="max-w-2xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-3xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Configuración',
-                    subtitle: 'Preferencias y conexiones del panel'
+                    subtitle: 'Conexiones y herramientas del panel'
                 })}
-                
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
-                    <h3 class="font-bold text-lg text-brand-dark mb-4">Integraciones</h3>
-                    <form onsubmit="app.saveSettings(event)" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Discogs Personal Access Token</label>
-                            <input type="text" name="discogs_token" value="${token}" placeholder="Ej: hSIAXlFq..." class="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 focus:border-brand-orange outline-none font-mono text-sm">
-                            <p class="text-xs text-slate-400 mt-2">Necesario para buscar portadas y datos de discos. <a href="https://www.discogs.com/settings/developers" target="_blank" class="text-brand-orange hover:underline">Generar Token</a></p>
-                        </div>
-                        <button type="submit" class="bg-brand-dark text-white px-6 py-2 rounded-xl font-bold hover:bg-slate-700 transition-colors">
-                            Guardar Configuración
-                        </a>
+
+                <section class="vf-card mb-4">
+                    <h3 class="vf-h">Discogs</h3>
+                    <form onsubmit="app.saveSettings(event)" class="space-y-3">
+                        <label class="vf-field"><span>Token personal de Discogs</span>
+                            <input type="text" name="discogs_token" value="${token}" placeholder="Ej: hSIAXlFq..." class="vf-input font-mono"></label>
+                        <p class="text-xs text-stone-500">Sirve para buscar tapas y datos de discos. <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener" class="underline font-semibold">Generar un token</a></p>
+                        <button type="submit" class="cx-btn is-primary">Guardar</button>
                     </form>
-                </div>
+                </section>
 
-                <!-- Excel Export Section -->
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-200 mb-6">
-                    <div class="flex items-start gap-4 mb-6">
-                        <div class="w-12 h-12 rounded-full bg-green-50 text-green-500 flex items-center justify-center text-2xl">
-                            <i class="ph-fill ph-file-xls"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-bold text-lg text-brand-dark">Exportar Inventario a Excel</h3>
-                            <p class="text-sm text-slate-500 mt-1">Genera un archivo Excel con todos los discos, categorías, precios, estado en Discogs, estado en la web y más datos relevantes.</p>
-                        </div>
+                <section class="cx-tile cx-yellow !min-h-0 mb-4 !flex-row !items-center !justify-between flex-wrap">
+                    <div class="relative z-10 max-w-md">
+                        <span class="cx-tile-label">Inventario en Excel</span>
+                        <p class="text-sm mt-1">Todos los discos con categoría, precio y si están en Discogs y en la web.</p>
                     </div>
-                    <button onclick="app.exportInventoryToExcel()" class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                        <i class="ph-bold ph-file-xls"></i> Descargar Excel Completo
-                    </a>
-                </div>
+                    <button onclick="app.exportInventoryToExcel()" class="cx-btn !bg-[#1A1A1A] !text-white !border-[#1A1A1A] relative z-10"><i class="ph-bold ph-file-xls"></i> Descargar Excel</button>
+                </section>
 
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-orange-100 mb-6">
-                    <h3 class="font-bold text-lg text-brand-dark mb-4">Migraciones de Datos</h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between p-4 bg-amber-50 rounded-xl border border-amber-200">
-                            <div>
-                                <p class="font-bold text-amber-900">Marcar Productos como "Usado"</p>
-                                <p class="text-xs text-amber-700">Actualiza todos los productos sin condición a "Second-hand"</p>
-                            </div>
-                            <button onclick="app.migrateProductCondition()" class="bg-amber-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-700 transition-colors text-sm">
-                                <i class="ph-bold ph-database mr-1"></i> Migrar
-                            </a>
-                        </div>
-                        <div class="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-200">
-                            <div>
-                                <p class="font-bold text-blue-900">Migrar Datos de Ventas</p>
-                                <p class="text-xs text-blue-700">Agrega costo y condición a ventas sin estos datos</p>
-                            </div>
-                            <button onclick="app.migrateSalesData()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm">
-                                <i class="ph-bold ph-receipt mr-1"></i> Migrar
-                            </a>
-                        </div>
-                        <div class="flex items-center justify-between p-4 bg-purple-50 rounded-xl border border-purple-200">
-                            <div>
-                                <p class="font-bold text-purple-900">Normalizar SKUs</p>
-                                <p class="text-xs text-purple-700">Asigna formato SKU-001 a todos los productos que no lo tengan</p>
-                            </div>
-                            <button onclick="app.normalizeAllSkus()" class="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-purple-700 transition-colors text-sm">
-                                <i class="ph-bold ph-barcode mr-1"></i> Normalizar
-                            </a>
-                        </div>
-                        <div class="flex items-center justify-between p-4 bg-indigo-50 rounded-xl border border-indigo-200">
-                            <div>
-                                <p class="font-bold text-indigo-900">Backfill QuickIDs</p>
-                                <p class="text-xs text-indigo-700">Asigna quickId secuencial (0001, 0002...) a productos sin él</p>
-                            </div>
-                            <button onclick="app.backfillQuickIds()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors text-sm">
-                                <i class="ph-bold ph-hash mr-1"></i> Backfill
-                            </a>
-                        </div>
-                    </div>
-                </div>
+                <section class="vf-card">
+                    <h3 class="vf-h !mb-1">Arreglos de datos</h3>
+                    <p class="text-xs text-stone-500 mb-2">Herramientas de mantenimiento. Usalas solo si sabés que hacen falta.</p>
+                    ${migration('Marcar productos como usados', 'Pone "Second-hand" a los productos que no tienen condición.', 'app.migrateProductCondition()', 'ph-database', 'Aplicar')}
+                    ${migration('Completar datos de ventas', 'Agrega costo y condición a las ventas que no los tienen.', 'app.migrateSalesData()', 'ph-receipt', 'Aplicar')}
+                    ${migration('Normalizar SKUs', 'Da formato SKU-001 a los productos que no lo tienen.', 'app.normalizeAllSkus()', 'ph-barcode', 'Aplicar')}
+                    ${migration('Completar QuickIDs', 'Asigna un número correlativo (0001, 0002…) a los productos sin QuickID.', 'app.backfillQuickIds()', 'ph-hash', 'Aplicar')}
+                </section>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -3426,8 +3078,23 @@ const app = {
     setupNavigation() {
         // Navigation is handled via inline onclick events in HTML
         // This function is kept for compatibility with init()
-        this.restoreNavGroups();
         this.updateNavBadges();
+        document.getElementById(`nav-d-${this.state.currentView}`)?.classList.add('is-active');
+        // Búsqueda universal: ⌘K / Ctrl+K enfoca, clic afuera cierra
+        document.addEventListener('keydown', (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                document.getElementById('gs-input')?.focus();
+            }
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#gs-root')) this.gsClose();
+            if (this.state.periodOpen && !e.target.closest('.cx-period')) {
+                this.state.periodOpen = null;
+                document.querySelectorAll('.cx-period-pop').forEach(p => p.classList.add('hidden'));
+                document.querySelectorAll('.cx-period .cx-caret').forEach(c => c.classList.remove('rotate-180'));
+            }
+        });
     },
 
     setupMobileMenu() {
@@ -3474,19 +3141,6 @@ const app = {
     },
 
     // --- Blueprint Sec 01/03: Grupos de navegación colapsables ---
-    toggleNavGroup(key) {
-        const body = document.getElementById(`nav-group-${key}`);
-        const caret = document.getElementById(`nav-caret-${key}`);
-        if (!body) return;
-        const collapsed = body.classList.toggle('hidden');
-        if (caret) caret.style.transform = collapsed ? 'rotate(-90deg)' : '';
-        try {
-            const saved = JSON.parse(localStorage.getItem('ec_nav_groups') || '{}');
-            saved[key] = collapsed;
-            localStorage.setItem('ec_nav_groups', JSON.stringify(saved));
-        } catch (e) { /* noop */ }
-    },
-
     // Blueprint Sec 06: colapsar/expandir opciones avanzadas del formulario de disco
     toggleVinylAdvanced() {
         const panel = document.getElementById('vinyl-advanced-options');
@@ -3499,17 +3153,106 @@ const app = {
         }
     },
 
-    restoreNavGroups() {
-        let saved = {};
-        try { saved = JSON.parse(localStorage.getItem('ec_nav_groups') || '{}'); } catch (e) { /* noop */ }
-        ['operacion', 'catalogo', 'finanzas', 'administracion'].forEach(key => {
-            if (saved[key]) {
-                const body = document.getElementById(`nav-group-${key}`);
-                const caret = document.getElementById(`nav-caret-${key}`);
-                if (body) body.classList.add('hidden');
-                if (caret) caret.style.transform = 'rotate(-90deg)';
-            }
-        });
+    // --- Búsqueda universal (barra superior) ---
+    gsSearch(raw) {
+        const panel = document.getElementById('gs-panel');
+        const input = document.getElementById('gs-input');
+        if (!panel) return;
+        const q = this.normalizeText(raw);
+        if (!q) { this.gsClose(); return; }
+        const has = (...vals) => vals.some(v => this.normalizeText(String(v ?? '')).includes(q));
+        const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        const results = [];
+        const groups = [];
+
+        const pages = [
+            ['dashboard', 'Dashboard', 'ph-squares-four'], ['sales', 'Ventas', 'ph-shopping-cart'], ['pos', 'POS', 'ph-cash-register'],
+            ['shipping', 'Envíos', 'ph-truck'], ['calendar', 'Calendario', 'ph-calendar-blank'], ['inventory', 'Inventario', 'ph-vinyl-record'],
+            ['newsletter', 'Drops & Newsletter', 'ph-paper-plane-tilt'], ['consignments', 'Consignaciones', 'ph-handshake'], ['webshop', 'Web shop', 'ph-storefront'],
+            ['expenses', 'Registro Compras', 'ph-file-text'], ['extraIncome', 'Ingresos Extra', 'ph-coins'], ['investments', 'Inversiones', 'ph-piggy-bank'],
+            ['contabilidad', 'Contabilidad', 'ph-receipt'], ['vatReport', 'Reporte VAT', 'ph-bank'], ['facturasManual', 'Generar Factura', 'ph-note-pencil'],
+            ['backup', 'Respaldo', 'ph-cloud-arrow-up'], ['settings', 'Configuración', 'ph-gear'], ['datosLegales', 'Datos Legales', 'ph-info']
+        ].filter(([, label]) => has(label)).slice(0, 4);
+        if (pages.length) groups.push({ title: 'Secciones', rows: pages.map(([view, label, icon]) => ({
+            html: `<span class="gs-thumb"><i class="ph ${icon}"></i></span><span class="gs-main"><b>${label}</b><small>Ir a la sección</small></span>`,
+            run: () => this.navigate(view)
+        })) });
+
+        const records = (this.state.inventory || [])
+            .filter(i => has(i.artist, i.album, i.sku, i.label, i.lot))
+            .sort((a, b) => (Number(b.stock) > 0) - (Number(a.stock) > 0))
+            .slice(0, 6);
+        if (records.length) groups.push({ title: 'Discos', rows: records.map(i => ({
+            html: `<span class="gs-thumb">${i.cover_image ? `<img src="${esc(i.cover_image)}" alt="">` : '<i class="ph ph-vinyl-record"></i>'}</span>
+                   <span class="gs-main"><b>${esc(i.album)}</b><small>${esc(i.artist)} · ${esc(i.sku)}</small></span>
+                   <span class="gs-side">${this.formatCurrency(i.price, false)}<span class="cx-stock ${Number(i.stock) > 0 ? '' : 'is-out'}">${Number(i.stock) > 0 ? 'Stock ' + i.stock : 'Agotado'}</span></span>`,
+            run: () => this.openProductModal(i.id)
+        })) });
+
+        const sales = (this.state.sales || [])
+            .filter(s => has(s.customerName, s.customerEmail, s.id, ...(s.items || []).map(it => it.album)))
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+            .slice(0, 5);
+        if (sales.length) groups.push({ title: 'Ventas', rows: sales.map(s => ({
+            html: `<span class="gs-thumb"><i class="ph ph-shopping-cart"></i></span>
+                   <span class="gs-main"><b>${esc((s.items && s.items[0] && s.items[0].album) || s.customerName || 'Venta')}${s.items && s.items.length > 1 ? ` y ${s.items.length - 1} más` : ''}</b><small>${esc(s.customerName || 'Sin cliente')} · ${this.formatDate(s.date)} · ${esc(s.channel || 'Tienda')}</small></span>
+                   <span class="gs-side">${this.formatCurrency(Number(s.total_amount || s.total) || 0)}</span>`,
+            run: () => { this.navigate('sales'); this.openUnifiedOrderDetailModal(s.id); }
+        })) });
+
+        const expenses = (this.state.expenses || [])
+            .filter(e => has(e.proveedor, e.descripcion, e.description, e.categoria_label))
+            .sort((a, b) => new Date(b.date || b.fecha_factura || 0) - new Date(a.date || a.fecha_factura || 0))
+            .slice(0, 4);
+        if (expenses.length) groups.push({ title: 'Gastos', rows: expenses.map(e => ({
+            html: `<span class="gs-thumb"><i class="ph ph-receipt"></i></span>
+                   <span class="gs-main"><b>${esc(e.proveedor || e.descripcion || 'Gasto')}</b><small>${this.formatDate(e.date || e.fecha_factura)} · ${esc(e.categoria_label || e.categoria || '')}</small></span>
+                   <span class="gs-side">${this.formatCurrency(Number(e.monto_total || e.amount) || 0)}</span>`,
+            run: () => { this.navigate('expenses'); this.editExpense(e.id); }
+        })) });
+
+        const consignors = (this.state.consignors || []).filter(c => has(c.name, c.email)).slice(0, 3);
+        if (consignors.length) groups.push({ title: 'Consignatarios', rows: consignors.map(c => ({
+            html: `<span class="gs-thumb"><i class="ph ph-handshake"></i></span><span class="gs-main"><b>${esc(c.name)}</b><small>${esc(c.email || 'Consignación')}</small></span>`,
+            run: () => this.navigate('consignments')
+        })) });
+
+        this._gs = { results, active: 0 };
+        panel.innerHTML = groups.length ? groups.map(g => `
+            <p class="gs-group">${g.title}</p>
+            ${g.rows.map(r => { results.push(r); const i = results.length - 1; return `<button type="button" role="option" data-gs="${i}" class="gs-row ${i === 0 ? 'is-active' : ''}" onmousedown="event.preventDefault()" onclick="app.gsGo(${i})">${r.html}</button>`; }).join('')}
+        `).join('') : `<p class="gs-empty">Nada coincide con "${esc(raw.trim())}". Probá con artista, título, SKU, cliente o proveedor.</p>`;
+        panel.classList.remove('hidden');
+        input?.setAttribute('aria-expanded', 'true');
+    },
+
+    gsKey(e) {
+        const gs = this._gs;
+        if (e.key === 'Escape') { e.target.value = ''; this.gsClose(); e.target.blur(); return; }
+        if (!gs || !gs.results.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            gs.active = (gs.active + (e.key === 'ArrowDown' ? 1 : -1) + gs.results.length) % gs.results.length;
+            document.querySelectorAll('#gs-panel .gs-row').forEach(el => el.classList.toggle('is-active', Number(el.dataset.gs) === gs.active));
+            document.querySelector(`#gs-panel [data-gs="${gs.active}"]`)?.scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            this.gsGo(gs.active);
+        }
+    },
+
+    gsGo(i) {
+        const r = this._gs && this._gs.results[i];
+        if (!r) return;
+        const input = document.getElementById('gs-input');
+        if (input) { input.value = ''; input.blur(); }
+        this.gsClose();
+        r.run();
+    },
+
+    gsClose() {
+        document.getElementById('gs-panel')?.classList.add('hidden');
+        document.getElementById('gs-input')?.setAttribute('aria-expanded', 'false');
     },
 
     // Badges solo para pendientes reales (Blueprint Sec 03)
@@ -3539,17 +3282,17 @@ const app = {
     // --- Blueprint Sec 01: Encabezado contextual con una acción primaria ---
     sectionHeader({ title, subtitle = '', primary = null, filters = '' }) {
         const primaryBtn = primary ? `
-            <button onclick="${primary.onclick}" class="${primary.class || 'bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform'}">
-                <i class="ph-bold ${primary.icon || 'ph-plus'} text-lg"></i>
-                <span class="text-xs font-bold hidden sm:inline">${primary.label}</span>
+            <button onclick="${primary.onclick}" class="${primary.class || 'cx-btn is-primary'}">
+                <i class="ph-bold ${primary.icon || 'ph-plus'}"></i>
+                <span class="hidden sm:inline">${primary.label}</span>
             </button>` : '';
         return `
-            <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
+            <div class="flex flex-wrap justify-between items-end gap-4 mb-6">
                 <div>
-                    <h2 class="font-display text-2xl font-bold text-brand-dark">${title}</h2>
-                    ${subtitle ? `<p class="text-xs text-slate-400 mt-1">${subtitle}</p>` : ''}
+                    <h2 class="cx-title">${title}</h2>
+                    ${subtitle ? `<p class="cx-sub">${subtitle}</p>` : ''}
                 </div>
-                <div class="flex gap-2 items-center">
+                <div class="flex flex-wrap gap-2 items-center">
                     ${filters}
                     ${primaryBtn}
                 </div>
@@ -3670,29 +3413,105 @@ const app = {
         }
     },
 
-    toggleMonthFilter(monthIndex) {
-        const index = this.state.filterMonths.indexOf(monthIndex);
-        if (index === -1) {
-            this.state.filterMonths.push(monthIndex);
-        } else {
-            // Prevent deselecting the last month (always keep at least one)
-            if (this.state.filterMonths.length > 1) {
-                this.state.filterMonths.splice(index, 1);
-            }
-        }
-        this.state.filterMonths.sort((a, b) => a - b);
+    // --- Selector de período (botón "calendario" con popover multi-mes) ---
+    // scope -> claves de estado. Reutilizable en cualquier pantalla con filtro de meses.
+    cxPeriodKeys(scope) {
+        return {
+            main: { y: 'filterYear', m: 'filterMonths' },
+            expenses: { y: 'expenseFilterYear', m: 'expenseFilterMonths' },
+            income: { y: 'incomeFilterYear', m: 'incomeFilterMonths' }
+        }[scope];
+    },
+
+    cxPeriodLabel(year, months) {
+        const long = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const short = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const m = [...months].sort((a, b) => a - b);
+        if (m.length === 12) return `Todo ${year}`;
+        if (m.length === 1) return `${long[m[0]]} ${year}`;
+        const contiguous = m.every((v, i) => i === 0 || v === m[i - 1] + 1);
+        if (contiguous) return `${short[m[0]]} a ${short[m[m.length - 1]]} ${year}`;
+        if (m.length <= 3) return `${m.map(i => short[i]).join(', ')} ${year}`;
+        return `${m.length} meses de ${year}`;
+    },
+
+    cxPeriodPicker(scope, align = 'left') {
+        const k = this.cxPeriodKeys(scope);
+        const year = this.state[k.y];
+        const months = this.state[k.m] || [];
+        const open = this.state.periodOpen === scope;
+        const short = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const now = new Date();
+        const minYear = 2025, maxYear = now.getFullYear();
+        const all = months.length === 12;
+        return `
+        <div class="cx-period ${align === 'right' ? 'is-right' : ''}" onclick="event.stopPropagation()">
+            <button type="button" class="cx-frost-pill" onclick="app.cxPeriodOpen('${scope}')" aria-haspopup="dialog" aria-expanded="${open}">
+                <i class="ph ph-calendar-blank"></i>
+                <span>${this.cxPeriodLabel(year, months)}</span>
+                <i class="ph ph-caret-down cx-caret ${open ? 'rotate-180' : ''}"></i>
+            </button>
+            <div class="cx-period-pop ${open ? '' : 'hidden'}" role="dialog" aria-label="Elegir meses">
+                <div class="flex items-center justify-between mb-3">
+                    <button type="button" class="cx-row-btn" onclick="app.cxPeriodYear('${scope}', -1)" ${year <= minYear ? 'disabled style="opacity:.3"' : ''} aria-label="Año anterior"><i class="ph-bold ph-caret-left"></i></button>
+                    <b class="text-lg font-semibold">${year}</b>
+                    <button type="button" class="cx-row-btn" onclick="app.cxPeriodYear('${scope}', 1)" ${year >= maxYear ? 'disabled style="opacity:.3"' : ''} aria-label="Año siguiente"><i class="ph-bold ph-caret-right"></i></button>
+                </div>
+                <div class="grid grid-cols-4 gap-1.5">
+                    ${short.map((m, i) => {
+                        const future = year === maxYear && i > now.getMonth();
+                        return `<button type="button" class="cx-pm ${!all && months.includes(i) ? 'is-on' : ''} ${all ? 'is-all' : ''} ${year === now.getFullYear() && i === now.getMonth() ? 'is-now' : ''} ${future ? 'opacity-40' : ''}" onclick="app.cxPeriodToggle('${scope}', ${i})">${m}</button>`;
+                    }).join('')}
+                </div>
+                <p class="text-xs text-stone-500 mt-3">Tocá varios meses para sumarlos.</p>
+                <div class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-black/10">
+                    <button type="button" class="cx-pm-preset" onclick="app.cxPeriodPreset('${scope}', 'now')">Este mes</button>
+                    <button type="button" class="cx-pm-preset" onclick="app.cxPeriodPreset('${scope}', 'quarter')">Este trimestre</button>
+                    <button type="button" class="cx-pm-preset ${all ? 'is-on' : ''}" onclick="app.cxPeriodPreset('${scope}', 'all')">Todo el año</button>
+                </div>
+            </div>
+        </div>`;
+    },
+
+    cxPeriodOpen(scope) {
+        this.state.periodOpen = this.state.periodOpen === scope ? null : scope;
         this.refreshCurrentView();
     },
 
+    cxPeriodToggle(scope, i) {
+        const k = this.cxPeriodKeys(scope);
+        let arr = [...(this.state[k.m] || [])];
+        if (arr.length === 12) arr = [i]; // desde "todo el año", tocar un mes lo elige solo a él
+        else if (arr.includes(i)) { if (arr.length > 1) arr = arr.filter(x => x !== i); }
+        else arr.push(i);
+        this.state[k.m] = arr.sort((a, b) => a - b);
+        this.refreshCurrentView();
+    },
 
+    cxPeriodPreset(scope, preset) {
+        const k = this.cxPeriodKeys(scope);
+        const now = new Date();
+        if (preset === 'all') this.state[k.m] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        if (preset === 'now') { this.state[k.y] = now.getFullYear(); this.state[k.m] = [now.getMonth()]; }
+        if (preset === 'quarter') {
+            const q = Math.floor(now.getMonth() / 3) * 3;
+            this.state[k.y] = now.getFullYear();
+            this.state[k.m] = [q, q + 1, q + 2];
+        }
+        this.refreshCurrentView();
+    },
+
+    cxPeriodYear(scope, delta) {
+        const k = this.cxPeriodKeys(scope);
+        this.state[k.y] = (Number(this.state[k.y]) || new Date().getFullYear()) + delta;
+        this.refreshCurrentView();
+    },
 
     renderDashboard(container) {
         try {
             // 1. Data Processing
             const selectedMonths = this.state.filterMonths;
             const currentYear = this.state.filterYear;
-            const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
             const filteredSales = this.state.sales.filter(s => {
                 if (this.normalizeSaleChannel(s) === 'manual') return false; // envíos manuales: logística, no revenue
                 const saleDate = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp || s.date);
@@ -4001,141 +3820,128 @@ const app = {
             const avgTicket = filteredSales.length > 0 ? totalRevenue / filteredSales.length : 0;
             const newPercent = totalUnitsSold > 0 ? Math.round((newUnits / totalUnitsSold) * 100) : 0;
             const usedPercent = totalUnitsSold > 0 ? Math.round((usedUnits / totalUnitsSold) * 100) : 0;
-            const genreColorPalette = ['#FF6B4A', '#F59E0B', '#14B8A6', '#8B5CF6', '#F43F5E', '#0EA5E9', '#84CC16', '#D946EF', '#64748B'];
+            const genreColorPalette = ['#F05A28', '#E2C531', '#1A1A1A', '#F2955E', '#8A857C', '#5B4636', '#C9B7A0', '#B4532A', '#6E8B74'];
             const analysisTitle = analysisMode === 'storage' ? 'Análisis por Ubicación' : 'Análisis por Género Musical';
             const analysisIcon = analysisMode === 'storage' ? 'ph-map-pin' : 'ph-music-notes-simple';
             const topLabel = analysisMode === 'storage' ? 'Ubicación Más Rentable' : 'Género Más Rentable';
 
+            const cxPeriod = selectedMonths.length === 12
+                ? `todo ${currentYear}`
+                : `${selectedMonths.map(m => this.getMonthName(m)).join(', ')} ${currentYear}`;
+            const cxTopLabel = analysisMode === 'storage' ? 'Ubicación más rentable' : 'Género más rentable';
+
             const html = `
-            <div class="max-w-7xl mx-auto space-y-8 pb-24 md:pb-8 px-4 md:px-8 pt-6">
-                <!-- Header with Navigation and Filter -->
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto pb-24 md:pb-10 px-4 md:px-8 pt-8 space-y-4">
+                <!-- Header -->
+                <div class="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 pb-2">
                     <div>
-                        <h2 class="font-display text-3xl font-bold text-brand-dark">Resumen Operativo</h2>
-                        <p class="text-slate-500 text-sm">Actividad: <span class="font-bold text-brand-dark">${periodText}</span></p>
+                        <h2 class="cx-title">Dashboard</h2>
+                        <p class="cx-sub">Actividad de ${cxPeriod}</p>
+                    </div>
+                    <div class="flex items-center gap-2 max-w-full">
+                        ${this.cxPeriodPicker('main', 'right')}
+                        <button onclick="app.showFinancialReportModal()" class="cx-topbtn shrink-0" title="Exportar reporte" aria-label="Exportar reporte">
+                            <i class="ph ph-download-simple"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bento -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+
+                    <!-- Ventas -->
+                    <button onclick="app.navigate('sales')" class="cx-card cx-yellow md:col-span-2 lg:col-span-5 text-left">
+                        <span class="cx-card-head">Ventas</span>
+                        <div class="cx-deco-y" aria-hidden="true"><span class="cx-stripes"></span><span class="cx-fade-tile"></span></div>
+                        <p class="cx-big">${this.formatCurrency(totalRevenue)}</p>
+                        <p class="cx-delta ${growth >= 0 ? '' : 'is-down'}">${growthText}</p>
+                        <div class="cx-steps">
+                            <div style="--h:0"><b>${filteredSales.length}</b><span>Ventas</span></div>
+                            <div style="--h:1"><b>${this.formatCurrency(avgTicket)}</b><span>Ticket promedio</span></div>
+                            <div style="--h:2"><b class="${netProfitActual >= 0 ? '' : 'cx-neg'}">${this.formatCurrency(netProfitActual)}</b><span>Margen</span></div>
+                        </div>
+                    </button>
+
+                    <!-- Stock -->
+                    <button onclick="app.navigate('inventory')" class="cx-card cx-orange lg:col-span-3 text-left">
+                        <span class="cx-card-head">Stock</span>
+                        <div class="cx-sun" aria-hidden="true"></div>
+                        <p class="cx-big cx-big-sm">${this.formatCurrency(stockValueCost)}</p>
+                        <p class="cx-delta">a costo</p>
+                        <span class="cx-pill mt-3">${totalItems} discos</span>
+                        <ul class="cx-legend">
+                            <li><i class="cx-dot"></i>Vendido nuevo ${newPercent}%</li>
+                            <li><i class="cx-dot is-ring"></i>Vendido usado ${usedPercent}%</li>
+                        </ul>
+                    </button>
+
+                    <!-- Más rentable + Moms -->
+                    <div class="cx-card cx-dark md:col-span-1 lg:col-span-4 lg:row-span-2">
+                        <div class="cx-card-head">
+                            <span>${cxTopLabel}</span>
+                            <button onclick="app.navigate('inventory')" class="cx-chip-icon" title="Ver inventario" aria-label="Ver inventario"><i class="ph ph-arrow-up-right"></i></button>
+                        </div>
+                        <div class="cx-vinyl-stage" aria-hidden="true">
+                            <span class="cx-sleeve"></span>
+                            <span class="cx-vinyl"><span></span></span>
+                        </div>
+                        <span class="cx-tag"><i class="ph-fill ph-fire"></i> ${totalUnitsSold} uds vendidas</span>
+                        <p class="cx-feature">${topRevenueCategory.name}</p>
+                        <p class="cx-feature-sub">${this.formatCurrency(topRevenueCategory.revenue)} en ingresos</p>
+
+                        <button onclick="app.navigate('vatReport')" class="cx-moms">
+                            <div class="min-w-0">
+                                <span class="cx-moms-label">Moms tilsvar</span>
+                                <b class="cx-moms-value ${estimatedVAT > 0 ? 'is-owed' : 'is-credit'}">${this.formatCurrency(estimatedVAT)}</b>
+                                <div class="cx-moms-split">
+                                    <span>Output<br><b>${this.formatCurrency(totalLiability)}</b></span>
+                                    <span>Input<br><b>-${this.formatCurrency(totalDeductions)}</b></span>
+                                </div>
+                            </div>
+                            <span class="cx-sq"><i class="ph ph-bank"></i></span>
+                        </button>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-3">
-                        <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
-                            <select id="dashboard-year" onchange="app.updateFilter('year', this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
-                                <option value="2026" ${this.state.filterYear === 2026 ? 'selected' : ''}>2026</option>
-                                <option value="2025" ${this.state.filterYear === 2025 ? 'selected' : ''}>2025</option>
-                            </select>
-                            <div class="h-6 w-px bg-slate-100 mx-1"></div>
-                            <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
-                                <button onclick="app.state.filterMonths=[0,1,2,3,4,5,6,7,8,9,10,11];app.refreshCurrentView()"
-                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${selectedMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                    Todo
-                                </button>
-                                ${monthNames.map((m, i) => `
-                                    <button onclick="app.toggleMonthFilter(${i})"
-                                        class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${selectedMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                        ${m}
-                                    </button>
-                                `).join('')}
+                    <!-- Ingresos 30 días + alertas -->
+                    <div class="cx-panel md:col-span-1 lg:col-span-8">
+                        <div class="flex flex-wrap justify-between items-start gap-3 mb-4">
+                            <div>
+                                <h3 class="cx-h">Ingresos</h3>
+                                <p class="cx-sub !mt-0.5">Últimos 30 días</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="app.state.expenseMissingReceiptOnly = true; app.navigate('expenses')" class="cx-alert ${missingReceiptCount > 0 ? 'is-hot' : ''}"><b>${missingReceiptCount}</b>Gastos sin comprobante</button>
+                                <button onclick="app.navigate('expenses')" class="cx-alert ${possibleDuplicates > 0 ? 'is-warn' : ''}"><b>${possibleDuplicates}</b>Posibles duplicados</button>
+                                <button onclick="app.navigate('shipping')" class="cx-alert ${pendingOrders.length > 0 ? 'is-hot' : ''}"><b>${pendingOrders.length}</b>Envíos pendientes</button>
                             </div>
                         </div>
-                        <button onclick="app.showFinancialReportModal()" class="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm">
-                            <i class="ph-bold ph-download-simple text-lg"></i> Exportar
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Blueprint Sec 04: 5 indicadores comparables (clicables = drill-down) -->
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <button onclick="app.navigate('sales')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-chart-line-up"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ventas período</span>
+                        <div class="h-56">
+                            <canvas id="last30DaysChart"></canvas>
                         </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totalRevenue)}</p>
-                        <p class="text-[11px] font-bold mt-1 ${growth >= 0 ? 'text-emerald-600' : 'text-red-500'}">${growthText}</p>
-                    </button>
-                    <button onclick="app.navigate('contabilidad')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-500"><i class="ph-bold ph-hand-coins"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Margen</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold ${netProfitActual >= 0 ? 'text-emerald-600' : 'text-red-500'}">${this.formatCurrency(netProfitActual)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">Bruto + extras − operativos</p>
-                    </button>
-                    <button onclick="app.navigate('inventory')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-500"><i class="ph-bold ph-disc"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Stock a costo</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(stockValueCost)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${totalItems} unidades</p>
-                    </button>
-                    <button onclick="app.navigate('sales')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-500"><i class="ph-bold ph-receipt"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ticket promedio</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(avgTicket)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${filteredSales.length} ventas</p>
-                    </button>
-                    <button onclick="app.navigate('vatReport')" class="text-left bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange transition-all group">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-bank"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">VAT estimado</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold ${estimatedVAT >= 0 ? 'text-amber-600' : 'text-emerald-600'}">${this.formatCurrency(estimatedVAT)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">Período seleccionado</p>
-                    </button>
-                </div>
-
-                <!-- Blueprint Sec 04: Colas de trabajo accionables -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 class="font-bold text-sm text-brand-dark flex items-center gap-2 mb-4">
-                        <i class="ph-bold ph-warning-circle text-brand-orange"></i> Requiere atención
-                    </h3>
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        <button onclick="app.state.expenseMissingReceiptOnly = true; app.navigate('expenses')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
-                            <span class="text-2xl font-display font-bold ${missingReceiptCount > 0 ? 'text-red-500' : 'text-emerald-500'}">${missingReceiptCount}</span>
-                            <span class="text-xs font-bold text-slate-600 leading-tight">Gastos sin<br>comprobante</span>
-                        </button>
-                        <button onclick="app.navigate('expenses')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
-                            <span class="text-2xl font-display font-bold ${possibleDuplicates > 0 ? 'text-amber-500' : 'text-emerald-500'}">${possibleDuplicates}</span>
-                            <span class="text-xs font-bold text-slate-600 leading-tight">Posibles<br>duplicados</span>
-                        </button>
-                        <button onclick="app.navigate('shipping')" class="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 rounded-xl border border-slate-100 hover:border-orange-200 transition-all text-left">
-                            <span class="text-2xl font-display font-bold ${pendingOrders.length > 0 ? 'text-red-500' : 'text-emerald-500'}">${pendingOrders.length}</span>
-                            <span class="text-xs font-bold text-slate-600 leading-tight">Envíos<br>pendientes</span>
-                        </button>
                     </div>
                 </div>
 
                 <!-- Análisis por Categoría (Género / Ubicación) -->
-                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
-                        <h3 class="font-bold text-lg text-brand-dark flex items-center gap-3">
-                            <div class="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange">
-                                <i class="ph-bold ${analysisIcon} text-xl"></i>
-                            </div>
-                            ${analysisTitle}
-                        </h3>
-                        <div class="flex items-center gap-3">
-                            <select onchange="app.state.dashboardAnalysisMode = this.value; app.renderDashboard(document.getElementById('app-content'))"
-                                class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border border-slate-200 outline-none cursor-pointer hover:border-brand-orange transition-colors">
-                                <option value="genre" ${analysisMode === 'genre' ? 'selected' : ''}>🎵 Por Género</option>
-                                <option value="storage" ${analysisMode === 'storage' ? 'selected' : ''}>📍 Por Ubicación</option>
-                            </select>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                                <i class="ph-bold ph-vinyl-record mr-1"></i> ${totalUnitsSold} unidades vendidas
-                            </span>
+                <div class="cx-panel">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-3">
+                        <div>
+                            <h3 class="cx-h">${analysisMode === 'storage' ? 'Ventas por ubicación' : 'Ventas por género'}</h3>
+                            <p class="cx-sub !mt-0.5">${totalUnitsSold} unidades vendidas en el período</p>
+                        </div>
+                        <div class="cx-glass flex p-1 rounded-full">
+                            <button onclick="app.state.dashboardAnalysisMode = 'genre'; app.renderDashboard(document.getElementById('app-content'))" class="cx-month ${analysisMode === 'genre' ? 'is-on' : ''}">Género</button>
+                            <button onclick="app.state.dashboardAnalysisMode = 'storage'; app.renderDashboard(document.getElementById('app-content'))" class="cx-month ${analysisMode === 'storage' ? 'is-on' : ''}">Ubicación</button>
                         </div>
                     </div>
                     ${sortedCategories.length > 0 ? `
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
                         <div class="lg:col-span-5">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Cuota de Mercado</p>
                             <div class="h-80">
                                 <canvas id="genreDonutChart"></canvas>
                             </div>
                         </div>
                         <div class="lg:col-span-7">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Ranking por Volumen</p>
                             <div style="height: ${Math.max(280, sortedCategories.length * 40)}px">
                                 <canvas id="genreBarChart"></canvas>
                             </div>
@@ -4143,223 +3949,83 @@ const app = {
                     </div>
                     ` : `
                     <div class="text-center py-12">
-                        <i class="ph-bold ph-chart-pie-slice text-4xl text-slate-200 mb-3 block"></i>
-                        <p class="text-sm text-slate-400 font-medium">No hay ventas en el período seleccionado</p>
+                        <i class="ph ph-vinyl-record text-4xl text-stone-400 mb-3 block"></i>
+                        <p class="text-sm text-stone-500 font-medium">No hay ventas en este período. Elegí otro mes arriba.</p>
                     </div>
                     `}
                 </div>
 
-                <!-- KPIs Estratégicos -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Categoría Más Rentable -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
-                                <i class="ph-bold ph-crown text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${topLabel}</span>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <!-- Últimos movimientos -->
+                    <div class="cx-panel lg:col-span-8 !p-0 overflow-hidden">
+                        <div class="px-6 pt-6 pb-3">
+                            <h3 class="cx-h">Últimos movimientos</h3>
                         </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark mb-1">${topRevenueCategory.name}</p>
-                        <p class="text-sm font-bold text-amber-500">${this.formatCurrency(topRevenueCategory.revenue)} en ingresos</p>
-                    </div>
-
-                    <!-- Ticket Promedio -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
-                                <i class="ph-bold ph-tag text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ticket Promedio</span>
-                        </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(avgTicket)}</p>
-                        <p class="text-[10px] text-slate-400 font-medium">Gasto promedio por transacción</p>
-                    </div>
-
-                    <!-- Distribución Nuevo vs. Usado -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-teal-500">
-                                <i class="ph-bold ph-stack text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nuevo vs. Usado</span>
-                        </div>
-                        <div class="mt-2">
-                            <div class="flex items-center gap-3">
-                                <div class="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden relative">
-                                    <div class="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-500 transition-all duration-700 ease-out" style="width: ${newPercent}%"></div>
-                                </div>
-                            </div>
-                            <div class="flex justify-between mt-2.5">
-                                <span class="text-[10px] font-bold text-teal-600 flex items-center gap-1">
-                                    <span class="inline-block w-2 h-2 rounded-full bg-teal-500"></span> Nuevo ${newPercent}% (${newUnits})
-                                </span>
-                                <span class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                    <span class="inline-block w-2 h-2 rounded-full bg-slate-300"></span> Usado ${usedPercent}% (${usedUnits})
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Main Layout Grid (Asymmetric 65/35) -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    
-                    <!-- Left Column (65%) - Actividad -->
-                    <div class="lg:col-span-8 space-y-8">
-                        <!-- Sales Trend Chart (Last 30 Days) -->
-                        <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-bold ph-activity text-brand-orange"></i> Evolución de Ingresos (30 días)
-                                </h3>
-                                <div class="flex gap-2">
-                                     <span class="h-2 w-2 rounded-full bg-brand-orange animate-pulse"></span>
-                                     <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Actualizado</span>
-                                </div>
-                            </div>
-                            <div class="h-64">
-                                <canvas id="last30DaysChart"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Recent Movements Table (Unified) -->
-                        <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                            <div class="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-bold ph-swap text-slate-400"></i> Últimos Movimientos
-                                </h3>
-                                <div class="flex gap-2 text-[10px] uppercase font-bold text-slate-400">
-                                    <span>Venta / Gasto</span>
-                                </div>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left">
-                                    <tbody class="divide-y divide-slate-50">
-                                        ${lastMovements.map(m => {
+                        <div class="overflow-x-auto">
+                            <table class="cx-table w-full text-left">
+                                <thead>
+                                    <tr><th>Concepto</th><th>Fecha</th><th>Tipo</th><th class="text-right">Monto</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${lastMovements.map(m => {
                         const isSale = m.type === 'sale';
-                        const title = isSale ? (m.album || 'Venta de Items') : (m.proveedor || m.description || 'Gasto registrado');
-                        const sub = isSale ? (m.channel || 'Tienda Local') : (m.categoria || 'Operativo');
+                        const title = isSale ? (m.album || 'Venta de items') : (m.proveedor || m.description || 'Gasto registrado');
+                        const sub = isSale ? (m.channel || 'Tienda local') : (m.categoria || 'Operativo');
 
-                        // Channel Icons
-                        let iconClass = "ph-receipt";
+                        let iconClass = 'ph-receipt';
                         if (isSale) {
                             const channel = (m.channel || '').toLowerCase();
-                            if (channel.includes('web')) iconClass = "ph-globe-simple";
-                            if (channel.includes('discogs')) iconClass = "ph-vinyl-record";
+                            if (channel.includes('web')) iconClass = 'ph-globe-simple';
+                            if (channel.includes('discogs')) iconClass = 'ph-vinyl-record';
                         } else {
-                            iconClass = "ph-credit-card";
+                            iconClass = 'ph-credit-card';
                         }
 
                         return `
-                                                <tr class="hover:bg-slate-50/50 transition-colors group">
-                                                    <td class="px-6 py-4">
-                                                        <div class="flex items-center gap-3">
-                                                            <div class="w-10 h-10 rounded-xl ${isSale ? 'bg-orange-50 text-brand-orange' : 'bg-slate-100 text-slate-400'} flex items-center justify-center shrink-0 border border-slate-100 shadow-sm">
-                                                                 <i class="ph-bold ${iconClass} text-lg"></i>
-                                                             </div>
-                                                             <div class="min-w-0">
-                                                                 <div class="font-bold text-sm text-brand-dark truncate max-w-[200px]" title="${title}">${title}</div>
-                                                                 <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${sub}</div>
-                                                             </div>
-                                                         </div>
-                                                     </td>
-                                                     <td class="px-6 py-4 text-xs text-slate-500 font-medium whitespace-nowrap">
-                                                         ${this.formatDate(m.date || m.fecha_factura)}
-                                                     </td>
-                                                     <td class="px-6 py-4 text-right">
-                                                         <span class="font-bold text-sm ${isSale ? 'text-brand-dark' : 'text-red-500'}">
-                                                            ${!isSale ? '-' : ''}${this.formatCurrency(m.total || m.monto_total || m.amount || 0)}
-                                                         </span>
-                                                     </td>
-                                                 </tr>
-                                             `;
-                    }).join('') || '<tr><td colspan="3" class="p-12 text-center text-slate-400 italic">Sin movimientos recientes</td></tr>'}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        <tr>
+                                            <td>
+                                                <div class="flex items-center gap-3">
+                                                    <span class="cx-thumb"><i class="ph ${iconClass}"></i></span>
+                                                    <div class="min-w-0">
+                                                        <div class="font-semibold text-sm truncate max-w-[220px]" title="${title}">${title}</div>
+                                                        <div class="text-[11px] text-stone-500 truncate max-w-[220px]">${sub}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="text-xs text-stone-500 whitespace-nowrap">${this.formatDate(m.date || m.fecha_factura)}</td>
+                                            <td><span class="cx-type ${isSale ? 'is-sale' : 'is-expense'}">${isSale ? 'Venta' : 'Gasto'}</span></td>
+                                            <td class="text-right font-semibold text-sm whitespace-nowrap ${isSale ? '' : 'cx-neg'}">${!isSale ? '-' : ''}${this.formatCurrency(m.total || m.monto_total || m.amount || 0)}</td>
+                                        </tr>
+                                    `;
+                    }).join('') || '<tr><td colspan="4" class="!py-12 text-center text-stone-500">Todavía no hay movimientos. Registrá una venta o un gasto para verlos acá.</td></tr>'}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <!-- Right Column (35%) - Centro de Control -->
-                    <div class="lg:col-span-4 space-y-8">
-                        
-                        <!-- Quick Actions Panel -->
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 text-brand-dark">
-                            <h3 class="font-bold text-base mb-6 flex items-center gap-2">
-                                <i class="ph-bold ph-lightning text-brand-orange"></i> Centro de Control
-                            </h3>
-                            <div class="flex flex-col gap-4">
-                                <button onclick="app.navigate('sales')" class="w-full flex items-center justify-between p-5 bg-slate-50 hover:bg-orange-50 rounded-2xl transition-all border border-slate-100 hover:border-orange-100 group">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-brand-orange shadow-sm group-hover:scale-110 transition-transform">
-                                            <i class="ph-bold ph-shopping-cart text-2xl"></i>
-                                        </div>
-                                        <div class="text-left">
-                                            <span class="block font-bold text-slate-700">Nueva Venta (POS)</span>
-                                            <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Gestión operativa</span>
-                                        </div>
-                                    </div>
-                                    <i class="ph-bold ph-caret-right text-slate-300"></i>
-                                </button>
-
-                                <button onclick="app.navigate('expenses')" class="w-full flex items-center justify-between p-5 bg-slate-50 hover:bg-orange-50 rounded-2xl transition-all border border-slate-100 hover:border-orange-100 group">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-500 shadow-sm group-hover:scale-110 transition-transform">
-                                            <i class="ph-bold ph-receipt text-2xl"></i>
-                                        </div>
-                                        <div class="text-left">
-                                            <span class="block font-bold text-slate-700">Cargar Compra/Gasto</span>
-                                            <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Registro de facturas</span>
-                                        </div>
-                                    </div>
-                                    <i class="ph-bold ph-caret-right text-slate-300"></i>
-                                </button>
-
-                                <button onclick="app.openAddVinylModal()" class="w-full flex items-center justify-between p-5 bg-slate-50 hover:bg-orange-50 rounded-2xl transition-all border border-slate-100 hover:border-orange-100 group">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-purple-500 shadow-sm group-hover:scale-110 transition-transform">
-                                            <i class="ph-bold ph-plus-circle text-2xl"></i>
-                                        </div>
-                                        <div class="text-left">
-                                            <span class="block font-bold text-slate-700">Agregar Stock (Bulk)</span>
-                                            <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Alta de lotes LPs</span>
-                                        </div>
-                                    </div>
-                                    <i class="ph-bold ph-caret-right text-slate-300"></i>
-                                </button>
-                            </div>
-
-                            <!-- Posición SKAT — Pasivo de IVA (no afecta P&L) -->
-                            <div class="mt-8 pt-8 border-t border-slate-50">
-                                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl shadow-slate-900/10 relative overflow-hidden">
-                                    <div class="absolute top-0 right-0 w-24 h-24 bg-brand-orange/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-                                    <div class="flex items-center gap-2 mb-4">
-                                        <div class="w-7 h-7 bg-brand-orange/10 rounded-lg flex items-center justify-center">
-                                            <i class="ph-bold ph-bank text-sm text-brand-orange"></i>
-                                        </div>
-                                        <h4 class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Posición SKAT · Moms</h4>
-                                    </div>
-                                    <div class="flex justify-between items-baseline mb-3">
-                                        <span class="text-xs text-slate-400 font-bold uppercase tracking-tighter">Moms Tilsvar:</span>
-                                        <span class="text-2xl font-display font-bold ${estimatedVAT > 0 ? 'text-red-400' : 'text-emerald-400'}">${this.formatCurrency(estimatedVAT)}</span>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-3 text-[10px]">
-                                        <div class="bg-white/5 rounded-lg p-2.5">
-                                            <span class="text-slate-500 block mb-0.5">Output (ventas)</span>
-                                            <span class="text-white font-bold">${this.formatCurrency(totalLiability)}</span>
-                                        </div>
-                                        <div class="bg-white/5 rounded-lg p-2.5">
-                                            <span class="text-slate-500 block mb-0.5">Input (compras)</span>
-                                            <span class="text-emerald-400 font-bold">-${this.formatCurrency(totalDeductions)}</span>
-                                        </div>
-                                    </div>
-                                    <p class="text-[9px] text-slate-500 mt-3">Impuesto neutro — pasivo de flujo de caja, no afecta rentabilidad.</p>
-                                </div>
-                            </div>
+                    <!-- Accesos rápidos -->
+                    <div class="cx-panel lg:col-span-4">
+                        <h3 class="cx-h mb-4">Accesos rápidos</h3>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="app.navigate('sales')" class="cx-action">
+                                <span class="cx-sq"><i class="ph ph-shopping-cart"></i></span>
+                                <span class="flex-1 min-w-0"><b>Nueva venta</b><small>Abrir el POS</small></span>
+                                <i class="ph ph-caret-right text-stone-400"></i>
+                            </button>
+                            <button onclick="app.navigate('expenses')" class="cx-action">
+                                <span class="cx-sq is-orange"><i class="ph ph-receipt"></i></span>
+                                <span class="flex-1 min-w-0"><b>Cargar compra o gasto</b><small>Registrar una factura</small></span>
+                                <i class="ph ph-caret-right text-stone-400"></i>
+                            </button>
+                            <button onclick="app.openAddVinylModal()" class="cx-action">
+                                <span class="cx-sq is-ink"><i class="ph ph-plus"></i></span>
+                                <span class="flex-1 min-w-0"><b>Agregar stock</b><small>Alta de discos o lotes</small></span>
+                                <i class="ph ph-caret-right text-stone-400"></i>
+                            </button>
                         </div>
-
                     </div>
                 </div>
+            </div>
             </div>
         `;
             container.innerHTML = html;
@@ -4394,12 +4060,12 @@ const app = {
                                 labels: {
                                     boxWidth: 12, boxHeight: 12, borderRadius: 3,
                                     useBorderRadius: true, padding: 14,
-                                    font: { size: 11, weight: '600', family: "'DM Sans', sans-serif" },
-                                    color: '#334155'
+                                    font: { size: 11, weight: '600', family: "'Manrope', sans-serif" },
+                                    color: '#1A1A1A'
                                 }
                             },
                             tooltip: {
-                                backgroundColor: '#1e293b',
+                                backgroundColor: '#1A1A1A',
                                 titleFont: { size: 11, weight: '700' },
                                 bodyFont: { size: 13, weight: '700' },
                                 padding: 14, cornerRadius: 12,
@@ -4422,14 +4088,14 @@ const app = {
                             const cx = (chartArea.left + chartArea.right) / 2;
                             const cy = (chartArea.top + chartArea.bottom) / 2;
                             const sz = Math.min(chartArea.right - chartArea.left, chartArea.bottom - chartArea.top) / 7;
-                            ctx.font = `bold ${sz}px 'DM Sans', sans-serif`;
+                            ctx.font = `bold ${sz}px 'Manrope', sans-serif`;
                             ctx.textBaseline = 'middle';
                             ctx.textAlign = 'center';
-                            ctx.fillStyle = '#1e293b';
+                            ctx.fillStyle = '#1A1A1A';
                             const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
                             ctx.fillText(total, cx, cy - sz * 0.35);
-                            ctx.font = `600 ${sz * 0.42}px 'DM Sans', sans-serif`;
-                            ctx.fillStyle = '#94a3b8';
+                            ctx.font = `600 ${sz * 0.42}px 'Manrope', sans-serif`;
+                            ctx.fillStyle = '#8A857C';
                             ctx.fillText('unidades', cx, cy + sz * 0.55);
                             ctx.restore();
                         }
@@ -4451,12 +4117,11 @@ const app = {
                         datasets: [{
                             label: 'Unidades',
                             data: barData,
-                            backgroundColor: barColors.map(c => c + '30'),
-                            borderColor: barColors,
-                            borderWidth: 2,
-                            borderRadius: 8,
+                            backgroundColor: barColors,
+                            borderWidth: 0,
+                            borderRadius: 999,
                             borderSkipped: false,
-                            barThickness: 28
+                            barThickness: 16
                         }]
                     },
                     options: {
@@ -4466,7 +4131,7 @@ const app = {
                         plugins: {
                             legend: { display: false },
                             tooltip: {
-                                backgroundColor: '#1e293b',
+                                backgroundColor: '#1A1A1A',
                                 titleFont: { size: 11, weight: '700' },
                                 bodyFont: { size: 13, weight: '700' },
                                 padding: 14, cornerRadius: 12,
@@ -4478,12 +4143,12 @@ const app = {
                         scales: {
                             x: {
                                 beginAtZero: true,
-                                grid: { color: '#f1f5f9' },
-                                ticks: { font: { size: 10, weight: '600' }, color: '#94a3b8' }
+                                grid: { color: 'rgba(26,26,26,0.07)' },
+                                ticks: { font: { size: 10, weight: '600' }, color: '#8A857C' }
                             },
                             y: {
                                 grid: { display: false },
-                                ticks: { font: { size: 11, weight: '700', family: "'DM Sans', sans-serif" }, color: '#334155', padding: 8 }
+                                ticks: { font: { size: 11, weight: '600', family: "'Manrope', sans-serif" }, color: '#1A1A1A', padding: 8 }
                             }
                         }
                     }
@@ -4605,17 +4270,17 @@ const app = {
                     <div class="space-y-8 animate-fade-in">
                         <!-- Genres Folder -->
                         <div>
-                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
-                                <i class="ph-fill ph-music-notes-simple text-brand-orange"></i> Géneros
+                            <h3 class="cx-h mb-4 flex items-center gap-2">
+                                Géneros
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                 ${allGenres.map(g => `
-                                    <div onclick="app.navigateInventoryFolder('genre', '${g}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
-                                        <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-3 text-brand-orange group-hover:scale-110 transition-transform">
+                                    <div onclick="app.navigateInventoryFolder('genre', '${g}')" class="cx-folder group">
+                                        <div class="cx-folder-icon is-yellow">
                                             <i class="ph-bold ph-folder-notch text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${g}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.genre === g).length} items</p>
+                                        <h4 class="font-semibold text-sm truncate">${g}</h4>
+                                        <p class="text-xs text-stone-500">${this.state.inventory.filter(i => i.genre === g).length} items</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -4623,17 +4288,17 @@ const app = {
 
                         <!-- Owners Folder -->
                          <div>
-                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
-                                <i class="ph-fill ph-users text-blue-500"></i> Dueños
+                            <h3 class="cx-h mb-4 flex items-center gap-2">
+                                Dueños
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                 ${allOwners.map(o => `
-                                    <div onclick="app.navigateInventoryFolder('owner', '${o}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
-                                        <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
+                                    <div onclick="app.navigateInventoryFolder('owner', '${o}')" class="cx-folder group">
+                                        <div class="cx-folder-icon is-orange">
                                             <i class="ph-bold ph-folder-user text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${o}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.owner === o).length} items</p>
+                                        <h4 class="font-semibold text-sm truncate">${o}</h4>
+                                        <p class="text-xs text-stone-500">${this.state.inventory.filter(i => i.owner === o).length} items</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -4641,17 +4306,17 @@ const app = {
 
                         <!-- Labels Folder (Label Disquería) -->
                          <div>
-                            <h3 class="font-bold text-brand-dark text-lg mb-4 flex items-center gap-2">
-                                <i class="ph-fill ph-tag text-purple-500"></i> Label Disquería
+                            <h3 class="cx-h mb-4 flex items-center gap-2">
+                                Label Disquería
                             </h3>
                             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                 ${allStorage.map(s => `
-                                    <div onclick="app.navigateInventoryFolder('storage', '${s.replace(/'/g, "\\'")}')" class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-orange cursor-pointer transition-all group text-center">
-                                        <div class="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-500 group-hover:scale-110 transition-transform">
+                                    <div onclick="app.navigateInventoryFolder('storage', '${s.replace(/'/g, "\\'")}')" class="cx-folder group">
+                                        <div class="cx-folder-icon is-ink">
                                             <i class="ph-bold ph-tag text-2xl"></i>
                                         </div>
-                                        <h4 class="font-bold text-brand-dark text-sm truncate">${s}</h4>
-                                        <p class="text-xs text-slate-500">${this.state.inventory.filter(i => i.storageLocation === s).length} items</p>
+                                        <h4 class="font-semibold text-sm truncate">${s}</h4>
+                                        <p class="text-xs text-stone-500">${this.state.inventory.filter(i => i.storageLocation === s).length} items</p>
                                     </div>
                                 `).join('')}
                             </div>
@@ -4663,8 +4328,8 @@ const app = {
                         <!-- Back Button if Filtered -->
                         ${(this.state.filterGenre !== 'all' || this.state.filterOwner !== 'all' || this.state.filterLabel !== 'all' || this.state.filterLot !== 'all' || this.state.filterStorage !== 'all') ? `
                             <div onclick="app.clearAllFilters()" 
-                                class="col-span-full mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-orange cursor-pointer w-fit pl-1 group">
-                                <div class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:bg-brand-orange group-hover:text-white group-hover:border-brand-orange transition-all shadow-sm">
+                                class="col-span-full mb-2 flex items-center gap-2 text-stone-600 hover:text-black cursor-pointer w-fit pl-1 group">
+                                <div class="cx-btn is-icon">
                                     <i class="ph-bold ph-arrow-left"></i>
                                 </div>
                                 <span class="text-sm font-bold">Volver a Carpetas</span>
@@ -4673,9 +4338,9 @@ const app = {
 
                         ${filteredInventory.map(item => `
                             <!-- Item Card -->
-                            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group flex flex-col h-full"
+                            <div class="cx-item group flex flex-col h-full"
                                 onclick="app.openProductModal('${item.id}')">
-                                <div class="aspect-square bg-slate-100 rounded-xl overflow-hidden mb-4 relative shadow-inner">
+                                <div class="aspect-square bg-stone-200 rounded-2xl overflow-hidden mb-4 relative">
                                      ${item.cover_image
                         ? `<img src="${item.cover_image}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                         : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i class="ph-fill ph-disc text-5xl"></i></div>`
@@ -4697,14 +4362,12 @@ const app = {
                                      </div>
                                 </div>
                                 <div class="flex-1 flex flex-col">
-                                    <h3 class="font-bold text-brand-dark leading-tight mb-1 line-clamp-1" title="${item.album}">${item.album}</h3>
-                                    <p class="text-xs text-slate-500 font-bold uppercase mb-3 truncate">${item.artist}</p>
+                                    <h3 class="font-semibold leading-tight mb-1 line-clamp-1" title="${item.album}">${item.album}</h3>
+                                    <p class="text-xs text-stone-500 mb-3 truncate">${item.artist}</p>
                                     <div class="flex flex-wrap gap-1 mt-1">${this.stockStatusBadges(item)}</div>
-                                    <div class="mt-auto flex justify-between items-center pt-3 border-t border-slate-50">
-                                        <span class="font-display font-bold text-xl text-brand-orange">${this.formatCurrency(item.price, false)}</span>
-                                        <span class="text-xs font-bold ${item.stock > 0 ? 'text-green-600 bg-green-50' : 'text-red-500 bg-red-50'} px-2 py-1 rounded-md">
-                                            Stock: ${item.stock}
-                                        </span>
+                                    <div class="mt-auto flex justify-between items-center pt-3">
+                                        <span class="text-xl font-light tracking-tight">${this.formatCurrency(item.price, false)}</span>
+                                        <span class="cx-stock ${item.stock > 0 ? '' : 'is-out'}">Stock ${item.stock}</span>
                                     </div>
                                 </div>
                             </div>
@@ -4713,7 +4376,7 @@ const app = {
                 `}
             ` : `
                 <!-- LIST VIEW (Table) -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden relative">
+                <div class="cx-panel !p-0 overflow-hidden relative">
                     <!-- Bulk Action Bar -->
                     ${this.state.selectedItems.size > 0 ? `
                         <div class="absolute top-0 left-0 w-full bg-brand-dark/95 backdrop-blur text-white p-3 flex justify-between items-center z-20 animate-slide-up">
@@ -4732,9 +4395,9 @@ const app = {
                         </div>
                     ` : ''}
 
-                    <table class="w-full text-left">
-                        <thead class="bg-slate-50 border-b border-slate-100">
-                            <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <table class="cx-inv-table w-full text-left">
+                        <thead>
+                            <tr>
                                 <th class="p-4 w-10">
                                     <input type="checkbox" onchange="app.toggleSelectAll()" 
                                         class="w-4 h-4 rounded text-brand-orange focus:ring-brand-orange border-slate-300 cursor-pointer"
@@ -4752,7 +4415,7 @@ const app = {
                                 <th class="p-3 text-right w-28">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-50">
+                        <tbody>
                             ${(() => {
                                 const size = this.state.invPageSize || 50;
                                 const totalPages = Math.max(1, Math.ceil(filteredInventory.length / size));
@@ -4760,7 +4423,7 @@ const app = {
                                 this.state.invPage = page;
                                 return filteredInventory.slice((page - 1) * size, page * size);
                             })().map(item => `
-                                <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.id) ? 'bg-orange-50/50' : ''}" 
+                                <tr class="inv-row cursor-pointer ${this.state.selectedItems.has(item.id) ? 'is-selected' : ''}" 
                                     onclick="app.openProductModal('${item.id}')">
                                     <td class="p-3" onclick="event.stopPropagation()">
                                         <input type="checkbox" onchange="app.toggleSelection('${item.id}')"
@@ -4770,19 +4433,19 @@ const app = {
                                     <td class="p-3">
                                         <div class="flex items-center gap-3">
                                             <div class="relative">
-                                                <div class="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden shadow-md border border-slate-100">
+                                                <div class="cx-cover">
                                                     ${item.cover_image
                                 ? `<img src="${item.cover_image}" class="w-full h-full object-cover">`
                                 : `<i class="ph-fill ph-disc text-xl"></i>`
                             }
                                                 </div>
-                                                <div class="absolute -top-1 -right-1 border-2 border-white rounded-full">
+                                                <div class="absolute -top-1 -right-1 border-2 border-[#ECEAE4] rounded-full">
                                                     ${this.getTimeInStockBadge(this.getTimeInStockCategory(item.created_at))}
                                                 </div>
                                             </div>
                                             <div class="min-w-0">
-                                                <div class="font-bold text-brand-dark text-sm truncate max-w-[220px]" title="${item.album}">${item.album}</div>
-                                                <div class="text-xs text-slate-400 font-medium truncate max-w-[220px]">${item.artist}</div>
+                                                <div class="font-semibold text-sm truncate max-w-[220px]" title="${item.album}">${item.album}</div>
+                                                <div class="text-xs text-stone-500 truncate max-w-[220px]">${item.artist}</div>
                                                 <div class="flex flex-wrap gap-1 mt-1">${this.stockStatusBadges(item)}</div>
                                                 <div class="text-[10px] text-slate-300 font-mono mt-0.5 sm:hidden">${item.sku}</div>
                                             </div>
@@ -4793,7 +4456,7 @@ const app = {
                                     <td class="p-3 text-right">
                                         ${item.is_rsd_discount
                                             ? `<div><span class="text-[10px] text-slate-400 line-through">${this.formatCurrency(item.price, false)}</span><br><span class="font-bold text-orange-600 font-display text-sm">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
-                                            : `<span class="font-bold text-brand-dark font-display text-sm">${this.formatCurrency(item.price, false)}</span>`
+                                            : `<span class="font-semibold text-sm">${this.formatCurrency(item.price, false)}</span>`
                                         }
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell" onclick="event.stopPropagation()">
@@ -4818,26 +4481,26 @@ const app = {
                                         </button>
                                     </td>
                                     <td class="p-3 text-center hidden sm:table-cell">
-                                        <span class="inline-flex items-center justify-center min-w-[28px] px-2 py-1 rounded-full text-xs font-bold ${item.stock > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}">
+                                        <span class="cx-stock ${item.stock > 0 ? '' : 'is-out'}">
                                             ${item.stock}
                                         </span>
                                     </td>
                                     <td class="p-3 text-center hidden md:table-cell">
                                         ${item.discogs_listing_id
-                            ? `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-purple-100 text-purple-600" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>`
-                            : `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-50 text-slate-300" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>`
+                            ? `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-[#1A1A1A] text-[#F2E14C]" title="Publicado en Discogs"><i class="ph-bold ph-check text-xs"></i></span>`
+                            : `<span class="w-6 h-6 inline-flex items-center justify-center rounded-full bg-white/60 text-stone-400" title="No publicado"><i class="ph-bold ph-minus text-xs"></i></span>`
                         }
                                     </td>
                                     <td class="p-3 text-right" onclick="event.stopPropagation()">
                                         <div class="flex justify-end gap-1">
-                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.id}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-brand-dark hover:bg-slate-100 transition-all flex items-center justify-center" title="Editar">
+                                            <button onclick="event.stopPropagation(); app.openAddVinylModal('${item.id}')" class="cx-row-btn" title="Editar">
                                                 <i class="ph-bold ph-pencil-simple text-sm"></i>
                                             </button>
 
-                                            <button onclick="event.stopPropagation(); app.addToCart('${item.id}')" class="w-8 h-8 rounded-lg bg-orange-50 text-brand-orange hover:bg-brand-orange hover:text-white transition-all flex items-center justify-center" title="Agregar al carrito">
+                                            <button onclick="event.stopPropagation(); app.addToCart('${item.id}')" class="cx-row-btn is-cart" title="Agregar al carrito">
                                                 <i class="ph-bold ph-shopping-cart text-sm"></i>
                                             </button>
-                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.id}')" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center" title="Eliminar">
+                                            <button onclick="event.stopPropagation(); app.deleteVinyl('${item.id}')" class="cx-row-btn is-danger" title="Eliminar">
                                                 <i class="ph-bold ph-trash text-sm"></i>
                                             </button>
                                         </div>
@@ -4847,7 +4510,7 @@ const app = {
                         </tbody>
                     </table>
                 </div>
-                <div class="bg-white rounded-2xl border border-slate-100 px-4 py-3">
+                <div class="cx-panel !px-4 !pt-0 !pb-4 mt-3">
                     ${this.renderInvPagination(filteredInventory.length, 'list')}
                 </div>
 
@@ -4889,13 +4552,16 @@ const app = {
 
         // KPI calculations — DERIVED from filteredInventory
         const globalTotal = this.state.inventory.length;
-        const totalItems = filteredInventory.length;
         const totalValue = filteredInventory.reduce((sum, i) => {
             const stock = Number(i.stock) || 0;
             return sum + (stock > 0 ? (parseFloat(i.price) || 0) * stock : 0);
         }, 0);
         const inStock = filteredInventory.filter(i => (i.stock || 0) > 0).length;
-        const onDiscogs = filteredInventory.filter(i => i.discogs_listing_id).length;
+        const inStockUnits = filteredInventory.reduce((sum, i) => sum + Math.max(Number(i.stock) || 0, 0), 0);
+        const totalCostValue = filteredInventory.reduce((sum, i) => {
+            const stock = Number(i.stock) || 0;
+            return sum + (stock > 0 ? (parseFloat(i.cost) || 0) * stock : 0);
+        }, 0);
 
         // Active filter tracking (for tags)
         const activeFiltersList = [];
@@ -4923,45 +4589,42 @@ const app = {
         // 1. Static Layout Init
         if (!document.getElementById('inventory-layout-root')) {
             container.innerHTML = `
-    <div id="inventory-layout-root" class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-10">
+    <div id="inventory-layout-root" class="cx-view">
+    <div class="max-w-7xl mx-auto pb-24 md:pb-8 px-4 md:px-8 pt-6">
                     <!--Header -->
-                    <div class="sticky top-0 bg-slate-50 z-20 pb-4 pt-4 -mx-4 px-4 md:mx-0 md:px-0">
-                         <div class="flex justify-between items-center mb-5">
+                    <div class="cx-sticky md:sticky top-0 z-20 pb-4 pt-4 -mx-4 px-4 md:-mx-8 md:px-8">
+                         <div class="flex flex-wrap justify-between items-end gap-4 mb-5">
                             <div>
-                                <h2 class="font-display text-2xl font-bold text-brand-dark">Inventario</h2>
-                                <p class="text-xs text-slate-400 mt-1" id="inventory-subtitle">${globalTotal} discos registrados</p>
+                                <h2 class="cx-title">Inventario</h2>
+                                <p class="cx-sub" id="inventory-subtitle">${globalTotal} discos registrados</p>
                             </div>
-                             <div class="flex gap-2">
-                                <button onclick="app.openInventoryLogModal()" class="bg-white border border-slate-200 text-slate-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm hover:text-brand-orange hover:border-brand-orange transition-colors" title="Historial">
-                                    <i class="ph-bold ph-clock-counter-clockwise text-lg"></i>
+                             <div class="flex flex-wrap gap-2">
+                                <button onclick="app.openInventoryLogModal()" class="cx-btn is-icon" title="Historial" aria-label="Historial">
+                                    <i class="ph ph-clock-counter-clockwise"></i>
                                 </button>
-                                <button onclick="app.openBulkImportModal()" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-emerald-400 hover:text-emerald-600 transition-all" title="Carga Masiva CSV">
-                                    <i class="ph-bold ph-file-csv text-lg"></i>
-                                    <span class="text-xs font-bold hidden sm:inline">Importar</span>
+                                <button onclick="app.openBulkImportModal()" class="cx-btn" title="Carga Masiva CSV">
+                                    <i class="ph ph-file-csv"></i>
+                                    <span class="hidden sm:inline">Importar</span>
                                 </button>
-                                <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all" title="Sincronizar con Discogs">
-                                    <i class="ph-bold ph-cloud-arrow-down text-lg"></i>
-                                    <span class="text-xs font-bold hidden sm:inline">Discogs</span>
+                                <button onclick="app.syncWithDiscogs()" id="discogs-sync-btn" class="cx-btn" title="Sincronizar con Discogs">
+                                    <i class="ph ph-cloud-arrow-down"></i>
+                                    <span class="hidden sm:inline">Discogs</span>
                                 </button>
-                                <button onclick="app.openQuickAddWizard()" class="bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange px-4 h-10 rounded-xl flex items-center gap-2 shadow-sm transition-all" title="Carga rápida paso a paso (Flujo A)">
-                                    <i class="ph-bold ph-lightning text-lg text-brand-orange"></i>
-                                    <span class="text-xs font-bold hidden sm:inline">Carga rápida</span>
-                                </button>
-                                <button onclick="app.openAddVinylModal()" class="bg-brand-dark text-white px-4 h-10 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-dark/20 hover:scale-105 transition-transform">
-                                    <i class="ph-bold ph-plus text-lg"></i>
-                                    <span class="text-xs font-bold hidden sm:inline">Nuevo</span>
+                                <button onclick="app.openAddVinylModal()" class="cx-btn is-primary">
+                                    <i class="ph-bold ph-plus"></i>
+                                    <span class="hidden sm:inline">Nuevo</span>
                                 </button>
                             </div>
                         </div>
 
                         <!-- Search Bar -->
-                        <div class="relative group mb-4">
-                            <i class="ph-bold ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-orange transition-colors text-lg"></i>
-                            <input type="text" placeholder="Buscar artista, álbum, sello, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.state.invPage = 1; app.refreshCurrentView()" class="w-full bg-white border-2 border-slate-100 rounded-xl py-3 pl-12 pr-4 text-brand-dark placeholder:text-slate-400 focus:border-brand-orange outline-none transition-colors font-medium shadow-sm">
+                        <div class="cx-search mb-3">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" placeholder="Buscar artista, álbum, sello, SKU..." value="${this.state.inventorySearch}" oninput="app.state.inventorySearch = this.value; app.state.invPage = 1; app.refreshCurrentView()">
                         </div>
 
                         <!-- KPI Stats Row -->
-                        <div id="inventory-kpi-container" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+                        <div id="inventory-kpi-container" class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4"></div>
 
                         <!-- Quick Filter Pills + Sort + Advanced -->
                         <div id="inventory-filters-container" class="flex flex-wrap items-center gap-2 mb-2"></div>
@@ -4979,15 +4642,16 @@ const app = {
                     <!-- View Toggle + Content -->
                     <div class="mt-4">
                         <div class="flex justify-between items-center mb-3">
-                            <p class="text-xs font-bold text-slate-400" id="inventory-results-count">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
-                            <div class="hidden lg:flex items-center gap-2">
-                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode !== 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-list-dashes text-sm"></i></button>
-                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="p-2 rounded-lg transition-colors ${this.state.viewMode === 'grid' ? 'bg-brand-dark text-white' : 'bg-white text-slate-400 border border-slate-200'}"><i class="ph-bold ph-squares-four text-sm"></i></button>
+                            <p class="cx-sub !mt-0" id="inventory-results-count">${filteredInventory.length} resultado${filteredInventory.length !== 1 ? 's' : ''}</p>
+                            <div class="hidden lg:flex cx-glass p-1 rounded-full">
+                                <button onclick="app.state.viewMode='list'; app.refreshCurrentView()" class="cx-month ${this.state.viewMode !== 'grid' ? 'is-on' : ''}" title="Vista lista" aria-label="Vista lista"><i class="ph ph-list-dashes"></i></button>
+                                <button onclick="app.state.viewMode='grid'; app.refreshCurrentView()" class="cx-month ${this.state.viewMode === 'grid' ? 'is-on' : ''}" title="Vista grilla" aria-label="Vista grilla"><i class="ph ph-squares-four"></i></button>
                             </div>
                         </div>
                         <div id="inventory-content-container"></div>
                     </div>
                 </div>
+    </div>
 
     <!-- Advanced Filters Slide-over -->
     <div id="advanced-filters-backdrop" class="slide-over-backdrop" onclick="app.toggleAdvancedFilters()"></div>
@@ -5016,23 +4680,22 @@ const app = {
         // 2. Dynamic Updates — KPI Stats (derived from filteredInventory)
         const kpiContainer = document.getElementById('inventory-kpi-container');
         if (kpiContainer) {
-            const filteredBadge = isFiltered ? `<span class="ml-1.5 text-[9px] bg-orange-100 text-brand-orange px-1.5 py-0.5 rounded-full font-bold"><i class="ph-bold ph-funnel text-[8px]"></i> Filtrado</span>` : '';
+            const filteredBadge = isFiltered ? `<span class="cx-mini"><i class="ph-bold ph-funnel"></i> Filtrado</span>` : '';
             kpiContainer.innerHTML = `
-                <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Discos ${filteredBadge}</p>
-                    <p class="text-xl font-bold text-brand-dark font-display mt-1">${totalItems}${isFiltered ? ` <span class="text-xs text-slate-400 font-normal">/ ${globalTotal}</span>` : ''}</p>
+                <div class="cx-tile cx-yellow">
+                    <span class="cx-tile-label">En stock ${filteredBadge}</span>
+                    <b class="cx-tile-value">${inStock}${inStockUnits !== inStock ? ` <small>${inStockUnits} copias</small>` : ''}</b>
+                    <span class="cx-tile-stripes" aria-hidden="true"></span>
                 </div>
-                <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Valor Total ${filteredBadge}</p>
-                    <p class="text-xl font-bold text-brand-orange font-display mt-1">${this.formatCurrency(totalValue)}</p>
+                <div class="cx-tile cx-orange">
+                    <span class="cx-tile-label">Valor a costo ${filteredBadge}</span>
+                    <b class="cx-tile-value">${this.formatCurrency(totalCostValue)}</b>
+                    <span class="cx-tile-dots" aria-hidden="true"></span>
                 </div>
-                <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Stock ${filteredBadge}</p>
-                    <p class="text-xl font-bold text-emerald-600 font-display mt-1">${inStock} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
-                </div>
-                <div class="kpi-card">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Discogs ${filteredBadge}</p>
-                    <p class="text-xl font-bold text-purple-600 font-display mt-1">${onDiscogs} <span class="text-xs text-slate-400 font-normal">/ ${totalItems}</span></p>
+                <div class="cx-tile cx-dark">
+                    <span class="cx-tile-label">Valor de reventa ${filteredBadge}</span>
+                    <b class="cx-tile-value">${this.formatCurrency(totalValue)}</b>
+                    <span class="cx-tile-sub">Margen posible ${this.formatCurrency(totalValue - totalCostValue)}</span>
                 </div>
             `;
         }
@@ -5052,7 +4715,7 @@ const app = {
                     </select>
                 </div>
 
-                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                <div class="h-6 w-px bg-black/10 mx-1"></div>
 
                 <!-- Quick Filter Pills -->
                 <button onclick="app.toggleQuickFilter('filterStock', 'inStock')" class="quick-pill ${this.state.filterStock === 'inStock' ? 'active' : ''}">
@@ -5071,7 +4734,7 @@ const app = {
                     <i class="ph-bold ph-sparkle text-xs"></i> Nuevos
                 </button>
 
-                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                <div class="h-6 w-px bg-black/10 mx-1"></div>
 
                 <!-- Advanced Filters button -->
                 <button onclick="app.toggleAdvancedFilters()" class="quick-pill ${isFiltered && activeFiltersList.some(f => ['filterGenre','filterLabel','filterLot','filterOwner','filterStorage','filterHero','filterStockTime'].includes(f.key)) ? 'active' : ''}">
@@ -5207,7 +4870,7 @@ const app = {
                 });
                 const sortedGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
                 const maxGenreCount = sortedGenres.length > 0 ? sortedGenres[0][1] : 1;
-                const genreColors = ['#F05A28', '#e04d1c', '#f97316', '#fb923c', '#fdba74', '#8b5cf6', '#a78bfa', '#3b82f6', '#60a5fa', '#22c55e'];
+                const genreColors = ['#F05A28', '#E2C531', '#1A1A1A', '#F2955E', '#8A857C', '#5B4636', '#C9B7A0', '#B4532A', '#6E8B74', '#D9A441'];
 
                 // Stock vs Sold value
                 const stockValue = filteredInventory.reduce((sum, i) => {
@@ -5223,7 +4886,7 @@ const app = {
                 statsSection.innerHTML = `
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <!-- Genre Distribution -->
-                        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                        <div class="cx-panel !p-5">
                             <h4 class="font-bold text-brand-dark text-sm mb-4 flex items-center gap-2">
                                 <i class="ph-fill ph-music-notes-simple text-brand-orange"></i> Distribución por Género
                                 <span class="text-[10px] text-slate-400 font-normal">(Top 10)</span>
@@ -5245,7 +4908,7 @@ const app = {
                         </div>
 
                         <!-- Stock vs Sold Value -->
-                        <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+                        <div class="cx-panel !p-5">
                             <h4 class="font-bold text-brand-dark text-sm mb-4 flex items-center gap-2">
                                 <i class="ph-fill ph-chart-bar text-brand-orange"></i> Valor de Inventario
                             </h4>
@@ -5256,7 +4919,7 @@ const app = {
                                         <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(stockValue)}</span>
                                     </div>
                                     <div class="stat-bar-track">
-                                        <div class="stat-bar-fill" style="width: ${Math.max((stockValue / maxBarValue) * 100, 5)}%; background: linear-gradient(90deg, #22c55e, #4ade80);"></div>
+                                        <div class="stat-bar-fill" style="width: ${Math.max((stockValue / maxBarValue) * 100, 5)}%; background: #1A1A1A;"></div>
                                     </div>
                                 </div>
                                 <div>
@@ -5265,7 +4928,7 @@ const app = {
                                         <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(soldValue)}</span>
                                     </div>
                                     <div class="stat-bar-track">
-                                        <div class="stat-bar-fill" style="width: ${Math.max((soldValue / maxBarValue) * 100, 5)}%; background: linear-gradient(90deg, #94a3b8, #cbd5e1);"></div>
+                                        <div class="stat-bar-fill" style="width: ${Math.max((soldValue / maxBarValue) * 100, 5)}%; background: #B9B4AA;"></div>
                                     </div>
                                 </div>
                                 <div class="pt-3 border-t border-slate-100">
@@ -5506,7 +5169,7 @@ const app = {
                             gradient.addColorStop(1, 'rgba(240, 90, 40, 0)');
                             return gradient;
                         },
-                        borderWidth: 3,
+                        borderWidth: 2.5,
                         fill: true,
                         tension: 0.4,
                         pointRadius: 0,
@@ -5524,28 +5187,28 @@ const app = {
                         tooltip: {
                             mode: 'index',
                             intersect: false,
-                            backgroundColor: '#1e293b',
+                            backgroundColor: '#1A1A1A',
                             titleFont: { size: 10 },
                             bodyFont: { size: 12, weight: 'bold' },
                             padding: 12,
                             cornerRadius: 12,
                             displayColors: false,
                             callbacks: {
-                                label: (context) => this.formatCurrency(context.parsed.y)
+                                label: (context) => new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK' }).format(context.parsed.y)
                             }
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { color: '#f8fafc' },
-                            ticks: { font: { size: 10 }, color: '#94a3b8' }
+                            grid: { color: 'rgba(26,26,26,0.07)' },
+                            ticks: { font: { size: 10 }, color: '#8A857C' }
                         },
                         x: {
                             grid: { display: false },
                             ticks: {
                                 font: { size: 10 },
-                                color: '#94a3b8',
+                                color: '#8A857C',
                                 autoSkip: true,
                                 maxRotation: 0,
                                 callback: function (value, index) {
@@ -5673,16 +5336,6 @@ const app = {
         }
     },
 
-    updateFilter(type, value) {
-        if (type === 'month') {
-            const m = parseInt(value);
-            this.state.filterMonth = m;
-            this.state.filterMonths = [m]; // Sync with dashboard multi-month
-        }
-        if (type === 'year') this.state.filterYear = parseInt(value);
-        this.refreshCurrentView();
-    },
-
     renderSales(container) {
         // 1. Data Processing — bandeja unificada de los 3 canales
         const today = new Date().toISOString().split('T')[0];
@@ -5767,158 +5420,95 @@ const app = {
         });
 
         const html = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Ventas',
-                    subtitle: 'Bandeja unificada · Local, WebShop, Discogs y Manual',
+                    subtitle: 'Local, Web shop, Discogs y envíos manuales en una sola bandeja',
                     filters: `
-                        <button onclick="app.syncWithDiscogs()" class="bg-white border border-slate-200 text-slate-600 px-4 h-10 rounded-xl flex items-center gap-2 shadow-sm hover:border-purple-400 hover:text-purple-600 transition-all text-xs font-bold">
-                            <i class="ph-bold ph-arrows-clockwise text-base"></i>
+                        <button onclick="app.syncWithDiscogs()" class="cx-btn">
+                            <i class="ph ph-arrows-clockwise"></i>
                             <span class="hidden sm:inline">Sincronizar Discogs</span>
                         </button>`
                 })}
 
-                <!-- Período -->
-                <div class="flex flex-wrap items-center gap-3 mb-6">
-                    <div class="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                        <select id="sales-year" onchange="app.updateFilter('year', this.value)" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
-                            <option value="2026" ${currentYear === 2026 ? 'selected' : ''}>2026</option>
-                            <option value="2025" ${currentYear === 2025 ? 'selected' : ''}>2025</option>
-                        </select>
+                <div class="mb-5">${this.cxPeriodPicker('main')}</div>
+
+                <!-- KPIs: calculados sobre el conjunto filtrado -->
+                <div class="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-8">
+                    <div class="cx-tile cx-yellow">
+                        <span class="cx-tile-label">Hoy</span>
+                        <b class="cx-tile-value">${this.formatCurrency(todaySales)}</b>
+                        <span class="cx-tile-sub">${todaySales >= yesterdaySales ? 'Igual o más que ayer' : 'Menos que ayer'} (${this.formatCurrency(yesterdaySales)})</span>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
-                    <div class="flex flex-wrap gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                        ${['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((m, i) => `
-                            <button onclick="app.toggleMonthFilter(${i})"
-                                class="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${selectedMonths.includes(i) ? 'bg-brand-dark text-white' : 'text-slate-400 hover:bg-slate-100'}">
-                                ${m}
-                            </button>
-                        `).join('')}
+                    <div class="cx-tile cx-orange">
+                        <span class="cx-tile-label">Período</span>
+                        <b class="cx-tile-value">${this.formatCurrency(totalRevenue)}</b>
+                        <span class="cx-tile-sub">${revenueSales.length} ventas en el filtro</span>
+                        <span class="cx-tile-dots" aria-hidden="true"></span>
+                    </div>
+                    <button onclick="app.navigate('shipping')" class="cx-tile cx-dark text-left">
+                        <span class="cx-tile-label">Por despachar</span>
+                        <b class="cx-tile-value">${toShip} <small>pedidos</small></b>
+                        <span class="cx-tile-sub">${toShip > 0 ? 'Abrir Envíos' : 'Nada pendiente'}</span>
+                    </button>
+                    <div class="cx-tile cx-frost">
+                        <span class="cx-tile-label">Ticket promedio</span>
+                        <b class="cx-tile-value">${this.formatCurrency(avgTicket)}</b>
+                        <span class="cx-tile-sub">Por venta</span>
                     </div>
                 </div>
 
-                <!-- KPI Cards: calculadas sobre el conjunto filtrado -->
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-                    <!-- Tarjeta A: Ventas de Hoy -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-10 h-10 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
-                                <i class="ph-duotone ph-currency-circle-dollar text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Hoy</span>
-                        </div>
-                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(todaySales)}</h3>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-bold ${todaySales >= yesterdaySales ? 'text-emerald-500' : 'text-slate-400'}">
-                                ${todaySales >= yesterdaySales ? '<i class="ph-bold ph-trend-up mr-1"></i>' : '<i class="ph-bold ph-trend-down mr-1"></i>'}
-                                vs. ayer (${this.formatCurrency(yesterdaySales)})
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Tarjeta B: Ingresos del Período (filtrado) -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                                <i class="ph-duotone ph-wallet text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Período</span>
-                        </div>
-                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(totalRevenue)}</h3>
-                        <p class="text-xs text-slate-400 font-medium">${revenueSales.length} ventas en el filtro</p>
-                    </div>
-
-                    <!-- Tarjeta C: Por Despachar -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-10 h-10 ${toShip > 0 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'} rounded-2xl flex items-center justify-center">
-                                <i class="ph-duotone ph-package text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Logística</span>
-                        </div>
-                        <h3 class="text-2xl font-display font-bold ${toShip > 0 ? 'text-orange-600' : 'text-brand-dark'} mb-1">${toShip} Pedidos</h3>
-                        <p class="text-xs text-slate-400 font-medium">Pendientes de envío inmediato</p>
-                        ${toShip > 0 ? '<div class="absolute top-0 right-0 w-1.5 h-full bg-orange-500"></div>' : ''}
-                    </div>
-
-                    <!-- Tarjeta C: Ticket Promedio -->
-                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-10 h-10 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
-                                <i class="ph-duotone ph-ticket text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Métrica</span>
-                        </div>
-                        <h3 class="text-2xl font-display font-bold text-brand-dark mb-1">${this.formatCurrency(avgTicket)}</h3>
-                        <p class="text-xs text-slate-400 font-medium">Valor promedio por cliente</p>
-                    </div>
-                </div>
-
-                <!-- Bandeja unificada: ancho completo (el POS vive en su propia sección) -->
-                <div class="space-y-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center gap-2 flex-1">
-                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Bandeja de ventas</h3>
-                            <div class="h-px flex-1 bg-slate-100"></div>
-                        </div>
-                    </div>
-
-                    <!-- Filtro por canal -->
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Canal</span>
-                        ${[
-                            { id: 'all', label: 'Todos' },
-                            { id: 'local', label: 'Local' },
-                            { id: 'online', label: 'WebShop' },
-                            { id: 'discogs', label: 'Discogs' },
-                            { id: 'manual', label: 'Manual' }
-                        ].map(ch => `
-                            <button onclick="app.updateSalesChannelFilter('${ch.id}')"
-                                class="px-4 py-2 rounded-xl text-[11px] font-bold transition-all border ${channelFilter === ch.id
-                                    ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
-                                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}">
-                                ${ch.label}
-                                <span class="ml-1.5 px-1.5 py-0.5 rounded-md text-[10px] ${channelFilter === ch.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}">${channelCounts[ch.id]}</span>
-                            </button>
-                        `).join('')}
-                    </div>
-
-                        <!-- Filter Tabs -->
-                        <div class="flex bg-slate-100/50 p-1 rounded-2xl border border-slate-100">
+                <!-- Bandeja unificada -->
+                <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+                    <h3 class="cx-h">Bandeja de ventas</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <div class="cx-glass flex p-1 rounded-full overflow-x-auto no-scrollbar max-w-full">
                             ${[
-                { id: 'all', label: 'Todos', icon: 'ph-list' },
-                { id: 'to_ship', label: 'Por Enviar', icon: 'ph-package' },
-                { id: 'completed', label: 'Completados', icon: 'ph-check-circle' }
-            ].map(tab => `
-                                <button onclick="app.updateOrderFeedFilter('${tab.id}')" 
-                                    class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold transition-all ${feedFilter === tab.id ? 'bg-white text-brand-dark shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600'}">
-                                    <i class="ph-bold ${tab.icon} ${feedFilter === tab.id ? 'text-brand-orange' : ''}"></i>
-                                    ${tab.label.toUpperCase()}
+                                { id: 'all', label: 'Todos' },
+                                { id: 'local', label: 'Local' },
+                                { id: 'online', label: 'Web shop' },
+                                { id: 'discogs', label: 'Discogs' },
+                                { id: 'manual', label: 'Manual' }
+                            ].map(ch => `
+                                <button onclick="app.updateSalesChannelFilter('${ch.id}')" class="cx-month ${channelFilter === ch.id ? 'is-on' : ''}">
+                                    ${ch.label} <span class="cx-count">${channelCounts[ch.id]}</span>
                                 </button>
                             `).join('')}
                         </div>
-
-                        <!-- Feed Toolbar -->
-                        <div class="flex gap-2 mb-4">
-                            <div class="relative flex-1">
-                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                <input type="text" 
-                                    id="sales-history-search"
-                                    value="${this.state.salesHistorySearch}"
-                                    oninput="app.state.salesHistorySearch = this.value; app.renderSales(document.getElementById('app-content'))"
-                                    placeholder="Buscar por album, artista o SKU..." 
-                                    class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-brand-dark text-sm shadow-sm">
-                            </div>
-                            <select id="sales-payment-filter" onchange="app.renderSales(document.getElementById('app-content'))" class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-2xl px-4 py-2.5 outline-none focus:border-brand-dark shadow-sm">
-                                <option value="all" ${paymentFilter === 'all' ? 'selected' : ''}>Todos Pagos</option>
-                                <option value="MobilePay" ${paymentFilter === 'MobilePay' ? 'selected' : ''}>MobilePay</option>
-                                <option value="Efectivo" ${paymentFilter === 'Efectivo' ? 'selected' : ''}>Efectivo</option>
-                                <option value="Tarjeta" ${paymentFilter === 'Tarjeta' ? 'selected' : ''}>Tarjeta</option>
-                            </select>
+                        <div class="cx-glass flex p-1 rounded-full">
+                            ${[
+                                { id: 'all', label: 'Todos' },
+                                { id: 'to_ship', label: 'Por enviar' },
+                                { id: 'completed', label: 'Completados' }
+                            ].map(tab => `
+                                <button onclick="app.updateOrderFeedFilter('${tab.id}')" class="cx-month ${feedFilter === tab.id ? 'is-on' : ''}">${tab.label}</button>
+                            `).join('')}
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Feed List -->
-                        <div class="space-y-3 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar pb-10">
-                            ${filteredSales.map(s => {
+                <!-- Buscador + pago -->
+                <div class="flex gap-2 mb-4">
+                    <div class="cx-search flex-1">
+                        <i class="ph ph-magnifying-glass"></i>
+                        <input type="text" id="sales-history-search" value="${this.state.salesHistorySearch}"
+                            oninput="app.state.salesHistorySearch = this.value; app.renderSales(document.getElementById('app-content'))"
+                            placeholder="Buscar por disco, artista, SKU, cliente o número de pedido">
+                    </div>
+                    <select id="sales-payment-filter" onchange="app.renderSales(document.getElementById('app-content'))" class="cx-pill-select" aria-label="Método de pago">
+                        <option value="all" ${paymentFilter === 'all' ? 'selected' : ''}>Todos los pagos</option>
+                        <option value="MobilePay" ${paymentFilter === 'MobilePay' ? 'selected' : ''}>MobilePay</option>
+                        <option value="Efectivo" ${paymentFilter === 'Efectivo' ? 'selected' : ''}>Efectivo</option>
+                        <option value="Tarjeta" ${paymentFilter === 'Tarjeta' ? 'selected' : ''}>Tarjeta</option>
+                    </select>
+                </div>
+
+                <!-- Lista -->
+                <div class="cx-panel !p-2">
+                    <div class="max-h-[80vh] overflow-y-auto custom-scrollbar">
+                    ${filteredSales.map(s => {
                 const isShipped = s.status === 'shipped';
                 const isPaid = s.status === 'paid' || s.source === 'STORE' || s.paymentMethod !== 'Pending';
                 const isDiscogs = s.channel === 'Discogs';
@@ -5929,80 +5519,51 @@ const app = {
                 const mainCover = this.resolveItemCover(mainItem);
 
                 return `
-                                <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-slate-200 transition-all cursor-pointer group flex items-center gap-4 relative" onclick="app.openUnifiedOrderDetailModal('${s.id}')">
-                                    <!-- Tapa real del disco vendido (fallback: icono de canal) -->
-                                    ${mainCover
-                                        ? `<img src="${mainCover}" class="w-12 h-12 rounded-2xl object-cover shrink-0 border border-slate-100" alt="">`
-                                        : `<div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isDiscogs ? 'bg-slate-900 text-white' : (isStore ? 'bg-orange-100 text-brand-orange' : 'bg-blue-100 text-blue-600')}">
-                                        <i class="ph-bold ${isDiscogs ? 'ph-disc' : (isStore ? 'ph-storefront' : 'ph-globe')} text-xl"></i>
-                                    </div>`}
-
-                                    <!-- Details -->
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-0.5">
-                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${this.formatDate(s.date)}</span>
-                                            <div class="h-1 w-1 rounded-full bg-slate-200"></div>
-                                            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${s.paymentMethod}</span>
-                                        </div>
-                                        <h4 class="font-bold text-brand-dark truncate pr-2">
-                                            ${mainItem.album} 
-                                            ${extraItems > 0 ? `<span class="text-brand-orange font-medium text-xs ml-1">y ${extraItems} más</span>` : ''}
-                                        </h4>
-                                        
-                                        <!-- Status Badges -->
-                                        <div class="flex items-center gap-2 mt-2 flex-wrap">
-                                            ${this.saleChannelBadge(s)}
-                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}">
-                                                ${isPaid ? 'Pagado' : 'Pendiente'}
-                                            </span>
-                                            ${this.isShippableChannel(s) ? `
-                                            <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${isShipped ? 'bg-slate-100 text-slate-500' : 'bg-rose-50 text-rose-500'}">
-                                                ${isShipped ? 'Enviado' : 'Por Enviar'}
-                                            </span>` : ''}
-                                        </div>
-                                    </div>
-
-                                    <!-- Economic Breakdown -->
-                                    <div class="text-right shrink-0 border-l border-slate-50 pl-4 py-1">
-                                        <p class="font-display font-bold text-brand-dark text-base">${this.formatCurrency(s.total)}</p>
-                                        ${s.shipping_cost > 0 ? `<p class="text-[10px] text-slate-400 font-bold">Envío: ${this.formatCurrency(s.shipping_cost)}</p>` : ''}
-                                    </div>
-
-                                    <!-- Quick Action -->
-                                    <div class="relative ml-2" onclick="event.stopPropagation()">
-                                        <button onclick="app.toggleOrderActionMenu('${s.id}')" class="w-8 h-8 rounded-lg hover:bg-slate-50 text-slate-300 hover:text-brand-dark transition-colors flex items-center justify-center">
-                                            <i class="ph-bold ph-dots-three-vertical text-xl"></i>
-                                        </button>
-                                        
-                                        <!-- Dropdown (Hidden by default) -->
-                                        <div id="action-menu-${s.id}" class="hidden absolute right-0 top-full mt-1 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 z-[100] p-2 space-y-1">
-                                            <button onclick="app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                                <i class="ph ph-file-text text-blue-500"></i> Ver Factura
-                                            </button>
-                                            <button onclick="app.openInvoiceModal('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                                <i class="ph ph-printer text-indigo-500"></i> Imprimir Etiqueta
-                                            </button>
-                                            ${!isShipped ? `
-                                                <button onclick="app.markOrderAsShipped('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                                                    <i class="ph ph-truck text-emerald-500"></i> Marcar Enviado
-                                                </button>
-                                            ` : ''}
-                                            <div class="h-px bg-slate-100 mx-2 my-1"></div>
-                                            <button onclick="app.deleteSale('${s.id}')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors">
-                                                <i class="ph ph-trash"></i> Eliminar
-                                            </button>
-                                        </div>
-                                    </div>
+                        <div class="cx-feed-row group" onclick="app.openUnifiedOrderDetailModal('${s.id}')">
+                            <span class="cx-cover">
+                                ${mainCover
+                                    ? `<img src="${mainCover}" class="w-full h-full object-cover" alt="">`
+                                    : `<i class="ph ${isDiscogs ? 'ph-vinyl-record' : (isStore ? 'ph-storefront' : 'ph-globe')}"></i>`}
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-sm truncate">
+                                    ${mainItem.album}${extraItems > 0 ? `<span class="text-stone-500 font-medium"> y ${extraItems} más</span>` : ''}
+                                </p>
+                                <p class="text-xs text-stone-500 truncate">${this.formatDate(s.date)} · ${s.paymentMethod || 'Sin método'}${s.customerName ? ' · ' + s.customerName : ''}</p>
+                                <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                    ${this.saleChannelBadge(s)}
+                                    <span class="cx-state ${isPaid ? 'is-ok' : 'is-wait'}">${isPaid ? 'Pagado' : 'Pago pendiente'}</span>
+                                    ${this.isShippableChannel(s) ? `<span class="cx-state ${isShipped ? 'is-done' : 'is-hot'}">${isShipped ? 'Enviado' : 'Por enviar'}</span>` : ''}
                                 </div>
-                            `;
-            }).join('')}
-                            ${filteredSales.length === 0 ? `
-                                <div class="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                                    <p class="text-slate-400 italic text-sm">No hay pedidos en esta categoría.</p>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <p class="font-semibold">${this.formatCurrency(s.total)}</p>
+                                ${s.shipping_cost > 0 ? `<p class="text-[11px] text-stone-500">Envío ${this.formatCurrency(s.shipping_cost)}</p>` : ''}
+                            </div>
+                            <div class="relative" onclick="event.stopPropagation()">
+                                <button onclick="app.toggleOrderActionMenu('${s.id}')" class="cx-row-btn" aria-label="Acciones del pedido">
+                                    <i class="ph-bold ph-dots-three-vertical"></i>
+                                </button>
+                                <div id="action-menu-${s.id}" class="hidden cx-menu">
+                                    <button onclick="app.openInvoiceModal('${s.id}')"><i class="ph ph-file-text"></i> Ver factura</button>
+                                    <button onclick="app.openInvoiceModal('${s.id}')"><i class="ph ph-printer"></i> Imprimir etiqueta</button>
+                                    ${!isShipped ? `<button onclick="app.markOrderAsShipped('${s.id}')"><i class="ph ph-truck"></i> Marcar enviado</button>` : ''}
+                                    <hr>
+                                    <button onclick="app.deleteSale('${s.id}')" class="is-danger"><i class="ph ph-trash"></i> Eliminar</button>
                                 </div>
-                            ` : ''}
+                            </div>
                         </div>
+                    `;
+            }).join('')}
+                    ${filteredSales.length === 0 ? `
+                        <div class="text-center py-16">
+                            <i class="ph ph-shopping-cart text-3xl text-stone-400 block mb-2"></i>
+                            <p class="text-sm text-stone-500">No hay ventas con estos filtros. Cambiá el mes, el canal o la búsqueda.</p>
+                        </div>
+                    ` : ''}
+                    </div>
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -6023,12 +5584,14 @@ const app = {
     // ── POS web: sección propia, separada de Ventas ────────────────────
     renderPOS(container) {
         const html = `
-            <div class="max-w-4xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+            <div class="cx-view">
+            <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'POS',
-                    subtitle: 'Terminal de caja web · ventas de mostrador'
+                    subtitle: 'Caja del local: escaneá o buscá el disco, elegí cómo paga y cobrá'
                 })}
                 ${this.state.cart.length > 0 ? this.renderSalesCartWidget() : this.renderQuickPOS()}
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -6036,93 +5599,67 @@ const app = {
 
     // Helper to render the cart widget in POS view
     renderSalesCartWidget() {
+        const subtotal = this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0);
+        const rsdOn = this.state.rsdExtraDiscount && this.state.cart.length >= 3;
+        const finalTotal = subtotal * (rsdOn ? 0.95 : 1);
         return `
-            <div class="bg-white p-6 rounded-3xl shadow-lg border border-slate-100 ring-2 ring-emerald-500/10">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                        <i class="ph-duotone ph-shopping-cart text-emerald-500 text-xl"></i>
-                        Venta en Progreso
-                        <span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full">${this.state.cart.length}</span>
-                    </h3>
-                    <button onclick="app.clearCart(); app.refreshCurrentView()" class="text-xs text-red-500 font-bold hover:underline">Vaciar Carrito</button>
-                </div>
-                
-                <div class="space-y-3 mb-6 max-h-80 overflow-y-auto custom-scrollbar px-1">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                <section class="cx-panel lg:col-span-7 !p-2">
+                    <div class="flex justify-between items-center px-3 pt-2 pb-2">
+                        <h3 class="cx-h">Venta en curso <span class="cx-count">${this.state.cart.length}</span></h3>
+                        <button onclick="app.clearCart(); app.refreshCurrentView()" class="text-xs font-semibold text-stone-500 hover:text-red-700">Vaciar carrito</button>
+                    </div>
+                    <div class="max-h-[60vh] overflow-y-auto custom-scrollbar">
                     ${this.state.cart.map((item, index) => `
-                        <div class="flex justify-between items-center ${item.is_rsd_discount ? 'bg-orange-50/50 border-orange-100' : 'bg-slate-50/50 border-slate-100'} p-3 rounded-2xl border group">
-                            <div class="truncate pr-4 flex-1">
-                                <p class="font-bold text-sm text-brand-dark truncate">${item.album} ${item.is_rsd_discount ? '<span class="text-[8px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-black ml-1">RSD</span>' : ''}</p>
-                                <p class="text-[10px] text-slate-400 truncate uppercase tracking-tighter font-bold">${item.artist}</p>
+                        <div class="cx-feed-row !cursor-default">
+                            <span class="cx-cover">${item.cover_image ? `<img src="${item.cover_image}" class="w-full h-full object-cover" alt="">` : '<i class="ph ph-vinyl-record"></i>'}</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-sm truncate">${item.album}</p>
+                                <p class="text-xs text-stone-500 truncate">${item.artist}</p>
+                                ${item.is_rsd_discount ? '<span class="cx-state is-hot mt-1">RSD -10%</span>' : ''}
                             </div>
-                            <div class="flex items-center gap-3">
-                                ${item.is_rsd_discount
-                                    ? `<div class="text-right"><span class="text-[10px] text-slate-400 line-through block">${this.formatCurrency(item.price, false)}</span><span class="font-bold text-sm text-orange-600">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
-                                    : `<span class="font-bold text-sm text-brand-dark">${this.formatCurrency(item.price, false)}</span>`
-                                }
-                                <button onclick="app.removeFromCart(${index}); app.refreshCurrentView()" class="w-8 h-8 rounded-lg bg-white shadow-sm text-slate-300 hover:text-red-500 border border-slate-100 transition-colors flex items-center justify-center">
-                                    <i class="ph-bold ph-trash"></i>
-                                </button>
-                            </div>
+                            ${item.is_rsd_discount
+                                ? `<div class="text-right"><span class="text-xs text-stone-400 line-through block">${this.formatCurrency(item.price, false)}</span><span class="font-semibold text-sm">${this.formatCurrency(this.getEffectivePrice(item), false)}</span></div>`
+                                : `<span class="font-semibold text-sm">${this.formatCurrency(item.price, false)}</span>`}
+                            <button onclick="app.removeFromCart(${index}); app.refreshCurrentView()" class="cx-row-btn is-danger" title="Quitar del carrito" aria-label="Quitar del carrito"><i class="ph ph-trash"></i></button>
                         </div>
                     `).join('')}
-                </div>
-
-                <div class="bg-slate-50 rounded-2xl p-4 mb-6 space-y-4">
-                    <div class="flex justify-between items-center pb-2 border-b border-white/50">
-                        <span class="text-xs font-bold text-slate-400 uppercase">Subtotal</span>
-                        <span class="font-bold text-slate-600">${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0))}</span>
                     </div>
+                </section>
 
-                    <!-- RSD 5% Extra Discount Toggle -->
-                    <div class="flex items-center justify-between p-3 rounded-xl border ${this.state.cart.length >= 3 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-100 opacity-50'}">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm">🎉</span>
-                            <div>
-                                <span class="text-[10px] font-bold ${this.state.cart.length >= 3 ? 'text-orange-700' : 'text-slate-400'} uppercase tracking-wider">Aplicar 5% extra RSD</span>
-                                ${this.state.cart.length < 3 ? '<p class="text-[9px] text-slate-400 mt-0.5">Mínimo 3 items en carrito</p>' : ''}
-                            </div>
-                        </div>
-                        <label class="switch">
+                <section class="lg:col-span-5 space-y-3">
+                    <div class="vf-card">
+                        <div class="flex justify-between text-sm"><span class="text-stone-500">Subtotal</span><span class="font-semibold">${this.formatCurrency(subtotal)}</span></div>
+                        <label class="vf-switch-row mt-2 ${this.state.cart.length >= 3 ? '' : 'opacity-50 !cursor-not-allowed'}">
+                            <span><b>5% extra RSD</b><small>${this.state.cart.length >= 3 ? 'Descuento por llevar 3 o más' : 'Se habilita con 3 discos o más'}</small></span>
                             <input type="checkbox" id="rsd-extra-toggle" ${this.state.rsdExtraDiscount ? 'checked' : ''} ${this.state.cart.length < 3 ? 'disabled' : ''}
                                 onchange="app.state.rsdExtraDiscount = this.checked; app.refreshCurrentView()">
-                            <span class="slider"></span>
+                            <i class="vf-switch" aria-hidden="true"></i>
                         </label>
-                    </div>
-                    ${this.state.rsdExtraDiscount && this.state.cart.length >= 3 ? `
-                    <div class="flex justify-between items-center p-2 bg-orange-50 rounded-lg border border-orange-100">
-                        <span class="text-[10px] font-bold text-orange-600 uppercase">5% RSD Descuento</span>
-                        <span class="text-xs font-bold text-orange-700">- ${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * 0.05)}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-emerald-600 uppercase">Total Final</span>
-                        <span class="font-bold text-emerald-700 text-lg">${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * 0.95)}</span>
-                    </div>
-                    ` : ''}
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                            <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">Pago</label>
-                            <select id="cart-payment" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:border-brand-dark outline-none cursor-pointer">
-                                <option value="MobilePay">MobilePay</option>
-                                <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta">Tarjeta</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1">
-                            <label class="text-[9px] font-bold text-slate-400 uppercase ml-1">Canal</label>
-                            <select id="cart-channel" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:border-brand-dark outline-none cursor-pointer">
-                                <option value="Tienda">Tienda</option>
-                                <option value="Discogs">Discogs</option>
-                                <option value="Feria">Feria</option>
-                            </select>
+                        ${rsdOn ? `<div class="flex justify-between text-sm mt-1"><span class="text-stone-500">Descuento RSD 5%</span><span class="font-semibold">- ${this.formatCurrency(subtotal * 0.05)}</span></div>` : ''}
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <label class="vf-field"><span>Pago</span>
+                                <select id="cart-payment" class="vf-input">
+                                    <option value="MobilePay">MobilePay</option>
+                                    <option value="Efectivo">Efectivo</option>
+                                    <option value="Tarjeta">Tarjeta</option>
+                                </select></label>
+                            <label class="vf-field"><span>Canal</span>
+                                <select id="cart-channel" class="vf-input">
+                                    <option value="Tienda">Tienda</option>
+                                    <option value="Discogs">Discogs</option>
+                                    <option value="Feria">Feria</option>
+                                </select></label>
                         </div>
                     </div>
-                </div>
-
-                <button onclick="app.handleSalesViewCheckout()" class="w-full py-4 bg-brand-dark text-white font-bold rounded-2xl shadow-xl shadow-brand-dark/20 flex items-center justify-center gap-2 hover:bg-slate-800 transition-all hover:scale-[1.01] active:scale-[0.98]">
-                    <i class="ph-bold ph-check-circle text-lg"></i>
-                    Completar Venta (${this.formatCurrency(this.state.cart.reduce((s, i) => s + this.getEffectivePrice(i), 0) * (this.state.rsdExtraDiscount && this.state.cart.length >= 3 ? 0.95 : 1))})
-                </button>
+                    <div class="cx-tile cx-dark !min-h-0">
+                        <span class="cx-tile-label">Total a cobrar</span>
+                        <b class="cx-tile-value">${this.formatCurrency(finalTotal)}</b>
+                    </div>
+                    <button onclick="app.handleSalesViewCheckout()" class="cx-pos-cta">
+                        <i class="ph-bold ph-check-circle"></i> Completar venta
+                    </button>
+                </section>
             </div>
         `;
     },
@@ -6131,106 +5668,69 @@ const app = {
         const isUsed = this.state.posCondition === 'Used';
         const isManualInput = !this.state.posSelectedItemSku && (this.state.manualSaleSearch || '').length > 0;
         const showCostInput = isUsed && (isManualInput || !this.state.posSelectedItemSku);
+        const sel = this.state.posSelectedItemSku ? this.state.inventory.find(i => i.sku === this.state.posSelectedItemSku) : null;
+        const payBtn = (m, icon, on) => `
+            <button onclick="app.selectPOSPayment('${m}')" id="pay-${m}" class="cx-pay ${on ? 'is-on' : ''}">
+                <i class="ph ${icon}"></i><span>${m}</span>
+            </button>`;
 
         return `
-            <div class="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 ring-4 ring-orange-500/5">
-                <div class="flex items-center justify-between mb-8">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center text-brand-orange">
-                            <i class="ph-duotone ph-lightning text-2xl"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-display text-xl font-bold text-brand-dark">Terminal de Caja</h3>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Quick POS v2.0</p>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                <section class="vf-card lg:col-span-7 !p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h3 class="cx-h">Qué se vende</h3>
+                        <div class="vf-segs">
+                            <button onclick="app.updatePOSCondition('New')" class="vf-seg-btn ${!isUsed ? 'is-on' : ''}">Nuevo</button>
+                            <button onclick="app.updatePOSCondition('Used')" class="vf-seg-btn ${isUsed ? 'is-on' : ''}">Usado</button>
                         </div>
                     </div>
-                    
-                    <!-- Toggle Estado -->
-                    <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                        <button onclick="app.updatePOSCondition('New')" 
-                            class="px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${!isUsed ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-slate-600'}">
-                            NUEVO
-                        </button>
-                        <button onclick="app.updatePOSCondition('Used')" 
-                            class="px-4 py-1.5 rounded-lg text-[10px] font-bold transition-all ${isUsed ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-slate-600'}">
-                            USADO
-                        </button>
+                    <div class="cx-search relative">
+                        <i class="ph ph-barcode"></i>
+                        <input type="text" id="sku-search" value="${this.state.manualSaleSearch || ''}"
+                            oninput="app.searchSku(this.value)"
+                            onblur="setTimeout(() => document.getElementById('sku-results').classList.add('hidden'), 200)"
+                            placeholder="Escaneá el código o escribí artista, título o SKU" class="!h-14 !text-base">
+                        <div id="sku-results" class="hidden cx-gs-panel !top-[62px]"></div>
                     </div>
-                </div>
-                
-                <div class="space-y-6">
-                    <!-- Buscador Inteligente -->
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Buscador Inteligente (Escáner o Nombre)</label>
-                        <div class="relative group">
-                            <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg group-focus-within:text-brand-orange transition-colors"></i>
-                            <input type="text" id="sku-search" value="${this.state.manualSaleSearch || ''}" 
-                                oninput="app.searchSku(this.value)" 
-                                onblur="setTimeout(() => document.getElementById('sku-results').classList.add('hidden'), 200)"
-                                placeholder="Escanea código de barras o escribe para buscar..." 
-                                class="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-brand-orange focus:bg-white outline-none text-base font-medium transition-all shadow-inner">
-                            <div id="sku-results" class="absolute top-full left-0 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl hidden z-50 max-h-80 overflow-y-auto mt-3 p-2 space-y-1"></div>
+                    ${sel ? `
+                    <div class="flex items-center gap-3 mt-4 p-3 rounded-2xl bg-white/70">
+                        <span class="cx-cover">${sel.cover_image ? `<img src="${sel.cover_image}" class="w-full h-full object-cover" alt="">` : '<i class="ph ph-vinyl-record"></i>'}</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm truncate">${sel.album}</p>
+                            <p class="text-xs text-stone-500 truncate">${sel.artist} · ${sel.sku}</p>
                         </div>
-                    </div>
+                        <span class="cx-stock ${Number(sel.stock) > 0 ? '' : 'is-out'}">${Number(sel.stock) > 0 ? 'Stock ' + sel.stock : 'Sin stock'}</span>
+                    </div>` : ''}
 
-                    <div class="grid grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Precio de Venta</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
-                                <input type="number" id="input-price" step="0.5" 
-                                    class="w-full pl-8 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-brand-dark focus:bg-white outline-none text-xl font-display font-bold transition-all">
-                            </div>
-                        </div>
-                        <div id="cost-container" class="${showCostInput ? '' : 'hidden'}">
-                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Costo Original (VAT)</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
-                                <input type="number" id="input-cost-pos" step="0.5" 
-                                    class="w-full pl-8 pr-4 py-4 bg-orange-50/50 border-2 border-orange-100 rounded-2xl focus:border-brand-orange focus:bg-white outline-none text-xl font-display font-bold transition-all text-brand-orange">
-                            </div>
-                        </div>
-                        <!-- Hidden inputs for submission -->
-                        <input type="hidden" id="input-sku" value="${this.state.posSelectedItemSku || ''}">
-                        <input type="hidden" id="input-cost">
-                        <input type="hidden" id="input-artist">
-                        <input type="hidden" id="input-album">
-                        <input type="hidden" id="input-genre">
-                        <input type="hidden" id="input-owner">
+                    <div class="grid grid-cols-2 gap-3 mt-5">
+                        <label class="vf-field"><span>Precio de venta (kr)</span>
+                            <input type="number" id="input-price" step="0.5" class="vf-input !h-14 !text-2xl !font-light tracking-tight"></label>
+                        <label id="cost-container" class="vf-field ${showCostInput ? '' : 'hidden'}"><span>Costo original (kr)</span>
+                            <input type="number" id="input-cost-pos" step="0.5" class="vf-input !h-14 !text-2xl !font-light tracking-tight"></label>
                     </div>
+                    <!-- Hidden inputs for submission -->
+                    <input type="hidden" id="input-sku" value="${this.state.posSelectedItemSku || ''}">
+                    <input type="hidden" id="input-cost">
+                    <input type="hidden" id="input-artist">
+                    <input type="hidden" id="input-album">
+                    <input type="hidden" id="input-genre">
+                    <input type="hidden" id="input-owner">
+                </section>
 
-                    <!-- Botones de Pago Grandotes -->
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-3 ml-1">Seleccionar Método de Pago</label>
-                        <div class="grid grid-cols-3 gap-3">
-                            <button onclick="app.selectPOSPayment('MobilePay')" id="pay-MobilePay" 
-                                class="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-brand-dark bg-slate-50 ring-2 ring-brand-dark/10 transition-all group">
-                                <i class="ph-duotone ph-phone-call text-2xl text-blue-500 mb-2"></i>
-                                <span class="text-[10px] font-bold text-blue-600">MobilePay</span>
-                            </button>
-                            <button onclick="app.selectPOSPayment('Tarjeta')" id="pay-Tarjeta" 
-                                class="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
-                                <i class="ph-duotone ph-credit-card text-2xl text-slate-400 group-hover:text-indigo-500 mb-2"></i>
-                                <span class="text-[10px] font-bold text-slate-500 group-hover:text-indigo-600">Tarjeta</span>
-                            </button>
-                            <button onclick="app.selectPOSPayment('Efectivo')" id="pay-Efectivo" 
-                                class="flex flex-col items-center justify-center p-4 rounded-2xl border-2 border-slate-100 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition-all group">
-                                <i class="ph-duotone ph-banknotes text-2xl text-slate-400 group-hover:text-emerald-500 mb-2"></i>
-                                <span class="text-[10px] font-bold text-slate-500 group-hover:text-emerald-600">Efectivo</span>
-                            </button>
+                <section class="lg:col-span-5 space-y-3">
+                    <div class="vf-card">
+                        <h3 class="cx-h mb-3">Cómo paga</h3>
+                        <div class="grid grid-cols-3 gap-2">
+                            ${payBtn('MobilePay', 'ph-device-mobile', true)}
+                            ${payBtn('Tarjeta', 'ph-credit-card', false)}
+                            ${payBtn('Efectivo', 'ph-money', false)}
                         </div>
                         <input type="hidden" id="input-payment-method" value="MobilePay">
                     </div>
-
-                    <!-- Botón de Acción Principal -->
-                    <div class="pt-4">
-                        <button onclick="app.handleQuickPOSAction()" id="btn-pos-action" 
-                            class="w-full py-5 bg-brand-dark text-white font-bold rounded-2xl shadow-xl shadow-brand-dark/20 flex items-center justify-center gap-3 hover:bg-slate-800 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                            <i class="ph-bold ph-printer text-xl"></i>
-                            Cobrar e Imprimir Ticket
-                        </button>
-                    </div>
-                </div>
+                    <button onclick="app.handleQuickPOSAction()" id="btn-pos-action" class="cx-pos-cta">
+                        <i class="ph-bold ph-printer"></i> Cobrar e imprimir ticket
+                    </button>
+                </section>
             </div>
         `;
     },
@@ -6243,38 +5743,8 @@ const app = {
     selectPOSPayment(method) {
         const input = document.getElementById('input-payment-method');
         if (input) input.value = method;
-
-        // Visual feedback
         ['MobilePay', 'Tarjeta', 'Efectivo'].forEach(m => {
-            const btn = document.getElementById(`pay-${m}`);
-            if (btn) {
-                if (m === method) {
-                    btn.classList.add('border-brand-dark', 'bg-slate-50', 'ring-2', 'ring-brand-dark/10');
-                    btn.classList.remove('border-slate-100', 'bg-white');
-                    // Find icon and span inside
-                    const icon = btn.querySelector('i');
-                    const span = btn.querySelector('span');
-                    if (icon) {
-                        icon.classList.add(m === 'MobilePay' ? 'text-blue-500' : (m === 'Tarjeta' ? 'text-indigo-500' : 'text-emerald-500'));
-                        icon.classList.remove('text-slate-400');
-                    }
-                    if (span) {
-                        span.classList.add(m === 'MobilePay' ? 'text-blue-600' : (m === 'Tarjeta' ? 'text-indigo-600' : 'text-emerald-600'));
-                        span.classList.remove('text-slate-500');
-                    }
-                } else {
-                    btn.classList.remove('border-brand-dark', 'bg-slate-50', 'ring-2', 'ring-brand-dark/10');
-                    btn.classList.add('border-slate-100', 'bg-white');
-                    const icon = btn.querySelector('i');
-                    const span = btn.querySelector('span');
-                    if (icon) {
-                        icon.className = icon.className.replace(/text-(blue|indigo|emerald)-500/g, 'text-slate-400');
-                    }
-                    if (span) {
-                        span.className = span.className.replace(/text-(blue|indigo|emerald)-600/g, 'text-slate-500');
-                    }
-                }
-            }
+            document.getElementById(`pay-${m}`)?.classList.toggle('is-on', m === method);
         });
     },
 
@@ -6458,13 +5928,13 @@ const app = {
     saleChannelBadge(s) {
         const ch = this.normalizeSaleChannel(s);
         const map = {
-            local:   { label: 'Local',   cls: 'bg-emerald-100 text-emerald-700' },
-            online:  { label: 'WebShop', cls: 'bg-blue-100 text-blue-700' },
-            discogs: { label: 'Discogs', cls: 'bg-purple-100 text-purple-700' },
-            manual:  { label: 'Manual',  cls: 'bg-amber-100 text-amber-700' }
+            local:   { label: 'Local' },
+            online:  { label: 'Web shop' },
+            discogs: { label: 'Discogs' },
+            manual:  { label: 'Manual' }
         };
         const m = map[ch] || map.local;
-        return `<span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest ${m.cls}">${m.label}</span>`;
+        return `<span class="cx-channel is-${ch in map ? ch : 'local'}">${m.label}</span>`;
     },
 
     // --- Tapas reales para ítems vendidos ---
@@ -6555,15 +6025,10 @@ const app = {
 
         if (matches.length > 0) {
             resultsDiv.innerHTML = matches.map(item => `
-    <div onclick="app.selectSku('${item.sku}')" class="p-3 hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center">
-                    <div>
-                        <p class="font-bold text-sm text-brand-dark">${item.album}</p>
-                        <p class="text-xs text-slate-500">${item.artist}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-bold text-sm text-brand-orange">${this.formatCurrency(item.price, false)}</p>
-                        <p class="text-xs ${item.stock > 0 ? 'text-green-500' : 'text-red-500'}">Stock: ${item.stock}</p>
-                    </div>
+    <div onclick="app.selectSku('${item.sku}')" class="gs-row cursor-pointer">
+                    <span class="gs-thumb">${item.cover_image ? `<img src="${item.cover_image}" alt="">` : '<i class="ph ph-vinyl-record"></i>'}</span>
+                    <span class="gs-main"><b>${item.album}</b><small>${item.artist} · ${item.sku}</small></span>
+                    <span class="gs-side">${this.formatCurrency(item.price, false)}<span class="cx-stock ${item.stock > 0 ? '' : 'is-out'}">${item.stock > 0 ? 'Stock ' + item.stock : 'Sin stock'}</span></span>
                 </div>
     `).join('');
             resultsDiv.classList.remove('hidden');
@@ -6618,324 +6083,105 @@ const app = {
         const price = parseFloat(document.getElementById('input-price').value) || 0;
         const qty = parseInt(document.getElementById('input-qty').value) || 1;
         const total = price * qty;
-        document.getElementById('form-total').innerText = this.formatCurrency(total);
+        document.getElementById('form-total').innerHTML = this.formatCurrency(total);
     },
 
 
 
     // ============================================================
-    // Blueprint Sec 12 · FLUJO A: Carga rapida de un nuevo disco
-    // Paso a paso: Identificar (Discogs) -> Duplicados -> Esencial ->
-    // Canales -> Guardar. Reutiliza la API de Discogs ya integrada
-    // (proxy ${BASE_API_URL}/discogs/*) y delega el alta en
-    // handleAddVinyl para no duplicar la logica de persistencia.
+    // Ficha de carga de discos (panel lateral, estilo cx).
+    // Reemplaza a la "Carga rápida" de 5 pasos: una sola ficha para
+    // alta y edición. Guarda vía handleAddVinyl (misma persistencia).
     // ============================================================
     openQuickAddWizard(presetLot = '', presetOrigin = '') {
-        this.state.quickAdd = {
-            step: 1,
-            search: '',
-            searching: false,
-            results: [],
-            manualMode: false,
-            artist: '',
-            album: '',
-            label: '',
-            genre: '',
-            condition: 'NM',
-            productCondition: 'Second-hand',
-            cost: '',
-            price: '',
-            stock: 1,
-            cover: '',
-            discogsId: '',
-            discogsUrl: '',
-            year: '',
-            lot: '',
-            chPos: true,      // Tienda activa por defecto
-            chWeb: true,
-            chDiscogs: false,
-            dupChecked: false,
-            hardDup: null,
-            softDups: [],
-        };
-        if (presetLot) this.state.quickAdd.lot = presetLot;
-        if (presetOrigin) this.state.quickAdd.presetOrigin = presetOrigin;
-        const overlay = document.createElement('div');
-        overlay.id = 'quickadd-overlay';
-        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
-        overlay.innerHTML = `<div id="quickadd-card" class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-100"></div>`;
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeQuickAddWizard(); });
-        document.body.appendChild(overlay);
-        this.renderQuickAddStep();
+        this.openAddVinylModal(null, { lot: presetLot, provider_origin: presetOrigin });
     },
 
-    closeQuickAddWizard() {
-        document.getElementById('quickadd-overlay')?.remove();
-        this.state.quickAdd = null;
+    closeVinylForm() {
+        document.getElementById('modal-overlay')?.remove();
     },
 
-    quickAddGo(step) {
-        const qa = this.state.quickAdd;
-        if (!qa) return;
-        // Validaciones por paso
-        if (step > 1 && qa.step === 1) {
-            if (!qa.manualMode && !qa.artist) {
-                // Si eligio un resultado de Discogs, artist ya viene cargado
-                if (!qa.artist || !qa.album) {
-                    this.showToast('Buscá en Discogs o cargá artista y título manualmente.');
-                    return;
-                }
-            }
-            if (qa.manualMode && (!qa.artist.trim() || !qa.album.trim())) {
-                this.showToast('Completá artista y título para continuar.');
-                return;
-            }
+    async vfSubmit(e, editSku) {
+        e.preventDefault();
+        const form = e.target;
+        const again = !!(e.submitter && e.submitter.dataset.again === '1');
+        const keep = again ? {
+            lot: form.lot?.value || '',
+            provider_origin: form.provider_origin?.value || '',
+            owner: form.owner?.value || '',
+            acquisition_date: form.acquisition_date?.value || ''
+        } : null;
+        const buttons = form.querySelectorAll('button[type="submit"]');
+        buttons.forEach(b => b.disabled = true);
+        await this.handleAddVinyl(e, editSku);
+        // handleAddVinyl cierra el panel solo si guardó bien
+        if (document.getElementById('modal-overlay')) {
+            buttons.forEach(b => b.disabled = false);
+            return;
         }
-        if (step > 3 && qa.step === 3) {
-            const cost = parseFloat(qa.cost), price = parseFloat(qa.price), stock = parseInt(qa.stock, 10);
-            if (isNaN(cost) || cost < 0) { this.showToast('El costo debe ser un número válido.'); return; }
-            if (isNaN(price) || price <= 0) { this.showToast('El precio debe ser un número válido mayor a 0.'); return; }
-            if (isNaN(stock) || stock < 1) { this.showToast('El stock inicial debe ser al menos 1.'); return; }
-        }
-        qa.step = step;
-        if (step === 2 && !qa.dupChecked) this.quickAddCheckDuplicates();
-        this.renderQuickAddStep();
+        if (keep) this.openAddVinylModal(null, keep);
     },
 
-    quickAddSteps() {
-        return [
-            { n: 1, label: 'Identificar', icon: 'ph-magnifying-glass' },
-            { n: 2, label: 'Duplicados', icon: 'ph-copy' },
-            { n: 3, label: 'Esencial', icon: 'ph-disc' },
-            { n: 4, label: 'Canales', icon: 'ph-storefront' },
-            { n: 5, label: 'Confirmar', icon: 'ph-check-circle' },
-        ];
+    vfSetOrigin(value) {
+        const input = document.getElementById('modal-provider-origin');
+        if (!input) return;
+        input.value = value;
+        document.querySelectorAll('[data-origin]').forEach(b => b.classList.toggle('is-on', b.dataset.origin === value));
+        this.onProviderOriginChange();
     },
 
-    renderQuickAddStep() {
-        const qa = this.state.quickAdd;
-        const card = document.getElementById('quickadd-card');
-        if (!qa || !card) return;
-        const steps = this.quickAddSteps();
-        let body = '';
-        if (qa.step === 1) body = this.quickAddStepIdentify(qa);
-        else if (qa.step === 2) body = this.quickAddStepDuplicates(qa);
-        else if (qa.step === 3) body = this.quickAddStepEssential(qa);
-        else if (qa.step === 4) body = this.quickAddStepChannels(qa);
-        else body = this.quickAddStepReview(qa);
-
-        card.innerHTML = `
-            <div class="p-6 border-b border-slate-100">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-display text-xl font-bold text-brand-dark flex items-center gap-2">
-                        <i class="ph-bold ph-lightning text-brand-orange"></i> Carga rápida
-                    </h3>
-                    <button onclick="app.closeQuickAddWizard()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
-                </div>
-                <div class="flex items-center gap-1">
-                    ${steps.map(s => `
-                        <div class="flex-1 flex items-center gap-2 ${s.n <= qa.step ? '' : 'opacity-40'}">
-                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${s.n < qa.step ? 'bg-emerald-500 text-white' : s.n === qa.step ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'}">
-                                ${s.n < qa.step ? '<i class="ph-bold ph-check"></i>' : s.n}
-                            </div>
-                            <span class="text-[10px] font-bold uppercase tracking-wide hidden sm:inline ${s.n === qa.step ? 'text-brand-dark' : 'text-slate-400'}">${s.label}</span>
-                            ${s.n < steps.length ? '<div class="flex-1 h-px bg-slate-200 mx-1"></div>' : ''}
-                        </div>`).join('')}
-                </div>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1">${body}</div>
-            <div class="p-4 border-t border-slate-100 flex justify-between gap-3 bg-slate-50/50">
-                ${qa.step > 1
-                    ? `<button onclick="app.quickAddGo(${qa.step - 1})" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all flex items-center gap-2"><i class="ph-bold ph-arrow-left"></i> Atrás</button>`
-                    : `<button onclick="app.closeQuickAddWizard()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all">Cancelar</button>`}
-                ${qa.step < 5
-                    ? `<button onclick="app.quickAddGo(${qa.step + 1})" class="px-6 py-2.5 rounded-xl bg-brand-dark text-white font-bold text-sm shadow-lg hover:scale-[1.02] transition-transform flex items-center gap-2">Continuar <i class="ph-bold ph-arrow-right"></i></button>`
-                    : `<button onclick="app.quickAddSave()" class="px-6 py-2.5 rounded-xl bg-brand-orange text-white font-bold text-sm shadow-lg shadow-brand-orange/30 hover:scale-[1.02] transition-transform flex items-center gap-2"><i class="ph-bold ph-check"></i> Guardar disco</button>`}
-            </div>`;
+    vfSetMultiplier(value) {
+        const input = document.getElementById('modal-multiplier');
+        if (!input) return;
+        input.value = value;
+        this.applyPriceMultiplier();
     },
 
-    // --- Paso 1: Identificar (Discogs API existente) ---
-    quickAddStepIdentify(qa) {
-        return `
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Buscar en Discogs <span class="normal-case font-medium text-slate-300">(o pegá el ID numérico del release)</span></label>
-            <div class="flex gap-2 mb-3">
-                <input id="qa-search" type="text" value="${qa.search.replace(/"/g, '&quot;')}" placeholder="Artista - Título..."
-                    onkeypress="if(event.key==='Enter'){event.preventDefault();app.quickAddSearchDiscogs();}"
-                    class="flex-1 h-11 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-medium focus:border-brand-orange outline-none">
-                <button onclick="app.quickAddSearchDiscogs()" class="h-11 px-5 rounded-xl bg-brand-dark text-white text-sm font-bold hover:scale-[1.02] transition-transform flex items-center gap-2">
-                    <i class="ph-bold ph-magnifying-glass"></i> Buscar
-                </button>
-            </div>
-            <div id="qa-results" class="space-y-2 mb-4 max-h-56 overflow-y-auto">
-                ${qa.searching ? '<p class="text-xs text-slate-400 animate-pulse p-2">Buscando en Discogs...</p>' : ''}
-                ${!qa.searching && qa.results.length === 0 && qa.search ? '<p class="text-xs text-slate-400 p-2">Sin resultados. Probá con otra búsqueda o cargá manualmente abajo.</p>' : ''}
-                ${qa.results.map((r, i) => `
-                    <div onclick="app.quickAddSelectRelease(${i})" class="flex items-center gap-3 p-3 bg-white rounded-xl border ${String(qa.discogsId) === String(r.id) ? 'border-brand-orange shadow-md' : 'border-slate-200'} cursor-pointer hover:border-brand-orange hover:shadow-sm transition-all">
-                        <img src="${r.thumb || ''}" class="w-12 h-12 rounded-lg object-cover bg-slate-100 flex-shrink-0" onerror="this.style.display='none'">
-                        <div class="flex-1 min-w-0">
-                            <p class="font-bold text-xs text-brand-dark leading-tight truncate">${r.title || ''}</p>
-                            <p class="text-[10px] text-slate-500">${r.year || '?'} · ${r.country || ''} · ${(r.label && r.label[0]) || ''}</p>
-                        </div>
-                        ${String(qa.discogsId) === String(r.id) ? '<i class="ph-fill ph-check-circle text-brand-orange text-xl"></i>' : '<i class="ph-bold ph-plus-circle text-slate-300 text-xl"></i>'}
-                    </div>`).join('')}
-            </div>
-            <div class="border-t border-dashed border-slate-200 pt-4">
-                <button onclick="app.state.quickAdd.manualMode=!app.state.quickAdd.manualMode;app.renderQuickAddStep()" class="text-xs font-bold text-brand-orange hover:underline flex items-center gap-1">
-                    <i class="ph-bold ${qa.manualMode ? 'ph-caret-up' : 'ph-caret-down'}"></i>
-                    ${qa.manualMode ? 'Ocultar carga manual' : 'Cargar manualmente sin Discogs'}
-                </button>
-                ${qa.manualMode ? `
-                <div class="grid grid-cols-2 gap-3 mt-3">
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Artista *</label>
-                        <input id="qa-artist" type="text" value="${qa.artist.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.artist=this.value" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase block mb-1">Título *</label>
-                        <input id="qa-album" type="text" value="${qa.album.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.album=this.value" class="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none">
-                    </div>
-                </div>` : ''}
-                ${qa.artist && qa.album && !qa.manualMode ? `
-                <div class="mt-3 p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-3">
-                    ${qa.cover ? `<img src="${qa.cover}" class="w-10 h-10 rounded-lg object-cover">` : ''}
-                    <div class="text-xs"><p class="font-bold text-emerald-800">${qa.artist} — ${qa.album}</p><p class="text-emerald-600">Datos completados desde Discogs</p></div>
-                </div>` : ''}
-            </div>`;
+    vfStep(delta) {
+        const input = document.querySelector('#vinyl-form input[name="stock"]');
+        if (!input) return;
+        input.value = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
     },
 
-    async quickAddSearchDiscogs() {
-        const qa = this.state.quickAdd;
-        const input = document.getElementById('qa-search');
-        const q = (input?.value || '').trim();
-        if (!q) return;
-        qa.search = q;
-        qa.searching = true;
-        qa.results = [];
-        this.renderQuickAddStep();
-        try {
-            let data;
-            if (/^\d+$/.test(q)) {
-                const res = await fetch(`${BASE_API_URL}/discogs/release/${q}`);
-                const full = await res.json();
-                const rel = full.release || full;
-                data = { results: [{ id: rel.id, title: `${(rel.artists_sort || '')} - ${rel.title || ''}`, year: rel.year, country: rel.country, label: (rel.labels || []).map(l => l.name), thumb: (rel.images && rel.images[0] || {}).thumb || (rel.images && rel.images[0] || {}).uri, _full: rel }] };
-            } else {
-                const res = await fetch(`${BASE_API_URL}/discogs/search?q=${encodeURIComponent(q)}`);
-                data = await res.json();
-            }
-            qa.results = (data.results || []).slice(0, 10);
-        } catch (err) {
-            console.error(err);
-            this.showToast('Error buscando en Discogs: ' + (err.message || 'desconocido'));
-        }
-        qa.searching = false;
-        this.renderQuickAddStep();
+    vfAddGenre(genre) {
+        const slots = [1, 2, 3].map(n => document.getElementById(`genre-${n}`)).filter(Boolean);
+        if (slots.some(s => s.value.trim().toLowerCase() === genre.toLowerCase())) return;
+        const empty = slots.find(s => !s.value.trim());
+        if (empty) empty.value = genre;
+        else this.showToast('Ya hay 3 géneros. Borrá uno para agregar otro.');
     },
 
-    async quickAddSelectRelease(idx) {
-        const qa = this.state.quickAdd;
-        const r = qa.results[idx];
-        if (!r) return;
-        qa.discogsId = r.id;
-        qa.dupChecked = false;
-        const parts = (r.title || '').split(' - ');
-        qa.artist = parts[0] || '';
-        qa.album = parts.slice(1).join(' - ') || r.title || '';
-        qa.year = r.year || '';
-        qa.cover = r.thumb || '';
-        qa.label = (r.label && r.label[0]) || '';
-        // Detalle completo para sello/genero/portada
-        try {
-            const res = await fetch(`${BASE_API_URL}/discogs/release/${r.id}`);
-            const data = await res.json();
-            const full = data.release || data;
-            if (full) {
-                const labels = (full.labels || []).map(l => l.name).filter(Boolean);
-                if (labels.length) qa.label = labels[0];
-                const styles = [...new Set(full.styles || [])];
-                if (styles.length) qa.genre = styles[0];
-                const img = (full.images && full.images[0]) || {};
-                if (img.uri || img.thumb) qa.cover = img.uri || img.thumb;
-                if (full.uri) qa.discogsUrl = full.uri.startsWith('http') ? full.uri : 'https://www.discogs.com' + full.uri;
-                qa._tracks = full.tracklist || [];
-            }
-        } catch (err) { console.warn('Detalle Discogs no disponible:', err); }
-        this.showToast('Datos completados desde Discogs');
-        this.renderQuickAddStep();
-    },
-
-    // --- Paso 2: Duplicados ---
-    quickAddCheckDuplicates() {
-        const qa = this.state.quickAdd;
-        qa.dupChecked = true;
+    vfCheckDuplicates() {
+        const box = document.getElementById('vf-dup');
+        const form = document.getElementById('vinyl-form');
+        if (!box || !form || form.dataset.edit === '1') return;
         const norm = (s) => this.normalizeText(s || '');
-        const a = norm(qa.artist), b = norm(qa.album);
-        qa.hardDup = null;
-        qa.softDups = [];
-        (this.state.inventory || []).forEach(item => {
-            if (qa.discogsId && String(item.discogs_release_id || item.discogsId || '') === String(qa.discogsId)) {
-                qa.hardDup = item;
-                return;
-            }
-            const ia = norm(item.artist), ib = norm(item.album);
-            if (a && b && ia === a && ib === b) { qa.hardDup = qa.hardDup || item; return; }
-            if ((a && ia && (ia.includes(a) || a.includes(ia))) || (b && ib && (ib.includes(b) || b.includes(ib)))) {
-                if (qa.softDups.length < 5) qa.softDups.push(item);
-            }
-        });
+        const a = norm(form.artist.value), b = norm(form.album.value);
+        const did = document.getElementById('input-discogs-id')?.value || '';
+        const hit = (this.state.inventory || []).find(i =>
+            (did && String(i.discogs_release_id || i.discogsId || '') === String(did)) ||
+            (a && b && norm(i.artist) === a && norm(i.album) === b));
+        if (!hit) { box.innerHTML = ''; return; }
+        box.innerHTML = `
+            <div class="vf-dup">
+                <p><b>Ya tenés este disco:</b> ${hit.artist} — ${hit.album} (${hit.sku || 'sin SKU'}, stock ${hit.stock || 0}).</p>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button type="button" onclick="app.vfIncreaseStock('${hit.id}')" class="cx-btn is-primary">Sumar al stock</button>
+                    <button type="button" onclick="app.closeVinylForm(); app.openAddVinylModal('${hit.id}')" class="cx-btn">Editar ese disco</button>
+                    <button type="button" onclick="document.getElementById('vf-dup').innerHTML=''" class="cx-btn">Es otra edición</button>
+                </div>
+            </div>`;
     },
 
-    quickAddStepDuplicates(qa) {
-        if (!qa.dupChecked) this.quickAddCheckDuplicates();
-        if (qa.hardDup) {
-            const d = qa.hardDup;
-            return `
-                <div class="bg-red-50 border border-red-200 rounded-2xl p-5">
-                    <h4 class="font-bold text-red-700 flex items-center gap-2 mb-2"><i class="ph-bold ph-warning-circle text-xl"></i> Posible duplicado</h4>
-                    <p class="text-sm text-red-600 mb-4">Ya existe <b>${d.artist} — ${d.album}</b> (${d.sku || 'sin SKU'}, stock: ${d.stock || 0}). El alta está bloqueada hasta que elijas:</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <button onclick="app.quickAddIncreaseStock('${d.id}')" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
-                            <i class="ph-bold ph-plus-circle text-brand-orange text-xl mb-1 block"></i>
-                            <p class="text-xs font-bold text-brand-dark">Aumentar stock</p>
-                            <p class="text-[10px] text-slate-400">Suma ${qa.stock} ud. al existente</p>
-                        </button>
-                        <button onclick="app.closeQuickAddWizard();app.openAddVinylModal('${d.id}')" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
-                            <i class="ph-bold ph-pencil-simple text-brand-orange text-xl mb-1 block"></i>
-                            <p class="text-xs font-bold text-brand-dark">Editar existente</p>
-                            <p class="text-[10px] text-slate-400">Abre la ficha completa</p>
-                        </button>
-                        <button onclick="app.state.quickAdd.hardDup=null;app.renderQuickAddStep()" class="p-4 bg-white border border-red-200 rounded-xl hover:border-brand-orange transition-all text-left">
-                            <i class="ph-bold ph-copy text-brand-orange text-xl mb-1 block"></i>
-                            <p class="text-xs font-bold text-brand-dark">Es otra edición</p>
-                            <p class="text-[10px] text-slate-400">Continuar con el alta</p>
-                        </button>
-                    </div>
-                </div>`;
-        }
-        return `
-            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-4 flex items-center gap-3">
-                <i class="ph-fill ph-check-circle text-emerald-500 text-3xl"></i>
-                <div><p class="font-bold text-emerald-800 text-sm">Sin duplicados exactos</p><p class="text-xs text-emerald-600">Podés continuar con la carga.</p></div>
-            </div>
-            ${qa.softDups.length ? `
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                <p class="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1"><i class="ph-bold ph-warning"></i> Coincidencias parciales (revisá antes de guardar):</p>
-                ${qa.softDups.map(d => `<p class="text-xs text-amber-700 truncate">· ${d.artist} — ${d.album} <span class="text-amber-400">(${d.sku || ''})</span></p>`).join('')}
-            </div>` : ''}`;
-    },
-
-    async quickAddIncreaseStock(productId) {
-        const qa = this.state.quickAdd;
-        const qty = parseInt(qa.stock, 10) || 1;
+    async vfIncreaseStock(productId) {
+        const qty = parseInt(document.querySelector('#vinyl-form input[name="stock"]')?.value, 10) || 1;
         try {
             const ref = db.collection('products').doc(productId);
             const snap = await ref.get();
             const cur = (snap.data() || {}).stock || 0;
             await ref.update({ stock: cur + qty, updated_at: firebase.firestore.FieldValue.serverTimestamp() });
             this.showToast(`Stock actualizado: ${cur} → ${cur + qty}`);
-            this.closeQuickAddWizard();
+            this.closeVinylForm();
             this.loadData();
         } catch (err) {
             console.error(err);
@@ -6943,134 +6189,8 @@ const app = {
         }
     },
 
-    // --- Paso 3: Esencial ---
-    quickAddStepEssential(qa) {
-        const field = (label, inner) => `
-            <div><label class="text-[10px] font-black text-slate-400 uppercase block mb-1">${label}</label>${inner}</div>`;
-        const inputCls = 'w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-sm focus:border-brand-orange outline-none';
-        return `
-            <div class="grid grid-cols-2 gap-3">
-                ${field('Artista', `<input type="text" value="${qa.artist.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.artist=this.value" class="${inputCls}">`)}
-                ${field('Título', `<input type="text" value="${qa.album.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.album=this.value" class="${inputCls}">`)}
-                ${field('Sello', `<input type="text" value="${qa.label.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.label=this.value" class="${inputCls}" placeholder="Record label">`)}
-                ${field('Género', `<input type="text" value="${qa.genre.replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.genre=this.value" class="${inputCls}" placeholder="Minimal">`)}
-                ${field('Condición (vinilo)', `
-                    <select onchange="app.state.quickAdd.condition=this.value" class="${inputCls}">
-                        ${['M', 'NM', 'VG+', 'VG', 'G'].map(c => `<option value="${c}" ${qa.condition === c ? 'selected' : ''}>${c}</option>`).join('')}
-                    </select>`)}
-                ${field('Nuevo / Usado', `
-                    <select onchange="app.state.quickAdd.productCondition=this.value" class="${inputCls}">
-                        <option value="Second-hand" ${qa.productCondition === 'Second-hand' ? 'selected' : ''}>Usado</option>
-                        <option value="New" ${qa.productCondition === 'New' ? 'selected' : ''}>Nuevo</option>
-                    </select>`)}
-                ${field('Costo (kr)', `<input type="number" min="0" step="0.5" value="${qa.cost}" oninput="app.state.quickAdd.cost=this.value" class="${inputCls}" placeholder="0">`)}
-                ${field('Precio (kr)', `<input type="number" min="0" step="0.5" value="${qa.price}" oninput="app.state.quickAdd.price=this.value" class="${inputCls}" placeholder="0">`)}
-                ${field('Stock inicial', `<input type="number" min="1" step="1" value="${qa.stock}" oninput="app.state.quickAdd.stock=this.value" class="${inputCls}">`)}
-                ${field('Portada', qa.cover
-                    ? `<div class="flex items-center gap-2"><img src="${qa.cover}" class="w-10 h-10 rounded-lg object-cover"><span class="text-[10px] text-emerald-600 font-bold">Desde Discogs ✓</span></div>`
-                    : `<span class="text-[11px] text-slate-400">Sin imagen (se puede agregar después)</span>`)}
-                ${field('Lote <span class="normal-case font-medium text-slate-300">(opcional)</span>', `
-                    <input list="qa-lot-list" value="${(qa.lot || '').replace(/"/g, '&quot;')}" oninput="app.state.quickAdd.lot=this.value" class="${inputCls}" placeholder="RUSHOUR-123">
-                    <datalist id="qa-lot-list">${this.getRecentLots(20).map(l => `<option value="${l}">`).join('')}</datalist>`)}
-            </div>
-            <p class="text-[11px] text-slate-400 mt-4 flex items-center gap-1"><i class="ph-bold ph-info"></i> Año, pressing y más detalles quedan en <b>Opciones avanzadas</b> de la ficha completa.</p>`;
-    },
-
-    // --- Paso 4: Canales ---
-    quickAddStepChannels(qa) {
-        const toggle = (key, label, desc, icon, color) => `
-            <button onclick="app.state.quickAdd.${key}=!app.state.quickAdd.${key};app.renderQuickAddStep()"
-                class="w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${qa[key] ? 'border-brand-orange bg-orange-50/50 shadow-sm' : 'border-slate-200 bg-white'}">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center ${qa[key] ? color : 'bg-slate-100 text-slate-300'}"><i class="ph-fill ${icon} text-xl"></i></div>
-                    <div class="text-left"><p class="text-sm font-bold text-brand-dark">${label}</p><p class="text-[11px] text-slate-400">${desc}</p></div>
-                </div>
-                <div class="w-11 h-6 rounded-full p-1 transition-colors ${qa[key] ? 'bg-brand-orange' : 'bg-slate-200'}">
-                    <div class="w-4 h-4 bg-white rounded-full shadow transition-transform ${qa[key] ? 'translate-x-5' : ''}"></div>
-                </div>
-            </button>`;
-        return `
-            <div class="space-y-3">
-                ${toggle('chPos', 'Tienda (POS)', 'Disponible en caja', 'ph-storefront', 'bg-orange-100 text-brand-orange')}
-                ${toggle('chWeb', 'WebShop', 'Visible en la tienda online', 'ph-globe', 'bg-blue-100 text-blue-600')}
-                ${toggle('chDiscogs', 'Discogs', 'Crea el listing al guardar (requiere datos de Discogs)', 'ph-vinyl-record', 'bg-purple-100 text-purple-600')}
-            </div>
-            ${qa.chDiscogs && !qa.discogsId ? `
-            <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 flex items-center gap-2">
-                <i class="ph-bold ph-warning"></i> Para publicar en Discogs necesitás haber elegido un release en el paso 1.
-            </div>` : ''}`;
-    },
-
-    // --- Paso 5: Revisar y guardar ---
-    quickAddStepReview(qa) {
-        const row = (k, v) => `<div class="flex justify-between py-1.5 border-b border-slate-50 last:border-0"><span class="text-xs text-slate-400 font-medium">${k}</span><span class="text-xs font-bold text-brand-dark text-right">${v || '—'}</span></div>`;
-        return `
-            <div class="bg-slate-50 rounded-2xl p-4 mb-4">
-                ${row('Disco', `${qa.artist} — ${qa.album}`)}
-                ${row('Sello / Género', `${qa.label || '—'} · ${qa.genre || '—'}`)}
-                ${row('Condición', `${qa.condition} (${qa.productCondition === 'New' ? 'Nuevo' : 'Usado'})`)}
-                ${row('Costo / Precio', `${qa.cost || 0} kr / ${qa.price || 0} kr`)}
-                ${row('Stock inicial', qa.stock)}
-                ${row('Lote', qa.lot || '—')}
-                ${row('Canales', [qa.chPos && 'Tienda', qa.chWeb && 'WebShop', qa.chDiscogs && 'Discogs'].filter(Boolean).join(' · ') || 'Ninguno')}
-            </div>
-            <p class="text-[11px] text-slate-400">Al guardar se crea el producto con SKU automático, fecha y usuario actual.</p>`;
-    },
-
-    async quickAddSave() {
-        const qa = this.state.quickAdd;
-        if (!qa) return;
-        if (qa.chDiscogs && !qa.discogsId) {
-            this.showToast('Elegí un release de Discogs en el paso 1 para publicar ahí, o desactivá el canal.');
-            return;
-        }
-        // Construir un form real con los names que espera handleAddVinyl y delegar
-        const form = document.createElement('form');
-        const set = (name, value) => {
-            const i = document.createElement('input');
-            i.type = 'hidden'; i.name = name; i.value = value ?? '';
-            form.appendChild(i);
-        };
-        const setCheck = (name, on) => { if (on) set(name, 'on'); };
-        set('artist', qa.artist.trim());
-        set('album', qa.album.trim());
-        set('genre', qa.genre.trim());
-        set('label', qa.label.trim());
-        set('condition', qa.condition);
-        set('product_condition', qa.productCondition);
-        set('provider_origin', qa.presetOrigin || (qa.productCondition === 'New' ? 'EU_B2B' : 'Local_Used'));
-        set('cost', qa.cost || '0');
-        set('price', qa.price || '0');
-        set('stock', qa.stock || '1');
-        set('year', qa.year || '');
-        set('owner', 'El Cuartito');
-        set('cover_image', qa.cover || '');
-        set('discogsId', qa.discogsId || '');
-        set('discogs_release_id', qa.discogsId || '');
-        set('discogsUrl', qa.discogsUrl || '');
-        set('lot', (qa.lot || '').trim());
-        set('tracks', JSON.stringify(qa._tracks || []));
-        setCheck('publish_local', qa.chPos);
-        setCheck('is_online', qa.chWeb);
-        setCheck('publish_discogs', qa.chDiscogs);
-        setCheck('tag_new', true); // Nuevo ingreso
-        document.body.appendChild(form);
-        const overlayId = 'quickadd-overlay';
-        try {
-            await this.handleAddVinyl({ preventDefault() {}, target: form }, '');
-            this.showToast('Producto creado');
-        } catch (err) {
-            console.error(err);
-            this.showToast('Error: ' + (err.message || 'desconocido'));
-        } finally {
-            form.remove();
-            document.getElementById(overlayId)?.remove();
-            this.state.quickAdd = null;
-        }
-    },
-
-    openAddVinylModal(editSku = null) {
-        let item = { sku: '', artist: '', album: '', genre: 'Minimal', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'EU_B2B', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
+    openAddVinylModal(editSku = null, presets = null) {
+        let item = { sku: '', artist: '', album: '', genre: '', condition: 'NM', product_condition: 'Second-hand', provider_origin: 'EU_B2B', acquisition_date: '', item_phantom_vat: 0, item_real_vat: 0, price: '', cost: '', stock: 1, owner: 'El Cuartito' };
         let isEdit = false;
 
         if (editSku) {
@@ -7085,386 +6205,229 @@ const app = {
         if (!isEdit) {
             const skuNumbers = this.state.inventory
                 .map(i => {
-                    // Match "SKU-123", "SKU - 123", "SKU  -  123", etc.
-                    const match = i.sku.match(/^SKU\s*-\s*(\d+)/);
+                    const match = (i.sku || '').match(/^SKU\s*-\s*(\d+)/);
                     return match ? parseInt(match[1]) : 0;
                 });
             const maxSku = Math.max(0, ...skuNumbers);
-            // standardized format: SKU-001 (no spaces)
             item.sku = `SKU-${String(maxSku + 1).padStart(3, '0')}`;
+            if (presets) {
+                ['lot', 'provider_origin', 'owner', 'acquisition_date'].forEach(k => { if (presets[k]) item[k] = presets[k]; });
+            }
         }
 
-        // Custom Genres Logic
-        const defaultGenres = ['Minimal', 'Techno', 'House', 'Deep House', 'Electro'];
-        const allGenres = [...new Set([...defaultGenres, ...(this.state.customGenres || [])])];
+        document.getElementById('modal-overlay')?.remove();
+
+        const esc = (v) => String(v ?? '').replace(/"/g, '&quot;');
+        const origin = item.provider_origin || 'Local_Used';
+        const cost = parseFloat(item.cost) || 0;
+        const price = parseFloat(item.price) || 0;
+        const mult = (cost > 0 && price > 0) ? (price / cost).toFixed(1) : (cost > 100 ? '2.2' : '2.5');
+        const tags = item.tags || [];
+        const isNewArrival = isEdit ? tags.includes('new_arrival') : true;
+        const grades = [['M', 'Mint'], ['NM', 'Near Mint'], ['VG+', 'Very Good Plus'], ['VG', 'Very Good'], ['G', 'Good']];
+        const seg = (name, value, label, checked, title = '') => `
+            <label class="vf-seg" ${title ? `title="${title}"` : ''}><input type="radio" name="${name}" value="${value}" ${checked ? 'checked' : ''}><span>${label}</span></label>`;
+        const sw = (name, label, desc, checked) => `
+            <label class="vf-switch-row">
+                <span><b>${label}</b><small>${desc}</small></span>
+                <input type="checkbox" name="${name}" ${checked ? 'checked' : ''}>
+                <i class="vf-switch" aria-hidden="true"></i>
+            </label>`;
+        const chip = (name, value, label, checked) => `
+            <label class="vf-chip"><input type="checkbox" name="${name}" ${value ? `value="${value}"` : ''} ${checked ? 'checked' : ''}><span>${label}</span></label>`;
+        const styleChips = ((item.genre || '') + (item.styles ? ', ' + item.styles : '')).split(',').map(t => t.trim()).filter(Boolean);
+        const collectionTag = tags.find(t => t !== 'hero' && t !== 'new_arrival') || '';
+        const hasAdvanced = !!(item.year || item.storageLocation || item.comments || item.lot || collectionTag || (item.tracks && item.tracks.length));
 
         const modalHtml = `
-    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-        <style>
-            .dashboard-card { background: white; border: 1px solid #F1F5F9; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
-            .dashboard-input { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; font-size: 13px; font-weight: 600; padding: 10px 14px; transition: all 0.2s; }
-            .dashboard-input:focus { border-color: #FF6B00; background: white; outline: none; box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.1); }
-            
-            /* Custom Toggle Switch */
-            .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
-            .switch input { opacity: 0; width: 0; height: 0; }
-            .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #E2E8F0; transition: .4s; border-radius: 34px; }
-            .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-            input:checked + .slider { background-color: #FF6B00; }
-            input:checked + .slider:before { transform: translateX(14px); }
-            
-            .meta-chip { background: #F1F5F9; color: #475569; padding: 3px 8px; border-radius: 6px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
-            .track-item { font-size: 10px; border-bottom: 1px solid #F8FAFC; padding: 4px 0; color: #64748b; }
-            .track-item:last-child { border: none; }
-            .profit-tag { background: #ECFDF5; color: #059669; padding: 4px 10px; border-radius: 99px; font-size: 10px; font-weight: 800; border: 1px solid #D1FAE5; }
-        </style>
-        
-        <div class="bg-white rounded-[32px] w-full max-w-4xl max-h-[90vh] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden border border-slate-200/50 animate-in zoom-in-95 duration-300">
-            <!-- Header -->
-            <div class="px-8 py-5 border-b border-slate-50 flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF6B00]">
-                        <i class="ph-fill ph-plus-circle text-lg"></i>
-                    </div>
-                    <h3 class="text-lg font-bold text-slate-900 tracking-tight">${isEdit ? 'Edit Record' : 'Add to Inventory'}</h3>
+    <div id="modal-overlay" class="vf-overlay">
+        <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="vf-title">
+            <header class="vf-head">
+                <div>
+                    <h3 id="vf-title" class="vf-title">${isEdit ? 'Editar disco' : 'Cargar disco'}</h3>
+                    <p class="cx-sub !mt-1">${isEdit ? item.sku : 'Buscalo en Discogs o completá los datos a mano'}</p>
                 </div>
-                <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-50 transition-colors text-slate-300 hover:text-slate-900">
-                    <i class="ph-bold ph-x"></i>
-                </a>
-            </div>
+                <button type="button" onclick="app.closeVinylForm()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+            </header>
 
-            <form id="vinyl-form" onsubmit="app.handleAddVinyl(event, '${isEdit ? item.sku : ''}')" class="flex-1 flex flex-col overflow-hidden">
-                <div class="px-8 py-4 space-y-6 overflow-hidden">
-                    
-                    <!-- Top Grid: Identity + Pricing -->
-                    <div class="grid grid-cols-12 gap-5 shrink-0">
-                        
-                        <!-- Block A: Album Identity -->
-                        <div class="col-span-12 lg:col-span-7 dashboard-card p-5 flex gap-5">
-                            <div class="relative w-28 h-28 shrink-0 group">
-                                <div id="cover-preview" class="absolute inset-0 bg-slate-50 rounded-2xl border-2 border-slate-100 border-dashed flex items-center justify-center overflow-hidden">
-                                    <img src="${item.cover_image || ''}" class="${item.cover_image ? '' : 'hidden'} w-full h-full object-cover">
-                                    <div id="cover-placeholder" class="${item.cover_image ? 'hidden' : ''}">
-                                        <i class="ph-fill ph-vinyl-record text-4xl text-slate-100"></i>
-                                    </div>
-                                </div>
-                                <div id="discogs-results" class="hidden absolute top-full left-0 w-[400px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2 mt-2 max-h-[300px] overflow-y-auto"></div>
-                            </div>
-                            
-                            <div class="flex-1 space-y-3">
-                                <div class="relative group">
-                                    <i class="ph-bold ph-magnifying-glass absolute left-3 top-[34px] text-slate-300 group-focus-within:text-[#FF6B00] text-sm"></i>
-                                    <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Search Discogs</label>
-                                    <input type="text" id="discogs-search-input" onkeypress="if(event.key === 'Enter') { event.preventDefault(); app.searchDiscogs(); }" placeholder="Artist, Title, Label..." 
-                                           autocomplete="off" spellcheck="false"
-                                           class="dashboard-input w-full pl-9 h-10">
-                                </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Artist</label>
-                                        <input name="artist" value="${item.artist}" required class="dashboard-input w-full h-10">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Album</label>
-                                        <input name="album" value="${item.album}" required class="dashboard-input w-full h-10">
-                                    </div>
-                                </div>
-                            </div>
+            <form id="vinyl-form" data-edit="${isEdit ? '1' : '0'}" onsubmit="app.vfSubmit(event, '${isEdit ? item.sku : ''}')" class="vf-form">
+                <div class="vf-body">
+
+                    <!-- Buscar -->
+                    <div>
+                        <div class="cx-search">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" id="discogs-search-input" autocomplete="off" spellcheck="false"
+                                placeholder="Buscar en Discogs: artista, título o ID"
+                                onkeydown="if(event.key === 'Enter') { event.preventDefault(); app.searchDiscogs(); }">
                         </div>
-
-                        <!-- Block B: Pricing & Margins -->
-                        <div class="col-span-12 lg:col-span-5 dashboard-card p-5 bg-slate-50/30 border-dashed flex flex-col justify-center">
-                            <div class="space-y-3 mb-3">
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Buy Cost</label>
-                                    <input name="cost" id="modal-cost" type="number" step="0.5" value="${item.cost || 0}" oninput="app.onCostChange()" class="dashboard-input w-full h-10">
-                                </div>
-                                <div id="multiplier-row" class="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-slate-100">
-                                    <i class="ph-bold ph-x text-[10px] text-slate-400"></i>
-                                    <input type="number" id="modal-multiplier" step="0.1" min="1" value="${(() => { const c = parseFloat(item.cost) || 0; const p = parseFloat(item.price) || 0; if (c > 0 && p > 0) return (p / c).toFixed(1); return c > 100 ? '2.2' : '2.5'; })()}" oninput="app.applyPriceMultiplier()" class="w-16 text-center font-black text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-1 py-1 focus:border-[#FF6B00] focus:bg-white outline-none transition-all">
-                                    <span id="multiplier-label" class="text-[9px] font-bold uppercase tracking-wider ${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'text-amber-600' : 'text-emerald-600'; })()}">${(() => { const c = parseFloat(item.cost) || 0; return c > 100 ? 'Disco caro (+100kr)' : 'Disco barato (≤100kr)'; })()}</span>
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-bold text-slate-400 uppercase block">Retail Price</label>
-                                    <input name="price" id="modal-price" type="number" step="0.5" value="${item.price || 0}" oninput="app.calculateProfit()" class="dashboard-input w-full h-10 border-[#FF6B00]/40 bg-white">
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-xl px-4 py-2 border border-slate-100 flex items-center justify-between">
-                                <p id="profit-percent" class="text-lg font-black text-slate-900 leading-none">0%</p>
-                                <span id="profit-label" class="profit-tag">+$0.00</span>
-                            </div>
-
-                            <!-- Provider Origin & Phantom VAT -->
-                            <div class="mt-3 space-y-2">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Provider Origin</label>
-                                        <select name="provider_origin" id="modal-provider-origin" onchange="app.onProviderOriginChange()" class="dashboard-input w-full h-10 bg-white">
-                                            <option value="Local_Used" ${item.provider_origin === 'Local_Used' || !item.provider_origin ? 'selected' : ''}>🏪 Local</option>
-                                            <option value="EU_B2B" ${item.provider_origin === 'EU_B2B' ? 'selected' : ''}>🇪🇺 EU B2B (Factura)</option>
-                                            <option value="DK_B2B" ${item.provider_origin === 'DK_B2B' ? 'selected' : ''}>🇩🇰 DK B2B (Factura)</option>
-                                        </select>
-                                    </div>
-                                    <div id="acquisition-date-container" class="space-y-1 ${item.provider_origin === 'EU_B2B' || item.provider_origin === 'DK_B2B' ? '' : 'hidden'}">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Fecha Factura</label>
-                                        <input name="acquisition_date" id="modal-acquisition-date" type="date" value="${item.acquisition_date || new Date().toISOString().split('T')[0]}" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                </div>
-                                <div id="phantom-vat-preview" class="${item.provider_origin === 'EU_B2B' ? '' : 'hidden'} bg-blue-50 rounded-lg px-3 py-2 border border-blue-100 flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-bold ph-receipt text-blue-500 text-sm"></i>
-                                        <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">EU Reverse Charge (25%)</span>
-                                    </div>
-                                    <span id="phantom-vat-amount" class="text-sm font-black text-blue-700">${item.item_phantom_vat ? item.item_phantom_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</span>
-                                </div>
-                                <div id="real-vat-preview" class="${item.provider_origin === 'DK_B2B' ? '' : 'hidden'} bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-100 flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-bold ph-receipt text-emerald-500 text-sm"></i>
-                                        <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">IVA Factura DK (25%)</span>
-                                    </div>
-                                    <span id="real-vat-amount" class="text-sm font-black text-emerald-700">${item.item_real_vat ? item.item_real_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div id="discogs-results" class="hidden vf-results"></div>
+                        <div id="vf-dup"></div>
                     </div>
 
-                    <!-- Metadata Area -->
-                    <div id="discogs-metadata-area" class="${isEdit ? '' : 'hidden'} dashboard-card overflow-hidden">
-                        <div class="bg-slate-50 border-b border-slate-100 flex items-center justify-between px-5 py-2">
-                             <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Discogs Info</h5>
-                             <a id="discogs-link" href="${item.discogsUrl || '#'}" target="_blank" class="${item.discogsUrl ? '' : 'hidden'} text-[10px] font-bold text-[#FF6B00] hover:underline flex items-center gap-1">
-                                <i class="ph-bold ph-disc"></i> View release
-                             </a>
-                        </div>
-                        <div class="px-5 py-3 grid grid-cols-12 gap-4">
-                            <div class="col-span-4">
-                                <p class="text-[8px] font-bold text-slate-400 uppercase mb-1.5">Genres & Styles</p>
-                                <div id="metadata-tags" class="flex flex-wrap gap-1 min-h-[20px]">
-                                    ${((item.genre || '') + (item.styles ? ', ' + item.styles : '')).split(',').filter(t => t.trim()).map(t => `<span class="meta-chip border border-slate-200">${t.trim()}</span>`).join('')}
-                                </div>
+                    <!-- El disco -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">El disco</h4>
+                        <div class="flex gap-4">
+                            <div id="cover-preview" class="vf-cover">
+                                <img src="${esc(item.cover_image)}" alt="" class="${item.cover_image ? '' : 'hidden'} w-full h-full object-cover">
+                                <div id="cover-placeholder" class="${item.cover_image ? 'hidden' : ''}"><i class="ph ph-vinyl-record"></i></div>
                             </div>
-                            <div class="col-span-8 border-l border-slate-100 pl-4">
-                                <p class="text-[8px] font-bold text-slate-400 uppercase mb-1.5">Reference Tracklist</p>
-                                <div id="metadata-tracks" class="max-h-28 overflow-y-auto pr-2 custom-scrollbar space-y-0.5">
-                                    ${item.tracks && item.tracks.length > 0
-                ? item.tracks.map(t => `<div class="track-item flex justify-between gap-4 py-1 border-b border-slate-50 last:border-0">
-                                            <span class="font-bold w-6 opacity-40 shrink-0 capitalize text-[9px]">${t.position || '•'}</span>
-                                            <span class="flex-1 truncate font-medium text-slate-600 text-[10px]">${t.title}</span>
-                                            <span class="opacity-40 text-[9px] font-mono shrink-0">${t.duration || ''}</span>
-                                        </div>`).join('')
-                : '<p class="text-[10px] text-slate-400 italic">Select a Discogs result to load tracks...</p>'}
-                                </div>
+                            <div class="flex-1 min-w-0 space-y-3">
+                                <label class="vf-field"><span>Artista</span>
+                                    <input name="artist" value="${esc(item.artist)}" required class="vf-input" onchange="app.vfCheckDuplicates()"></label>
+                                <label class="vf-field"><span>Título</span>
+                                    <input name="album" value="${esc(item.album)}" required class="vf-input" onchange="app.vfCheckDuplicates()"></label>
                             </div>
                         </div>
-                    </div>
+                        <label class="vf-field mt-3"><span>Sello</span>
+                            <input name="label" value="${esc(item.label)}" class="vf-input"></label>
 
-                    <!-- Additional Details & Channels -->
-                    <div class="grid grid-cols-12 gap-5 items-start">
-                        <!-- Left: Record Details -->
-                        <div class="col-span-8 space-y-4">
-                            <!-- Núcleo: lo esencial para cargar rápido -->
-                            <div class="grid grid-cols-5 gap-3">
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Vinyl Grade</label>
-                                    <select name="condition" class="dashboard-input w-full h-10 bg-white">
-                                        <option value="M" ${item.condition === 'M' ? 'selected' : ''}>M (Mint)</option>
-                                        <option value="NM" ${item.condition === 'NM' || !item.condition ? 'selected' : ''}>NM (Near Mint)</option>
-                                        <option value="VG+" ${item.condition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
-                                        <option value="VG" ${item.condition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
-                                        <option value="G" ${item.condition === 'G' ? 'selected' : ''}>G (Good)</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Stock</label>
-                                    <input name="stock" type="number" value="${item.stock || 1}" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Genre</label>
-                                    <input name="genre" id="genre-1" value="${item.genre || ''}" placeholder="e.g. Minimal" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Label / Sello</label>
-                                    <input name="label" value="${item.label || ''}" placeholder="Record label" class="dashboard-input w-full h-10 bg-white">
-                                </div>
-                                <div class="space-y-1">
-                                    <label class="text-[9px] font-black text-slate-400 uppercase block">Owner</label>
-                                    <select name="owner" id="modal-owner" class="dashboard-input w-full h-10 bg-white">
-                                        <option value="El Cuartito" ${item.owner === 'El Cuartito' || !item.owner ? 'selected' : ''}>El Cuartito</option>
-                                        ${this.state.consignors.map(c => `<option value="${c.name}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
-                                    </select>
-                                </div>
+                        <div class="vf-field mt-3"><span>Géneros <em>(hasta 3, el primero es el principal)</em></span>
+                            <div class="grid grid-cols-3 gap-2">
+                                <input name="genre" id="genre-1" value="${esc(item.genre)}" placeholder="Principal" class="vf-input">
+                                <input name="genre2" id="genre-2" value="${esc(item.genre2)}" placeholder="Opcional" class="vf-input">
+                                <input name="genre3" id="genre-3" value="${esc(item.genre3)}" placeholder="Opcional" class="vf-input">
                             </div>
-                            <!-- Blueprint Sec 06: Opciones avanzadas colapsadas por defecto -->
-                            ${(() => {
-                                const hasAdvanced = !!(item.sleeveCondition || item.year || item.genre2 || item.genre3 || item.storageLocation || item.comments);
-                                return `
-                            <button type="button" onclick="app.toggleVinylAdvanced()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-dashed border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange transition-all">
-                                <span class="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                                    <i class="ph-bold ph-sliders-horizontal"></i> Opciones avanzadas
-                                    ${hasAdvanced ? '<span class="text-[9px] bg-orange-100 text-brand-orange px-1.5 py-0.5 rounded-full normal-case tracking-normal">con datos</span>' : ''}
-                                </span>
-                                <i id="vinyl-advanced-caret" class="ph-bold ${hasAdvanced ? 'ph-caret-up' : 'ph-caret-down'}"></i>
-                            </button>
-                            <div id="vinyl-advanced-options" class="${hasAdvanced ? '' : 'hidden'} space-y-4 animate-fade-in">
-                                <div class="grid grid-cols-3 gap-3">
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Sleeve Grade</label>
-                                        <select name="sleeveCondition" class="dashboard-input w-full h-10 bg-white">
-                                            <option value="" ${!item.sleeveCondition ? 'selected' : ''}>—</option>
-                                            <option value="M" ${item.sleeveCondition === 'M' ? 'selected' : ''}>M (Mint)</option>
-                                            <option value="NM" ${item.sleeveCondition === 'NM' ? 'selected' : ''}>NM (Near Mint)</option>
-                                            <option value="VG+" ${item.sleeveCondition === 'VG+' ? 'selected' : ''}>VG+ (Very Good Plus)</option>
-                                            <option value="VG" ${item.sleeveCondition === 'VG' ? 'selected' : ''}>VG (Very Good)</option>
-                                            <option value="G" ${item.sleeveCondition === 'G' ? 'selected' : ''}>G (Good)</option>
-                                            <option value="Generic" ${item.sleeveCondition === 'Generic' ? 'selected' : ''}>Generic</option>
-                                            <option value="No Cover" ${item.sleeveCondition === 'No Cover' ? 'selected' : ''}>No Cover</option>
-                                        </select>
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Year / Pressing</label>
-                                        <input name="year" value="${item.year || ''}" placeholder="e.g. 2023" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Storage Location</label>
-                                        <input name="storageLocation" value="${item.storageLocation || ''}" placeholder="e.g. Shelf A" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Lote</label>
-                                        <input name="lot" list="vinyl-lot-list" value="${(item.lot || '').replace(/"/g, '&quot;')}" placeholder="RUSHOUR-123" class="dashboard-input w-full h-10 bg-white">
-                                        <datalist id="vinyl-lot-list">${this.getRecentLots(20).map(l => `<option value="${l}">`).join('')}</datalist>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-3 gap-3">
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 2</label>
-                                        <input name="genre2" id="genre-2" value="${item.genre2 || ''}" placeholder="e.g. Techno" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Genre 3</label>
-                                        <input name="genre3" id="genre-3" value="${item.genre3 || ''}" placeholder="e.g. Deep House" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                    <div class="space-y-1">
-                                        <label class="text-[9px] font-black text-slate-400 uppercase block">Comments</label>
-                                        <input name="comments" value="${item.comments || ''}" placeholder="Optional notes" class="dashboard-input w-full h-10 bg-white">
-                                    </div>
-                                </div>
-                            </div>`;
-                            })()}
+                            <div id="metadata-tags" class="vf-suggest">${styleChips.map(g => `<button type="button" class="vf-suggest-chip" onclick="app.vfAddGenre('${g.replace(/'/g, "\\'")}')">${g}</button>`).join('')}</div>
                         </div>
 
-                        <!-- Right Column: Channels & Shop Visibility -->
-                        <div class="col-span-4 space-y-4">
-                            
-                            <!-- Channels (Compact Toggles) -->
-                            <div class="dashboard-card p-4 space-y-3 bg-slate-50 border-dashed">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-fill ph-vinyl-record text-slate-900 text-xs"></i>
-                                        <span class="text-[10px] font-bold text-slate-700">Discogs</span>
-                                    </div>
-                                    <label class="switch">
-                                        <input type="checkbox" name="publish_discogs" ${item.publish_discogs || item.discogs_listing_id ? 'checked' : ''}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-fill ph-storefront text-[#FF6B00] text-xs"></i>
-                                        <span class="text-[10px] font-bold text-slate-700">Online Web</span>
-                                    </div>
-                                    <label class="switch">
-                                        <input type="checkbox" name="is_online" ${item.is_online !== false ? 'checked' : ''}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-fill ph-storefront text-[#10B981] text-xs"></i>
-                                        <span class="text-[10px] font-bold text-slate-700">In-Store POS</span>
-                                    </div>
-                                    <label class="switch">
-                                        <input type="checkbox" name="publish_local" ${item.publish_local !== false ? 'checked' : ''}>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Shop Visibility (Tags) -->
-                            <div class="dashboard-card p-4 bg-orange-50/30 border-orange-100">
-                                <h5 class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Shop Visibility</h5>
-                                <div class="space-y-3">
-                                    
-                                    <!-- Hero Toggle -->
-                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
-                                        <div class="relative flex items-center">
-                                            <input type="checkbox" name="tag_hero" value="hero" ${item.tags && item.tags.includes('hero') ? 'checked' : ''} class="peer h-4 w-4 text-[#FF6B00] border-slate-300 rounded focus:ring-[#FF6B00]">
-                                        </div>
-                                        <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">Hero / Destacado</span>
-                                    </label>
-
-                                    <!-- New Arrival Toggle -->
-                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
-                                        <div class="relative flex items-center">
-                                            <input type="checkbox" name="tag_new" value="new_arrival" ${item.tags && item.tags.includes('new_arrival') ? 'checked' : ''} class="peer h-4 w-4 text-[#FF6B00] border-slate-300 rounded focus:ring-[#FF6B00]">
-                                        </div>
-                                        <span class="text-xs font-bold text-slate-700 group-hover:text-[#FF6B00] transition-colors">💥 New Arrival / Novedad</span>
-                                    </label>
-
-                                    <!-- RSD Discount Toggle -->
-                                    <label class="flex items-center gap-3 cursor-pointer group p-2 hover:bg-white rounded-lg transition-colors">
-                                        <div class="relative flex items-center">
-                                            <input type="checkbox" name="is_rsd_discount" ${item.is_rsd_discount ? 'checked' : ''} class="peer h-4 w-4 text-orange-500 border-slate-300 rounded focus:ring-orange-500">
-                                        </div>
-                                        <span class="text-xs font-bold text-slate-700 group-hover:text-orange-500 transition-colors">🎉 10% Descuento RSD</span>
-                                    </label>
-
-                                    <div class="h-px bg-slate-100 my-2"></div>
-                                    <p class="text-[8px] font-bold text-slate-400 uppercase mb-2">Collection / Agrupación</p>
-
-                                    <div class="relative">
-                                        <input name="collection_tag" list="collections-list" 
-                                            value="${(item.tags || []).find(t => t !== 'hero' && t !== 'new_arrival') || ''}" 
-                                            placeholder="Escribe para crear o buscar..." 
-                                            class="dashboard-input w-full h-10 bg-white border-orange-200 focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] text-xs">
-                                        <datalist id="collections-list">
-                                            ${[...new Set(this.state.inventory.flatMap(i => i.tags || []).filter(t => t !== 'hero' && t !== 'new_arrival'))].map(tag => `<option value="${tag}">`).join('')}
-                                        </datalist>
-                                        <i class="ph-bold ph-magnifying-glass absolute right-3 top-3 text-slate-400 pointer-events-none text-xs"></i>
-                                    </div>
-                                    <p class="text-[9px] text-slate-400 mt-1 italic">Si escribes un nombre nuevo, se creará una nueva colección.</p>
-                                </div>
-                            </div>
-
+                        <div class="vf-field mt-3"><span>Estado del vinilo</span>
+                            <div class="vf-segs">${grades.map(([g, t]) => seg('condition', g, g, (item.condition || 'NM') === g, t)).join('')}</div>
                         </div>
+                        <div class="vf-field mt-3"><span>Estado de la funda</span>
+                            <div class="vf-segs">
+                                ${seg('sleeveCondition', '', '—', !item.sleeveCondition, 'Sin indicar')}
+                                ${grades.map(([g, t]) => seg('sleeveCondition', g, g, item.sleeveCondition === g, t)).join('')}
+                                ${seg('sleeveCondition', 'Generic', 'Genérica', item.sleeveCondition === 'Generic')}
+                                ${seg('sleeveCondition', 'No Cover', 'Sin funda', item.sleeveCondition === 'No Cover')}
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Precio -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">Precio y stock</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="vf-field"><span>Costo (kr)</span>
+                                <input name="cost" id="modal-cost" type="number" step="0.5" min="0" value="${item.cost || 0}" oninput="app.onCostChange()" class="vf-input"></label>
+                            <label class="vf-field"><span>Precio de venta (kr)</span>
+                                <input name="price" id="modal-price" type="number" step="0.5" min="0" value="${item.price || 0}" oninput="app.calculateProfit()" class="vf-input is-strong"></label>
+                        </div>
+                        <div id="multiplier-row" class="vf-mult">
+                            <span class="vf-mini-label">Multiplicar costo</span>
+                            ${['2', '2.2', '2.5', '3'].map(m => `<button type="button" data-mult="${m}" onclick="app.vfSetMultiplier('${m}')" class="vf-mult-chip ${String(parseFloat(mult)) === m ? 'is-on' : ''}">×${m}</button>`).join('')}
+                            <input type="number" id="modal-multiplier" step="0.1" min="1" value="${mult}" oninput="app.applyPriceMultiplier()" class="vf-mult-input" aria-label="Multiplicador personalizado">
+                            <span id="multiplier-label" class="vf-hint">${cost > 100 ? 'Disco caro (+100kr)' : 'Disco barato (≤100kr)'}</span>
+                        </div>
+                        <div class="vf-margin">
+                            <div><span class="vf-mini-label">Margen</span><p id="profit-percent">0%</p></div>
+                            <span id="profit-label" class="profit-tag">+0 kr</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <div class="vf-field"><span>Stock</span>
+                                <div class="vf-stepper">
+                                    <button type="button" onclick="app.vfStep(-1)" aria-label="Restar uno"><i class="ph ph-minus"></i></button>
+                                    <input name="stock" type="number" min="0" value="${item.stock ?? 1}">
+                                    <button type="button" onclick="app.vfStep(1)" aria-label="Sumar uno"><i class="ph ph-plus"></i></button>
+                                </div>
+                            </div>
+                            <label class="vf-field"><span>Dueño</span>
+                                <select name="owner" id="modal-owner" class="vf-input">
+                                    <option value="El Cuartito" ${item.owner === 'El Cuartito' || !item.owner ? 'selected' : ''}>El Cuartito</option>
+                                    ${this.state.consignors.map(c => `<option value="${esc(c.name)}" data-split="${c.agreementSplit}" ${item.owner === c.name ? 'selected' : ''}>${c.name} (consignación)</option>`).join('')}
+                                </select></label>
+                        </div>
+
+                        <div class="vf-field mt-4"><span>Origen de la compra</span>
+                            <input type="hidden" name="provider_origin" id="modal-provider-origin" value="${origin}">
+                            <div class="vf-segs is-wide">
+                                <button type="button" data-origin="Local_Used" onclick="app.vfSetOrigin('Local_Used')" class="vf-seg-btn ${origin === 'Local_Used' ? 'is-on' : ''}">Local / usado</button>
+                                <button type="button" data-origin="EU_B2B" onclick="app.vfSetOrigin('EU_B2B')" class="vf-seg-btn ${origin === 'EU_B2B' ? 'is-on' : ''}">Factura UE</button>
+                                <button type="button" data-origin="DK_B2B" onclick="app.vfSetOrigin('DK_B2B')" class="vf-seg-btn ${origin === 'DK_B2B' ? 'is-on' : ''}">Factura DK</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 mt-3 items-end">
+                            <label id="acquisition-date-container" class="vf-field ${origin === 'EU_B2B' || origin === 'DK_B2B' ? '' : 'hidden'}"><span>Fecha de factura</span>
+                                <input name="acquisition_date" id="modal-acquisition-date" type="date" value="${item.acquisition_date || new Date().toISOString().split('T')[0]}" class="vf-input"></label>
+                            <div id="phantom-vat-preview" class="vf-vat ${origin === 'EU_B2B' ? '' : 'hidden'}">
+                                <span>Reverse charge UE 25%</span><b id="phantom-vat-amount">${item.item_phantom_vat ? item.item_phantom_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</b>
+                            </div>
+                            <div id="real-vat-preview" class="vf-vat ${origin === 'DK_B2B' ? '' : 'hidden'}">
+                                <span>IVA factura DK 25%</span><b id="real-vat-amount">${item.item_real_vat ? item.item_real_vat.toFixed(2) + ' DKK' : '0.00 DKK'}</b>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Dónde se vende -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">Dónde se vende</h4>
+                        ${sw('publish_local', 'Tienda', 'Disponible en la caja (POS)', item.publish_local !== false)}
+                        ${sw('is_online', 'Web shop', 'Visible en elcuartito.dk', item.is_online !== false)}
+                        ${sw('publish_discogs', 'Discogs', 'Crea o actualiza el listing al guardar. Necesita un release elegido arriba.', !!(item.publish_discogs || item.discogs_listing_id))}
+                        <div class="flex flex-wrap gap-2 mt-4">
+                            ${chip('tag_hero', 'hero', 'Destacado', tags.includes('hero'))}
+                            ${chip('tag_new', 'new_arrival', 'Novedad', isNewArrival)}
+                            ${chip('is_rsd_discount', '', '10% RSD', !!item.is_rsd_discount)}
+                        </div>
+                    </section>
+
+                    <!-- Más detalles -->
+                    <div>
+                        <button type="button" onclick="app.toggleVinylAdvanced()" class="vf-more">
+                            <span>Más detalles <em>año, ubicación, lote, colección, notas, tracklist</em></span>
+                            <i id="vinyl-advanced-caret" class="ph ${hasAdvanced ? 'ph-caret-up' : 'ph-caret-down'}"></i>
+                        </button>
+                        <section id="vinyl-advanced-options" class="${hasAdvanced ? '' : 'hidden'} vf-card mt-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="vf-field"><span>Año / prensaje</span>
+                                    <input name="year" value="${esc(item.year)}" placeholder="2023" class="vf-input"></label>
+                                <label class="vf-field"><span>Ubicación</span>
+                                    <input name="storageLocation" value="${esc(item.storageLocation)}" placeholder="Estante A" class="vf-input"></label>
+                                <label class="vf-field"><span>Lote</span>
+                                    <input name="lot" list="vinyl-lot-list" value="${esc(item.lot)}" placeholder="RUSHOUR-123" class="vf-input">
+                                    <datalist id="vinyl-lot-list">${this.getRecentLots(20).map(l => `<option value="${esc(l)}">`).join('')}</datalist></label>
+                                <label class="vf-field"><span>Colección</span>
+                                    <input name="collection_tag" list="collections-list" value="${esc(collectionTag)}" placeholder="Nueva o existente" class="vf-input">
+                                    <datalist id="collections-list">${[...new Set(this.state.inventory.flatMap(i => i.tags || []).filter(t => t !== 'hero' && t !== 'new_arrival'))].map(t => `<option value="${esc(t)}">`).join('')}</datalist></label>
+                            </div>
+                            <label class="vf-field mt-3"><span>Notas</span>
+                                <input name="comments" value="${esc(item.comments)}" placeholder="Opcional" class="vf-input"></label>
+                            <div id="discogs-metadata-area" class="${item.tracks && item.tracks.length ? '' : 'hidden'} mt-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="vf-mini-label">Tracklist</span>
+                                    <a id="discogs-link" href="${esc(item.discogsUrl || '#')}" target="_blank" rel="noopener" class="${item.discogsUrl ? '' : 'hidden'} text-xs font-semibold underline">Ver en Discogs</a>
+                                </div>
+                                <div id="metadata-tracks" class="vf-tracks">
+                                    ${(item.tracks || []).map(t => `<div class="track-item flex justify-between gap-4"><span class="w-8 opacity-50 shrink-0">${t.position || '•'}</span><span class="flex-1 truncate">${t.title}</span><span class="opacity-50 shrink-0">${t.duration || ''}</span></div>`).join('')}
+                                </div>
+                            </div>
+                        </section>
                     </div>
                 </div>
 
                 <!-- Hidden Fields -->
-                <input type="hidden" name="cover_image" id="input-cover-image" value="${item.cover_image || ''}">
-                <input type="hidden" name="discogs_release_id" id="input-discogs-release-id" value="${item.discogs_release_id || ''}">
-                <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${item.discogsUrl || ''}">
-                <input type="hidden" name="discogsId" id="input-discogs-id" value="${item.discogsId || ''}">
-                <input type="hidden" name="sku" value="${item.sku}">
-                <!-- New Hidden Input for Tracks (JSON) -->
+                <input type="hidden" name="cover_image" id="input-cover-image" value="${esc(item.cover_image)}">
+                <input type="hidden" name="discogs_release_id" id="input-discogs-release-id" value="${esc(item.discogs_release_id)}">
+                <input type="hidden" name="discogsUrl" id="input-discogs-url" value="${esc(item.discogsUrl)}">
+                <input type="hidden" name="discogsId" id="input-discogs-id" value="${esc(item.discogsId)}">
+                <input type="hidden" name="sku" value="${esc(item.sku)}">
                 <input type="hidden" name="tracks" id="input-tracks" value='${item.tracks ? JSON.stringify(item.tracks).replace(/'/g, "&#39;") : ""}'>
-                <!-- label is now a visible field above -->
 
-                <!-- Footer Actions -->
-                <div class="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SKU: <span class="text-slate-900">${item.sku}</span></p>
-                    <div class="flex gap-4">
-                        <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="text-sm font-bold text-slate-400 hover:text-slate-900 transition-colors">Cancel</a>
-                        <button type="submit" class="bg-[#FF6B00] text-white px-10 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2">
-                            <i class="ph-bold ph-plus"></i>
-                            ${isEdit ? 'Update Inventory' : 'Add to Inventory'}
-                        </a>
+                <footer class="vf-foot">
+                    <button type="button" onclick="app.closeVinylForm()" class="cx-btn">Cancelar</button>
+                    <div class="flex gap-2">
+                        ${isEdit ? '' : `<button type="submit" data-again="1" class="cx-btn">Guardar y cargar otro</button>`}
+                        <button type="submit" class="cx-btn is-primary">${isEdit ? 'Guardar cambios' : 'Guardar disco'}</button>
                     </div>
-                </div>
+                </footer>
             </form>
-        </div>
-    </div>
-                `;
+        </aside>
+    </div>`;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+        this.calculateMargin();
+        if (!isEdit) document.getElementById('discogs-search-input')?.focus();
     },
 
     // --- Product Detail View (Ficha) ---
@@ -7634,7 +6597,7 @@ const app = {
             const profit = price - cost;
             const margin = (profit / price) * 100;
             profitPercent.innerText = `${Math.round(margin)}%`;
-            profitLabel.innerText = `${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`;
+            profitLabel.innerText = `${profit >= 0 ? '+' : ''}${Math.round(profit)} kr`;
 
             if (profit >= 0) {
                 profitLabel.className = 'profit-tag';
@@ -7643,7 +6606,7 @@ const app = {
             }
         } else {
             profitPercent.innerText = '0%';
-            profitLabel.innerText = '+$0.00';
+            profitLabel.innerText = '+0 kr';
             profitLabel.className = 'profit-tag';
         }
     },
@@ -7667,13 +6630,13 @@ const app = {
                 multiplierInput.value = '2.2';
                 if (multiplierLabel) {
                     multiplierLabel.textContent = 'Disco caro (+100kr)';
-                    multiplierLabel.className = 'text-[9px] font-bold uppercase tracking-wider text-amber-600';
+                    multiplierLabel.className = 'vf-hint';
                 }
             } else {
                 multiplierInput.value = '2.5';
                 if (multiplierLabel) {
                     multiplierLabel.textContent = 'Disco barato (≤100kr)';
-                    multiplierLabel.className = 'text-[9px] font-bold uppercase tracking-wider text-emerald-600';
+                    multiplierLabel.className = 'vf-hint';
                 }
             }
         }
@@ -7698,6 +6661,7 @@ const app = {
             const rounded = Math.round(raw / 5) * 5;
             priceInput.value = rounded;
         }
+        document.querySelectorAll('[data-mult]').forEach(b => b.classList.toggle('is-on', parseFloat(b.dataset.mult) === multiplier));
 
         this.calculateMargin();
     },
@@ -8069,18 +7033,18 @@ const app = {
         // Helpers for aesthetics
         const getStatusTheme = (status) => {
             const themes = {
-                'created': { icon: 'ph-shopping-cart', color: 'bg-slate-100 text-slate-500', label: 'Recibido' },
-                'preparing': { icon: 'ph-package', color: 'bg-blue-100 text-blue-600', label: 'En Preparación' },
-                'ready_for_pickup': { icon: 'ph-storefront', color: 'bg-emerald-100 text-emerald-600', label: 'Listo para Retiro' },
-                'in_transit': { icon: 'ph-truck', color: 'bg-orange-100 text-orange-600', label: 'En Tránsito' },
-                'label_created': { icon: 'ph-tag', color: 'bg-blue-100 text-blue-700', label: 'Etiqueta Creada' },
-                'shipped': { icon: 'ph-archive', color: 'bg-green-100 text-green-600', label: 'Despachado' },
-                'picked_up': { icon: 'ph-check-circle', color: 'bg-green-100 text-green-600', label: 'Retirado' },
-                'completed': { icon: 'ph-check-circle', color: 'bg-green-100 text-green-600', label: 'Confirmado' },
-                'failed': { icon: 'ph-x-circle', color: 'bg-red-100 text-red-600', label: 'Fallido' },
-                'PENDING': { icon: 'ph-clock', color: 'bg-yellow-100 text-yellow-600', label: 'Pendiente' }
+                'created': { cls: 'is-done', label: 'Recibido' },
+                'preparing': { cls: 'is-wait', label: 'En preparación' },
+                'ready_for_pickup': { cls: 'is-ok', label: 'Listo para retiro' },
+                'in_transit': { cls: 'is-wait', label: 'En tránsito' },
+                'label_created': { cls: 'is-wait', label: 'Etiqueta creada' },
+                'shipped': { cls: 'is-ok', label: 'Despachado' },
+                'picked_up': { cls: 'is-ok', label: 'Retirado' },
+                'completed': { cls: 'is-ok', label: 'Confirmado' },
+                'failed': { cls: 'is-hot', label: 'Fallido' },
+                'PENDING': { cls: 'is-wait', label: 'Pendiente' }
             };
-            return themes[status] || { icon: 'ph-info', color: 'bg-slate-100', label: status };
+            return themes[status] || { cls: 'is-done', label: status };
         };
 
         const subtotal = sale.items ? sale.items.reduce((sum, item) => sum + ((item.unitPrice || item.priceAtSale || item.record?.price || 0) * (item.qty || item.quantity || 1)), 0) : (sale.total || 0);
@@ -8088,216 +7052,125 @@ const app = {
         const shippingVat = shippingCost * 0.20;
         const fees = (sale.discogsFee || 0) + (sale.paypalFee || 0);
         const total = sale.total_amount || sale.total || (subtotal + shippingCost);
+        const fulfillBtn = (active, onclick, icon, label) => `
+            <button onclick="${onclick}" class="vf-seg-btn ${active ? 'is-on' : ''}"><i class="ph ${icon}"></i> ${label}</button>`;
 
         const modalHtml = `
-        <div id="unified-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div class="bg-white rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl relative animate-fadeIn flex flex-col max-h-[90vh]">
-                
-                <!-- Header -->
-                <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[10px] font-bold text-brand-orange uppercase tracking-widest">Orden #${sale.orderNumber || sale.id.slice(0, 8)}</span>
+        <div id="unified-modal" class="vf-overlay" onclick="if (event.target === this) this.remove()">
+            <aside class="vf-panel cx-view !max-w-[640px]" role="dialog" aria-modal="true" aria-labelledby="order-title">
+                <header class="vf-head">
+                    <div class="min-w-0">
+                        <h3 id="order-title" class="vf-title">Pedido #${sale.orderNumber || sale.id.slice(0, 8)}</h3>
+                        <div class="flex items-center gap-1.5 mt-2 flex-wrap">
                             ${this.saleChannelBadge(sale)}
-                            <span class="px-2 py-0.5 rounded-full ${getStatusTheme(sale.status).color} text-[9px] font-bold uppercase">${getStatusTheme(sale.status).label}</span>
+                            <span class="cx-state ${getStatusTheme(sale.status).cls}">${getStatusTheme(sale.status).label}</span>
+                            <span class="text-xs text-stone-500 ml-1">${createdDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
                         </div>
-                        <h2 class="font-display text-2xl font-bold text-brand-dark">Detalle de Venta</h2>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <button onclick="window.print()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
-                            <i class="ph-bold ph-printer text-xl"></i>
-                        </a>
-                        <button onclick="document.getElementById('unified-modal').remove()" class="w-10 h-10 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-dark flex items-center justify-center transition-colors">
-                            <i class="ph-bold ph-x text-xl"></i>
-                        </a>
+                    <div class="flex gap-2 shrink-0">
+                        <button onclick="window.print()" class="cx-btn is-icon" title="Imprimir" aria-label="Imprimir"><i class="ph ph-printer"></i></button>
+                        <button onclick="document.getElementById('unified-modal').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
                     </div>
-                </div>
+                </header>
 
-                <!-- Content -->
-                <div class="p-6 overflow-y-auto custom-scrollbar flex-1">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        
-                        <!-- Left Column: Order Info & Items -->
-                        <div class="lg:col-span-2 space-y-8">
-                            
-                            <!-- Status Summary -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Canal de Venta</p>
-                                    <div class="flex items-center gap-2">
-                                        <i class="ph-fill ${sale.channel === 'online' ? 'ph-globe' : (sale.channel === 'discogs' ? 'ph-vinyl-record' : 'ph-storefront')} text-brand-orange"></i>
-                                        <span class="font-bold text-brand-dark capitalize">${sale.channel || sale.soldAt || 'Local'}</span>
-                                    </div>
+                <div class="vf-body">
+                    <!-- Resumen -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="cx-tile cx-dark col-span-3 sm:col-span-1">
+                            <span class="cx-tile-label">Total</span>
+                            <b class="cx-tile-value">${this.formatCurrency(total)}</b>
+                        </div>
+                        <div class="cx-tile cx-frost">
+                            <span class="cx-tile-label">Canal</span>
+                            <b class="text-lg font-semibold capitalize">${sale.channel || sale.soldAt || 'Local'}</b>
+                        </div>
+                        <div class="cx-tile cx-frost">
+                            <span class="cx-tile-label">Envío</span>
+                            <b class="text-lg font-semibold capitalize">${(sale.fulfillment_status || 'Pendiente').replace('_', ' ')}</b>
+                        </div>
+                    </div>
+
+                    <!-- Discos -->
+                    <section class="vf-card !p-2">
+                        <h4 class="vf-h px-3 pt-2 !mb-1">Discos (${(sale.items || []).reduce((n, i) => n + (Number(i.quantity || i.qty) || 1), 0)})</h4>
+                        ${(sale.items || []).map(item => `
+                            <div class="flex items-center gap-3 px-3 py-2.5">
+                                <span class="cx-cover !w-11 !h-11"><img src="${this.resolveItemCover(item) || 'https://elcuartito.dk/default-vinyl.png'}" class="w-full h-full object-cover" alt=""></span>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-sm truncate">${item.album || item.record?.album || 'Desconocido'}</p>
+                                    <p class="text-xs text-stone-500 truncate">${item.artist || item.record?.artist || ''}${(item.sku || item.record?.sku) ? ' · ' + (item.sku || item.record?.sku) : ''}</p>
                                 </div>
-                                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Fulfillment</p>
-                                    <div class="font-bold text-brand-dark capitalize">${(sale.fulfillment_status || 'Pendiente').replace('_', ' ')}</div>
-                                </div>
-                                <div class="bg-brand-dark p-4 rounded-2xl text-white">
-                                    <p class="text-[10px] font-bold opacity-60 uppercase tracking-widest mb-1">Monto Total</p>
-                                    <div class="text-xl font-bold">${this.formatCurrency(total)}</div>
-                                </div>
+                                <span class="text-xs text-stone-500">×${item.quantity || item.qty || 1}</span>
+                                <span class="font-semibold text-sm w-24 text-right">${this.formatCurrency(item.unitPrice || item.priceAtSale || item.record?.price || 0)}</span>
                             </div>
+                        `).join('')}
+                    </section>
 
-                            <!-- Items -->
-                            <div class="space-y-4">
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-fill ph-package text-brand-orange"></i> Items Comprados
-                                </h3>
-                                <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-                                            <tr>
-                                                <th class="px-4 py-3 text-left">Producto</th>
-                                                <th class="px-4 py-3 text-center">SKU</th>
-                                                <th class="px-4 py-3 text-center">Cant.</th>
-                                                <th class="px-4 py-3 text-right">Precio</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-slate-50">
-                                            ${(sale.items || []).map(item => `
-                                                <tr>
-                                                    <td class="px-4 py-4">
-                                                        <div class="flex items-center gap-3">
-                                                            <img src="${this.resolveItemCover(item) || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-lg object-cover shadow-sm">
-                                                            <div>
-                                                                <p class="font-bold text-brand-dark">${item.album || item.record?.album || 'Desconocido'}</p>
-                                                                <p class="text-[10px] text-slate-500">${item.artist || item.record?.artist || ''}</p>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td class="px-4 py-4 text-center font-mono text-xs text-slate-400">${item.sku || item.record?.sku || '-'}</td>
-                                                    <td class="px-4 py-4 text-center font-medium">${item.quantity || item.qty || 1}</td>
-                                                    <td class="px-4 py-4 text-right font-bold text-brand-dark">${this.formatCurrency(item.unitPrice || item.priceAtSale || item.record?.price || 0)}</td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <!-- Payment Details -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
-                                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumen Financiero</h4>
-                                    <div class="space-y-2 text-sm">
-                                        <div class="flex justify-between">
-                                            <span class="text-slate-500">Subtotal</span>
-                                            <span class="font-medium text-brand-dark">${this.formatCurrency(subtotal)}</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-slate-500">Envío (Gross)</span>
-                                            <span class="font-medium text-brand-dark">${this.formatCurrency(shippingCost)}</span>
-                                        </div>
-                                        <div class="flex justify-between text-blue-600 text-[10px] font-bold">
-                                            <span>↳ Salgsmoms Envío (25%)</span>
-                                            <span>${this.formatCurrency(shippingVat)}</span>
-                                        </div>
-                                        ${fees !== 0 ? `
-                                            <div class="flex justify-between text-red-500">
-                                                <span>Fees (Discogs/PayPal)</span>
-                                                <span class="font-medium">-${this.formatCurrency(fees)}</span>
-                                            </div>
-                                        ` : ''}
-                                        <div class="flex justify-between font-bold text-brand-dark pt-2 border-t border-slate-200">
-                                            <span>Monto Final</span>
-                                            <span>${this.formatCurrency(total)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-3">
-                                    <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Método de Pago</h4>
-                                    <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200">
-                                        <div class="w-10 h-10 bg-brand-orange/10 rounded-lg flex items-center justify-center text-brand-orange">
-                                            <i class="ph-fill ph-credit-card text-xl"></i>
-                                        </div>
-                                        <div>
-                                            <p class="text-sm font-bold text-brand-dark capitalize">${sale.payment_method || sale.paymentMethod || 'Tarjeta'}</p>
-                                            <p class="text-[10px] text-slate-400">${sale.paymentId ? 'ID: ' + sale.paymentId.slice(0, 15) + '...' : 'Venta Directa'}</p>
-                                        </div>
-                                    </div>
-                                    <div class="text-[10px] text-slate-400 flex items-center gap-1">
-                                        <i class="ph ph-calendar"></i>
-                                        Registrado el ${createdDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                    </div>
-                                </div>
+                    <!-- Dinero -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">Resumen</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span class="text-stone-500">Subtotal</span><span class="font-medium">${this.formatCurrency(subtotal)}</span></div>
+                            <div class="flex justify-between"><span class="text-stone-500">Envío cobrado</span><span class="font-medium">${this.formatCurrency(shippingCost)}</span></div>
+                            <div class="flex justify-between text-xs"><span class="text-stone-500 pl-3">Moms del envío (incluido)</span><span class="text-stone-500">${this.formatCurrency(shippingVat)}</span></div>
+                            ${fees !== 0 ? `<div class="flex justify-between"><span class="text-stone-500">Comisiones Discogs / PayPal</span><span class="font-medium text-red-700">-${this.formatCurrency(fees)}</span></div>` : ''}
+                            <div class="flex justify-between font-semibold pt-2 border-t border-black/10"><span>Total final</span><span>${this.formatCurrency(total)}</span></div>
+                        </div>
+                        <div class="flex items-center gap-3 mt-4 p-3 rounded-2xl bg-white/70">
+                            <span class="cx-sq !w-10 !h-10 !text-lg"><i class="ph ph-credit-card"></i></span>
+                            <div>
+                                <p class="text-sm font-semibold capitalize">${sale.payment_method || sale.paymentMethod || 'Tarjeta'}</p>
+                                <p class="text-xs text-stone-500">${sale.paymentId ? 'ID ' + sale.paymentId.slice(0, 15) + '…' : 'Venta directa'}</p>
                             </div>
                         </div>
+                    </section>
 
-                        <!-- Right Column: Customer & History -->
-                        <div class="space-y-8">
-                            
-                            <!-- Customer Info -->
-                            <div class="space-y-4">
-                                <h4 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-fill ph-user-circle text-brand-orange"></i> Cliente
-                                    <button onclick="app.toggleCustomerEdit('${sale.id}')" title="Editar datos del cliente"
-                                        class="ml-auto w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange flex items-center justify-center transition-colors">
-                                        <i class="ph-bold ph-pencil-simple"></i>
-                                    </button>
-                                </h4>
-                                <div id="ci-view">${this.renderCustomerInfoView(sale)}</div>
-                                <div id="ci-form" class="hidden">${this.renderCustomerInfoForm(sale)}</div>
-                            </div>
+                    <!-- Cliente -->
+                    <section class="vf-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="vf-h !mb-0">Cliente</h4>
+                            <button onclick="app.toggleCustomerEdit('${sale.id}')" class="cx-row-btn" title="Editar datos del cliente" aria-label="Editar datos del cliente"><i class="ph ph-pencil-simple"></i></button>
+                        </div>
+                        <div id="ci-view">${this.renderCustomerInfoView(sale)}</div>
+                        <div id="ci-form" class="hidden">${this.renderCustomerInfoForm(sale)}</div>
+                    </section>
 
-                            <!-- Fulfillment Actions -->
-                            ${sale.channel === 'online' || sale.channel === 'discogs' ? `
-                                <div class="space-y-4">
-                                    <h4 class="font-bold text-brand-dark flex items-center gap-2">
-                                        <i class="ph-fill ph-truck text-brand-orange"></i> Gestión de Envío
-                                    </h4>
-                                    <div class="flex flex-col gap-2">
-                                        <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'preparing' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                            <i class="ph ph-package"></i> Preparación
-                                        </a>
-                                        <button onclick="app.setReadyForPickup('${sale.id}', event)" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'ready_for_pickup' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                            <i class="ph ph-storefront"></i> Listo para Retiro
-                                        </a>
-                                        <button onclick="app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')" class="w-full px-4 py-2.5 rounded-xl border ${sale.fulfillment_status === 'shipped' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center gap-2">
-                                            <i class="ph ph-paper-plane-tilt"></i> Enviado / Despachado
-                                        </a>
-                                    </div>
-                                </div>
-                            ` : ''}
+                    ${sale.channel === 'online' || sale.channel === 'discogs' ? `
+                    <!-- Envío -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">Estado del envío</h4>
+                        <div class="vf-segs is-wide">
+                            ${fulfillBtn(sale.fulfillment_status === 'preparing', `app.updateFulfillmentStatus(event, '${sale.id}', 'preparing')`, 'ph-package', 'Preparando')}
+                            ${fulfillBtn(sale.fulfillment_status === 'ready_for_pickup', `app.setReadyForPickup('${sale.id}', event)`, 'ph-storefront', 'Para retiro')}
+                            ${fulfillBtn(sale.fulfillment_status === 'shipped', `app.updateFulfillmentStatus(event, '${sale.id}', 'shipped')`, 'ph-paper-plane-tilt', 'Enviado')}
+                        </div>
+                    </section>` : ''}
 
-                            <!-- History Timeline -->
-                            <div class="space-y-4">
-                                <h4 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <i class="ph-fill ph-clock-counter-clockwise text-brand-orange"></i> Movimientos
-                                </h4>
-                                <div class="relative pl-4 border-l-2 border-slate-100 space-y-6">
-                                    ${timelineItems.map((item, index) => {
+                    <!-- Movimientos -->
+                    <section class="vf-card">
+                        <h4 class="vf-h">Movimientos</h4>
+                        <div class="relative pl-5 border-l-2 border-black/10 space-y-5 ml-1">
+                            ${timelineItems.map((item, index) => {
             const theme = getStatusTheme(item.status);
             return `
-                                            <div class="relative">
-                                                <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${index === 0 ? 'bg-brand-orange ring-4 ring-orange-50' : 'bg-slate-300'}"></div>
-                                                <div class="flex flex-col gap-0.5">
-                                                    <div class="flex items-center gap-2">
-                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${theme.color}">
-                                                            ${theme.label}
-                                                        </span>
-                                                        <span class="text-[9px] text-slate-400 font-mono">
-                                                            ${item.timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} ${item.timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                    </div>
-                                                    <p class="text-xs text-slate-500">${item.note || '-'}</p>
-                                                </div>
-                                            </div>
-                                        `;
+                                <div class="relative">
+                                    <span class="absolute -left-[27px] top-1 w-3 h-3 rounded-full ${index === 0 ? 'bg-[#F05A28] ring-4 ring-[#F05A28]/20' : 'bg-[#B9B4AA]'}"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="cx-state ${theme.cls}">${theme.label}</span>
+                                        <span class="text-xs text-stone-500">${item.timestamp.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} ${item.timestamp.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <p class="text-sm text-stone-600 mt-1">${item.note || '—'}</p>
+                                </div>`;
         }).join('')}
-                                </div>
-                            </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
 
-                <!-- Footer -->
-                <div class="p-6 bg-slate-50 border-t border-slate-100 flex gap-3 shrink-0">
-                    <button onclick="document.getElementById('unified-modal').remove()" class="flex-1 bg-brand-dark text-white py-3.5 rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-lg shadow-brand-dark/20">
-                        Cerrar Detalle
-                    </a>
-                </div>
-            </div>
+                <footer class="vf-foot">
+                    <span class="text-xs text-stone-500">Registrado el ${createdDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                    <button onclick="document.getElementById('unified-modal').remove()" class="cx-btn is-primary">Cerrar</button>
+                </footer>
+            </aside>
         </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
@@ -8306,27 +7179,17 @@ const app = {
     // --- Datos del cliente (ficha de envío): vista + edición inline ---
     renderCustomerInfoView(sale) {
         const ci = this.getCustomerInfo(sale);
+        const row = (label, value) => `
+                <div class="flex justify-between gap-4 py-2 border-b border-black/5 last:border-0">
+                    <span class="text-sm text-stone-500 shrink-0">${label}</span>
+                    <span class="text-sm font-medium text-right min-w-0 break-words">${value}</span>
+                </div>`;
         return `
-            <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                <div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Nombre</p>
-                    <p class="font-bold text-brand-dark">${ci.name}</p>
-                </div>
-                <div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Email</p>
-                    <p class="text-sm font-medium text-slate-600 truncate">${ci.email || '-'}</p>
-                </div>
-                <div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Teléfono</p>
-                    <p class="text-sm font-medium text-slate-600">${ci.phone || '-'}</p>
-                </div>
-                <div>
-                    <p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Dirección</p>
-                    <p class="text-xs font-medium text-slate-600 leading-relaxed">${ci.address || 'Sin dirección registrada'}</p>
-                    ${ci.hasAddress ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ci.address)}" target="_blank" class="text-[10px] font-bold text-blue-500 hover:text-blue-600 flex items-center gap-1 mt-1">
-                        <i class="ph ph-map-pin"></i> Ver en Maps
-                    </a>` : ''}
-                </div>
+            <div>
+                ${row('Nombre', `<b class="font-semibold">${ci.name}</b>`)}
+                ${row('Email', ci.email || '—')}
+                ${row('Teléfono', ci.phone || '—')}
+                ${row('Dirección', `${ci.address || 'Sin dirección registrada'}${ci.hasAddress ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ci.address)}" target="_blank" rel="noopener" class="block text-xs underline mt-1">Ver en Maps</a>` : ''}`)}
             </div>`;
     },
 
@@ -10059,69 +8922,50 @@ const app = {
         const label = this.wsTabLabel(tag);
 
         container.innerHTML = `
-        <div class="p-4 md:p-8 max-w-6xl mx-auto animate-slide-up">
-            <div class="mb-6">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">elcuartito.dk</p>
-                <h1 class="text-2xl font-display font-bold text-brand-dark">Web shop</h1>
-                <p class="text-sm text-slate-500 mt-1">Administrá qué discos aparecen en el Hero y en New Arrivals de la tienda.</p>
-            </div>
+        <div class="cx-view">
+        <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
+            ${this.sectionHeader({
+                title: 'Web shop',
+                subtitle: 'Qué discos aparecen en el Hero y en New Arrivals de elcuartito.dk',
+                filters: `<a href="https://elcuartito.dk" target="_blank" rel="noopener" class="cx-btn"><i class="ph ph-arrow-square-out"></i>Ver la tienda</a>`
+            })}
 
-            <div class="flex flex-wrap items-center gap-2 mb-6">
-                ${[
-                    { id: 'hero', tag: 'hero', icon: 'ph-star' },
-                    { id: 'new_arrivals', tag: 'new_arrival', icon: 'ph-sparkle' }
-                ].map(t => {
-                    const count = t.id === 'hero' ? hero.length : arrivals.length;
-                    const active = tab === t.id;
-                    return `
-                    <button onclick="app.wsSetTab('${t.id}')"
-                        class="px-4 py-2 rounded-xl text-[11px] font-bold transition-all border flex items-center gap-2 ${active
-                            ? 'bg-brand-dark text-white border-brand-dark shadow-sm'
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}">
-                        <i class="ph-duotone ${t.icon} text-sm"></i>
-                        ${this.wsTabLabel(t.tag)}
-                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}">${count}</span>
-                    </button>`;
-                }).join('')}
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div class="cx-glass flex p-1 rounded-full">
+                    ${[
+                        { id: 'hero', tag: 'hero' },
+                        { id: 'new_arrivals', tag: 'new_arrival' }
+                    ].map(t => {
+                        const count = t.id === 'hero' ? hero.length : arrivals.length;
+                        return `<button onclick="app.wsSetTab('${t.id}')" class="cx-month ${tab === t.id ? 'is-on' : ''}">${this.wsTabLabel(t.tag)} <span class="cx-count">${count}</span></button>`;
+                    }).join('')}
+                </div>
+                <div class="cx-search flex-1 min-w-[260px] max-w-md">
+                    <i class="ph ph-plus"></i>
+                    <input id="ws-search" type="text" oninput="app.wsInvSearch('${tag}', this.value)" autocomplete="off"
+                        placeholder="Sumar un disco a ${label}: artista, título o SKU" aria-describedby="ws-hint">
+                    <div id="ws-search-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-2xl shadow-lg max-h-64 overflow-y-auto"></div>
+                </div>
             </div>
+            <p id="ws-hint" class="text-xs text-stone-500 mb-5 md:text-right">Solo se pueden sumar discos con stock y publicados online.</p>
 
             ${tab === 'new_arrivals' && legacyNuevos > 0 ? `
-            <div class="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-                <i class="ph-duotone ph-warning text-amber-500 text-lg mt-0.5"></i>
-                <p class="text-xs text-amber-800 font-medium leading-relaxed">
-                    <span class="font-bold">${legacyNuevos} disco${legacyNuevos === 1 ? '' : 's'} con el tag 'Nuevos'</span>,
-                    que la tienda no usa (solo lee 'new_arrival'). No se borró nada automáticamente.
+            <div class="mb-5 flex items-start gap-3 rounded-2xl bg-[#F2E14C] px-4 py-3">
+                <i class="ph-bold ph-warning text-lg mt-0.5"></i>
+                <p class="text-sm leading-relaxed">
+                    <b>${legacyNuevos} disco${legacyNuevos === 1 ? '' : 's'} con el tag 'Nuevos'</b>, que la tienda no usa (solo lee 'new_arrival'). No se borró nada automáticamente.
                 </p>
             </div>` : ''}
 
-            <div class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Agregar a ${label}</p>
-                <div class="relative">
-                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input id="ws-search" type="text" oninput="app.wsInvSearch('${tag}', this.value)"
-                        class="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm outline-none focus:border-brand-orange bg-white"
-                        placeholder="Buscar por artista, título o SKU…" autocomplete="off">
-                    <div id="ws-search-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto"></div>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-2">Solo se pueden sumar discos con stock y publicados online.</p>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-2">
-                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">${label}</h3>
-                    <div class="h-px w-16 bg-slate-100"></div>
-                </div>
-                <span class="text-[11px] font-bold text-slate-500 bg-slate-100 rounded-full px-3 py-1">${list.length} disco${list.length === 1 ? '' : 's'} en ${tab === 'hero' ? 'el hero' : 'New Arrivals'}</span>
-            </div>
-
             ${list.length === 0 ? `
-            <div class="bg-white rounded-2xl border border-slate-100 p-10 text-center">
-                <i class="ph-duotone ph-disc text-4xl text-slate-200"></i>
-                <p class="text-sm text-slate-400 font-medium mt-3">Todavía no hay discos en ${tab === 'hero' ? 'el hero' : 'New Arrivals'}.</p>
+            <div class="rounded-3xl border border-dashed border-black/15 p-12 text-center">
+                <i class="ph ph-vinyl-record text-4xl text-stone-400"></i>
+                <p class="text-sm text-stone-600 mt-3">Todavía no hay discos en ${tab === 'hero' ? 'el Hero' : 'New Arrivals'}. Sumalos con el buscador de arriba.</p>
             </div>` : `
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 ${list.map(p => this._wsCardHTML(p, tag)).join('')}
             </div>`}
+        </div>
         </div>`;
     },
 
@@ -10130,21 +8974,21 @@ const app = {
         const online = !!p.is_online;
         const stock = Number(p.stock) || 0;
         return `
-        <div class="bg-white rounded-2xl border border-slate-100 p-4 flex gap-3 hover:shadow-md transition-shadow">
-            <img src="${cover}" onerror="this.onerror=null;this.src='logo.jpg'" class="w-16 h-16 rounded-xl object-cover bg-slate-100 shrink-0" alt="">
-            <div class="min-w-0 flex-1">
-                <p class="text-xs font-bold text-brand-dark truncate">${ecEsc(p.artist || 'Sin artista')} — ${ecEsc(p.album || 'Sin título')}</p>
-                <p class="text-[10px] text-slate-400 font-mono truncate">${ecEsc(p.sku || '')}</p>
-                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span class="text-sm font-bold text-brand-dark font-display">${this.formatCurrency(p.price || 0, false)}</span>
-                    ${!online ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700">No online</span>' : ''}
-                    ${stock <= 0 ? '<span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-red-100 text-red-700">Sin stock</span>' : ''}
-                </div>
+        <div class="cx-item relative group">
+            <div class="aspect-square rounded-2xl overflow-hidden bg-stone-200 mb-3">
+                <img src="${cover}" onerror="this.onerror=null;this.src='logo.jpg'" class="w-full h-full object-cover" alt="">
             </div>
-            <button onclick="app.wsRemoveProduct('${p.id}', '${tag}')" title="Quitar de ${this.wsTabLabel(tag)}"
-                class="self-start w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors shrink-0">
-                <i class="ph-bold ph-x text-sm"></i>
+            <button onclick="app.wsRemoveProduct('${p.id}', '${tag}')" title="Quitar de ${this.wsTabLabel(tag)}" aria-label="Quitar de ${this.wsTabLabel(tag)}"
+                class="cx-btn is-icon !w-9 !h-9 absolute top-5 right-5 !bg-white/90">
+                <i class="ph-bold ph-x"></i>
             </button>
+            <p class="text-sm font-semibold truncate px-1">${ecEsc(p.album || 'Sin título')}</p>
+            <p class="text-xs text-stone-500 truncate px-1">${ecEsc(p.artist || 'Sin artista')} · ${ecEsc(p.sku || '')}</p>
+            <div class="flex items-center gap-1.5 mt-2 px-1 pb-1 flex-wrap">
+                <span class="text-base font-light tracking-tight mr-1">${this.formatCurrency(p.price || 0, false)}</span>
+                ${!online ? '<span class="cx-state is-wait">No online</span>' : ''}
+                ${stock <= 0 ? '<span class="cx-state is-hot">Sin stock</span>' : ''}
+            </div>
         </div>`;
     },
 
@@ -10488,7 +9332,7 @@ const app = {
         count.innerText = this.state.cart.length;
 
         const total = this.state.cart.reduce((sum, i) => sum + i.price, 0);
-        totalEl.innerText = this.formatCurrency(total);
+        totalEl.innerHTML = this.formatCurrency(total);
 
         list.innerHTML = this.state.cart.map((item, index) => `
                                                                 <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
@@ -10627,7 +9471,7 @@ const app = {
             const newTotal = parseFloat(priceInput.value) || 0;
             const fee = originalTotal - newTotal;
 
-            document.getElementById('checkout-total-value').innerText = this.formatCurrency(newTotal);
+            document.getElementById('checkout-total-value').innerHTML = this.formatCurrency(newTotal);
 
             // Show fee section if there's a difference
             if (fee > 0) {
@@ -10887,50 +9731,12 @@ const app = {
     },
 
     // --- Filtros de período y categoría (propios de Registro de Compras) ---
-    toggleExpenseMonth(i) {
-        const arr = this.state.expenseFilterMonths;
-        const ix = arr.indexOf(i);
-        if (ix >= 0) { if (arr.length > 1) arr.splice(ix, 1); }
-        else arr.push(i);
-        arr.sort((a, b) => a - b);
-        this.refreshCurrentView();
-    },
-
-    setExpenseFilterMonthsAll() {
-        this.state.expenseFilterMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-        this.refreshCurrentView();
-    },
-
-    setExpenseFilterYear(y) {
-        this.state.expenseFilterYear = Number(y);
-        this.refreshCurrentView();
-    },
-
     toggleExpenseMissingReceipt() {
         this.state.expenseMissingReceiptOnly = !this.state.expenseMissingReceiptOnly;
         this.refreshCurrentView();
     },
 
     // --- Filtros propios de Ingresos Extra ---
-    toggleIncomeMonth(i) {
-        const arr = this.state.incomeFilterMonths;
-        const ix = arr.indexOf(i);
-        if (ix >= 0) { if (arr.length > 1) arr.splice(ix, 1); }
-        else arr.push(i);
-        arr.sort((a, b) => a - b);
-        this.refreshCurrentView();
-    },
-
-    setIncomeFilterMonthsAll() {
-        this.state.incomeFilterMonths = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-        this.refreshCurrentView();
-    },
-
-    setIncomeFilterYear(y) {
-        this.state.incomeFilterYear = Number(y);
-        this.refreshCurrentView();
-    },
-
     setIncomeSearch(v) {
         this.state.incomeSearch = v;
         this.refreshCurrentView();
@@ -11095,8 +9901,6 @@ const app = {
         const catFilter = this.state.expenseCategoryFilter || 'all';
         const fYear = this.state.expenseFilterYear;
         const fMonths = this.state.expenseFilterMonths || [];
-        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-        const monthNamesLong = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
         const inPeriod = (e) => {
             const d = new Date(e.fecha_factura || e.date || e.timestamp);
@@ -11123,281 +9927,159 @@ const app = {
                 (e.proveedor || '').toLowerCase().includes(searchTerm);
         });
 
-        const periodLabel = fMonths.length === 12 ? `${fYear}`
-            : fMonths.length === 1 ? `${monthNamesLong[fMonths[0]]} ${fYear}`
-            : `${fMonths.length} meses · ${fYear}`;
+        const periodLabel = this.cxPeriodLabel(fYear, fMonths);
+
+        const byCat = {};
+        filteredExpenses.forEach(e => {
+            const label = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || 'Sin categoría';
+            byCat[label] = (byCat[label] || 0) + (Number(e.monto_total || e.amount) || 0);
+        });
+        const filteredTotal = Object.values(byCat).reduce((a, b) => a + b, 0);
+        const filteredIva = filteredExpenses.reduce((s, e) => s + (Number(e.monto_iva) || 0), 0);
+        const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+        const backed = filteredExpenses.filter(e => e.receiptUrl).length;
 
         const html = `
-    <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
+    <div class="cx-view">
+    <div class="max-w-6xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
-                    title: 'Registro de Compras',
-                    subtitle: 'Gastos del negocio con comprobantes, categorías e IVA',
+                    title: 'Registro Compras',
+                    subtitle: 'Gastos del negocio con su comprobante, categoría e IVA',
                     primary: { label: 'Registrar compra', icon: 'ph-plus', onclick: 'app.openExpenseWizard()' }
                 })}
-                ${missingOnly ? `
-                <div class="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm font-bold">
-                    <span class="flex items-center gap-2"><i class="ph-bold ph-warning-circle"></i> Mostrando solo gastos sin comprobante</span>
-                    <button onclick="app.state.expenseMissingReceiptOnly = false; app.refreshCurrentView()" class="underline hover:no-underline">Mostrar todos</button>
-                </div>` : ''}
 
-                <!-- Selector de período -->
-                <div class="flex flex-wrap items-center gap-3 mb-6">
-                    <div class="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
-                        <select onchange="app.setExpenseFilterYear(this.value)" class="bg-slate-50 text-xs font-bold text-brand-dark px-3 py-2 rounded-xl border-none outline-none cursor-pointer">
-                            <option value="2026" ${fYear === 2026 ? 'selected' : ''}>2026</option>
-                            <option value="2025" ${fYear === 2025 ? 'selected' : ''}>2025</option>
-                        </select>
-                        <div class="h-6 w-px bg-slate-100 mx-1"></div>
-                        <div class="flex gap-1 overflow-x-auto max-w-[300px] md:max-w-none no-scrollbar bg-slate-100/80 rounded-xl p-1">
-                            <button onclick="app.setExpenseFilterMonthsAll()"
-                                class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.length === 12 ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                Todo
-                            </button>
-                            ${monthNames.map((m, i) => `
-                                <button onclick="app.toggleExpenseMonth(${i})"
-                                    class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all whitespace-nowrap ${fMonths.includes(i) ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400 hover:text-brand-dark'}">
-                                    ${m}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-400">Período: <span class="font-bold text-brand-dark">${periodLabel}</span></p>
-                </div>
+                <div class="mb-5">${this.cxPeriodPicker('expenses')}</div>
 
                 <!-- KPIs del período -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center text-brand-orange"><i class="ph-bold ph-wallet"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total del período</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(kpiTotal)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${periodExpenses.length} compra${periodExpenses.length === 1 ? '' : 's'}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                    <div class="cx-tile cx-yellow">
+                        <span class="cx-tile-label">Gastado</span>
+                        <b class="cx-tile-value">${this.formatCurrency(kpiTotal)}</b>
+                        <span class="cx-tile-sub">${periodLabel}, ${periodExpenses.length} compra${periodExpenses.length === 1 ? '' : 's'}</span>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
-                    <button onclick="app.state.expenseMissingReceiptOnly = true; app.refreshCurrentView()" class="text-left bg-white p-5 rounded-2xl border ${kpiMissing > 0 ? 'border-amber-200' : 'border-slate-100'} shadow-sm hover:shadow-md hover:border-amber-300 transition-all">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center text-amber-500"><i class="ph-bold ph-paperclip"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin comprobante</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold ${kpiMissing > 0 ? 'text-amber-600' : 'text-emerald-600'}">${kpiMissing}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">${kpiMissing > 0 ? 'Clic para filtrar' : 'Todo respaldado'}</p>
+                    <button onclick="app.state.expenseMissingReceiptOnly = true; app.refreshCurrentView()" class="cx-tile ${kpiMissing > 0 ? 'cx-orange' : 'cx-frost'} text-left">
+                        <span class="cx-tile-label">Sin comprobante</span>
+                        <b class="cx-tile-value">${kpiMissing}</b>
+                        <span class="cx-tile-sub">${kpiMissing > 0 ? 'Tocá para ver cuáles' : 'Todo respaldado'}</span>
                     </button>
-                    <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                        <div class="flex items-center gap-2 mb-3">
-                            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600"><i class="ph-bold ph-percent"></i></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA recuperable</span>
-                        </div>
-                        <p class="text-2xl font-display font-bold text-emerald-600">${this.formatCurrency(kpiIva)}</p>
-                        <p class="text-[11px] text-slate-400 mt-1">Del período seleccionado</p>
+                    <div class="cx-tile cx-dark">
+                        <span class="cx-tile-label">IVA recuperable</span>
+                        <b class="cx-tile-value">${this.formatCurrency(kpiIva)}</b>
+                        <span class="cx-tile-sub">Del período</span>
                     </div>
                 </div>
 
-                <!-- Filtros: mismo patrón de pills que Inventario/Ventas -->
-                <div class="flex flex-wrap items-center gap-2 mb-4">
-                    <div class="relative flex-1 min-w-[220px]">
-                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <!-- Filtros -->
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <div class="cx-search flex-1 min-w-[240px]">
+                        <i class="ph ph-magnifying-glass"></i>
                         <input type="text" id="expenses-search-input"
                             value="${(this.state.expensesSearch || '').replace(/"/g, '&quot;')}"
                             oninput="app.setExpensesSearch(this.value)"
-                            placeholder="Buscar por proveedor, categoría, lote..."
-                            class="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-full focus:outline-none focus:border-brand-orange shadow-sm text-sm">
+                            placeholder="Proveedor, categoría o lote">
                     </div>
-                    <div class="filter-chip ${catFilter !== 'all' ? 'active' : ''}" title="Filtrar por categoría">
-                        <i class="ph-bold ph-tag text-xs"></i>
-                        <select onchange="app.setExpenseCategoryFilter(this.value)">
-                            <option value="all">Todas las categorías</option>
-                            ${expenseCategories.map(c => `<option value="${c.value}" ${catFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
-                        </select>
-                    </div>
-                    <button onclick="app.toggleExpenseMissingReceipt()" class="quick-pill ${missingOnly ? 'active' : ''}" title="Mostrar solo gastos sin comprobante">
-                        <i class="ph-bold ph-paperclip text-xs"></i> Sin comprobante
-                        ${kpiMissing > 0 ? `<span class="w-5 h-5 rounded-full ${missingOnly ? 'bg-white/30' : 'bg-amber-100 text-amber-700'} flex items-center justify-center text-[10px] font-bold">${kpiMissing}</span>` : ''}
+                    <select onchange="app.setExpenseCategoryFilter(this.value)" class="cx-pill-select ${catFilter !== 'all' ? '!bg-[#1A1A1A] !text-white' : ''}" aria-label="Categoría">
+                        <option value="all">Todas las categorías</option>
+                        ${expenseCategories.map(c => `<option value="${c.value}" ${catFilter === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
+                    </select>
+                    <button onclick="app.toggleExpenseMissingReceipt()" class="cx-btn !h-12 ${missingOnly ? '!bg-[#1A1A1A] !text-white !border-[#1A1A1A]' : ''}">
+                        <i class="ph ph-paperclip"></i> Sin comprobante ${kpiMissing > 0 ? `<span class="cx-count">${kpiMissing}</span>` : ''}
                     </button>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <!-- Totales por categoría + exportación (siguen el filtro activo) -->
-                    ${(() => {
-                        const byCat = {};
-                        let totIva = 0;
-                        filteredExpenses.forEach(e => {
-                            const label = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || 'Sin categoría';
-                            const amt = Number(e.monto_total || e.amount) || 0;
-                            byCat[label] = (byCat[label] || 0) + amt;
-                            totIva += Number(e.monto_iva) || 0;
-                        });
-                        const tot = Object.values(byCat).reduce((a, b) => a + b, 0);
-                        const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
-                        return `
-                        <div class="bg-slate-50/60 border-b border-slate-100 p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                                <div class="flex items-center gap-5">
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total filtrado</p>
-                                        <p class="text-xl font-display font-bold text-brand-dark">${this.formatCurrency(tot)}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IVA</p>
-                                        <p class="text-xl font-display font-bold text-emerald-600">${this.formatCurrency(totIva)}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registros</p>
-                                        <p class="text-xl font-display font-bold text-slate-500">${filteredExpenses.length}</p>
-                                    </div>
-                                </div>
-                                <button onclick="app.exportExpensesToCSV()" class="flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-orange hover:text-brand-orange text-slate-500 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                                    <i class="ph-bold ph-download-simple"></i> Exportar CSV
-                                </button>
-                            </div>
-                            ${top.length > 0 ? `
-                            <div class="flex flex-wrap gap-2">
-                                ${top.map(([label, amt]) => `
-                                    <span class="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1 text-[11px] font-bold text-slate-600">
-                                        ${label} <span class="text-brand-dark">${this.formatCurrency(amt)}</span>
-                                    </span>`).join('')}
-                            </div>` : ''}
-                        </div>`;
-                    })()}
+                <!-- Resumen del filtro -->
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3 px-1">
+                    <p class="text-sm text-stone-600">
+                        ${filteredExpenses.length} registro${filteredExpenses.length === 1 ? '' : 's'} · <b class="text-[#1A1A1A]">${this.formatCurrency(filteredTotal)}</b> · IVA ${this.formatCurrency(filteredIva)} · ${backed}/${filteredExpenses.length} con comprobante
+                        ${missingOnly ? `<button onclick="app.state.expenseMissingReceiptOnly = false; app.refreshCurrentView()" class="ml-2 underline font-semibold">Ver todos</button>` : ''}
+                    </p>
+                    <div class="flex gap-2">
+                        <button onclick="app.exportExpensesToCSV()" class="cx-btn"><i class="ph ph-download-simple"></i>CSV</button>
+                        <button onclick="app.downloadReceiptsZip()" class="cx-btn"><i class="ph ph-file-zip"></i>Comprobantes (ZIP)</button>
+                    </div>
+                </div>
+                ${topCats.length > 1 ? `
+                <div class="flex flex-wrap gap-2 mb-4 px-1">
+                    ${topCats.map(([label, amt]) => `<span class="cx-channel !py-1 !px-3 !text-xs">${label} <b class="font-semibold text-stone-600">${this.formatCurrency(amt)}</b></span>`).join('')}
+                </div>` : ''}
 
-<!-- Table -->
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left">
-                                    <thead class="bg-slate-50 border-b border-slate-100">
-                                        <tr class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                            <th class="p-4">Fecha</th>
-                                            <th class="p-4">Proveedor</th>
-                                            <th class="p-4">Categoría</th>
-                                            <th class="p-4 text-right">Total</th>
-                                            <th class="p-4 text-right">IVA</th>
-                                            <th class="p-4 text-center">Estado</th>
-                                            <th class="p-4 w-20"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-50">
-                                        ${filteredExpenses.length > 0 ? filteredExpenses.map(e => `
-                                            <tr id="expense-${e.id}" class="hover:bg-slate-50 transition-colors group ${this.state.expenseIdHighlight === e.id ? 'bg-amber-50' : ''}">
-                                                <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
-                                                    ${this.formatDate(e.fecha_factura || e.date)}
-                                                </td>
-                                                <td class="p-4">
-                                                    <p class="text-sm font-bold text-brand-dark">${e.proveedor || e.description || '-'}</p>
-                                                    ${e.descripcion ? `<p class="text-xs text-slate-400 truncate max-w-[200px]">${e.descripcion}</p>` : ''}
-                                                    ${e.lotRef ? `
-                                                    <button onclick="app.gotoInventoryLot('${e.lotRef}')" class="mt-1.5 inline-flex items-center gap-1.5 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full hover:bg-indigo-100 transition-all" title="Ver discos vinculados a este lote">
-                                                        <i class="ph-bold ph-package"></i>${e.lotRef}
-                                                        <span class="bg-white/80 px-1.5 rounded-full">${app.countDiscsInLot(e.lotRef)} discos</span>
-                                                    </button>` : ''}
-                                                </td>
-                                                <td class="p-4">
-                                                    <span class="text-[11px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
-                                                        ${expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || '-'}
-                                                    </span>
-                                                    ${e.categoria === 'stock_nuevo' ? (() => {
-                                                        const t = e.vat_treatment === 'dk' ? 'dk' : (e.vat_treatment === 'eu' || e.is_inventory_invoice ? 'eu' : null);
-                                                        return t ? `<span class="block mt-1.5 text-[10px] font-bold ${t === 'dk' ? 'text-emerald-600' : 'text-blue-600'}">${t === 'dk' ? 'DK · 25%' : 'UE · reverse charge'}</span>` : '';
-                                                    })() : ''}
-                                                    ${(e.categoria === 'stock_nuevo' || e.categoria === 'stock_usado' || e.category === 'Inventario (compra de vinilos)') ? `
-                                                        <button onclick="app.openInventoryIngest('${e.id}')" 
-                                                            class="ml-2 text-[10px] bg-brand-orange text-white px-2 py-0.5 rounded hover:bg-orange-600 transition-colors">
-                                                            Ingresar Stock
-                                                        </a>
-                                                    ` : ''}
-                                                </td>
-                                                <td class="p-4 text-right font-bold text-brand-dark">
-                                                    ${this.formatCurrency(e.monto_total || e.amount || 0)}
-                                                </td>
-                                                <td class="p-4 text-right text-sm ${(e.monto_iva || 0) > 0 ? 'text-green-600' : 'text-slate-400'}">
-                                                    ${this.formatCurrency(e.monto_iva || 0)}
-                                                </td>
-                                                <td class="p-4 text-center">
-                                                    ${e.receiptPending && !e.receiptUrl ? `
-                                                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold" title="Comprobante pendiente de subir">
-                                                            <i class="ph-bold ph-clock"></i> En revisión
-                                                        </span>
-                                                    ` : e.receiptUrl ? `
-                                                        <div class="relative inline-block group/preview">
-                                                            <a href="${e.receiptUrl}" target="_blank" 
-                                                                class="inline-flex items-center gap-1 text-green-600 hover:text-green-700 transition-colors" 
-                                                                title="Comprobante respaldado ✓">
-                                                                <i class="ph-fill ph-paperclip text-lg"></i>
-                                                                <i class="ph-fill ph-check-circle text-xs"></i>
-                                                            </a>
-                                                            <!-- Hover Preview Tooltip -->
-                                                            <div class="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/preview:opacity-100 group-hover/preview:visible transition-all duration-200 pointer-events-none">
-                                                                <div class="bg-white rounded-xl shadow-2xl border border-slate-200 p-2 w-48">
-                                                                    <img src="${e.receiptUrl}" alt="Preview" class="w-full h-32 object-cover rounded-lg mb-1" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                                                    <div class="hidden items-center justify-center h-32 bg-slate-100 rounded-lg">
-                                                                        <i class="ph-duotone ph-file-pdf text-4xl text-red-500"></i>
-                                                                    </div>
-                                                                    <p class="text-[10px] text-slate-500 text-center font-medium">
-                                                                        <i class="ph-bold ph-eye"></i> Click para abrir
-                                                                    </p>
-                                                                </div>
-                                                                <div class="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-white -mt-px"></div>
-                                                            </div>
+                <section class="cx-panel !p-0 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="cx-inv-table w-full text-left">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Proveedor</th>
+                                    <th>Categoría</th>
+                                    <th class="text-right">Total</th>
+                                    <th class="text-right">IVA</th>
+                                    <th class="text-center">Comprobante</th>
+                                    <th class="w-24"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredExpenses.length > 0 ? filteredExpenses.map(e => {
+                                    const catLabel = expenseCategories.find(c => c.value === (e.categoria || e.category))?.label || e.categoria || e.category || '-';
+                                    const vatT = e.categoria === 'stock_nuevo' ? (e.vat_treatment === 'dk' ? 'dk' : (e.vat_treatment === 'eu' || e.is_inventory_invoice ? 'eu' : null)) : null;
+                                    const canIngest = e.categoria === 'stock_nuevo' || e.categoria === 'stock_usado' || e.category === 'Inventario (compra de vinilos)';
+                                    return `
+                                    <tr id="expense-${e.id}" class="inv-row group ${this.state.expenseIdHighlight === e.id ? 'is-selected' : ''}">
+                                        <td class="text-xs text-stone-500 whitespace-nowrap py-3">${this.formatDate(e.fecha_factura || e.date)}</td>
+                                        <td class="py-3">
+                                            <p class="text-sm font-semibold">${e.proveedor || e.description || '-'}</p>
+                                            ${e.descripcion ? `<p class="text-xs text-stone-500 truncate max-w-[220px]">${e.descripcion}</p>` : ''}
+                                            ${e.lotRef ? `
+                                            <button onclick="app.gotoInventoryLot('${e.lotRef}')" class="mt-1.5 cx-channel !text-[11px] hover:!bg-[#F2E14C]" title="Ver discos de este lote">
+                                                ${e.lotRef} · ${app.countDiscsInLot(e.lotRef)} discos
+                                            </button>` : ''}
+                                        </td>
+                                        <td class="py-3">
+                                            <span class="cx-state is-ok">${catLabel}</span>
+                                            ${vatT ? `<span class="block mt-1 text-[11px] text-stone-500">${vatT === 'dk' ? 'DK, 25%' : 'UE, reverse charge'}</span>` : ''}
+                                            ${canIngest ? `<button onclick="app.openInventoryIngest('${e.id}')" class="block mt-1.5 text-xs font-semibold underline underline-offset-2 hover:text-[#F05A28]">Ingresar stock</button>` : ''}
+                                        </td>
+                                        <td class="text-right font-semibold whitespace-nowrap">${this.formatCurrency(e.monto_total || e.amount || 0)}</td>
+                                        <td class="text-right text-sm whitespace-nowrap ${(e.monto_iva || 0) > 0 ? '' : 'text-stone-400'}">${this.formatCurrency(e.monto_iva || 0)}</td>
+                                        <td class="text-center">
+                                            ${e.receiptPending && !e.receiptUrl ? `
+                                                <span class="cx-state is-wait" title="Comprobante pendiente de subir">En revisión</span>
+                                            ` : e.receiptUrl ? `
+                                                <div class="relative inline-block group/preview">
+                                                    <a href="${e.receiptUrl}" target="_blank" rel="noopener" class="cx-state is-ok gap-1 hover:!bg-[#1A1A1A] hover:!text-white" title="Abrir comprobante">
+                                                        <i class="ph-bold ph-paperclip"></i> Ver
+                                                    </a>
+                                                    <div class="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 invisible group-hover/preview:opacity-100 group-hover/preview:visible transition-all duration-200 pointer-events-none">
+                                                        <div class="bg-white rounded-2xl shadow-2xl p-2 w-48">
+                                                            <img src="${e.receiptUrl}" alt="" class="w-full h-32 object-cover rounded-xl" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                            <div class="hidden items-center justify-center h-32 bg-stone-100 rounded-xl"><i class="ph ph-file-pdf text-4xl"></i></div>
                                                         </div>
-                                                    ` : `
-                                                        <span class="inline-flex items-center gap-1 text-red-500" title="⚠️ Sin comprobante - Peligro fiscal">
-                                                            <i class="ph-fill ph-paperclip text-lg"></i>
-                                                            <i class="ph-fill ph-warning text-xs"></i>
-                                                        </span>
-                                                    `}
-                                                </td>
-                                                <td class="p-4">
-                                                    <div class="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onclick="app.editExpense('${e.id}')" 
-                                                            class="text-slate-400 hover:text-brand-orange p-2 rounded-lg hover:bg-orange-50 transition-all" 
-                                                            title="Editar">
-                                                            <i class="ph-fill ph-pencil-simple"></i>
-                                                        </a>
-                                                        <button onclick="app.deleteExpense('${e.id}')" 
-                                                            class="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all" 
-                                                            title="Eliminar">
-                                                            <i class="ph-fill ph-trash"></i>
-                                                        </a>
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        `).join('') : `
-                                            <tr>
-                                                <td colspan="7" class="p-12 text-center">
-                                                    <i class="ph-duotone ph-receipt text-4xl text-slate-200 block mb-3"></i>
-                                                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Sin compras registradas</p>
-                                                </td>
-                                            </tr>
-                                        `}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Summary -->
-                            ${filteredExpenses.length > 0 ? `
-                                <div class="p-4 bg-slate-50 border-t border-slate-100">
-                                    <div class="flex justify-between items-center mb-3">
-                                        <div class="flex items-center gap-4">
-                                            <span class="text-xs text-slate-500">${filteredExpenses.length} registro(s)</span>
-                                            <span class="text-xs text-slate-400">|</span>
-                                            <span class="text-xs ${filteredExpenses.filter(e => e.receiptUrl).length === filteredExpenses.length ? 'text-green-600' : 'text-red-500'}">
-                                                <i class="ph-fill ph-paperclip"></i>
-                                                ${filteredExpenses.filter(e => e.receiptUrl).length}/${filteredExpenses.length} respaldados
-                                            </span>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-xs text-slate-500">Total IVA Recuperable</p>
-                                            <p class="text-lg font-bold text-green-600">
-                                                ${this.formatCurrency(filteredExpenses.reduce((sum, e) => sum + (e.monto_iva || 0), 0))}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <!-- Export Button -->
-                                    <button onclick="app.downloadReceiptsZip()" 
-                                        class="w-full py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 text-sm">
-                                        <i class="ph-bold ph-file-zip"></i>
-                                        Descargar Comprobantes del Mes (ZIP)
-                                    </a>
-                                </div>
-                            ` : ''}
-                        </div>
+                                                </div>
+                                            ` : `
+                                                <span class="cx-state is-hot gap-1" title="Falta el comprobante"><i class="ph-bold ph-warning"></i> Falta</span>
+                                            `}
+                                        </td>
+                                        <td class="py-3">
+                                            <div class="flex gap-1 justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                <button onclick="app.editExpense('${e.id}')" class="cx-row-btn" title="Editar" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button>
+                                                <button onclick="app.deleteExpense('${e.id}')" class="cx-row-btn is-danger" title="Eliminar" aria-label="Eliminar"><i class="ph ph-trash"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>`;
+                                }).join('') : `
+                                    <tr>
+                                        <td colspan="7" class="!py-14 text-center">
+                                            <i class="ph ph-receipt text-4xl text-stone-400 block mb-2"></i>
+                                            <p class="text-sm text-stone-600">No hay compras con estos filtros. Cambiá el mes o registrá una compra nueva.</p>
+                                        </td>
+                                    </tr>
+                                `}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
             </div>
     `;
         container.innerHTML = html;
@@ -11459,15 +10141,15 @@ const app = {
         const opt = (val, title, help, icon) => {
             const sel = t === val;
             return `<button type="button" onclick="app.setExpenseVatTreatment('${val}')"
-                class="text-left p-3 rounded-xl border-2 transition-all ${sel ? 'border-brand-orange bg-orange-50/60 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}">
-                <span class="flex items-center gap-2 font-bold text-sm ${sel ? 'text-brand-dark' : 'text-slate-600'}">
-                    <i class="ph-bold ${icon} ${sel ? 'text-brand-orange' : 'text-slate-400'}"></i> ${title}
+                class="text-left p-3 rounded-2xl transition-all ${sel ? 'bg-[#1A1A1A] text-white' : 'bg-white/75 hover:bg-white'}">
+                <span class="flex items-center gap-2 font-semibold text-sm">
+                    <i class="ph ${icon} ${sel ? 'text-[#F2E14C]' : ''}"></i> ${title}
                 </span>
-                <span class="block text-[11px] text-slate-400 mt-1 leading-snug">${help}</span>
+                <span class="block text-xs mt-1 leading-snug ${sel ? 'text-stone-300' : 'text-stone-500'}">${help}</span>
             </button>`;
         };
-        return opt('eu', 'UE · Reverse charge', 'El distribuidor factura sin IVA. Se declara y deduce solo en el Reporte VAT (neto 0).', 'ph-globe')
-            + opt('dk', 'Dinamarca · 25% moms', 'Proveedor danés con IVA en la factura. Se deduce en el Reporte VAT.', 'ph-bank');
+        return opt('eu', 'UE, reverse charge', 'El distribuidor factura sin IVA. Se declara y se deduce en el Reporte VAT (neto 0).', 'ph-globe')
+            + opt('dk', 'Dinamarca, 25% moms', 'Proveedor danés con IVA en la factura. Se deduce en el Reporte VAT.', 'ph-bank');
     },
     // Al tipear el proveedor: si tiene tratamiento recordado y el usuario no lo tocó, aplicarlo
     expenseSupplierChanged(v) {
@@ -11508,26 +10190,22 @@ const app = {
         const suppliers = [...new Set((this.state.expenses || []).map(e => e.proveedor).filter(Boolean))].sort();
         const overlay = document.createElement('div');
         overlay.id = 'expensewizard-overlay';
-        overlay.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fadeIn';
+        overlay.className = 'vf-overlay';
         overlay.innerHTML = `
-        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col border border-slate-100">
-            <div class="p-6 border-b border-slate-100">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="font-display text-xl font-bold text-brand-dark flex items-center gap-2">
-                        <i class="ph-bold ph-receipt text-brand-orange"></i> ${editing ? 'Editar compra' : 'Registrar compra'}
-                    </h3>
-                    <button onclick="app.closeExpenseWizard()" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
+        <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="ew-title">
+            <header class="vf-head !pb-3">
+                <div class="min-w-0 flex-1">
+                    <h3 id="ew-title" class="vf-title">${editing ? 'Editar compra' : 'Registrar compra'}</h3>
+                    <div class="flex items-center gap-1 mt-4" id="expensewizard-steps"></div>
                 </div>
-                <div class="flex items-center gap-1" id="expensewizard-steps"></div>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1" id="expensewizard-body"></div>
-            <div class="p-4 border-t border-slate-100 flex justify-between gap-3 bg-slate-50/50" id="expensewizard-footer"></div>
+                <button onclick="app.closeExpenseWizard()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+            </header>
+            <div class="vf-body" id="expensewizard-body"></div>
+            <footer class="vf-foot" id="expensewizard-footer"></footer>
             <datalist id="expense-supplier-list">
                 ${suppliers.map(p => `<option value="${String(p).replace(/"/g, '&quot;')}">`).join('')}
             </datalist>
-        </div>`;
+        </aside>`;
         overlay.addEventListener('click', (e) => { if (e.target === overlay) this.closeExpenseWizard(); });
         document.body.appendChild(overlay);
         this.renderExpenseWizardStep();
@@ -11546,23 +10224,23 @@ const app = {
         if (!wz || !stepsEl || !body || !footer) return;
         const steps = this.expenseWizardSteps();
         stepsEl.innerHTML = steps.map(s => `
-            <div class="flex-1 flex items-center gap-2 ${s.n <= wz.step ? '' : 'opacity-40'}">
-                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${s.n < wz.step ? 'bg-emerald-500 text-white' : s.n === wz.step ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'}">
+            <div class="flex-1 flex items-center gap-2 ${s.n <= wz.step ? '' : 'opacity-50'}">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${s.n < wz.step ? 'bg-[#1A1A1A] text-white' : s.n === wz.step ? 'bg-[#F2E14C] text-[#1A1A1A]' : 'bg-black/10 text-stone-600'}">
                     ${s.n < wz.step ? '<i class="ph-bold ph-check"></i>' : s.n}
                 </div>
-                <span class="text-[10px] font-bold uppercase tracking-wide hidden sm:inline ${s.n === wz.step ? 'text-brand-dark' : 'text-slate-400'}">${s.label}</span>
-                ${s.n < steps.length ? '<div class="flex-1 h-px bg-slate-200 mx-1"></div>' : ''}
+                <span class="text-sm font-semibold ${s.n === wz.step ? '' : 'text-stone-500'}">${s.label}</span>
+                ${s.n < steps.length ? '<div class="flex-1 h-px bg-black/10 mx-1"></div>' : ''}
             </div>`).join('');
         body.innerHTML = wz.step === 1 ? this.expenseWizardStepWhat(wz)
             : wz.step === 2 ? this.expenseWizardStepAmounts(wz)
             : this.expenseWizardStepReview(wz);
         footer.innerHTML = `
             ${wz.step > 1
-                ? `<button onclick="app.expenseWizardGo(${wz.step - 1})" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all flex items-center gap-2"><i class="ph-bold ph-arrow-left"></i> Atrás</button>`
-                : `<button onclick="app.closeExpenseWizard()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-white transition-all">Cancelar</button>`}
+                ? `<button onclick="app.expenseWizardGo(${wz.step - 1})" class="cx-btn"><i class="ph ph-arrow-left"></i> Atrás</button>`
+                : `<button onclick="app.closeExpenseWizard()" class="cx-btn">Cancelar</button>`}
             ${wz.step < 3
-                ? `<button onclick="app.expenseWizardGo(${wz.step + 1})" class="px-6 py-2.5 rounded-xl bg-brand-dark text-white font-bold text-sm shadow-lg hover:scale-[1.02] transition-transform flex items-center gap-2">Continuar <i class="ph-bold ph-arrow-right"></i></button>`
-                : `<button onclick="app.saveExpenseWizard()" class="px-6 py-2.5 rounded-xl bg-brand-orange text-white font-bold text-sm shadow-lg shadow-brand-orange/30 hover:scale-[1.02] transition-transform flex items-center gap-2"><i class="ph-bold ph-check"></i> ${wz.id ? 'Actualizar compra' : 'Guardar compra'}</button>`}`;
+                ? `<button onclick="app.expenseWizardGo(${wz.step + 1})" class="cx-btn !bg-[#1A1A1A] !text-white !border-[#1A1A1A]">Continuar <i class="ph ph-arrow-right"></i></button>`
+                : `<button onclick="app.saveExpenseWizard()" class="cx-btn is-primary"><i class="ph-bold ph-check"></i> ${wz.id ? 'Guardar cambios' : 'Guardar compra'}</button>`}`;
         if (wz.step === 3) this.renderExpenseWizardReview();
         if (wz.step === 2) this.expenseWizardUpdateNet();
     },
@@ -11628,7 +10306,7 @@ const app = {
         const total = parseFloat(document.getElementById('expense-monto')?.value) || 0;
         const iva = parseFloat(document.getElementById('expense-iva')?.value) || 0;
         const net = document.getElementById('expense-neto');
-        if (net) net.textContent = this.formatCurrency(total - iva);
+        if (net) net.innerHTML = this.formatCurrency(total - iva);
         const warn = document.getElementById('expense-iva-warn');
         if (warn) warn.classList.toggle('hidden', !(total > 0 && iva > total * 0.2 + 0.005));
     },
@@ -11643,51 +10321,51 @@ const app = {
             <input type="hidden" id="expense-id" value="${wz.id || ''}">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de factura *</label>
+                    <label class="vf-mini-label block mb-1.5">Fecha de factura *</label>
                     <input type="date" id="expense-fecha" value="${wz.fecha || ''}"
                         oninput="app.state.expenseWizard.fecha=this.value;app.updateLotPreview()"
-                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                        class="vf-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Proveedor *</label>
+                    <label class="vf-mini-label block mb-1.5">Proveedor *</label>
                     <input id="expense-proveedor" list="expense-supplier-list" value="${esc(wz.proveedor)}"
                         placeholder="Nombre de tienda/empresa"
                         oninput="app.expenseSupplierChanged(this.value)"
-                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                        class="vf-input">
                 </div>
             </div>
             <div class="mt-4">
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Categoría del gasto *</label>
+                <label class="vf-mini-label block mb-1.5">Categoría del gasto *</label>
                 <select id="expense-categoria" onchange="app.expenseWizardCategoryChanged(this)"
-                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                    class="vf-input">
                     <option value="" disabled ${!wz.categoria ? 'selected' : ''}>Seleccionar categoría...</option>
                     ${expenseCategories.map(c => `<option value="${c.value}" ${wz.categoria === c.value ? 'selected' : ''}>${c.label}</option>`).join('')}
                 </select>
             </div>
-            <div id="expense-lot-fields" class="${isStock ? '' : 'hidden'} mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
-                    Nº de Factura <span class="normal-case font-medium text-slate-400">(del proveedor)</span>
+            <div id="expense-lot-fields" class="${isStock ? '' : 'hidden'} mt-4 p-4 rounded-2xl bg-white/50">
+                <label class="vf-mini-label block mb-1.5">
+                    Nº de Factura <span class="font-medium opacity-75">(del proveedor)</span>
                 </label>
                 <input id="expense-invoice-number" value="${esc(wz.invoiceNumber)}" placeholder="Ej. 12345"
                     oninput="app.state.expenseWizard.invoiceNumber=this.value;app.updateLotPreview()"
-                    class="w-full p-3 bg-white border border-slate-200 rounded-xl focus:border-brand-orange outline-none">
+                    class="vf-input">
                 <div class="mt-2 flex items-center gap-2 text-xs">
-                    <span class="text-slate-400 font-bold uppercase tracking-wide">Lote:</span>
-                    <span id="expense-lot-preview" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">${this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—'}</span>
+                    <span class="text-stone-500 font-semibold">Lote</span>
+                    <span id="expense-lot-preview" class="cx-channel">${this.buildLotRef(wz.proveedor, wz.invoiceNumber, wz.fecha, wz.id || null) || '—'}</span>
                 </div>
-                <p class="text-[10px] text-slate-400 mt-1">Vincula esta factura con los discos que ingresen al inventario.</p>
-                <div id="expense-vat-treatment" class="${wz.categoria === 'stock_nuevo' ? '' : 'hidden'} mt-3 pt-3 border-t border-indigo-100">
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Tratamiento de IVA</label>
+                <p class="text-xs text-stone-500 mt-1.5">Une esta factura con los discos que cargues al inventario.</p>
+                <div id="expense-vat-treatment" class="${wz.categoria === 'stock_nuevo' ? '' : 'hidden'} mt-4 pt-4 border-t border-black/10">
+                    <label class="vf-mini-label block mb-2">Tratamiento de IVA</label>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2" id="expense-vat-treatment-options">
                         ${this.expenseVatTreatmentOptionsHTML(wz)}
                     </div>
                 </div>
             </div>
             <div class="mt-4">
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Notas / Descripción</label>
+                <label class="vf-mini-label block mb-1.5">Notas / Descripción</label>
                 <textarea id="expense-descripcion" rows="2" placeholder="Detalles adicionales (opcional)"
                     oninput="app.state.expenseWizard.descripcion=this.value"
-                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none resize-none">${escT(wz.descripcion)}</textarea>
+                    class="vf-input !h-auto py-2.5 resize-none">${escT(wz.descripcion)}</textarea>
             </div>`;
     },
 
@@ -11702,40 +10380,40 @@ const app = {
         return `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto total (DKK) *</label>
+                    <label class="vf-mini-label block mb-1.5">Monto total (DKK) *</label>
                     <input type="number" id="expense-monto" step="0.01" min="0" value="${wz.total === '' || wz.total == null ? '' : wz.total}"
                         placeholder="0.00"
                         oninput="app.state.expenseWizard.total=this.value;app.expenseWizardUpdateNet()"
-                        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none text-lg font-bold">
+                        class="vf-input !h-12 !text-lg !font-semibold">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Monto IVA / Moms (DKK)</label>
+                    <label class="vf-mini-label block mb-1.5">Monto IVA / Moms (DKK)</label>
                     <div class="flex gap-2">
                         <input type="number" id="expense-iva" step="0.01" min="0" value="${ivaVal}"
                             placeholder="0.00" ${ivaLocked ? 'disabled' : ''}
                             oninput="app.state.expenseWizard.iva=this.value;app.expenseWizardUpdateNet()"
-                            class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-brand-orange outline-none ${ivaLocked ? 'bg-slate-100 cursor-not-allowed' : ''}">
-                        ${ivaLocked ? '' : `<button type="button" onclick="app.expenseWizardCalcVat()" class="px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:border-brand-orange hover:text-brand-orange transition-all" title="Calcular IVA 25% incluido en el total">25%</button>`}
+                            class="vf-input flex-1 ${ivaLocked ? 'opacity-60 cursor-not-allowed' : ''}">
+                        ${ivaLocked ? '' : `<button type="button" onclick="app.expenseWizardCalcVat()" class="vf-mult-chip !h-[42px] !rounded-[14px] shrink-0" title="Calcular IVA 25% incluido en el total">25%</button>`}
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                    <p class="text-xs text-stone-500 mt-1.5 flex items-center gap-1">
                         <i class="ph-bold ph-info"></i> ${isDk ? 'Factura danesa: ingresá el 25% de IVA incluido en el total.' : 'Puede ser 0 si el proveedor es extranjero o particular'}
                     </p>
                 </div>
             </div>
             ${isUsado ? `
-            <p class="mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2">
+            <p class="mt-3 text-sm bg-[#F2E14C] rounded-2xl px-3 py-2.5 flex items-center gap-2">
                 <i class="ph-bold ph-warning"></i> Vinilos usados (Brugtmoms): sin IVA deducible.
             </p>` : ''}
             ${isEu ? `
-            <p class="mt-3 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2">
+            <p class="mt-3 text-sm bg-white/70 rounded-2xl px-3 py-2.5 flex items-center gap-2">
                 <i class="ph-bold ph-info"></i> Reverse charge UE: la factura viene al 0%. El IVA se autoliquida por disco en el Reporte VAT (se declara y se deduce, neto 0).
             </p>` : ''}
-            <div class="mt-4 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal neto</span>
-                <span id="expense-neto" class="text-lg font-display font-bold text-brand-dark"></span>
+            <div class="vf-margin">
+                <span class="vf-mini-label">Subtotal neto</span>
+                <span id="expense-neto" class="text-2xl font-light tracking-tight"></span>
             </div>
-            <p id="expense-iva-warn" class="hidden mt-2 text-[11px] text-amber-700 flex items-center gap-1">
-                <i class="ph-bold ph-warning"></i> El IVA supera el 25% danés — revisá los importes.
+            <p id="expense-iva-warn" class="hidden mt-2 text-xs font-semibold text-[#B42318] flex items-center gap-1">
+                <i class="ph-bold ph-warning"></i> El IVA supera el 25% danés. Revisá los importes.
             </p>`;
     },
 
@@ -11743,14 +10421,14 @@ const app = {
     expenseWizardStepReview(wz) {
         return `
             <div class="mb-4">
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Factura / Recibo *</label>
+                <label class="vf-mini-label block mb-2">Factura / Recibo *</label>
                 <div id="upload-zone" onclick="document.getElementById('receipt-file').click()"
-                    class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-brand-orange hover:bg-orange-50/30 transition-all group">
+                    class="border-2 border-dashed border-black/15 rounded-3xl p-8 text-center cursor-pointer bg-white/40 hover:bg-[#F2E14C]/40 hover:border-[#1A1A1A]/30 transition-all group">
                     <input type="file" id="receipt-file" accept="image/*,.pdf" class="hidden" onchange="app.handleReceiptUpload(this)">
                     <div id="upload-placeholder">
-                        <i class="ph-duotone ph-upload-simple text-4xl text-slate-300 group-hover:text-brand-orange transition-colors mb-2"></i>
-                        <p class="text-sm text-slate-500 group-hover:text-brand-orange transition-colors font-medium">Subir Factura/Recibo</p>
-                        <p class="text-xs text-slate-400 mt-1">JPG, PNG o PDF</p>
+                        <i class="ph ph-upload-simple text-4xl text-stone-500 mb-2"></i>
+                        <p class="text-sm font-semibold">Subir la factura o el recibo</p>
+                        <p class="text-xs text-stone-500 mt-1">JPG, PNG o PDF</p>
                     </div>
                     <div id="upload-preview" class="hidden">
                         <img id="receipt-preview-img" src="" alt="Preview" class="max-h-32 mx-auto rounded-lg shadow-sm mb-2">
@@ -11762,11 +10440,11 @@ const app = {
                     </div>
                 </div>
                 <input type="hidden" id="receipt-url" value="">
-                <label class="mt-3 flex items-start gap-3 p-3 rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-amber-300 hover:bg-amber-50/50 transition-all">
-                    <input type="checkbox" id="expense-no-receipt" ${wz.noReceipt ? 'checked' : ''} onchange="app.state.expenseWizard.noReceipt=this.checked" class="mt-0.5 w-4 h-4 rounded text-amber-500 focus:ring-amber-500 border-slate-300">
-                    <span class="text-xs text-slate-500">
-                        <span class="font-bold text-slate-700">Cargar sin comprobante por ahora</span><br>
-                        El registro quedará marcado <strong>en revisión</strong> hasta que subas el comprobante.
+                <label class="mt-3 flex items-start gap-3 p-3 rounded-2xl bg-white/60 cursor-pointer hover:bg-white transition-all">
+                    <input type="checkbox" id="expense-no-receipt" ${wz.noReceipt ? 'checked' : ''} onchange="app.state.expenseWizard.noReceipt=this.checked" class="mt-0.5 w-4 h-4 accent-black">
+                    <span class="text-sm text-stone-600">
+                        <span class="font-semibold text-[#1A1A1A]">Guardar sin comprobante por ahora</span><br>
+                        Queda marcada como "en revisión" hasta que lo subas.
                     </span>
                 </label>
             </div>
@@ -11781,12 +10459,12 @@ const app = {
         const dupBox = document.getElementById('expensewizard-dup');
         if (dupBox) {
             dupBox.innerHTML = dup ? `
-                <div class="mb-4 p-4 rounded-2xl border border-amber-200 bg-amber-50">
-                    <p class="text-sm font-bold text-amber-800 flex items-center gap-2"><i class="ph-bold ph-warning"></i> Posible duplicado</p>
-                    <p class="text-xs text-amber-700 mt-1">Ya existe <strong>${dup.proveedor || dup.description || ''}</strong> el ${this.formatDate(dup.fecha_factura || dup.date)} por ${this.formatCurrency(Number(dup.monto_total || dup.amount || 0))}.</p>
+                <div class="mb-4 p-4 rounded-2xl bg-[#F2955E]">
+                    <p class="text-sm font-semibold flex items-center gap-2"><i class="ph-bold ph-warning"></i> Posible duplicado</p>
+                    <p class="text-sm mt-1">Ya existe <strong>${dup.proveedor || dup.description || ''}</strong> el ${this.formatDate(dup.fecha_factura || dup.date)} por ${this.formatCurrency(Number(dup.monto_total || dup.amount || 0))}.</p>
                     <label class="mt-3 flex items-start gap-2 cursor-pointer">
-                        <input type="checkbox" id="expense-dup-ack" ${wz.dupAck ? 'checked' : ''} onchange="app.state.expenseWizard.dupAck=this.checked" class="mt-0.5 w-4 h-4 rounded text-amber-600 border-amber-300">
-                        <span class="text-xs text-amber-800 font-bold">Entiendo, guardar igual</span>
+                        <input type="checkbox" id="expense-dup-ack" ${wz.dupAck ? 'checked' : ''} onchange="app.state.expenseWizard.dupAck=this.checked" class="mt-0.5 w-4 h-4 accent-black">
+                        <span class="text-sm font-semibold">Es otra compra, guardar igual</span>
                     </label>
                 </div>` : '';
         }
@@ -11801,19 +10479,19 @@ const app = {
         const receiptUrl = document.getElementById('receipt-url')?.value || wz.receiptUrl || '';
         const sumBox = document.getElementById('expensewizard-summary');
         if (sumBox) {
-            const row = (k, v) => `<div class="flex justify-between gap-4 py-2 border-b border-slate-50 last:border-0"><span class="text-xs text-slate-400 font-bold uppercase tracking-wide">${k}</span><span class="text-sm font-bold text-brand-dark text-right">${v}</span></div>`;
+            const row = (k, v) => `<div class="flex justify-between gap-4 py-2 border-b border-black/5 last:border-0"><span class="text-sm text-stone-500">${k}</span><span class="text-sm font-semibold text-right">${v}</span></div>`;
             sumBox.innerHTML = `
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Resumen</p>
-                <div class="bg-slate-50/60 border border-slate-100 rounded-2xl px-4 py-2">
+                <h4 class="vf-h">Resumen</h4>
+                <div class="vf-card !py-2">
                     ${row('Fecha', this.formatDate(wz.fecha))}
                     ${row('Proveedor', wz.proveedor || '—')}
                     ${row('Categoría', catLabel)}
                     ${row('Total', this.formatCurrency(total))}
                     ${row('IVA', this.formatCurrency(iva))}
-                    ${wz.categoria === 'stock_nuevo' ? row('Tratamiento IVA', treat === 'dk' ? '<span class="text-emerald-700">Dinamarca · 25%</span>' : '<span class="text-blue-700">UE · Reverse charge</span>') : ''}
+                    ${wz.categoria === 'stock_nuevo' ? row('Tratamiento IVA', treat === 'dk' ? 'Dinamarca, 25%' : 'UE, reverse charge') : ''}
                     ${row('Subtotal neto', this.formatCurrency(total - iva))}
-                    ${lot ? row('Lote', `<span class="text-indigo-700">${lot}</span>`) : ''}
-                    ${row('Comprobante', receiptUrl ? '<span class="text-emerald-600">Subido</span>' : (wz.noReceipt ? '<span class="text-amber-600">En revisión</span>' : '<span class="text-red-500">Falta</span>'))}
+                    ${lot ? row('Lote', lot) : ''}
+                    ${row('Comprobante', receiptUrl ? '<span class="cx-state is-ok">Subido</span>' : (wz.noReceipt ? '<span class="cx-state is-wait">En revisión</span>' : '<span class="cx-state is-hot">Falta</span>'))}
                 </div>`;
         }
         // Restaurar vista previa del comprobante si se está editando
@@ -12555,15 +11233,15 @@ const app = {
         if (!container) return;
 
         const html = `
-    <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6 animate-fadeIn" >
-                                                                    ${this.sectionHeader({
-                                                                        title: 'Socios y Consignación',
-                                                                        subtitle: 'Saldos y stock en consignación por socio',
-                                                                        primary: { label: 'Nuevo Socio', icon: 'ph-plus', onclick: "app.openAddConsignorModal()" }
-                                                                    })}
-
-                                                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                                        ${this.state.consignors.map(c => {
+    <div class="cx-view">
+    <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
+                ${this.sectionHeader({
+                    title: 'Consignaciones',
+                    subtitle: 'Discos de socios: cuánto tienen en stock y cuánto les debés',
+                    primary: { label: 'Nuevo socio', icon: 'ph-plus', onclick: "app.openAddConsignorModal()" }
+                })}
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+                    ${this.state.consignors.map(c => {
             // Stats
             const partnerName = c.name;
             const partnerItems = this.state.inventory.filter(i => i.owner === partnerName);
@@ -12612,149 +11290,87 @@ const app = {
             const pendingPay = totalDue - alreadyPaid;
 
             // Build stock items preview for hover tooltip
-            const stockItemsHtml = partnerItems.filter(i => i.stock > 0).slice(0, 12).map(i => `
-                <div class="flex items-center gap-2 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-                    <img src="${i.cover_image || i.image || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-md object-cover border border-white/10 shrink-0" onerror="this.src='https://elcuartito.dk/default-vinyl.png'">
+            const stockItemsHtml = partnerItems.filter(i => i.stock > 0).map(i => `
+                <div class="flex items-center gap-2 p-1.5 rounded-xl bg-white/5">
+                    <img src="${i.cover_image || i.image || 'https://elcuartito.dk/default-vinyl.png'}" class="w-10 h-10 rounded-lg object-cover shrink-0" onerror="this.src='https://elcuartito.dk/default-vinyl.png'" alt="">
                     <div class="min-w-0 flex-1">
-                        <p class="text-[10px] font-bold text-white truncate">${i.album || i.title || 'Sin título'}</p>
-                        <p class="text-[9px] text-slate-400 truncate">${i.artist || ''} ${i.location ? '· 📍' + i.location : ''}</p>
-                        <p class="text-[9px] text-brand-orange font-bold">${this.formatCurrency(i.price || 0)} × ${i.stock}</p>
+                        <p class="text-xs font-semibold text-white truncate">${i.album || i.title || 'Sin título'}</p>
+                        <p class="text-[11px] text-stone-400 truncate">${i.artist || ''}${i.location ? ' · ' + i.location : ''}</p>
+                        <p class="text-[11px] text-[#F2E14C] font-semibold">${this.formatCurrency(i.price || 0)} × ${i.stock}</p>
                     </div>
                 </div>
             `).join('');
-            const remainingStock = partnerItems.filter(i => i.stock > 0).length - 12;
-            const stockOverflowHtml = remainingStock > 0 ? `<p class="text-[9px] text-slate-500 text-center mt-1">+${remainingStock} más...</p>` : '';
 
+            const split = c.agreementSplit || c.split || 70;
             return `
-                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                            <div class="flex justify-between items-start mb-6">
-                                <div>
-                                    <div class="flex items-center gap-2">
-                                        <h3 class="font-display text-xl font-bold text-brand-dark">${c.name}</h3>
-                                        <!-- Info Button -->
-                                        <div class="relative" id="info-wrap-${c.id}">
-                                            <button onclick="event.stopPropagation(); const el = document.getElementById('info-pop-${c.id}'); el.classList.toggle('hidden'); el.classList.toggle('opacity-0'); el.classList.toggle('opacity-100');" 
-                                                class="w-7 h-7 rounded-full bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 flex items-center justify-center transition-all" title="Ver contacto">
-                                                <i class="ph-bold ph-info text-sm"></i>
-                                            </button>
-                                            <!-- Info Popover -->
-                                            <div id="info-pop-${c.id}" class="hidden opacity-0 absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 p-4 z-50 transition-all duration-200">
-                                                <div class="absolute -top-1.5 left-4 w-3 h-3 bg-white border-t border-l border-slate-100 rotate-45"></div>
-                                                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Datos de Contacto</h4>
-                                                <div class="space-y-2">
-                                                    <div class="flex items-center gap-2.5 p-2 bg-slate-50 rounded-lg">
-                                                        <div class="w-7 h-7 bg-blue-50 rounded-md flex items-center justify-center text-blue-500 shrink-0">
-                                                            <i class="ph-bold ph-envelope-simple text-sm"></i>
-                                                        </div>
-                                                        ${c.email 
-                                                            ? `<a href="mailto:${c.email}" class="text-xs text-brand-dark font-medium hover:text-blue-600 transition-colors truncate">${c.email}</a>` 
-                                                            : `<span class="text-xs text-slate-400 italic">No registrado</span>`}
-                                                    </div>
-                                                    <div class="flex items-center gap-2.5 p-2 bg-slate-50 rounded-lg">
-                                                        <div class="w-7 h-7 bg-green-50 rounded-md flex items-center justify-center text-green-500 shrink-0">
-                                                            <i class="ph-bold ph-phone text-sm"></i>
-                                                        </div>
-                                                        ${c.phone 
-                                                            ? `<a href="tel:${c.phone}" class="text-xs text-brand-dark font-medium hover:text-green-600 transition-colors">${c.phone}</a>` 
-                                                            : `<span class="text-xs text-slate-400 italic">No registrado</span>`}
-                                                    </div>
-                                                </div>
-                                                <div class="mt-3 pt-3 border-t border-slate-50">
-                                                    <div class="flex items-center gap-2 text-[10px] text-slate-400">
-                                                        <i class="ph-bold ph-handshake text-xs"></i>
-                                                        <span>Acuerdo: <strong class="text-brand-orange">${c.agreementSplit || c.split || 70}%</strong> para el socio</span>
-                                                    </div>
-                                                </div>
+                        <section class="vf-card flex flex-col !p-5">
+                            <div class="flex justify-between items-start gap-3">
+                                <div class="min-w-0">
+                                    <h3 class="cx-dialog-title truncate">${c.name}</h3>
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-stone-600">
+                                        <span class="cx-state is-split">${split}% para el socio</span>
+                                        ${c.email ? `<a href="mailto:${c.email}" class="hover:underline truncate"><i class="ph ph-envelope-simple"></i> ${c.email}</a>` : ''}
+                                        ${c.phone ? `<a href="tel:${c.phone}" class="hover:underline"><i class="ph ph-phone"></i> ${c.phone}</a>` : ''}
+                                    </div>
+                                </div>
+                                <button onclick="app.deleteConsignor('${c.id}')" class="cx-row-btn is-danger shrink-0" title="Eliminar socio" aria-label="Eliminar socio ${c.name}"><i class="ph ph-trash"></i></button>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 mt-4">
+                                <div class="relative group/stock cx-tile cx-yellow !min-h-0 !overflow-visible cursor-default">
+                                    <span class="cx-tile-label">En stock</span>
+                                    <b class="cx-tile-value !text-2xl">${inStockCount} <small>discos</small></b>
+                                    ${inStockCount > 0 ? `
+                                    <div class="absolute bottom-full left-0 pb-2 w-72 opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible focus-within:opacity-100 focus-within:visible transition-opacity duration-150 z-50">
+                                        <div class="bg-[#1A1A1A] rounded-2xl shadow-2xl p-3">
+                                            <p class="text-xs font-semibold text-stone-400 mb-2">Discos en stock (${inStockCount})</p>
+                                            <div class="space-y-1.5 max-h-64 overflow-y-auto overscroll-contain custom-scrollbar pr-1">
+                                                ${stockItemsHtml || '<p class="text-xs text-stone-500 text-center py-2">Sin discos</p>'}
                                             </div>
                                         </div>
-                                    </div>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <span class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">${c.agreementSplit || c.split || 70}% Acuerdo</span>
-                                    </div>
+                                    </div>` : ''}
                                 </div>
-                                <button onclick="app.deleteConsignor('${c.id}')" class="text-slate-300 hover:text-red-400 transition-colors">
-                                    <i class="ph-bold ph-trash"></i>
-                                </button>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4 mb-6">
-                                <!-- Stock Actual with hover preview -->
-                                <div class="relative group/stock bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-default">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Stock Actual</p>
-                                    <p class="font-display font-bold text-xl text-brand-dark">${inStockCount}</p>
-                                    ${inStockCount > 0 ? `
-                                    <!-- Stock hover tooltip -->
-                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-brand-dark rounded-xl shadow-2xl border border-slate-700 p-3 opacity-0 invisible group-hover/stock:opacity-100 group-hover/stock:visible transition-all duration-200 z-50 pointer-events-none">
-                                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-brand-dark"></div>
-                                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="ph-bold ph-vinyl-record mr-1"></i>Discos en stock (${inStockCount})</p>
-                                        <div class="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                                            ${stockItemsHtml || '<p class="text-[10px] text-slate-500 text-center py-2">Sin items</p>'}
-                                            ${stockOverflowHtml}
-                                        </div>
-                                    </div>
-                                    ` : ''}
-                                </div>
-                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pendiente Pago</p>
-                                    <p class="font-display font-bold text-xl ${pendingPay > 0 ? 'text-brand-orange' : 'text-slate-500'}">${this.formatCurrency(pendingPay)}</p>
+                                <div class="cx-tile ${pendingPay > 0 ? 'cx-dark' : 'cx-frost'} !min-h-0">
+                                    <span class="cx-tile-label">A pagarle</span>
+                                    <b class="cx-tile-value !text-2xl">${this.formatCurrency(pendingPay)}</b>
                                 </div>
                             </div>
 
-                            <div class="border-t border-slate-100 pt-4">
-                                <div class="flex justify-between items-center mb-4">
-                                    <h4 class="font-bold text-sm text-brand-dark">Historial de Ventas</h4>
-                                    <span class="text-xs text-slate-500 font-medium">Pagado: ${this.formatCurrency(alreadyPaid)}</span>
-                                </div>
-                                <div class="max-h-60 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
-                                    ${soldItems.length > 0 ? soldItems.map(s => `
-                                        <div class="flex items-center justify-between p-3 rounded-xl border ${s.payoutStatus === 'paid' ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-orange-100 shadow-sm'} transition-all">
-                                            <div class="flex-1 min-w-0 pr-3">
-                                                <div class="font-bold text-xs truncate text-brand-dark">${s.album || s.sku}</div>
-                                                <div class="text-[10px] text-slate-400">${this.formatDate(s.date)} • ${this.formatCurrency(s.cost)}</div>
-                                                ${s.payoutStatus === 'paid' && s.payoutDate
-                    ? `<div class="text-[9px] text-green-600 font-bold mt-0.5"><i class="ph-bold ph-check"></i> Pagado: ${this.formatDate(s.payoutDate)}</div>`
-                    : ''}
-                                            </div>
-                                            <button 
-                                                onclick="app.togglePayoutStatus('${s.id}', '${s.payoutStatus || 'pending'}')"
-                                                class="shrink-0 h-8 px-3 rounded-lg text-[10px] font-bold border transition-colors ${s.payoutStatus === 'paid'
-                    ? 'bg-slate-200 border-slate-300 text-slate-500 hover:bg-slate-300'
-                    : 'bg-green-100 border-green-200 text-green-700 hover:bg-green-200'
-                }"
-                                            >
-                                                ${s.payoutStatus === 'paid' ? 'PAGADO' : 'PAGAR'}
-                                            </button>
-                                        </div>
-                                    `).join('') : '<div class="text-center py-4 text-xs text-slate-400 italic">No hay ventas registradas</div>'}
-                                </div>
+                            <div class="flex justify-between items-center mt-5 mb-2">
+                                <h4 class="text-sm font-semibold">Ventas de sus discos <span class="cx-count">${totalSold}</span></h4>
+                                <span class="text-xs text-stone-500">Ya pagado ${this.formatCurrency(alreadyPaid)}</span>
                             </div>
-                        </div>
+                            <div class="max-h-64 overflow-y-auto custom-scrollbar -mx-2">
+                                ${soldItems.length > 0 ? soldItems.map(s => `
+                                    <div class="cx-feed-row !cursor-default ${s.payoutStatus === 'paid' ? 'opacity-60' : ''}">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-semibold truncate">${s.album || s.sku}</p>
+                                            <p class="text-xs text-stone-500">${this.formatDate(s.date)} · le corresponde ${this.formatCurrency(s.cost)}${s.payoutStatus === 'paid' && s.payoutDate ? ` · pagado el ${this.formatDate(s.payoutDate)}` : ''}</p>
+                                        </div>
+                                        <button onclick="app.togglePayoutStatus('${s.id}', '${s.payoutStatus || 'pending'}')"
+                                            class="cx-btn !h-8 !px-3 !text-xs ${s.payoutStatus === 'paid' ? '' : 'is-primary'}"
+                                            title="${s.payoutStatus === 'paid' ? 'Marcar como no pagado' : 'Marcar como pagado'}">
+                                            ${s.payoutStatus === 'paid' ? '<i class="ph-bold ph-check"></i> Pagado' : 'Pagar'}
+                                        </button>
+                                    </div>
+                                `).join('') : '<p class="text-sm text-stone-500 px-2 py-3">Todavía no se vendió ningún disco de este socio.</p>'}
+                            </div>
+                        </section>
                         `;
         }).join('')}
-                                                                        ${this.state.consignors.length === 0 ? `
-                        <div class="col-span-full text-center py-16 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                            <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                                <i class="ph-bold ph-users text-3xl"></i>
-                            </div>
-                            <h3 class="text-lg font-bold text-brand-dark mb-2">No hay socios registrados</h3>
-                            <p class="text-slate-500 mb-6 max-w-md mx-auto">Agrega socios para gestionar ventas en consignación y calcular pagos automáticamente.</p>
-                            <button onclick="app.openAddConsignorModal()" class="text-brand-orange font-bold hover:underline">Agregar primer socio</button>
+                        ${this.state.consignors.length === 0 ? `
+                        <div class="col-span-full text-center py-16 rounded-3xl border border-dashed border-black/15">
+                            <span class="cx-sq mx-auto mb-4"><i class="ph ph-handshake"></i></span>
+                            <h3 class="cx-h mb-2">Todavía no hay socios</h3>
+                            <p class="text-sm text-stone-600 mb-6 max-w-md mx-auto">Sumá a quienes te dejan discos en consignación y el sistema calcula cuánto le debés a cada uno.</p>
+                            <button onclick="app.openAddConsignorModal()" class="cx-btn is-primary"><i class="ph-bold ph-plus"></i>Agregar socio</button>
                         </div>
                     ` : ''}
-                                                                    </div>
-                                                                </div>
+                    </div>
+                </div>
+                </div>
     `;
         container.innerHTML = html;
-
-        // Close info popovers on click outside
-        document.addEventListener('click', function closeInfoPopovers(e) {
-            if (!e.target.closest('[id^="info-wrap-"]')) {
-                document.querySelectorAll('[id^="info-pop-"]').forEach(p => {
-                    p.classList.add('hidden', 'opacity-0');
-                    p.classList.remove('opacity-100');
-                });
-            }
-        }, { once: false });
     },
 
     togglePayoutStatus(saleId, currentStatus) {
@@ -12782,38 +11398,34 @@ const app = {
 
     openAddConsignorModal() {
         const modalHtml = `
-    <div id="modal-overlay" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl transform scale-100 transition-all border border-orange-100">
-            <h3 class="font-display text-xl font-bold mb-4 text-brand-dark">Nuevo Socio</h3>
-            <form onsubmit="app.handleAddConsignor(event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre y Apellido</label>
-                    <input name="name" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
+    <div id="modal-overlay" class="vf-overlay cx-dialog-wrap" onclick="if (event.target === this) this.remove()">
+        <div class="cx-dialog cx-view" role="dialog" aria-modal="true" aria-labelledby="cons-title">
+            <div class="flex justify-between items-start mb-5">
+                <h3 id="cons-title" class="cx-dialog-title">Nuevo socio</h3>
+                <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+            </div>
+            <form onsubmit="app.handleAddConsignor(event)" class="space-y-3">
+                <label class="vf-field"><span>Nombre y apellido</span>
+                    <input name="name" required class="vf-input"></label>
+                <label class="vf-field"><span>Porcentaje para el socio (%)</span>
+                    <input name="split" type="number" min="0" max="100" value="70" required class="vf-input"></label>
+                <p class="text-xs text-stone-500 -mt-1">La parte de cada venta que se queda el dueño del disco.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="vf-field"><span>Email <em>(opcional)</em></span>
+                        <input name="email" type="email" class="vf-input"></label>
+                    <label class="vf-field"><span>Teléfono <em>(opcional)</em></span>
+                        <input name="phone" type="tel" class="vf-input"></label>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Porcentaje del Socio (%)</label>
-                    <input name="split" type="number" min="0" max="100" value="70" required class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                        <p class="text-[10px] text-slate-400 mt-1">El porcentaje de la venta que se queda el dueño del vinilo.</p>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email (Opcional)</label>
-                        <input name="email" type="email" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Teléfono (Opcional)</label>
-                        <input name="phone" type="tel" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:border-brand-orange outline-none">
-                    </div>
-                </div>
-                <div class="pt-4 flex gap-3">
-                    <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium transition-colors">Cancelar</button>
-                    <button type="submit" class="flex-1 py-2 rounded-xl bg-brand-orange hover:bg-orange-600 text-white font-bold transition-colors">Guardar</button>
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('modal-overlay').remove()" class="cx-btn">Cancelar</button>
+                    <button type="submit" class="cx-btn is-primary">Guardar socio</button>
                 </div>
             </form>
         </div>
-
+    </div>
 `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+        setTimeout(() => document.querySelector('#modal-overlay input[name="name"]')?.focus(), 50);
     },
 
     handleAddConsignor(e) {
@@ -12977,6 +11589,7 @@ const app = {
         // Save Discogs IDs
         const releaseIdInput = document.getElementById('input-discogs-id');
         if (releaseIdInput && release.id) releaseIdInput.value = release.id;
+        this.vfCheckDuplicates();
 
         // Set Discogs URL for hidden field
         if (release.uri || release.resource_url) {
@@ -13028,7 +11641,7 @@ const app = {
                     const rawGenres = fullRelease.styles || [];
                     const uniqueGenres = [...new Set(rawGenres)];
                     if (tagsContainer) {
-                        tagsContainer.innerHTML = uniqueGenres.map(g => `<span class="meta-chip border border-slate-200">${g}</span>`).join('');
+                        tagsContainer.innerHTML = uniqueGenres.map(g => `<button type="button" class="vf-suggest-chip" onclick="app.vfAddGenre('${g.replace(/'/g, "\\'")}')">${g}</button>`).join('');
                     }
 
                     // Auto-populate genre input fields from Discogs (up to 3)
@@ -13454,29 +12067,29 @@ const app = {
         const displayName = ci.name && ci.name !== 'Cliente' ? ci.name : (ci.email || 'Cliente');
         const warn = this.shipDeleteStockWarning(sale);
         const modalHtml = `
-        <div id="delete-shipment-modal" class="fixed inset-0 bg-brand-dark/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-            <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div id="delete-shipment-modal" class="vf-overlay cx-dialog-wrap !z-[200]">
+            <div class="cx-dialog cx-view">
                 <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
-                        <i class="ph-fill ph-warning text-2xl text-red-500"></i>
+                    <div class="cx-sq !bg-[#F05A28] !text-white">
+                        <i class="ph-bold ph-trash"></i>
                     </div>
                     <div>
-                        <h3 class="font-display text-xl font-bold text-brand-dark">¿Eliminar ficha?</h3>
-                        <p class="text-sm text-slate-500">Esta acción no se puede deshacer</p>
+                        <h3 class="cx-dialog-title">¿Eliminar ficha?</h3>
+                        <p class="cx-sub !mt-1">No se puede deshacer.</p>
                     </div>
                 </div>
-                <div class="bg-slate-50 rounded-xl p-4 mb-4">
-                    <p class="font-bold text-brand-dark mb-1">${ecEsc(displayName)}</p>
-                    <p class="text-xs text-slate-400">Se va a eliminar la ficha de ${ecEsc(displayName)}.</p>
+                <div class="rounded-2xl bg-white/70 p-4 mb-4">
+                    <p class="font-semibold mb-1">${ecEsc(displayName)}</p>
+                    <p class="text-xs text-stone-500">Se va a eliminar la ficha de ${ecEsc(displayName)}.</p>
                 </div>
                 ${warn.willReturn ? `
-                <div class="bg-amber-50 border border-amber-100 rounded-xl p-3 mb-4 flex items-start gap-2">
-                    <i class="ph-bold ph-warning text-amber-500 mt-0.5"></i>
-                    <p class="text-xs text-amber-800">Se va a devolver <b>1 unidad</b> al stock de <b>${ecEsc(warn.label)}</b>.</p>
+                <div class="rounded-2xl bg-[#F2E14C] p-3 mb-4 flex items-start gap-2">
+                    <i class="ph-bold ph-warning mt-0.5"></i>
+                    <p class="text-xs">Se va a devolver <b>1 unidad</b> al stock de <b>${ecEsc(warn.label)}</b>.</p>
                 </div>` : ''}
                 <div class="flex gap-3">
-                    <button onclick="document.getElementById('delete-shipment-modal').remove()" class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button>
-                    <button onclick="app.confirmDeleteShipment('${saleId}')" class="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20">Eliminar</button>
+                    <button onclick="document.getElementById('delete-shipment-modal').remove()" class="cx-btn flex-1 justify-center">Cancelar</button>
+                    <button onclick="app.confirmDeleteShipment('${saleId}')" class="cx-btn is-danger flex-1 justify-center">Eliminar</button>
                 </div>
             </div>
         </div>`;
@@ -13850,78 +12463,47 @@ const app = {
 
         // Status Logic (Defaulting to "Pendiente" as we don't store declared status yet)
         const statusLabel = selectedQuarter === 0 ? 'Anual' : 'Pendiente';
-        const statusColor = selectedQuarter === 0 ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500';
 
         const html = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-8 pt-6">
-                <!-- Header Section -->
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange text-2xl">
-                            <i class="ph-duotone ph-chart-pie-slice"></i>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-3">
-                                <h2 class="font-display text-2xl font-bold text-brand-dark">VAT (Moms)</h2>
-                                <span class="${statusColor} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">${statusLabel}</span>
-                            </div>
-                            <p class="text-xs text-slate-400 uppercase font-bold tracking-wider mt-0.5">Régimen de IVA Dinamarca</p>
-                        </div>
-                    </div>
-                    
-                    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <div class="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
-                            <select id="vat-year-select" onchange="app.updateVATQuarter()" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
-                                ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('')}
-                            </select>
-                            <select id="vat-quarter-select" onchange="app.updateVATQuarter()" class="bg-transparent px-3 py-1.5 text-sm font-bold text-slate-600 outline-none cursor-pointer">
-                                <option value="0" ${selectedQuarter === 0 ? 'selected' : ''}>Todo el año</option>
-                                <option value="1" ${selectedQuarter === 1 ? 'selected' : ''}>Q1</option>
-                                <option value="2" ${selectedQuarter === 2 ? 'selected' : ''}>Q2</option>
-                                <option value="3" ${selectedQuarter === 3 ? 'selected' : ''}>Q3</option>
-                                <option value="4" ${selectedQuarter === 4 ? 'selected' : ''}>Q4</option>
-                            </select>
-                        </div>
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
+                ${this.sectionHeader({
+                    title: 'Reporte VAT',
+                    subtitle: 'Moms del período según el régimen danés',
+                    primary: { label: 'Exportar auditoría', icon: 'ph-file-csv', onclick: 'app.downloadVATAuditReport()' }
+                })}
 
-                        <button onclick="app.downloadVATAuditReport()" class="flex-1 lg:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
-                            <i class="ph-bold ph-file-csv"></i>
-                            Exportar Auditoría
-                        </a>
-                    </div>
+                <div class="flex flex-wrap items-center gap-2 mb-5">
+                    <select id="vat-year-select" onchange="app.updateVATQuarter()" class="cx-pill-select !h-[54px] !rounded-[22px]" aria-label="Año">
+                        ${[currentYear, currentYear - 1, currentYear - 2].map(y => `<option value="${y}" ${y === selectedYear ? 'selected' : ''}>${y}</option>`).join('')}
+                    </select>
+                    <select id="vat-quarter-select" onchange="app.updateVATQuarter()" class="cx-pill-select !h-[54px] !rounded-[22px]" aria-label="Trimestre">
+                        <option value="0" ${selectedQuarter === 0 ? 'selected' : ''}>Todo el año</option>
+                        <option value="1" ${selectedQuarter === 1 ? 'selected' : ''}>Q1, Ene a Mar</option>
+                        <option value="2" ${selectedQuarter === 2 ? 'selected' : ''}>Q2, Abr a Jun</option>
+                        <option value="3" ${selectedQuarter === 3 ? 'selected' : ''}>Q3, Jul a Sep</option>
+                        <option value="4" ${selectedQuarter === 4 ? 'selected' : ''}>Q4, Oct a Dic</option>
+                    </select>
+                    <span class="cx-state ${selectedQuarter === 0 ? 'is-ok' : 'is-wait'} ml-1">${statusLabel}</span>
                 </div>
 
-                <!-- Main KPIs Section (Prompt 1) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <!-- Tarjeta A: Moms Tilsvar (Total a Pagar) -->
-                    <div class="${totalVatToPayFinal > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'} rounded-3xl p-8 border shadow-sm relative overflow-hidden group">
-                        <p class="${totalVatToPayFinal > 0 ? 'text-red-700/60' : 'text-emerald-700/60'} text-xs font-bold uppercase tracking-widest mb-4">Moms Tilsvar</p>
-                        <p class="text-4xl font-display font-bold mb-2 ${totalVatToPayFinal > 0 ? 'text-red-700' : 'text-emerald-700'}">${this.formatCurrency(totalVatToPayFinal)}</p>
-                        <p class="text-[11px] ${totalVatToPayFinal > 0 ? 'text-red-600/70' : 'text-emerald-600/70'} mt-4 italic font-medium">
-                            <i class="ph-bold ph-calendar"></i> Límite de pago: ${paymentDeadline}
-                        </p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+                    <div class="cx-tile cx-dark !min-h-[150px]">
+                        <span class="cx-tile-label">Moms tilsvar</span>
+                        <b class="cx-tile-value !text-4xl ${totalVatToPayFinal > 0 ? '!text-[#FFB089]' : '!text-[#A7E0B5]'}">${this.formatCurrency(totalVatToPayFinal)}</b>
+                        <span class="cx-tile-sub">${totalVatToPayFinal > 0 ? 'A pagar' : 'A favor'}. Límite de pago: ${paymentDeadline}</span>
                     </div>
-
-                    <!-- Tarjeta B: Salgsmoms + Rubrik A (IVA Liability Total) -->
-                    <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                        <div class="flex justify-between items-start mb-4">
-                            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Salgsmoms + Rubrik A</p>
-                            <span class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-up-right"></i></span>
-                        </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalVatLiability)}</p>
-                        <div class="mt-3 space-y-1">
-                            <p class="text-[11px] text-slate-400 font-medium">Ventas + Envíos: ${this.formatCurrency(totalVatToPaySalida)}</p>
-                            ${totalPhantomVat > 0 ? `<p class="text-[11px] text-blue-500 font-bold">Rubrik A (EU-Moms): + ${this.formatCurrency(totalPhantomVat)}</p>` : ''}
-                        </div>
+                    <div class="cx-tile cx-orange !min-h-[150px]">
+                        <span class="cx-tile-label">Salgsmoms + Rubrik A</span>
+                        <b class="cx-tile-value">${this.formatCurrency(totalVatLiability)}</b>
+                        <span class="cx-tile-sub">Ventas y envíos ${this.formatCurrency(totalVatToPaySalida)}${totalPhantomVat > 0 ? `, Rubrik A (EU) + ${this.formatCurrency(totalPhantomVat)}` : ''}</span>
+                        <span class="cx-tile-dots" aria-hidden="true"></span>
                     </div>
-
-                    <!-- Tarjeta C: Købsmoms (IVA Deducible) -->
-                    <div class="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                        <div class="flex justify-between items-start mb-4">
-                            <p class="text-slate-400 text-xs font-bold uppercase tracking-widest">Købsmoms</p>
-                            <span class="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center text-xl shadow-inner"><i class="ph-bold ph-arrow-down-left"></i></span>
-                        </div>
-                        <p class="text-3xl font-display font-bold text-brand-dark">${this.formatCurrency(totalInputVat)}</p>
-                        <p class="text-[11px] text-slate-400 mt-4 leading-relaxed font-medium">IVA soportado: Gastos, Envíos, Stock DK + EU Reverse Charge.</p>
+                    <div class="cx-tile cx-yellow !min-h-[150px]">
+                        <span class="cx-tile-label">Købsmoms</span>
+                        <b class="cx-tile-value">${this.formatCurrency(totalInputVat)}</b>
+                        <span class="cx-tile-sub">IVA de gastos, envíos, stock DK y reverse charge UE</span>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
                 </div>
 
@@ -13931,38 +12513,38 @@ const app = {
                     <!-- LEFT COLUMN: Origen del IVA (Ingresos) -->
                     <div class="space-y-6">
                         <div class="flex items-center gap-2 mb-2">
-                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Origen del IVA (Salgsmoms)</h3>
-                            <div class="h-px flex-1 bg-slate-100"></div>
+                            <h3 class="cx-h">De dónde sale el IVA (salgsmoms)</h3>
+                            
                         </div>
 
                         <!-- Income Breakdown Card -->
-                        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div class="cx-panel !p-0 overflow-hidden">
                             <div class="p-6 space-y-6">
                                 <!-- Standard Sales -->
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="font-bold text-brand-dark">Ventas Estándar (Nuevos)</p>
-                                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Monto: ${this.formatCurrency(standardVatItems.reduce((s, i) => s + i.salePrice, 0))}</p>
+                                        <p class="font-semibold">Ventas Estándar (Nuevos)</p>
+                                        <p class="text-xs text-stone-500">Monto: ${this.formatCurrency(standardVatItems.reduce((s, i) => s + i.salePrice, 0))}</p>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-lg font-bold text-blue-600">${this.formatCurrency(totalStandardVat)}</p>
-                                        <p class="text-[10px] text-slate-400 font-bold">IVA (25%)</p>
+                                        <p class="text-lg font-bold text-[#1A1A1A]">${this.formatCurrency(totalStandardVat)}</p>
+                                        <p class="text-xs text-stone-500">IVA (25%)</p>
                                     </div>
                                 </div>
-                                <div class="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                                    <div class="h-full bg-blue-500 rounded-full" style="width: ${totalVatToPaySalida > 0 ? (totalStandardVat / totalVatToPaySalida) * 100 : 0}%"></div>
+                                <div class="h-1.5 w-full bg-black/5 rounded-full overflow-hidden">
+                                    <div class="h-full bg-[#1A1A1A] rounded-full" style="width: ${totalVatToPaySalida > 0 ? (totalStandardVat / totalVatToPaySalida) * 100 : 0}%"></div>
                                 </div>
 
                                 <!-- Margin Scheme Sales -->
-                                <div class="pt-4 border-t border-slate-50">
+                                <div class="pt-4 border-t border-black/5">
                                     <div class="flex items-center justify-between mb-1">
                                         <div>
-                                            <p class="font-bold text-brand-dark">Régimen Margen (Usados)</p>
-                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Margen total: ${this.formatCurrency(marginSchemeItems.reduce((s, i) => s + i.margin, 0))}</p>
+                                            <p class="font-semibold">Régimen Margen (Usados)</p>
+                                            <p class="text-xs text-stone-500">Margen total: ${this.formatCurrency(marginSchemeItems.reduce((s, i) => s + i.margin, 0))}</p>
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-lg font-bold text-amber-600">${this.formatCurrency(totalMarginVat)}</p>
-                                            <p class="text-[10px] text-slate-400 font-bold">IVA s/Margen</p>
+                                            <p class="text-lg font-bold text-[#1A1A1A]">${this.formatCurrency(totalMarginVat)}</p>
+                                            <p class="text-xs text-stone-500">IVA s/Margen</p>
                                         </div>
                                     </div>
                                     ${marginSchemeItems.some(i => i.margin < 0) ? `
@@ -13974,15 +12556,15 @@ const app = {
                                 </div>
 
                                 <!-- Shipping Revenue -->
-                                <div class="pt-4 border-t border-slate-50">
+                                <div class="pt-4 border-t border-black/5">
                                     <div class="flex items-center justify-between">
                                         <div>
-                                            <p class="font-bold text-brand-dark">Ingresos por Envío</p>
-                                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Total cobrado: ${this.formatCurrency(totalShippingIncome)}</p>
+                                            <p class="font-semibold">Ingresos por Envío</p>
+                                            <p class="text-xs text-stone-500">Total cobrado: ${this.formatCurrency(totalShippingIncome)}</p>
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-lg font-bold text-indigo-500">${this.formatCurrency(totalShippingVat)}</p>
-                                            <p class="text-[10px] text-slate-400 font-bold">IVA (25%)</p>
+                                            <p class="text-lg font-bold text-[#1A1A1A]">${this.formatCurrency(totalShippingVat)}</p>
+                                            <p class="text-xs text-stone-500">IVA (25%)</p>
                                         </div>
                                     </div>
                                 </div>
@@ -13994,33 +12576,33 @@ const app = {
                     <div class="space-y-8">
                         <div>
                             <div class="flex items-center gap-2 mb-4">
-                                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Balance de Logística (Shipping P&L)</h3>
-                                <div class="h-px flex-1 bg-slate-100"></div>
+                                <h3 class="cx-h">Balance de envíos</h3>
+                                
                             </div>
                             
                             <!-- Logistics P&L Panel -->
-                            <div class="bg-slate-900 rounded-3xl p-6 text-white shadow-xl shadow-slate-900/10">
+                            <div class="cx-dark !min-h-0 rounded-[28px] p-6">
                                 <div class="flex justify-between items-center mb-6">
                                     <div class="space-y-1">
-                                        <p class="text-slate-400 text-[10px] uppercase font-bold tracking-widest">Balance Neto IVA</p>
-                                        <p class="text-2xl font-display font-bold ${totalShippingVat - totalShippingExpenseVat >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                                        <p class="text-stone-400 text-xs font-semibold">Balance Neto IVA</p>
+                                        <p class="text-2xl font-display font-bold ${totalShippingVat - totalShippingExpenseVat >= 0 ? 'text-[#A7E0B5]' : 'text-[#FFB089]'}">
                                             ${this.formatCurrency(totalShippingVat - totalShippingExpenseVat)}
                                         </p>
                                     </div>
-                                    <div class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-xl">
+                                    <div class="cx-sq">
                                         <i class="ph-bold ph-scales"></i>
                                     </div>
                                 </div>
                                 <div class="space-y-3">
                                     <div class="flex justify-between text-xs">
-                                        <span class="text-slate-400 italic">IVA Cobrado (Ingreso)</span>
-                                        <span class="font-bold text-emerald-400">+ ${this.formatCurrency(totalShippingVat)}</span>
+                                        <span class="text-stone-500">IVA Cobrado (Ingreso)</span>
+                                        <span class="font-bold text-[#A7E0B5]">+ ${this.formatCurrency(totalShippingVat)}</span>
                                     </div>
                                     <div class="flex justify-between text-xs">
-                                        <span class="text-slate-400 italic">IVA Pagado (Gasto)</span>
-                                        <span class="font-bold text-red-400">- ${this.formatCurrency(totalShippingExpenseVat)}</span>
+                                        <span class="text-stone-500">IVA Pagado (Gasto)</span>
+                                        <span class="font-bold text-[#FFB089]">- ${this.formatCurrency(totalShippingExpenseVat)}</span>
                                     </div>
-                                    <div class="pt-3 border-t border-white/10 text-[11px] text-slate-400 flex items-center gap-2">
+                                    <div class="pt-3 border-t border-white/10 text-[11px] text-stone-500 flex items-center gap-2">
                                         <i class="ph-bold ph-info"></i>
                                         Balance operativo de impuestos en logística.
                                     </div>
@@ -14030,28 +12612,28 @@ const app = {
 
                         <div>
                             <div class="flex items-center gap-2 mb-4">
-                                <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Otros Gastos (Købsmoms)</h3>
-                                <div class="h-px flex-1 bg-slate-100"></div>
+                                <h3 class="cx-h">Otros gastos (købsmoms)</h3>
+                                
                             </div>
 
                             <!-- Categorized Deductions Panel -->
-                            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50">
+                            <div class="cx-panel !p-0 overflow-hidden divide-y divide-black/5">
                                 ${Object.entries(generalExpenses.reduce((acc, e) => {
             const cat = e.categoria || 'otros';
             acc[cat] = (acc[cat] || 0) + (parseFloat(e.monto_iva) || 0);
             return acc;
         }, {})).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => `
-                                    <div class="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                    <div class="p-4 flex items-center justify-between hover:bg-white/50 transition-colors">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400">
+                                            <div class="w-8 h-8 rounded-lg bg-white/70 flex items-center justify-center">
                                                 <i class="ph-bold ph-tag"></i>
                                             </div>
-                                            <span class="font-bold text-slate-600 capitalize text-sm">${cat.replace('_', ' ')}</span>
+                                            <span class="font-semibold capitalize text-sm">${cat.replace('_', ' ')}</span>
                                         </div>
-                                        <span class="font-bold text-slate-900 text-sm">${this.formatCurrency(amount)}</span>
+                                        <span class="font-semibold text-sm">${this.formatCurrency(amount)}</span>
                                     </div>
                                 `).join('') || `
-                                    <div class="p-8 text-center text-slate-400 italic text-sm">No se registraron otros gastos deducibles.</div>
+                                    <div class="p-8 text-center text-stone-500 text-sm">No se registraron otros gastos deducibles.</div>
                                 `}
                             </div>
                         </div>
@@ -14059,38 +12641,38 @@ const app = {
                         ${totalPhantomVat > 0 ? `
                         <div>
                             <div class="flex items-center gap-2 mb-4">
-                                <h3 class="text-sm font-bold text-blue-500 uppercase tracking-widest">EU Reverse Charge (Rubrik A)</h3>
-                                <div class="h-px flex-1 bg-blue-100"></div>
+                                <h3 class="cx-h">EU Reverse Charge (Rubrik A)</h3>
+                                
                             </div>
-                            <div class="bg-blue-50 rounded-3xl shadow-sm border border-blue-100 overflow-hidden">
-                                <div class="p-5 flex items-center justify-between border-b border-blue-100">
+                            <div class="cx-panel !p-0 overflow-hidden">
+                                <div class="p-5 flex items-center justify-between border-b border-black/5">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-lg">
+                                        <div class="w-10 h-10 bg-[#F2E14C] rounded-xl flex items-center justify-center text-[#1A1A1A] text-lg">
                                             <i class="ph-bold ph-arrows-left-right"></i>
                                         </div>
                                         <div>
-                                            <p class="font-bold text-blue-800">Moms af varekøb i udlandet</p>
-                                            <p class="text-[10px] text-blue-500 uppercase font-bold tracking-tighter">${phantomVatItems.length} producto${phantomVatItems.length > 1 ? 's' : ''} EU B2B · Efecto neto: 0</p>
+                                            <p class="font-bold text-[#1A1A1A]">Moms af varekøb i udlandet</p>
+                                            <p class="text-xs text-stone-500">${phantomVatItems.length} producto${phantomVatItems.length > 1 ? 's' : ''} EU B2B · Efecto neto: 0</p>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-xl font-bold text-blue-700">${this.formatCurrency(totalPhantomVat)}</p>
-                                        <p class="text-[10px] text-blue-500 font-bold">± Ambos lados</p>
+                                        <p class="text-xl font-bold text-[#1A1A1A]">${this.formatCurrency(totalPhantomVat)}</p>
+                                        <p class="text-[10px] text-stone-500 font-bold">± Ambos lados</p>
                                     </div>
                                 </div>
-                                <div class="px-5 py-2 bg-blue-100/40 border-b border-blue-100 flex gap-6 text-[10px] font-bold">
+                                <div class="px-5 py-2 bg-white/40 border-b border-black/5 flex gap-6 text-[10px] font-bold">
                                     <span class="text-red-500">▲ Liability: +${this.formatCurrency(totalPhantomVat)}</span>
-                                    <span class="text-emerald-600">▼ Købsmoms: -${this.formatCurrency(totalPhantomVat)}</span>
-                                    <span class="text-blue-600">= Neto: ${this.formatCurrency(0)}</span>
+                                    <span class="text-[#1A1A1A]">▼ Købsmoms: -${this.formatCurrency(totalPhantomVat)}</span>
+                                    <span class="text-[#1A1A1A]">= Neto: ${this.formatCurrency(0)}</span>
                                 </div>
-                                <div class="divide-y divide-blue-100/50 max-h-48 overflow-y-auto">
+                                <div class="divide-y divide-black/5 max-h-48 overflow-y-auto">
                                     ${phantomVatItems.map(p => `
-                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-blue-100/30 transition-colors">
+                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-white/50 transition-colors">
                                         <div>
-                                            <p class="text-xs font-bold text-blue-800">${p.artist || ''} — ${p.album || ''}</p>
-                                            <p class="text-[10px] text-blue-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
+                                            <p class="text-xs font-bold text-[#1A1A1A]">${p.artist || ''} — ${p.album || ''}</p>
+                                            <p class="text-[10px] text-stone-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
                                         </div>
-                                        <span class="text-xs font-bold text-blue-700">${this.formatCurrency(p.item_phantom_vat)}</span>
+                                        <span class="text-xs font-bold text-[#1A1A1A]">${this.formatCurrency(p.item_phantom_vat)}</span>
                                     </div>
                                     `).join('')}
                                 </div>
@@ -14101,33 +12683,33 @@ const app = {
                         ${totalDkB2bVat > 0 ? `
                         <div>
                             <div class="flex items-center gap-2 mb-4">
-                                <h3 class="text-sm font-bold text-emerald-500 uppercase tracking-widest">Stock DK B2B (Købsmoms)</h3>
-                                <div class="h-px flex-1 bg-emerald-100"></div>
+                                <h3 class="cx-h">Stock DK B2B (Købsmoms)</h3>
+                                
                             </div>
-                            <div class="bg-emerald-50 rounded-3xl shadow-sm border border-emerald-100 overflow-hidden">
-                                <div class="p-5 flex items-center justify-between border-b border-emerald-100">
+                            <div class="cx-panel !p-0 overflow-hidden">
+                                <div class="p-5 flex items-center justify-between border-b border-black/5">
                                     <div class="flex items-center gap-3">
-                                        <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 text-lg">
+                                        <div class="w-10 h-10 bg-[#F2E14C] rounded-xl flex items-center justify-center text-[#1A1A1A] text-lg">
                                             <i class="ph-bold ph-receipt"></i>
                                         </div>
                                         <div>
-                                            <p class="font-bold text-emerald-800">IVA Facturas DK Deducible</p>
-                                            <p class="text-[10px] text-emerald-500 uppercase font-bold tracking-tighter">${dkB2bVatItems.length} producto${dkB2bVatItems.length > 1 ? 's' : ''} DK B2B</p>
+                                            <p class="font-bold text-[#1A1A1A]">IVA Facturas DK Deducible</p>
+                                            <p class="text-xs text-stone-500">${dkB2bVatItems.length} producto${dkB2bVatItems.length > 1 ? 's' : ''} DK B2B</p>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <p class="text-xl font-bold text-emerald-700">${this.formatCurrency(totalDkB2bVat)}</p>
-                                        <p class="text-[10px] text-emerald-500 font-bold">Deducción pura</p>
+                                        <p class="text-xl font-bold text-[#1A1A1A]">${this.formatCurrency(totalDkB2bVat)}</p>
+                                        <p class="text-[10px] text-stone-500 font-bold">Deducción pura</p>
                                     </div>
                                 </div>
-                                <div class="divide-y divide-emerald-100/50 max-h-48 overflow-y-auto">
+                                <div class="divide-y divide-black/5 max-h-48 overflow-y-auto">
                                     ${dkB2bVatItems.map(p => `
-                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-emerald-100/30 transition-colors">
+                                    <div class="px-5 py-3 flex items-center justify-between hover:bg-white/50 transition-colors">
                                         <div>
-                                            <p class="text-xs font-bold text-emerald-800">${p.artist || ''} — ${p.album || ''}</p>
-                                            <p class="text-[10px] text-emerald-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
+                                            <p class="text-xs font-bold text-[#1A1A1A]">${p.artist || ''} — ${p.album || ''}</p>
+                                            <p class="text-[10px] text-stone-500">Costo: ${this.formatCurrency(p.cost || 0)} · Factura: ${p.acquisition_date || '-'}</p>
                                         </div>
-                                        <span class="text-xs font-bold text-emerald-700">${this.formatCurrency(p.item_real_vat)}</span>
+                                        <span class="text-xs font-bold text-[#1A1A1A]">${this.formatCurrency(p.item_real_vat)}</span>
                                     </div>
                                     `).join('')}
                                 </div>
@@ -14140,19 +12722,19 @@ const app = {
                 <!-- Tables Section -->
                 <div class="space-y-8">
                     <!-- Table 1: Standard -->
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div class="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+                    <div class="cx-panel !p-0 overflow-hidden">
+                        <div class="px-6 pt-6 pb-2 flex justify-between items-center">
                             <div>
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-sm">N</span>
-                                    Tabla 1: Productos Nuevos (Venta Estándar)
+                                <h3 class="font-semibold flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-xl bg-[#F2E14C] flex items-center justify-center text-[#1A1A1A] text-sm">N</span>
+                                    Discos nuevos (venta estándar)
                                 </h3>
-                                <p class="text-[11px] text-slate-400 mt-1">IVA 25% incluido en el precio total de venta</p>
+                                <p class="text-[11px] text-stone-500 mt-1">IVA 25% incluido en el precio total de venta</p>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
-                                <thead class="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                <thead class="text-stone-500 text-xs font-semibold border-b border-black/5">
                                     <tr>
                                         <th class="px-6 py-4 text-left">Fecha</th>
                                         <th class="px-6 py-4 text-left">Producto</th>
@@ -14160,22 +12742,22 @@ const app = {
                                         <th class="px-6 py-4 text-right">IVA (25%)</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-50">
+                                <tbody class="divide-y divide-black/5">
                                     ${standardVatItems.length > 0 ? standardVatItems.map(item => `
-                                        <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">${item.album}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(item.salePrice)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(item.vat)}</td>
+                                        <tr class="hover:bg-white/50 transition-colors">
+                                            <td class="px-6 py-4 text-stone-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
+                                            <td class="px-6 py-4 font-semibold">${item.album}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-stone-600">${this.formatCurrency(item.salePrice)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-[#1A1A1A]">${this.formatCurrency(item.vat)}</td>
                                         </tr>
                                     `).join('') : `
-                                        <tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
+                                        <tr><td colspan="4" class="px-6 py-12 text-center text-stone-500">Sin movimientos</td></tr>
                                     `}
                                 </tbody>
-                                <tfoot class="bg-slate-50/30 font-bold">
+                                <tfoot class="font-semibold border-t border-black/10">
                                     <tr class="text-brand-dark">
-                                        <td colspan="3" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Estándar:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(totalStandardVat)}</td>
+                                        <td colspan="3" class="px-6 py-4 text-right text-sm">Total IVA estándar</td>
+                                        <td class="px-6 py-4 text-right text-lg text-[#1A1A1A]">${this.formatCurrency(totalStandardVat)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -14183,19 +12765,19 @@ const app = {
                     </div>
 
                     <!-- Table 2: Margin -->
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div class="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+                    <div class="cx-panel !p-0 overflow-hidden">
+                        <div class="px-6 pt-6 pb-2 flex justify-between items-center">
                             <div>
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 text-sm">M</span>
-                                    Tabla 2: Productos Usados (Brugtmoms)
+                                <h3 class="font-semibold flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-xl bg-[#F2955E] flex items-center justify-center text-[#1A1A1A] text-sm">M</span>
+                                    Discos usados (Brugtmoms)
                                 </h3>
-                                <p class="text-[11px] text-slate-400 mt-1">IVA 25% calculado únicamente sobre el margen de beneficio</p>
+                                <p class="text-[11px] text-stone-500 mt-1">IVA 25% calculado únicamente sobre el margen de beneficio</p>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
-                                <thead class="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                <thead class="text-stone-500 text-xs font-semibold border-b border-black/5">
                                     <tr>
                                         <th class="px-6 py-4 text-left">Fecha</th>
                                         <th class="px-6 py-4 text-left">Producto</th>
@@ -14205,24 +12787,24 @@ const app = {
                                         <th class="px-6 py-4 text-right">IVA s/Margen</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-50">
+                                <tbody class="divide-y divide-black/5">
                                     ${marginSchemeItems.length > 0 ? marginSchemeItems.map(item => `
-                                        <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">${item.album}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-400">${this.formatCurrency(item.cost)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(item.salePrice)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums ${item.margin > 0 ? 'text-emerald-600' : 'text-red-500'}">${this.formatCurrency(item.margin)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-amber-600">${this.formatCurrency(item.vat)}</td>
+                                        <tr class="hover:bg-white/50 transition-colors">
+                                            <td class="px-6 py-4 text-stone-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
+                                            <td class="px-6 py-4 font-semibold">${item.album}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-stone-500">${this.formatCurrency(item.cost)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-stone-600">${this.formatCurrency(item.salePrice)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums ${item.margin > 0 ? 'text-[#1A1A1A]' : 'text-red-500'}">${this.formatCurrency(item.margin)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-[#1A1A1A]">${this.formatCurrency(item.vat)}</td>
                                         </tr>
                                     `).join('') : `
-                                        <tr><td colspan="6" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
+                                        <tr><td colspan="6" class="px-6 py-12 text-center text-stone-500">Sin movimientos</td></tr>
                                     `}
                                 </tbody>
-                                <tfoot class="bg-slate-50/30 font-bold">
+                                <tfoot class="font-semibold border-t border-black/10">
                                     <tr class="text-brand-dark">
-                                        <td colspan="5" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Margen:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-amber-600">${this.formatCurrency(totalMarginVat)}</td>
+                                        <td colspan="5" class="px-6 py-4 text-right text-sm">Total IVA sobre margen</td>
+                                        <td class="px-6 py-4 text-right text-lg text-[#1A1A1A]">${this.formatCurrency(totalMarginVat)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -14230,19 +12812,19 @@ const app = {
                     </div>
 
                     <!-- Table 3: Shipping -->
-                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div class="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+                    <div class="cx-panel !p-0 overflow-hidden">
+                        <div class="px-6 pt-6 pb-2 flex justify-between items-center">
                             <div>
-                                <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                    <span class="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 text-sm">🚚</span>
-                                    Tabla 3: Ingresos por Envío
+                                <h3 class="font-semibold flex items-center gap-2">
+                                    <span class="w-8 h-8 rounded-xl bg-[#F2E14C] flex items-center justify-center text-[#1A1A1A] text-sm">E</span>
+                                    Envíos cobrados
                                 </h3>
-                                <p class="text-[11px] text-slate-400 mt-1">IVA Estándar 25% incluido en el cobro de transporte</p>
+                                <p class="text-[11px] text-stone-500 mt-1">IVA Estándar 25% incluido en el cobro de transporte</p>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
-                                <thead class="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                <thead class="text-stone-500 text-xs font-semibold border-b border-black/5">
                                     <tr>
                                         <th class="px-6 py-4 text-left">Fecha</th>
                                         <th class="px-6 py-4 text-left">Orden</th>
@@ -14250,28 +12832,29 @@ const app = {
                                         <th class="px-6 py-4 text-right">IVA (25%)</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-50">
+                                <tbody class="divide-y divide-black/5">
                                     ${shippingVatItems.length > 0 ? shippingVatItems.map(item => `
-                                        <tr class="hover:bg-slate-50/50 transition-colors">
-                                            <td class="px-6 py-4 text-slate-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
-                                            <td class="px-6 py-4 font-bold text-brand-dark">#${item.orderId}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums text-slate-600">${this.formatCurrency(item.income)}</td>
-                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-blue-600">${this.formatCurrency(item.vat)}</td>
+                                        <tr class="hover:bg-white/50 transition-colors">
+                                            <td class="px-6 py-4 text-stone-500 tabular-nums">${item.date.toLocaleDateString('es-DK')}</td>
+                                            <td class="px-6 py-4 font-semibold">#${item.orderId}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums text-stone-600">${this.formatCurrency(item.income)}</td>
+                                            <td class="px-6 py-4 text-right tabular-nums font-bold text-[#1A1A1A]">${this.formatCurrency(item.vat)}</td>
                                         </tr>
                                     `).join('') : `
-                                        <tr><td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Sin movimientos</td></tr>
+                                        <tr><td colspan="4" class="px-6 py-12 text-center text-stone-500">Sin movimientos</td></tr>
                                     `}
                                 </tbody>
-                                <tfoot class="bg-slate-50/30 font-bold">
+                                <tfoot class="font-semibold border-t border-black/10">
                                     <tr class="text-brand-dark">
-                                        <td colspan="3" class="px-6 py-4 text-right text-xs uppercase tracking-wider">Total IVA Envíos:</td>
-                                        <td class="px-6 py-4 text-right text-lg text-blue-600">${this.formatCurrency(totalShippingVat)}</td>
+                                        <td colspan="3" class="px-6 py-4 text-right text-sm">Total IVA de envíos</td>
+                                        <td class="px-6 py-4 text-right text-lg text-[#1A1A1A]">${this.formatCurrency(totalShippingVat)}</td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -14544,95 +13127,76 @@ const app = {
 
         const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
 
+        const tileTone = ['cx-yellow', 'cx-orange', 'cx-frost'];
         const html = `
-            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 pt-6">
+            <div class="cx-view">
+            <div class="max-w-7xl mx-auto px-4 md:px-8 pb-24 md:pb-10 pt-6">
                 ${this.sectionHeader({
                     title: 'Inversiones',
-                    subtitle: 'Registro de inversiones de los socios · Total: ' + this.formatCurrency(grandTotal),
-                    primary: { label: 'Nueva Inversión', icon: 'ph-plus', onclick: "app.openAddInvestmentModal()" }
+                    subtitle: 'Lo que puso cada socio en el negocio',
+                    primary: { label: 'Nueva inversión', icon: 'ph-plus', onclick: "app.openAddInvestmentModal()" }
                 })}
 
-                <!-- Summary Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    ${partners.map(partner => `
-                        <div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-5 hover:shadow-md transition-shadow">
-                            <div class="flex items-center gap-3 mb-3">
-                                <div class="w-10 h-10 rounded-xl bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold text-lg">
-                                    ${partner.charAt(0)}
-                                </div>
-                                <h3 class="font-bold text-brand-dark">${partner}</h3>
-                            </div>
-                            <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(totals[partner])}</p>
-                            <p class="text-xs text-slate-400">${investments.filter(i => i.partner === partner).length} inversiones</p>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+                    ${partners.map((partner, idx) => `
+                        <div class="cx-tile ${tileTone[idx % tileTone.length]}">
+                            <span class="cx-tile-label">${partner}</span>
+                            <b class="cx-tile-value">${this.formatCurrency(totals[partner])}</b>
+                            <span class="cx-tile-sub">${investments.filter(i => i.partner === partner).length} aportes${grandTotal > 0 ? `, ${Math.round(totals[partner] / grandTotal * 100)}% del total` : ''}</span>
                         </div>
                     `).join('')}
-                    <div class="bg-brand-dark rounded-2xl shadow-lg p-5 text-white">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white">
-                                <i class="ph-bold ph-coins"></i>
-                            </div>
-                            <h3 class="font-bold">Total Invertido</h3>
-                        </div>
-                        <p class="text-2xl font-display font-bold">${this.formatCurrency(grandTotal)}</p>
-                        <p class="text-xs text-white/60">${investments.length} inversiones totales</p>
+                    <div class="cx-tile cx-dark">
+                        <span class="cx-tile-label">Total invertido</span>
+                        <b class="cx-tile-value">${this.formatCurrency(grandTotal)}</b>
+                        <span class="cx-tile-sub">${investments.length} aportes</span>
                     </div>
                 </div>
 
-                <!-- Investments per Partner -->
+                <div class="space-y-4">
                 ${partners.map(partner => {
             const partnerInvestments = investments.filter(i => i.partner === partner)
                 .sort((a, b) => new Date(b.date) - new Date(a.date));
             return `
-                    <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mb-6">
-                        <div class="p-5 border-b border-orange-50 bg-orange-50/30 flex justify-between items-center">
-                            <h3 class="font-bold text-brand-dark flex items-center gap-2">
-                                <span class="w-8 h-8 rounded-lg bg-brand-orange/10 flex items-center justify-center text-brand-orange font-bold">${partner.charAt(0)}</span>
+                    <section class="cx-panel !p-0 overflow-hidden">
+                        <div class="flex justify-between items-center px-5 pt-5 pb-3">
+                            <h3 class="cx-h flex items-center gap-3">
+                                <span class="cx-sq !w-9 !h-9 !text-sm !rounded-xl font-bold">${partner.charAt(0)}</span>
                                 ${partner}
                             </h3>
-                            <span class="text-lg font-display font-bold text-brand-orange">${this.formatCurrency(totals[partner])}</span>
+                            <span class="text-xl font-light tracking-tight">${this.formatCurrency(totals[partner])}</span>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-left">
-                                <thead class="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold">
-                                    <tr>
-                                        <th class="p-4">Fecha</th>
-                                        <th class="p-4">Descripción</th>
-                                        <th class="p-4">Gasto vinculado</th>
-                                        <th class="p-4 text-right">Monto</th>
-                                        <th class="p-4 text-center">Acciones</th>
-                                    </tr>
+                            <table class="cx-inv-table w-full text-left">
+                                <thead>
+                                    <tr><th>Fecha</th><th>Descripción</th><th>Gasto vinculado</th><th class="text-right">Monto</th><th></th></tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100">
+                                <tbody>
                                     ${partnerInvestments.length === 0 ? `
-                                        <tr>
-                                            <td colspan="5" class="p-8 text-center text-slate-400 italic">
-                                                Sin inversiones registradas
-                                            </td>
-                                        </tr>
+                                        <tr><td colspan="5" class="!py-8 text-center text-sm text-stone-500">Todavía no hay aportes de ${partner}.</td></tr>
                                     ` : partnerInvestments.map(inv => {
                                         const linkedExpense = inv.expenseId ? (this.state.expenses || []).find(x => x.id === inv.expenseId) : null;
                                         return `
-                                        <tr class="hover:bg-slate-50 transition-colors">
-                                            <td class="p-4 text-sm text-slate-500">${this.formatDate(inv.date)}</td>
-                                            <td class="p-4 text-sm font-medium text-brand-dark">${inv.description}</td>
-                                            <td class="p-4">${this.investmentExpenseBadge(inv, linkedExpense)}</td>
-                                            <td class="p-4 text-sm font-bold text-brand-orange text-right">${this.formatCurrency(inv.amount)}</td>
-                                            <td class="p-4 text-center whitespace-nowrap">
-                                                <button onclick="app.openEditInvestmentModal('${inv.id}')" class="text-slate-400 hover:text-brand-orange transition-colors mr-3" title="Editar">
-                                                    <i class="ph-bold ph-pencil-simple"></i>
-                                                </button>
-                                                <button onclick="app.deleteInvestment('${inv.id}')" class="text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
-                                                    <i class="ph-bold ph-trash"></i>
-                                                </button>
+                                        <tr class="inv-row group">
+                                            <td class="text-xs text-stone-500 whitespace-nowrap">${this.formatDate(inv.date)}</td>
+                                            <td class="text-sm font-semibold">${inv.description}</td>
+                                            <td>${this.investmentExpenseBadge(inv, linkedExpense)}</td>
+                                            <td class="text-sm font-semibold text-right whitespace-nowrap">${this.formatCurrency(inv.amount)}</td>
+                                            <td>
+                                                <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                    <button onclick="app.openEditInvestmentModal('${inv.id}')" class="cx-row-btn" title="Editar" aria-label="Editar"><i class="ph ph-pencil-simple"></i></button>
+                                                    <button onclick="app.deleteInvestment('${inv.id}')" class="cx-row-btn is-danger" title="Eliminar" aria-label="Eliminar"><i class="ph ph-trash"></i></button>
+                                                </div>
                                             </td>
                                         </tr>`;
                                     }).join('')}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
                     `;
         }).join('')}
+                </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
@@ -14640,18 +13204,18 @@ const app = {
 
     // Badge del gasto vinculado a una inversión (clicable → va al gasto; icono si hay comprobante)
     investmentExpenseBadge(inv, linkedExpense) {
-        if (!inv.expenseId) return `<span class="text-slate-300 text-xs">—</span>`;
-        if (!linkedExpense) return `<span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 whitespace-nowrap">Gasto no encontrado</span>`;
+        if (!inv.expenseId) return `<span class="text-stone-400 text-xs">—</span>`;
+        if (!linkedExpense) return `<span class="cx-state is-done whitespace-nowrap">Gasto no encontrado</span>`;
         const prov = linkedExpense.proveedor || linkedExpense.supplier || 'Gasto';
         const amt = this.formatCurrency(linkedExpense.monto_total || 0);
         const receiptUrl = linkedExpense.receiptUrl || linkedExpense.comprobante || '';
         const desc = (linkedExpense.descripcion || '').slice(0, 40);
         return `
             <div class="flex items-center gap-1.5">
-                <button onclick="app.goToExpense('${linkedExpense.id}')" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap transition-colors" title="${desc ? desc + ' · ' : ''}Ir al gasto">
-                    <i class="ph-bold ph-receipt"></i> ${prov} · ${amt}
+                <button onclick="app.goToExpense('${linkedExpense.id}')" class="cx-channel hover:!bg-[#F2E14C]" title="${desc ? desc + ', ' : ''}ir al gasto">
+                    ${prov} · ${amt}
                 </button>
-                ${receiptUrl ? `<a href="${receiptUrl}" target="_blank" class="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 hover:text-brand-orange hover:bg-orange-50 flex items-center justify-center transition-colors" title="Abrir comprobante"><i class="ph-bold ph-paperclip"></i></a>` : ''}
+                ${receiptUrl ? `<a href="${receiptUrl}" target="_blank" rel="noopener" class="cx-row-btn !w-7 !h-7" title="Abrir comprobante" aria-label="Abrir comprobante"><i class="ph ph-paperclip"></i></a>` : ''}
             </div>`;
     },
 
@@ -14701,54 +13265,48 @@ const app = {
         }).join('');
 
         const modalHtml = `
-            <div id="add-investment-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onclick="if(event.target === this) this.remove()">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden max-h-[90vh] overflow-y-auto">
-                    <div class="bg-brand-dark p-6 text-white">
-                        <h2 class="font-display font-bold text-xl">${isEdit ? 'Editar Inversión' : 'Nueva Inversión'}</h2>
-                        <p class="text-white/60 text-sm">${isEdit ? 'Modificar aporte de socio' : 'Registrar aporte de socio'}</p>
-                    </div>
-                    <form onsubmit="app.saveInvestment(event)" class="p-6 space-y-4">
-                        <input type="hidden" name="investmentId" value="${inv ? inv.id : ''}">
+            <div id="add-investment-modal" class="vf-overlay" onclick="if(event.target === this) this.remove()">
+                <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="invm-title">
+                    <header class="vf-head">
                         <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Socio</label>
-                            <select name="partner" required class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
-                                ${partners.map(p => `<option value="${p}" ${inv && inv.partner === p ? 'selected' : ''}>${p}</option>`).join('')}
-                            </select>
+                            <h3 id="invm-title" class="vf-title">${isEdit ? 'Editar inversión' : 'Nueva inversión'}</h3>
+                            <p class="cx-sub !mt-1">${isEdit ? 'Cambiá el aporte del socio' : 'Registrá un aporte de un socio'}</p>
                         </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Monto (DKK)</label>
-                            <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" value="${inv ? esc(inv.amount) : ''}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
+                        <button type="button" onclick="document.getElementById('add-investment-modal').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+                    </header>
+                    <form onsubmit="app.saveInvestment(event)" class="vf-form">
+                        <div class="vf-body">
+                            <input type="hidden" name="investmentId" value="${inv ? inv.id : ''}">
+                            <section class="vf-card space-y-3">
+                                <div class="vf-field"><span>Socio</span>
+                                    <div class="vf-segs is-wide">
+                                        ${partners.map((p, i) => `<label class="vf-seg"><input type="radio" name="partner" value="${p}" required ${(inv ? inv.partner === p : i === 0) ? 'checked' : ''}><span>${p}</span></label>`).join('')}
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="vf-field"><span>Monto (kr)</span>
+                                        <input type="number" name="amount" required step="0.01" min="0" placeholder="1000" value="${inv ? esc(inv.amount) : ''}" class="vf-input is-strong"></label>
+                                    <label class="vf-field"><span>Fecha</span>
+                                        <input type="date" name="date" required value="${inv ? esc(inv.date) : today}" class="vf-input"></label>
+                                </div>
+                                <label class="vf-field"><span>Descripción</span>
+                                    <input type="text" name="description" required placeholder="Compra de vinilos, alquiler del local..." value="${inv ? esc(inv.description) : ''}" class="vf-input"></label>
+                            </section>
+                            <section class="vf-card">
+                                <label class="vf-field"><span>Gasto vinculado <em>(opcional)</em></span>
+                                    <select name="expenseId" class="vf-input">
+                                        <option value="">Sin vincular</option>
+                                        ${expenseOptions}
+                                    </select></label>
+                                <p class="text-xs text-stone-500 mt-2">Une el aporte con la compra de Registro Compras y su factura.</p>
+                            </section>
                         </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Descripción</label>
-                            <input type="text" name="description" required placeholder="Compra de vinilos, gastos locación, etc." value="${inv ? esc(inv.description) : ''}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Fecha</label>
-                            <input type="date" name="date" required value="${inv ? esc(inv.date) : today}"
-                                class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase block mb-2">Gasto vinculado (Registro de Compras)</label>
-                            <select name="expenseId" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:border-brand-orange transition-all">
-                                <option value="">Sin vincular</option>
-                                ${expenseOptions}
-                            </select>
-                            <p class="text-[11px] text-slate-400 mt-1.5">Vincula esta inversión con el gasto y su factura correspondiente.</p>
-                        </div>
-                        <div class="flex gap-3 pt-4">
-                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()"
-                                class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">
-                                Cancelar
-                            </button>
-                            <button type="submit" class="flex-1 py-3 bg-brand-dark text-white font-bold rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
-                                <i class="ph-bold ${isEdit ? 'ph-check' : 'ph-plus'}"></i> ${isEdit ? 'Guardar cambios' : 'Guardar'}
-                            </button>
-                        </div>
+                        <footer class="vf-foot">
+                            <button type="button" onclick="document.getElementById('add-investment-modal').remove()" class="cx-btn">Cancelar</button>
+                            <button type="submit" class="cx-btn is-primary"><i class="ph-bold ${isEdit ? 'ph-check' : 'ph-plus'}"></i> ${isEdit ? 'Guardar cambios' : 'Guardar inversión'}</button>
+                        </footer>
                     </form>
-                </div>
+                </aside>
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
@@ -14878,15 +13436,15 @@ const app = {
         // Jerarquía: micro-etiqueta DESTINATARIO + cuerpo regular (nada en negrita compite con el nombre).
         const customerBlock = (ci.hasAddress || ci.phone || ci.email) ? `
             <div class="mt-3">
-                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Destinatario</div>
+                <div class="text-xs font-semibold text-stone-500 mb-1.5">Destinatario</div>
                 <div class="space-y-1">
                     ${ci.hasAddress ? `
                     <div class="flex items-start gap-2">
-                        <i class="ph-bold ph-map-pin text-slate-300 text-sm mt-0.5 shrink-0"></i>
-                        <span class="text-xs text-slate-600 leading-snug">${ci.address}</span>
+                        <i class="ph ph-map-pin text-stone-400 text-sm mt-0.5 shrink-0"></i>
+                        <span class="text-xs text-stone-700 leading-snug">${ci.address}</span>
                     </div>` : ''}
-                    ${ci.phone ? `<div class="flex items-center gap-2 text-xs text-slate-600"><i class="ph-bold ph-phone text-slate-300"></i><a href="tel:${ci.phone}" class="hover:text-brand-orange">${ci.phone}</a></div>` : ''}
-                    ${ci.email ? `<div class="flex items-center gap-2 text-xs text-slate-600 truncate"><i class="ph-bold ph-envelope-simple text-slate-300"></i><span class="truncate" title="${ci.email}">${ci.email}</span></div>` : ''}
+                    ${ci.phone ? `<div class="flex items-center gap-2 text-xs text-stone-700"><i class="ph ph-phone text-stone-400"></i><a href="tel:${ci.phone}" class="hover:underline">${ci.phone}</a></div>` : ''}
+                    ${ci.email ? `<div class="flex items-center gap-2 text-xs text-stone-700 truncate"><i class="ph ph-envelope-simple text-stone-400"></i><span class="truncate" title="${ci.email}">${ci.email}</span></div>` : ''}
                 </div>
             </div>` : '';
 
@@ -14898,90 +13456,87 @@ const app = {
         const notifyBtn = (type) => {
             if (this.shipNotifyState(s, type) === 'sent') {
                 return `
-            <button disabled
-                class="w-full mt-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-slate-300 text-xs font-bold flex items-center justify-center gap-2 cursor-default">
-                <i class="ph-bold ph-check-circle"></i>Avisado ✓
+            <button disabled class="cx-kbtn is-done">
+                <i class="ph-bold ph-check-circle"></i>Cliente avisado
             </button>`;
             }
             return `
-            <button onclick="event.stopPropagation();app.notifyCustomerUI('${s.id}', '${type}', this)"
-                class="w-full mt-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-500 text-xs font-bold hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
-                <i class="ph-bold ph-bell-ringing"></i>Avisar al cliente
+            <button onclick="event.stopPropagation();app.notifyCustomerUI('${s.id}', '${type}', this)" class="cx-kbtn">
+                <i class="ph ph-bell-ringing"></i>Avisar al cliente
             </button>`;
         };
         let actionBtn = '';
         if (col === 'preparar') {
-            actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`
+            actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'preparing')" class="cx-kbtn is-ink"><i class="ph-bold ph-package"></i>Iniciar preparación</button>`
                 + notifyBtn('preparing');
         } else if (col === 'etiqueta') {
             if (isPickup && fs === 'ready_for_pickup') {
-                actionBtn = `<button onclick="app.markPickedUpDiscogs('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-check-circle"></i>Confirmar recogida</button>`;
+                actionBtn = `<button onclick="app.markPickedUpDiscogs('${s.id}')" class="cx-kbtn is-ink"><i class="ph-bold ph-check-circle"></i>Confirmar recogida</button>`;
             } else if (isPickup) {
-                actionBtn = `<button onclick="app.setReadyForPickup('${s.id}', event)" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-bell-ringing"></i>Marcar listo para retiro</button>`;
+                actionBtn = `<button onclick="app.setReadyForPickup('${s.id}', event)" class="cx-kbtn is-ink"><i class="ph-bold ph-bell-ringing"></i>Marcar listo para retiro</button>`;
             } else if (fs === 'label_created') {
-                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
+                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="cx-kbtn is-yellow"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
                     + notifyBtn('label_created');
             } else if (fs === 'in_transit') {
-                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
+                actionBtn = `<button onclick="app.updateFulfillmentStatus(event, '${s.id}', 'shipped')" class="cx-kbtn is-yellow"><i class="ph-bold ph-paper-plane-tilt"></i>Marcar despachado</button>`
                     + notifyBtn('shipped');
             } else {
-                actionBtn = `<button onclick="app.openLabelModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-brand-dark text-white text-xs font-bold hover:bg-black transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-tag"></i>Generar etiqueta</button>`
+                actionBtn = `<button onclick="app.openLabelModal('${s.id}')" class="cx-kbtn is-ink"><i class="ph-bold ph-tag"></i>Generar etiqueta</button>`
                     + notifyBtn('preparing');
             }
         } else if (col === 'despachado' && fs === 'shipped') {
             actionBtn = notifyBtn('shipped');
         } else if (col === 'excepcion') {
-            actionBtn = `<button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="w-full mt-3 px-3 py-2.5 rounded-xl bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 transition-colors flex items-center justify-center gap-2"><i class="ph-bold ph-warning-circle"></i>Resolver problema</button>`;
+            actionBtn = `<button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="cx-kbtn is-hot"><i class="ph-bold ph-warning-circle"></i>Resolver problema</button>`;
         }
 
         // Disco del inventario vinculado (envíos manuales): chip + vincular/desvincular
         const li = s.linkedInventory;
         const isManualCh = this.normalizeSaleChannel(s) === "manual";
         const linkedBlock = li ? `
-            <div class="mt-2 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-2.5 py-1.5">
-                <span class="min-w-0 text-[11px] font-bold text-emerald-800 truncate" title="${ecEsc(li.artist || "")} — ${ecEsc(li.album || "")}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")}</span>
-                ${isManualCh ? `<button onclick="event.stopPropagation();app.unlinkInventory('${s.id}')" class="text-emerald-600 hover:text-emerald-800 shrink-0" title="Desvincular disco"><i class="ph-bold ph-x"></i></button>` : ""}
+            <div class="mt-2 flex items-center justify-between gap-2 bg-[#F2E14C]/50 rounded-xl px-2.5 py-1.5">
+                <span class="min-w-0 text-[11px] font-semibold truncate" title="${ecEsc(li.artist || "")} — ${ecEsc(li.album || "")}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")}</span>
+                ${isManualCh ? `<button onclick="event.stopPropagation();app.unlinkInventory('${s.id}')" class="text-stone-600 hover:text-black shrink-0" title="Desvincular disco"><i class="ph-bold ph-x"></i></button>` : ""}
             </div>` : (isManualCh ? `
-            <button onclick="event.stopPropagation();app.openLinkInventoryModal('${s.id}')" class="mt-2 text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors flex items-center gap-1"><i class="ph-bold ph-link"></i>Vincular disco del inventario</button>` : "");
+            <button onclick="event.stopPropagation();app.openLinkInventoryModal('${s.id}')" class="mt-2 text-xs font-semibold text-stone-500 hover:text-black transition-colors flex items-center gap-1"><i class="ph ph-link"></i>Vincular disco del inventario</button>` : "");
 
         return `
-        <div data-sale-id="${s.id}" class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+        <div data-sale-id="${s.id}" class="cx-kcard">
             <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                     ${this.saleChannelBadge(s)}
-                    <span class="text-xs font-semibold text-slate-400 truncate">#${s.orderNumber || s.id.slice(0, 6)}</span>
+                    <span class="text-xs font-semibold text-stone-500 truncate">#${s.orderNumber || s.id.slice(0, 6)}</span>
                 </div>
-                <span class="text-[11px] text-slate-400 font-medium whitespace-nowrap">${this.formatDate(s.date)}</span>
+                <span class="text-[11px] text-stone-500 font-medium whitespace-nowrap">${this.formatDate(s.date)}</span>
             </div>
-            <div class="mt-2 text-base font-bold text-brand-dark truncate" title="${displayName}">${displayName}</div>
-            <div class="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+            <div class="mt-2 text-base font-semibold truncate" title="${displayName}">${displayName}</div>
+            <div class="mt-2 flex items-center gap-2 text-xs text-stone-600">
                 ${firstCover
-                    ? `<img src="${firstCover}" class="w-9 h-9 rounded-lg object-cover border border-slate-100 shrink-0" alt="">`
-                    : `<i class="ph-bold ph-disc text-slate-300"></i>`}
-                <span>${items.length} ${items.length === 1 ? 'ítem' : 'ítems'}</span>
-                ${firstTitle ? `<span class="truncate text-slate-400">· ${firstTitle}${items.length > 1 ? ` +${items.length - 1}` : ''}</span>` : ''}
+                    ? `<img src="${firstCover}" class="w-10 h-10 rounded-xl object-cover shrink-0 shadow-sm" alt="">`
+                    : `<span class="cx-cover !w-10 !h-10 !text-base"><i class="ph ph-vinyl-record"></i></span>`}
+                <span>${items.length} ${items.length === 1 ? 'disco' : 'discos'}</span>
+                ${firstTitle ? `<span class="truncate text-stone-500">· ${firstTitle}${items.length > 1 ? ` +${items.length - 1}` : ''}</span>` : ''}
             </div>
             ${linkedBlock}
             <div class="mt-1.5">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest ${isPickup ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}">
-                    <i class="ph-bold ${isPickup ? 'ph-storefront' : 'ph-truck'}"></i>${isPickup ? 'Retiro' : 'Envío'}
+                <span class="cx-state ${isPickup ? 'is-ok' : 'is-wait'} gap-1">
+                    <i class="ph-bold ${isPickup ? 'ph-storefront' : 'ph-truck'}"></i>${isPickup ? 'Retiro en tienda' : 'Envío'}
                 </span>
             </div>
             ${customerBlock}
             ${fs === 'label_created' && s.tracking_number ? `
-            <div class="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-2.5 py-1.5">
-                <i class="ph-bold ph-barcode text-blue-500"></i>
-                <span class="text-[11px] font-mono font-bold text-blue-800 truncate">${s.tracking_number}</span>
-                ${s.label_carrier ? `<span class="text-[10px] font-bold text-blue-400 uppercase ml-auto shrink-0">${s.label_carrier}</span>` : ''}
+            <div class="mt-2 flex items-center gap-2 bg-black/5 rounded-xl px-2.5 py-1.5">
+                <i class="ph ph-barcode"></i>
+                <span class="text-[11px] font-mono font-semibold truncate">${s.tracking_number}</span>
+                ${s.label_carrier ? `<span class="text-[11px] font-semibold text-stone-500 ml-auto shrink-0">${s.label_carrier}</span>` : ''}
             </div>` : ''}
             ${(!isPickup && col !== "despachado") ? this.ecPreflightBlock(s) : ""}
             ${(isPickup && col !== "despachado") ? `<div data-quote-section="${s.id}"></div>` : ""}
-            ${issues.length > 0 ? `<div class="mt-3 flex flex-wrap gap-1.5">${issues.map(i => `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-100 text-[10px] font-bold"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
+            ${issues.length > 0 ? `<div class="mt-3 flex flex-wrap gap-1.5">${issues.map(i => `<span class="cx-state is-hot gap-1"><i class="ph-bold ph-warning"></i>${i}</span>`).join('')}</div>` : ''}
             ${actionBtn}
-            <div class="mt-2 flex items-center justify-center gap-3">
-                <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="text-[11px] font-bold text-slate-400 hover:text-brand-orange transition-colors">Ver detalle</button>
-                <span class="text-slate-200 text-[11px] select-none">·</span>
-                <button onclick="event.stopPropagation();app.openDeleteShipmentModal('${s.id}')" class="text-[11px] font-bold text-slate-300 hover:text-red-500 transition-colors flex items-center gap-1"><i class="ph-bold ph-trash"></i>Eliminar</button>
+            <div class="mt-3 flex items-center justify-between gap-3">
+                <button onclick="app.openUnifiedOrderDetailModal('${s.id}')" class="text-xs font-semibold text-stone-600 hover:text-black underline-offset-2 hover:underline">Ver detalle</button>
+                <button onclick="event.stopPropagation();app.openDeleteShipmentModal('${s.id}')" class="text-xs font-semibold text-stone-400 hover:text-red-700 flex items-center gap-1"><i class="ph ph-trash"></i>Eliminar</button>
             </div>
         </div>`;
     },
@@ -15375,26 +13930,26 @@ const app = {
         const shortLabel = EC_FIELD_LABELS[field] || "Completar dato";
         let inputHtml;
         if (cfg.type === "select") {
-            inputHtml = `<select id="qf-input" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white">
+            inputHtml = `<select id="qf-input" class="vf-input">
                 ${cfg.options.map(([v, t]) => `<option value="${v}" ${String(current) === v ? "selected" : ""}>${t}</option>`).join("")}
             </select>`;
         } else {
             inputHtml = `<input id="qf-input" type="${cfg.type}" value="${String(current).replace(/"/g, "&quot;")}"
                 placeholder="${cfg.placeholder || ""}" ${cfg.maxlength ? `maxlength="${cfg.maxlength}"` : ""}
-                class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange">`;
+                class="vf-input">`;
         }
         const html = `
-        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
-            <div class="bg-white rounded-2xl w-full max-w-sm shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark">Completar dato</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · ${shortLabel} · se valida al guardar</p>
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${cfg.label}</label>
+        <div id="qf-modal-overlay" class="vf-overlay cx-dialog-wrap" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
+            <div class="cx-dialog cx-view !max-w-sm" onclick="event.stopPropagation()">
+                <h3 class="cx-dialog-title">Completar dato</h3>
+                <p class="cx-sub !mt-1 mb-5">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · ${shortLabel} · se valida al guardar</p>
+                <label class="vf-mini-label block mb-1.5">${cfg.label}</label>
                 ${inputHtml}
                 ${cfg.note ? `<p class="text-[11px] text-slate-400 mt-2">${cfg.note}</p>` : ""}
                 <p id="qf-error" class="hidden text-xs text-red-600 font-semibold mt-2"></p>
                 <div class="flex justify-end gap-2 mt-5">
-                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
-                    <button onclick="app.saveQuickFix('${saleId}', '${field}')" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors">Guardar</button>
+                    <button onclick="app.closeQuickFixModal()" class="cx-btn">Cancelar</button>
+                    <button onclick="app.saveQuickFix('${saleId}', '${field}')" class="cx-btn is-primary">Guardar</button>
                 </div>
             </div>
         </div>`;
@@ -15523,68 +14078,65 @@ const app = {
     openManualShipmentModal() {
         document.getElementById("ms-modal-overlay")?.remove();
         this._msLinkedItem = null; // disco del inventario vinculado (temporal del modal)
-        const inp = "w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white";
-        const lab = "text-[10px] font-bold text-slate-400 uppercase tracking-widest";
+        const inp = "vf-input";
+        const field = (label, inner, cls = '') => `<label class="vf-field ${cls}"><span>${label}</span>${inner}</label>`;
         const html = `
-        <div id="ms-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='ms-modal-overlay')app.closeManualShipmentModal()">
-            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6 max-h-[90vh] overflow-y-auto custom-scrollbar" onclick="event.stopPropagation()">
-                <div class="flex items-start justify-between mb-1">
+        <div id="ms-modal-overlay" class="vf-overlay" onclick="if(event.target.id==='ms-modal-overlay')app.closeManualShipmentModal()">
+            <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="ms-title" onclick="event.stopPropagation()">
+                <header class="vf-head">
                     <div>
-                        <h3 class="text-lg font-bold text-brand-dark">Crear envío manual</h3>
-                        <p class="text-xs text-slate-500 mt-0.5">No vino de Discogs ni WebShop · entra directo a <b>PREPARAR</b></p>
+                        <h3 id="ms-title" class="vf-title">Crear envío</h3>
+                        <p class="cx-sub !mt-1">Para pedidos que no vienen de Discogs ni del Web shop. Entra directo a Preparar.</p>
                     </div>
-                    <span class="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-widest bg-amber-100 text-amber-700">Manual</span>
-                </div>
-                <div id="ms-errors" class="hidden flex flex-wrap gap-1.5 my-3"></div>
+                    <button onclick="app.closeManualShipmentModal()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+                </header>
+                <div class="vf-body">
+                    <div id="ms-errors" class="hidden flex flex-wrap gap-1.5"></div>
 
-                <p class="${lab} mt-4 mb-2">Destinatario</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="col-span-2"><label class="${lab}">Nombre *</label>
-                        <input id="ms-name" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Nombre y apellido"></div>
-                    <div class="col-span-2"><label class="${lab}">Dirección *</label>
-                        <input id="ms-address" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Calle y número, piso/puerta"></div>
-                    <div><label class="${lab}">Código postal *</label>
-                        <input id="ms-zip" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="1050"></div>
-                    <div><label class="${lab}">Ciudad *</label>
-                        <input id="ms-city" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="København K"></div>
-                    <div><label class="${lab}">País *</label>
-                        <select id="ms-country" onchange="app.msRevalidate()" class="${inp} mt-1 cursor-pointer">${this.msCountryOptions()}</select></div>
-                    <div><label class="${lab}">Teléfono *</label>
-                        <input id="ms-phone" type="tel" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="+45 12 34 56 78"></div>
-                    <div class="col-span-2"><label class="${lab}">Email *</label>
-                        <input id="ms-email" type="email" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="cliente@mail.com"></div>
-                </div>
+                    <section class="vf-card">
+                        <h4 class="vf-h">Destinatario</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            ${field('Nombre', `<input id="ms-name" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="Nombre y apellido">`, 'col-span-2')}
+                            ${field('Dirección', `<input id="ms-address" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="Calle y número, piso/puerta">`, 'col-span-2')}
+                            ${field('Código postal', `<input id="ms-zip" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="1050">`)}
+                            ${field('Ciudad', `<input id="ms-city" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="København K">`)}
+                            ${field('País', `<select id="ms-country" onchange="app.msRevalidate()" class="${inp} cursor-pointer">${this.msCountryOptions()}</select>`)}
+                            ${field('Teléfono', `<input id="ms-phone" type="tel" oninput="app.msRevalidate()" class="${inp}" placeholder="+45 12 34 56 78">`)}
+                            ${field('Email', `<input id="ms-email" type="email" oninput="app.msRevalidate()" class="${inp}" placeholder="cliente@mail.com">`, 'col-span-2')}
+                        </div>
+                        <p class="text-xs text-stone-500 mt-3">Todos los campos son obligatorios.</p>
+                    </section>
 
-                <p class="${lab} mt-5 mb-2">Contenido</p>
-                <div><label class="${lab}">Descripción de ítems *</label>
-                    <textarea id="ms-desc" rows="2" oninput="app.msRevalidate()" class="${inp} mt-1 resize-none" placeholder="Ej: 2× vinilos — artista / título"></textarea></div>
+                    <section class="vf-card">
+                        <h4 class="vf-h">Contenido</h4>
+                        ${field('Qué se envía', `<textarea id="ms-desc" rows="2" oninput="app.msRevalidate()" class="${inp} !h-auto py-2.5 resize-none" placeholder="Ej: 2 vinilos, artista / título"></textarea>`)}
+                        <div class="vf-field mt-3"><span>Disco del inventario (opcional)</span>
+                            <div class="relative">
+                                <div id="ms-linked-chip"></div>
+                                <input id="ms-inv-search" type="text" oninput="app.msInvSearch(this.value)" class="${inp}" placeholder="Buscar por artista, título o SKU" autocomplete="off">
+                                <div id="ms-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-2xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-stone-500 mt-2">Al despachar, se descuenta 1 del stock de este disco.</p>
+                    </section>
 
-                <p class="${lab} mt-5 mb-2">Disco del inventario (opcional)</p>
-                <div class="relative">
-                    <div id="ms-linked-chip"></div>
-                    <input id="ms-inv-search" type="text" oninput="app.msInvSearch(this.value)" class="${inp}" placeholder="Buscar por artista, título o SKU…" autocomplete="off">
-                    <div id="ms-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
+                    <section class="vf-card">
+                        <h4 class="vf-h">Paquete y método</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            ${field('Peso (g)', `<input id="ms-weight" type="number" min="1" step="1" value="500" oninput="app.msRevalidate()" class="${inp}">`)}
+                            <div class="flex items-end pb-2"><label class="flex items-center gap-2 text-sm font-semibold cursor-pointer">
+                                <input id="ms-weight-ok" type="checkbox" onchange="app.msRevalidate()" class="w-4 h-4 accent-black">Peso confirmado</label></div>
+                            ${field('Método de envío', `<input id="ms-method" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="home (opcional)">`)}
+                            ${field('ID punto de retiro', `<input id="ms-servicepoint" type="text" oninput="app.msRevalidate()" class="${inp}" placeholder="Solo shop delivery">`)}
+                        </div>
+                        <p class="text-xs text-stone-500 mt-3">Se valida con las mismas reglas del Pre-Flight. El punto de retiro y la aduana (fuera de la UE) se pueden completar después desde la tarjeta del envío.</p>
+                    </section>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1.5">Al despachar el envío, el stock de este disco se descuenta en 1.</p>
-
-                <p class="${lab} mt-5 mb-2">Paquete y método</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <div><label class="${lab}">Peso (g) *</label>
-                        <input id="ms-weight" type="number" min="1" step="1" value="500" oninput="app.msRevalidate()" class="${inp} mt-1"></div>
-                    <div class="flex items-end pb-2"><label class="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
-                        <input id="ms-weight-ok" type="checkbox" onchange="app.msRevalidate()" class="w-4 h-4 accent-orange-600">Peso confirmado</label></div>
-                    <div><label class="${lab}">Método de envío</label>
-                        <input id="ms-method" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="home (opcional)"></div>
-                    <div><label class="${lab}">ID punto de retiro</label>
-                        <input id="ms-servicepoint" type="text" oninput="app.msRevalidate()" class="${inp} mt-1" placeholder="Solo shop delivery"></div>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-3">Se valida con las mismas reglas del Pre-Flight. Punto de retiro y aduana (fuera de la UE) se pueden completar después desde la tarjeta del envío.</p>
-
-                <div class="flex justify-end gap-2 mt-6">
-                    <button onclick="app.closeManualShipmentModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
-                    <button id="ms-save-btn" onclick="app.saveManualShipment()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors flex items-center gap-2"><i class="ph-bold ph-plus"></i>Crear envío</button>
-                </div>
-            </div>
+                <footer class="vf-foot">
+                    <button onclick="app.closeManualShipmentModal()" class="cx-btn">Cancelar</button>
+                    <button id="ms-save-btn" onclick="app.saveManualShipment()" class="cx-btn is-primary"><i class="ph-bold ph-plus"></i>Crear envío</button>
+                </footer>
+            </aside>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
         setTimeout(() => document.getElementById("ms-name")?.focus(), 50);
@@ -15642,11 +14194,9 @@ const app = {
         const pill = (b, warn) => {
             const key = b.field.startsWith("customs") ? "customs" : b.field;
             const label = EC_FIELD_LABELS[key] || "Falta dato";
-            const cls = warn
-                ? "bg-amber-50 text-amber-700 border-amber-200"
-                : "bg-red-50 text-red-700 border-red-200";
+            const cls = warn ? "is-wait" : "is-hot";
             const icon = warn ? "ph-warning" : "ph-warning-circle";
-            return `<span title="${b.message.replace(/"/g, "&quot;")}" class="inline-flex items-center gap-1 ${cls} border text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full"><i class="ph-bold ${icon}"></i>${label}</span>`;
+            return `<span title="${b.message.replace(/"/g, "&quot;")}" class="cx-state ${cls} gap-1"><i class="ph-bold ${icon}"></i>${label}</span>`;
         };
         const all = [...hard.map(b => pill(b, false)), ...soft.map(b => pill(b, true))];
         box.innerHTML = all.join("");
@@ -15672,12 +14222,12 @@ const app = {
         if (!hits.length) return `<div class="px-3 py-2.5 text-xs text-slate-400 font-semibold">Sin resultados</div>`;
         return hits.map(p => `
             <button type="button" onclick="${onclickTpl.split("{ID}").join(p.id)}"
-                class="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 border-b border-slate-50 last:border-0">
+                class="w-full text-left px-3 py-2.5 hover:bg-[#F2E14C]/40 flex items-center justify-between gap-2 border-b border-black/5 last:border-0">
                 <span class="min-w-0">
                     <span class="block text-xs font-bold text-brand-dark truncate">${ecEsc(p.artist || "Sin artista")} — ${ecEsc(p.album || "Sin título")}</span>
                     <span class="block text-[10px] text-slate-400 font-mono">${ecEsc(p.sku || "")}</span>
                 </span>
-                <span class="text-[10px] font-bold uppercase tracking-widest ${Number(p.stock) > 0 ? "text-emerald-600" : "text-red-500"} shrink-0">Stock: ${Number(p.stock) || 0}</span>
+                <span class="cx-stock ${Number(p.stock) > 0 ? "" : "is-out"} shrink-0">Stock ${Number(p.stock) || 0}</span>
             </button>`).join("");
     },
 
@@ -15710,9 +14260,9 @@ const app = {
         if (!el) return;
         const li = this._msLinkedItem;
         el.innerHTML = li ? `
-            <div class="flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mb-2">
-                <span class="min-w-0 text-xs font-bold text-emerald-800 truncate" title="${ecEsc(li.artist)} — ${ecEsc(li.album)}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")} <span class="font-mono font-medium text-emerald-600">${ecEsc(li.sku)}</span></span>
-                <button type="button" onclick="app.msClearLinkedItem()" class="text-emerald-600 hover:text-emerald-800 shrink-0" title="Quitar vínculo"><i class="ph-bold ph-x"></i></button>
+            <div class="flex items-center justify-between gap-2 bg-[#F2E14C]/60 rounded-2xl px-3 py-2 mb-2">
+                <span class="min-w-0 text-xs font-semibold truncate" title="${ecEsc(li.artist)} — ${ecEsc(li.album)}"><i class="ph-bold ph-disc"></i> ${ecEsc(li.artist || "Sin artista")} — ${ecEsc(li.album || "Sin título")} <span class="font-mono font-medium text-stone-600">${ecEsc(li.sku)}</span></span>
+                <button type="button" onclick="app.msClearLinkedItem()" class="text-stone-600 hover:text-black shrink-0" title="Quitar vínculo"><i class="ph-bold ph-x"></i></button>
             </div>` : "";
     },
 
@@ -15720,18 +14270,18 @@ const app = {
     openLinkInventoryModal(saleId) {
         document.getElementById("li-modal-overlay")?.remove();
         const html = `
-        <div id="li-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='li-modal-overlay')app.closeLinkInventoryModal()">
-            <div class="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark">Vincular disco del inventario</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Al despachar el envío, el stock de este disco se descuenta en 1.</p>
+        <div id="li-modal-overlay" class="vf-overlay cx-dialog-wrap" onclick="if(event.target.id==='li-modal-overlay')app.closeLinkInventoryModal()">
+            <div class="cx-dialog cx-view" onclick="event.stopPropagation()">
+                <h3 class="cx-dialog-title">Vincular disco del inventario</h3>
+                <p class="cx-sub !mt-1 mb-5">Al despachar el envío, el stock de este disco se descuenta en 1.</p>
                 <div class="relative">
                     <input id="li-inv-search" type="text" oninput="app.liInvSearch('${saleId}', this.value)"
-                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:border-brand-orange bg-white"
+                        class="vf-input"
                         placeholder="Buscar por artista, título o SKU…" autocomplete="off">
-                    <div id="li-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
+                    <div id="li-inv-results" class="hidden absolute z-20 left-0 right-0 mt-1 bg-white rounded-2xl shadow-lg max-h-56 overflow-y-auto custom-scrollbar"></div>
                 </div>
                 <div class="flex justify-end gap-2 mt-6">
-                    <button onclick="app.closeLinkInventoryModal()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                    <button onclick="app.closeLinkInventoryModal()" class="cx-btn">Cancelar</button>
                 </div>
             </div>
         </div>`;
@@ -15907,23 +14457,23 @@ const app = {
         });
         const rows = lines.map((l, i) => `
             <div class="grid grid-cols-[1fr_90px_70px] gap-2 items-center">
-                <input id="qc-desc-${i}" type="text" value="${l.description.replace(/"/g, "&quot;")}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange">
-                <input id="qc-val-${i}" type="number" min="0" step="0.01" value="${l.value}" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange">
-                <input id="qc-cur-${i}" type="text" value="${l.currency}" maxlength="3" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-brand-orange uppercase">
+                <input id="qc-desc-${i}" type="text" value="${l.description.replace(/"/g, "&quot;")}" class="vf-input !h-10 !text-xs">
+                <input id="qc-val-${i}" type="number" min="0" step="0.01" value="${l.value}" class="vf-input !h-10 !text-xs">
+                <input id="qc-cur-${i}" type="text" value="${l.currency}" maxlength="3" class="vf-input !h-10 !text-xs uppercase">
             </div>`).join("");
         const html = `
-        <div id="qf-customs-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-customs-overlay')app.closeQuickFixModal()">
-            <div class="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200 p-6" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark">Declaración de aduana</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · destino fuera de la UE · revisá y confirmá</p>
-                <div class="grid grid-cols-[1fr_90px_70px] gap-2 mb-1 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+        <div id="qf-customs-overlay" class="vf-overlay cx-dialog-wrap" onclick="if(event.target.id==='qf-customs-overlay')app.closeQuickFixModal()">
+            <div class="cx-dialog cx-view" onclick="event.stopPropagation()">
+                <h3 class="cx-dialog-title">Declaración de aduana</h3>
+                <p class="cx-sub !mt-1 mb-5">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · destino fuera de la UE · revisá y confirmá</p>
+                <div class="grid grid-cols-[1fr_90px_70px] gap-2 mb-1.5 vf-mini-label">
                     <span>Descripción</span><span>Valor</span><span>Moneda</span>
                 </div>
                 <div class="space-y-2 max-h-64 overflow-y-auto">${rows || `<p class="text-xs text-slate-400">Sin ítems en el pedido.</p>`}</div>
                 <p id="qf-error" class="hidden text-xs text-red-600 font-semibold mt-2"></p>
                 <div class="flex justify-end gap-2 mt-5">
-                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
-                    <button onclick="app.saveCustomsFix('${saleId}', ${lines.length})" class="px-4 py-2 rounded-xl text-xs font-bold bg-brand-dark text-white hover:bg-black transition-colors">Confirmar aduana</button>
+                    <button onclick="app.closeQuickFixModal()" class="cx-btn">Cancelar</button>
+                    <button onclick="app.saveCustomsFix('${saleId}', ${lines.length})" class="cx-btn is-primary">Confirmar aduana</button>
                 </div>
             </div>
         </div>`;
@@ -16270,53 +14820,54 @@ const app = {
         const rate = bs.ready ? bs.rate : null;
 
         const html = `
-        <div id="qf-modal-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[110] flex items-center justify-center p-4" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
-            <div class="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 p-6 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
-                <h3 class="text-base font-bold text-brand-dark flex items-center gap-2"><i class="ph-bold ph-tag text-brand-orange"></i>Generar etiqueta</h3>
-                <p class="text-xs text-slate-500 mt-0.5 mb-4">Pedido <b>#${sale.orderNumber || sale.id.slice(0, 6)}</b> · al guardar, el envío pasa a <b>Etiqueta creada</b></p>
-
-                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Comprar por API</div>
-                <div class="rounded-xl bg-slate-50 border border-slate-200 p-4 mb-4">
-                    ${rate ? `<div class="flex items-center justify-between mb-3">
-                        <p class="text-xs font-extrabold text-brand-dark">${ecEsc(rate.carrierName || rate.carrier)} · ${ecEsc(rate.serviceLabel || "")}</p>
-                        <p class="text-base font-extrabold text-brand-dark">${formatDKK(rate.price)}</p>
-                    </div>` : `<p class="text-xs text-slate-500 mb-3">Sin tarifa seleccionada — elegí una en la cotización o cargá el tracking manual abajo.</p>`}
-                    <div class="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 mb-3">
-                        <i class="ph-bold ph-flask-conical text-emerald-600"></i>
-                        <p class="text-[11px] text-emerald-700 font-bold">Modo prueba por defecto — no se gasta plata</p>
+        <div id="qf-modal-overlay" class="vf-overlay" onclick="if(event.target.id==='qf-modal-overlay')app.closeQuickFixModal()">
+            <aside class="vf-panel cx-view" role="dialog" aria-modal="true" aria-labelledby="lbl-title" onclick="event.stopPropagation()">
+                <header class="vf-head">
+                    <div>
+                        <h3 id="lbl-title" class="vf-title">Generar etiqueta</h3>
+                        <p class="cx-sub !mt-1">Pedido #${sale.orderNumber || sale.id.slice(0, 6)}. Al guardar, pasa a Etiqueta creada.</p>
                     </div>
-                    <label class="flex items-start gap-2 mb-3 cursor-pointer">
-                        <input type="checkbox" id="label-real-${saleId}" class="mt-0.5 accent-red-600" onclick="event.stopPropagation()">
-                        <span class="text-[11px] text-slate-600"><b>Compra real</b> — genera una etiqueta de verdad y gasta saldo de Shipmondo. Requiere confirmación explícita.</span>
-                    </label>
-                    <button ${rate ? "" : "disabled"} onclick="app.buyLabelViaAPI('${saleId}', this)"
-                        class="w-full px-3 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 ${rate ? "bg-brand-dark text-white hover:bg-black" : "bg-slate-200 text-slate-400 cursor-not-allowed"}">
-                        <i class="ph-bold ph-tag"></i>Comprar etiqueta
-                    </button>
-                    <div id="label-api-result-${saleId}" class="mt-2"></div>
-                </div>
+                    <button onclick="app.closeQuickFixModal()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
+                </header>
+                <div class="vf-body">
+                    <section class="vf-card">
+                        <h4 class="vf-h">Comprar con Shipmondo</h4>
+                        ${rate ? `<div class="vf-margin !mt-0 mb-3">
+                            <div><span class="vf-mini-label">${ecEsc(rate.carrierName || rate.carrier)}</span><p class="text-sm font-semibold">${ecEsc(rate.serviceLabel || "")}</p></div>
+                            <span class="text-2xl font-light tracking-tight">${formatDKK(rate.price)}</span>
+                        </div>` : `<p class="text-sm text-stone-600 mb-3">No hay tarifa elegida. Elegí una en la cotización de la tarjeta o cargá el tracking a mano abajo.</p>`}
+                        <p class="text-xs font-semibold mb-3 flex items-center gap-2"><i class="ph ph-flask"></i>Por defecto es una prueba y no se cobra.</p>
+                        <label class="flex items-start gap-2 mb-4 cursor-pointer p-3 rounded-2xl bg-white/70">
+                            <input type="checkbox" id="label-real-${saleId}" class="mt-0.5 accent-red-600" onclick="event.stopPropagation()">
+                            <span class="text-sm"><b>Compra real.</b> Genera una etiqueta de verdad y usa saldo de Shipmondo. Te va a pedir confirmación.</span>
+                        </label>
+                        <button ${rate ? "" : "disabled"} onclick="app.buyLabelViaAPI('${saleId}', this)" class="cx-kbtn is-ink !mt-0 ${rate ? "" : "opacity-40 cursor-not-allowed"}">
+                            <i class="ph-bold ph-tag"></i>Comprar etiqueta
+                        </button>
+                        <div id="label-api-result-${saleId}" class="mt-2"></div>
+                    </section>
 
-                <div class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">O cargar tracking manual</div>
-                <div class="rounded-xl border border-slate-200 p-4 mb-4 space-y-2">
-                    <p class="text-[11px] text-slate-500">Si la etiqueta se generó a mano en Shipmondo, pegá el código acá.</p>
-                    <input id="lbl-track-${saleId}" placeholder="Código de seguimiento *" onclick="event.stopPropagation()"
-                        class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none font-mono">
-                    <div class="grid grid-cols-2 gap-2">
-                        <input id="lbl-carrier-${saleId}" placeholder="Transportista (ej. DAO)" onclick="event.stopPropagation()"
-                            class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none">
-                        <input id="lbl-url-${saleId}" placeholder="URL/PDF etiqueta (opcional)" onclick="event.stopPropagation()"
-                            class="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none">
-                    </div>
-                    <button onclick="app.saveManualTracking('${saleId}', this)"
-                        class="w-full px-3 py-2.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-brand-orange hover:text-brand-orange transition-colors flex items-center justify-center gap-2">
-                        <i class="ph-bold ph-check"></i>Guardar y marcar etiqueta creada
-                    </button>
+                    <section class="vf-card">
+                        <h4 class="vf-h">O cargar el tracking a mano</h4>
+                        <p class="text-xs text-stone-500 mb-3">Si hiciste la etiqueta directamente en Shipmondo, pegá el código acá.</p>
+                        <label class="vf-field"><span>Código de seguimiento</span>
+                            <input id="lbl-track-${saleId}" onclick="event.stopPropagation()" class="vf-input font-mono"></label>
+                        <div class="grid grid-cols-2 gap-3 mt-3">
+                            <label class="vf-field"><span>Transportista</span>
+                                <input id="lbl-carrier-${saleId}" placeholder="DAO" onclick="event.stopPropagation()" class="vf-input"></label>
+                            <label class="vf-field"><span>URL o PDF de la etiqueta</span>
+                                <input id="lbl-url-${saleId}" placeholder="Opcional" onclick="event.stopPropagation()" class="vf-input"></label>
+                        </div>
+                        <button onclick="app.saveManualTracking('${saleId}', this)" class="cx-kbtn !mt-4">
+                            <i class="ph-bold ph-check"></i>Guardar y marcar etiqueta creada
+                        </button>
+                    </section>
                 </div>
-
-                <div class="flex justify-end">
-                    <button onclick="app.closeQuickFixModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cerrar</button>
-                </div>
-            </div>
+                <footer class="vf-foot">
+                    <span></span>
+                    <button onclick="app.closeQuickFixModal()" class="cx-btn">Cerrar</button>
+                </footer>
+            </aside>
         </div>`;
         document.body.insertAdjacentHTML("beforeend", html);
     },
@@ -16419,65 +14970,61 @@ const app = {
         const pendingCount = byCol.preparar.length + byCol.etiqueta.length + byCol.excepcion.length;
 
         const columns = [
-            { key: 'preparar', label: 'Preparar', dot: 'bg-slate-400', colBg: 'bg-slate-50/70', hint: 'Pedidos nuevos por preparar' },
-            { key: 'etiqueta', label: 'Etiqueta creada', dot: 'bg-blue-500', colBg: 'bg-blue-50/40', hint: 'Listos para despachar o retirar' },
-            { key: 'despachado', label: 'Despachado', dot: 'bg-green-500', colBg: 'bg-green-50/40', hint: 'Últimos 12 cerrados' },
-            { key: 'excepcion', label: 'Excepción', dot: 'bg-red-500', colBg: 'bg-red-50/40', hint: 'Requieren acción' },
+            { key: 'preparar', label: 'Preparar', dot: '#B9B4AA', hint: 'Pedidos nuevos por preparar' },
+            { key: 'etiqueta', label: 'Etiqueta creada', dot: '#E2C531', hint: 'Listos para despachar o retirar' },
+            { key: 'despachado', label: 'Despachado', dot: '#1A1A1A', hint: 'Últimos 12 cerrados' },
+            { key: 'excepcion', label: 'Excepción', dot: '#F05A28', hint: 'Requieren acción' },
         ];
 
         const html = `
-            <div class="max-w-[1600px] mx-auto px-4 md:px-8 pb-24 pt-6 animate-fadeIn">
-                <div class="flex flex-wrap justify-between items-center gap-4 mb-8">
-                    <div>
-                        <h2 class="font-display text-3xl font-bold text-brand-dark">Envíos y Logística</h2>
-                        <p class="text-slate-500 text-sm mt-1 flex items-center gap-1.5"><i class="ph-bold ph-truck text-brand-orange"></i>Bandeja de trabajo Shipmondo y Pickup</p>
+            <div class="cx-view">
+            <div class="max-w-[1600px] mx-auto px-4 md:px-8 pb-24 pt-6">
+                ${this.sectionHeader({
+                    title: 'Envíos',
+                    subtitle: 'Pedidos de Web shop, Discogs y envíos manuales, de la preparación al despacho',
+                    filters: `
+                        <button onclick="app.exportShippingList()" class="cx-btn">
+                            <i class="ph ph-download-simple"></i><span class="hidden sm:inline">Exportar lista</span>
+                        </button>`,
+                    primary: { label: 'Crear envío', icon: 'ph-plus', onclick: 'app.openManualShipmentModal()' }
+                })}
+
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                    <div class="cx-tile cx-yellow">
+                        <span class="cx-tile-label">Pendientes</span>
+                        <b class="cx-tile-value">${pendingCount} <small>pedidos</small></b>
+                        <span class="cx-tile-stripes" aria-hidden="true"></span>
                     </div>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
-                            <i class="ph-fill ph-hand-coins text-indigo-500 text-2xl"></i>
-                            <div>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Envíos (aprox)</p>
-                                <p class="text-2xl font-display font-bold text-brand-dark">${this.formatCurrency(shipSales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</p>
-                            </div>
-                        </div>
-                        <div class="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
-                            <i class="ph-fill ph-clock text-brand-orange text-2xl"></i>
-                            <div>
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">Pendientes</p>
-                                <p class="text-2xl font-display font-bold text-brand-dark">${pendingCount}</p>
-                            </div>
-                        </div>
-                        <button onclick="app.openManualShipmentModal()" class="bg-brand-dark text-white px-4 h-12 rounded-xl flex items-center gap-2 shadow-sm hover:bg-black transition-all text-xs font-bold">
-                            <i class="ph-bold ph-plus text-base"></i><span class="hidden sm:inline">Crear envío</span>
-                        </button>
-                        <button onclick="app.exportShippingList()" class="bg-white border border-slate-200 text-slate-600 px-4 h-12 rounded-xl flex items-center gap-2 shadow-sm hover:border-brand-orange hover:text-brand-orange transition-all text-xs font-bold">
-                            <i class="ph-bold ph-download-simple text-base"></i><span class="hidden sm:inline">Exportar Lista</span>
-                        </button>
+                    <div class="cx-tile cx-orange">
+                        <span class="cx-tile-label">Cobrado en envíos (aprox.)</span>
+                        <b class="cx-tile-value">${this.formatCurrency(shipSales.reduce((sum, s) => sum + (parseFloat(s.shipping || s.shipping_cost || 0)), 0))}</b>
+                        <span class="cx-tile-dots" aria-hidden="true"></span>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
                     ${columns.map(c => {
                         const list = c.key === 'despachado' ? despachados : byCol[c.key];
                         return `
-                        <div class="rounded-2xl border border-slate-100 ${c.colBg} p-3">
+                        <div class="cx-kcol">
                             <div class="flex items-center justify-between px-2 pt-1 pb-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-2.5 h-2.5 rounded-full ${c.dot}"></span>
-                                    <span class="text-[11px] font-bold uppercase tracking-widest text-slate-600">${c.label}</span>
-                                    ${c.key === 'preparar' ? `<button onclick="event.stopPropagation();app.openManualShipmentModal()" title="Crear envío manual" class="w-5 h-5 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-brand-orange hover:border-brand-orange flex items-center justify-center transition-all"><i class="ph-bold ph-plus text-[10px]"></i></button>` : ''}
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${c.dot}"></span>
+                                    <span class="text-sm font-semibold">${c.label}</span>
+                                    ${c.key === 'preparar' ? `<button onclick="event.stopPropagation();app.openManualShipmentModal()" title="Crear envío manual" aria-label="Crear envío manual" class="cx-row-btn !w-6 !h-6 !text-xs"><i class="ph-bold ph-plus"></i></button>` : ''}
                                 </div>
-                                <span class="min-w-[24px] h-6 px-2 rounded-full text-[11px] font-bold flex items-center justify-center ${list.length > 0 ? 'bg-white text-slate-600 shadow-sm border border-slate-100' : 'bg-slate-100 text-slate-400'}">${list.length}</span>
+                                <span class="cx-count !h-6 !min-w-[26px] !text-xs">${list.length}</span>
                             </div>
-                            <div class="space-y-3 max-h-[70vh] overflow-y-auto pr-0.5 custom-scrollbar">
+                            <div class="space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
                                 ${list.length > 0 ? list.map(s => this.renderShipCard(s)).join('') : `
-                                <div class="bg-white/60 border border-dashed border-slate-200 rounded-2xl py-10 px-4 text-center">
-                                    <p class="text-[11px] font-bold uppercase tracking-widest text-slate-300">Bandeja vacía</p>
+                                <div class="rounded-2xl border border-dashed border-black/15 py-10 px-4 text-center">
+                                    <p class="text-xs text-stone-500">${c.hint}. Nada por ahora.</p>
                                 </div>`}
                             </div>
                         </div>`;
                     }).join('')}
                 </div>
+            </div>
             </div>
         `;
         container.innerHTML = html;
