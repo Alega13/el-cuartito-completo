@@ -69,10 +69,10 @@ function VinylCover({ record, size = 56, radius = 10 }) {
 function Chip({ label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
-      background: active ? ORANGE : T.inputBg,
-      color: active ? '#fff' : T.textSub,
-      fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+      padding: '8px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+      background: active ? INK : 'rgba(255,255,255,0.75)',
+      color: active ? '#fff' : INK,
+      fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
       fontFamily: 'Manrope, sans-serif',
     }}>{label}</button>
   );
@@ -385,11 +385,25 @@ function HomeScreen({ records, onNavigate, onOpenHistory, onOpenScanner }) {
 }
 
 // ── SearchScreen ───────────────────────────────────────────────
+// ── Glass (estilo Apple) para las fichas ───────────────────────
+const GLASS = {
+  background: 'rgba(255, 255, 255, 0.09)',
+  WebkitBackdropFilter: 'blur(11px) saturate(180%)',
+  backdropFilter: 'blur(11px) saturate(180%)',
+  border: '1px solid rgba(255, 255, 255, 0.00)',
+  borderRadius: 16,
+  boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+};
+
+const SORTS = [['newest', 'Recientes'], ['price-asc', 'Precio ↑'], ['price-desc', 'Precio ↓'], ['alpha', 'A–Z']];
+
 function SearchScreen({ records, isLoading, onSelectRecord }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [genre, setGenre] = useState('');
   const [location, setLocation] = useState('');
   const [sort, setSort] = useState('newest');
+  const [showOut, setShowOut] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -403,6 +417,7 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
 
   const filtered = useMemo(() => {
     let r = records;
+    if (!showOut) r = r.filter(x => (x.stock || 0) > 0);
     if (genre) r = r.filter(x => x.genre === genre);
     if (location) r = r.filter(x => x.storageLocation === location);
     if (searchQuery.trim()) {
@@ -418,91 +433,145 @@ function SearchScreen({ records, isLoading, onSelectRecord }) {
     if (sort === 'price-desc') return [...r].sort((a, b) => (b.price || 0) - (a.price || 0));
     if (sort === 'alpha')      return [...r].sort((a, b) => (a.album || '').localeCompare(b.album || ''));
     return [...r].reverse();
-  }, [searchQuery, genre, location, sort, records]);
+  }, [searchQuery, genre, location, sort, showOut, records]);
 
-
+  // Filtros activos, para mostrarlos como chips que se pueden quitar
+  const active = [
+    genre && { label: genre, clear: () => setGenre('') },
+    location && { label: `📍 ${location}`, clear: () => setLocation('') },
+    sort !== 'newest' && { label: SORTS.find(s => s[0] === sort)[1], clear: () => setSort('newest') },
+    showOut && { label: 'Con agotados', clear: () => setShowOut(false) },
+  ].filter(Boolean);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden' }}>
-      {/* Sticky header */}
-      <div style={{ flexShrink: 0, background: T.navBg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `0.5px solid ${T.border}`, padding: '10px 16px 12px', paddingTop: 'max(10px, env(safe-area-inset-top, 10px))' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
-          <img src="/logo.png" alt="El Cuartito" style={{ height: 22, objectFit: 'contain' }} />
-        </div>
-        {/* Search bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.inputBg, borderRadius: 12, padding: '0 12px', height: 40 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth={2.3} strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
-          <input
-            ref={inputRef}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Artista, álbum, sello o SKU..."
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: T.text, fontFamily: 'Manrope, sans-serif' }}
-          />
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }} style={{ background: T.textMuted, border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round"><path d="M1 1l8 8M9 1L1 9" /></svg>
-            </button>
-          )}
-        </div>
-        {/* Genre chips */}
-        <div className="no-scrollbar" style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 2 }}>
-          <Chip label="Todos" active={!genre} onClick={() => setGenre('')} />
-          {genres.map(g => <Chip key={g} label={g} active={genre === g} onClick={() => setGenre(genre === g ? '' : g)} />)}
-        </div>
-        {/* Location + sort chips */}
-        <div className="no-scrollbar" style={{ display: 'flex', gap: 6, marginTop: 6, overflowX: 'auto', paddingBottom: 2 }}>
-          {locations.map(l => <Chip key={l} label={`📍 ${l}`} active={location === l} onClick={() => setLocation(location === l ? '' : l)} />)}
-          {locations.length > 0 && <div style={{ width: 0.5, background: T.border, flexShrink: 0, margin: '4px 2px' }} />}
-          {[['newest', '↓ Recientes'], ['price-asc', 'Precio ↑'], ['price-desc', 'Precio ↓'], ['alpha', 'A–Z']].map(([v, l]) => (
-            <Chip key={v} label={l} active={sort === v} onClick={() => setSort(v)} />
-          ))}
-        </div>
-        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.7 }}>
-          {isLoading ? 'Cargando catálogo...' : `${filtered.length} discos`}
-        </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, overflow: 'hidden', position: 'relative' }}>
+      {/* Manchas de color de fondo para que el vidrio se note */}
+      <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: YELLOW, opacity: 0.55, filter: 'blur(70px)', top: 120, left: -120 }} />
+        <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', background: PEACH, opacity: 0.5, filter: 'blur(70px)', top: 420, right: -110 }} />
       </div>
 
-      {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 90 }}>
-        {isLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
-            <Spinner />
+      {/* Header */}
+      <div style={{ position: 'relative', flexShrink: 0, padding: '10px 16px 10px', paddingTop: 'max(10px, env(safe-area-inset-top, 10px))' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', margin: '6px 2px 14px' }}>
+          <div>
+            <div style={{ fontSize: 34, fontWeight: 300, letterSpacing: -1.2, lineHeight: 1, color: INK }}>Catálogo</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textSub, marginTop: 6 }}>
+              {isLoading ? 'Cargando…' : `${filtered.length} ${filtered.length === 1 ? 'disco' : 'discos'}${showOut ? '' : ' en stock'}`}
+            </div>
           </div>
+          <img src="/logo.png" alt="El Cuartito" style={{ height: 18, objectFit: 'contain', marginBottom: 4 }} />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ ...GLASS, boxShadow: '0 10px 24px -12px rgba(0,0,0,0.25)', background: 'rgba(255,255,255,0.55)', borderRadius: 999, flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', height: 44 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textSub} strokeWidth={2.3} strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
+            <input
+              ref={inputRef}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar artista, álbum, sello o SKU"
+              style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: INK, fontFamily: 'Manrope, sans-serif' }}
+            />
+            {searchQuery && (
+              <button onClick={() => { setSearchQuery(''); inputRef.current?.focus(); }} aria-label="Borrar búsqueda" style={{ background: T.textMuted, border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round"><path d="M1 1l8 8M9 1L1 9" /></svg>
+              </button>
+            )}
+          </div>
+          <button onClick={() => setFiltersOpen(true)} aria-label="Filtros" style={{
+            position: 'relative', width: 44, height: 44, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
+            background: active.length ? INK : 'rgba(255,255,255,0.55)', color: active.length ? '#fff' : INK,
+            backdropFilter: 'blur(11px) saturate(180%)', WebkitBackdropFilter: 'blur(11px) saturate(180%)',
+            boxShadow: '0 10px 24px -12px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+            {active.length > 0 && <span style={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 99, background: ACCENT, color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{active.length}</span>}
+          </button>
+        </div>
+
+        {active.length > 0 && (
+          <div className="no-scrollbar" style={{ display: 'flex', gap: 6, marginTop: 10, overflowX: 'auto' }}>
+            {active.map(f => (
+              <button key={f.label} onClick={f.clear} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 999, border: 'none', background: INK, color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: 'Manrope, sans-serif', cursor: 'pointer' }}>
+                {f.label}
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M1 1l8 8M9 1L1 9" /></svg>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lista de fichas */}
+      <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: '8px 16px 110px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {isLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}><Spinner /></div>
         ) : filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', textAlign: 'center', gap: 8 }}>
-            <div style={{ fontSize: 40, marginBottom: 4 }}>🔍</div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Sin resultados</div>
-            <div style={{ fontSize: 14, color: T.textSub }}>Probá con otro término</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', textAlign: 'center', gap: 6 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: INK }}>Sin resultados</div>
+            <div style={{ fontSize: 14, color: T.textSub }}>Probá con otro término o quitá filtros</div>
           </div>
         ) : filtered.map(record => {
-          const out = record.stock <= 0;
+          const out = (record.stock || 0) <= 0;
           return (
-            <div key={record.id} onClick={() => onSelectRecord(record)} style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px',
-              borderBottom: `0.5px solid ${T.border}`,
-              opacity: out ? 0.45 : 1, cursor: 'pointer',
-              background: T.surface,
-            }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <VinylCover record={record} size={52} radius={9} />
-                <div style={{ position: 'absolute', top: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: out ? '#ef4444' : '#22c55e', border: '2px solid white' }} />
-              </div>
+            <div key={record.id} onClick={() => onSelectRecord(record)} style={{ ...GLASS, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 10, cursor: 'pointer', opacity: out ? 0.55 : 1 }}>
+              <VinylCover record={record} size={56} radius={10} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.album || 'Sin Título'}</div>
-                <div style={{ fontSize: 12, color: T.textSub, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{record.artist || 'Artista Desconocido'}</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, fontFamily: 'Manrope, sans-serif', marginTop: 2, letterSpacing: 0.5 }}>{record.sku || 'N/A'}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{record.album || 'Sin título'}</div>
+                <div style={{ fontSize: 13, color: T.textSub, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{record.artist || 'Artista desconocido'}</div>
               </div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: ORANGE, fontFamily: 'Manrope, sans-serif' }}>{record.price || 0} DKK</div>
-                <div style={{ fontSize: 10, color: out ? '#ef4444' : T.textMuted, fontWeight: 600, marginTop: 2 }}>
-                  {out ? 'Agotado' : `Disp. ${record.stock}`}
-                </div>
+              <div style={{ textAlign: 'right', flexShrink: 0, paddingRight: 4 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: INK }}>{record.price || 0} <span style={{ fontSize: 11, fontWeight: 600, color: T.textSub }}>DKK</span></div>
+                <div style={{ fontSize: 11, fontWeight: 600, marginTop: 3, color: out ? ACCENT : T.textSub }}>{out ? 'Agotado' : `${record.stock} en stock`}</div>
               </div>
             </div>
           );
         })}
       </div>
+
+      {filtersOpen && (
+        <div onClick={() => setFiltersOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'rgba(251,250,247,0.82)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', borderRadius: '24px 24px 0 0', padding: '12px 20px', paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))', maxHeight: '80%', overflowY: 'auto', boxShadow: '0 -12px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(26,26,26,0.15)' }} /></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: -0.6, color: INK }}>Filtros</div>
+              {active.length > 0 && (
+                <button onClick={() => { setGenre(''); setLocation(''); setSort('newest'); setShowOut(false); }} style={{ background: 'none', border: 'none', color: T.textSub, fontSize: 13, fontWeight: 600, fontFamily: 'Manrope, sans-serif', cursor: 'pointer' }}>Limpiar</button>
+              )}
+            </div>
+
+            <button onClick={() => setShowOut(v => !v)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 16, border: 'none', background: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'Manrope, sans-serif', marginBottom: 20 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: INK }}>Mostrar agotados</span>
+              <span style={{ width: 44, height: 26, borderRadius: 99, background: showOut ? INK : 'rgba(26,26,26,0.15)', position: 'relative', transition: 'background .2s' }}>
+                <span style={{ position: 'absolute', top: 3, left: showOut ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: showOut ? YELLOW : '#fff', transition: 'left .2s' }} />
+              </span>
+            </button>
+
+            <SectionLabel>Ordenar</SectionLabel>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+              {SORTS.map(([v, l]) => <Chip key={v} label={l} active={sort === v} onClick={() => setSort(v)} />)}
+            </div>
+
+            {genres.length > 0 && <>
+              <SectionLabel>Género</SectionLabel>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+                {genres.map(g => <Chip key={g} label={g} active={genre === g} onClick={() => setGenre(genre === g ? '' : g)} />)}
+              </div>
+            </>}
+
+            {locations.length > 0 && <>
+              <SectionLabel>Ubicación</SectionLabel>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+                {locations.map(l => <Chip key={l} label={l} active={location === l} onClick={() => setLocation(location === l ? '' : l)} />)}
+              </div>
+            </>}
+
+            <button onClick={() => setFiltersOpen(false)} style={{ width: '100%', padding: 16, borderRadius: 16, border: 'none', background: INK, color: '#fff', fontSize: 16, fontWeight: 700, fontFamily: 'Manrope, sans-serif', cursor: 'pointer' }}>
+              Ver {filtered.length} {filtered.length === 1 ? 'disco' : 'discos'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
