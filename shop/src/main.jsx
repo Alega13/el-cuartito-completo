@@ -7,11 +7,13 @@ import { PlayerProvider } from './context/PlayerContext'
 import { SelectionsProvider } from './context/SelectionsContext'
 import { CartProvider } from './context/CartContext'
 import { AuthProvider } from './context/AuthContext'
+import { WishlistProvider } from './context/WishlistContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
+        <WishlistProvider>
         <SelectionsProvider>
           <PlayerProvider>
             <CartProvider>
@@ -19,6 +21,7 @@ createRoot(document.getElementById('root')).render(
             </CartProvider>
           </PlayerProvider>
         </SelectionsProvider>
+        </WishlistProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

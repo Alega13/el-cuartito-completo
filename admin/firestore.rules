@@ -2,10 +2,17 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // All collections: Only authenticated users (admin panel)
+    // Admin panel + POS app log in with this account.
+    // Shop customers also have Firebase Auth accounts now, so "logged in" is no longer enough.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'el.cuartito.cph@gmail.com';
+    }
+
     // Note: Backend uses Firebase Admin SDK which BYPASSES these rules
+    // (shop wishlist / orders / profile all go through the backend)
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
   }
 }

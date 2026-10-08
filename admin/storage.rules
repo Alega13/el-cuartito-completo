@@ -1,22 +1,26 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to read/write their own receipts
+    // Admin panel + POS app log in with this account.
+    // Shop customers also have Firebase Auth accounts now, so "logged in" is no longer enough.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'el.cuartito.cph@gmail.com';
+    }
+
     match /receipts/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
-    
-    // Allow authenticated users to read/write Contabilidad folder
+
     match /Contabilidad/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
-    
-    // Allow all other paths for authenticated users
+
     match /{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
   }
 }

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
-
-const isLocal = window.location.hostname === 'localhost';
-const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+import { getWishlist } from '../services/account';
+import { useWishlist } from '../context/WishlistContext';
 
 const WishlistTab = ({ userId }) => {
     const [wishlistItems, setWishlistItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { toggle } = useWishlist();
 
     const fetchWishlist = async () => {
         if (!userId) return;
@@ -16,11 +16,7 @@ const WishlistTab = ({ userId }) => {
         setError('');
 
         try {
-            const response = await fetch(`${API_URL}/api/wishlist/${userId}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
+            const data = await getWishlist();
             if (data.success && Array.isArray(data.items)) {
                 setWishlistItems(data.items);
             } else {
@@ -42,16 +38,8 @@ const WishlistTab = ({ userId }) => {
         e.preventDefault();
         e.stopPropagation();
 
-        try {
-            const response = await fetch(`${API_URL}/api/wishlist/${userId}/${productId}`, {
-                method: 'DELETE'
-            });
-            if (response.ok) {
-                setWishlistItems(prev => prev.filter(item => item.id !== productId));
-            }
-        } catch (err) {
-            console.error("Error removing item from wishlist:", err);
-        }
+        await toggle(productId); // keeps the hearts across the shop in sync
+        setWishlistItems(prev => prev.filter(item => item.id !== productId));
     };
 
     const isValidImage = (url) => {

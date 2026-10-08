@@ -1176,6 +1176,29 @@ const app = {
             console.error('Error fetching subscribers list:', err);
         }
 
+        // Clientes con cuenta en el web shop (users/{uid}): se mezclan por email
+        try {
+            const usersSnap = await db.collection('users').get();
+            const byEmail = new Map(subscribers.map(s => [(s.email || s.id).toLowerCase(), s]));
+            usersSnap.docs.forEach(doc => {
+                const u = doc.data();
+                const email = (u.email || '').toLowerCase();
+                if (!email) return;
+                const sub = byEmail.get(email);
+                if (sub) {
+                    sub.registeredAt = u.createdAt;
+                } else {
+                    const entry = { id: email, email, registeredAt: u.createdAt, noNewsletter: true };
+                    byEmail.set(email, entry);
+                    subscribers.push(entry);
+                }
+            });
+        } catch (err) {
+            console.error('Error fetching registered users:', err);
+        }
+        const registeredCount = subscribers.filter(s => s.registeredAt).length;
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES') : 'hace poco';
+
         const modalOverlay = document.createElement('div');
         modalOverlay.id = 'subscribers-modal';
         modalOverlay.className = 'vf-overlay cx-dialog-wrap !z-[100]';
@@ -1186,7 +1209,7 @@ const app = {
                 <div class="flex items-start justify-between mb-4">
                     <div>
                         <h2 id="subs-title" class="cx-dialog-title">Suscriptores</h2>
-                        <p class="cx-sub !mt-1">${subscribers.length} mails registrados, ${subscribers.filter(s => s.active !== false).length} activos</p>
+                        <p class="cx-sub !mt-1">${subscribers.length} mails, ${subscribers.filter(s => !s.noNewsletter && s.active !== false).length} activos en newsletter, ${registeredCount} con cuenta en el shop</p>
                     </div>
                     <button onclick="document.getElementById('subscribers-modal').remove()" class="cx-btn is-icon" aria-label="Cerrar"><i class="ph ph-x"></i></button>
                 </div>
@@ -1199,10 +1222,15 @@ const app = {
                                 <span class="cx-sq !w-9 !h-9 !text-sm !rounded-xl uppercase font-bold">${(sub.email || 'U')[0]}</span>
                                 <div class="min-w-0">
                                     <div class="text-sm font-semibold truncate">${sub.email}</div>
-                                    <div class="text-xs text-stone-500">Desde ${sub.subscribedAt ? new Date(sub.subscribedAt).toLocaleDateString('es-ES') : 'hace poco'}</div>
+                                    <div class="text-xs text-stone-500">${sub.registeredAt ? `Cuenta desde ${fmtDate(sub.registeredAt)}` : `Desde ${fmtDate(sub.subscribedAt)}`}</div>
                                 </div>
                             </div>
-                            <span class="cx-state ${sub.active !== false ? 'is-ok' : 'is-done'}">${sub.active !== false ? 'Activo' : 'Inactivo'}</span>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                ${sub.registeredAt ? '<span class="cx-state is-split">Registrado</span>' : ''}
+                                ${sub.noNewsletter
+                                    ? '<span class="cx-state is-done">Sin newsletter</span>'
+                                    : `<span class="cx-state ${sub.active !== false ? 'is-ok' : 'is-done'}">${sub.active !== false ? 'Activo' : 'Inactivo'}</span>`}
+                            </div>
                         </div>
                     `).join('')}
                 </div>

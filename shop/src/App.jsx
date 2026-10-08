@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { getOnlineRecords } from './services/api';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -210,10 +210,10 @@ function App() {
             <AboutPage />
           } />
           <Route path="/login" element={
-            <Navigate to="/" replace />
+            <LoginPage />
           } />
           <Route path="/account" element={
-            <Navigate to="/" replace />
+            <AccountPage />
           } />
           <Route path="/admin/customers" element={
             <AdminCustomersPage />

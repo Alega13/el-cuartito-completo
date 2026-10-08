@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import defaultImage from '../assets/default-vinyl.png';
-import { useAuth } from '../context/AuthContext';
-
-const isLocal = window.location.hostname === 'localhost';
-const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+import WishlistHeart from './WishlistHeart';
+import { useWishlist } from '../context/WishlistContext';
 
 const ProductCard = ({ product }) => {
-    const { currentUser } = useAuth();
-    const [isWishlisted, setIsWishlisted] = useState(false);
-    const [heartAnimating, setHeartAnimating] = useState(false);
+    const { isSaved } = useWishlist();
 
     const isValidImage = (url) => {
         if (!url) return false;
@@ -28,36 +24,6 @@ const ProductCard = ({ product }) => {
     const originalPrice = product.price;
     const discountedPrice = isRSD ? Math.round(originalPrice * 0.9) : originalPrice;
 
-    const handleWishlistToggle = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (!currentUser) {
-            // Redirect to login if not authenticated
-            window.location.href = '/login';
-            return;
-        }
-
-        setHeartAnimating(true);
-        setTimeout(() => setHeartAnimating(false), 400);
-
-        try {
-            if (isWishlisted) {
-                await fetch(`${API_URL}/api/wishlist/${currentUser.uid}/${product.id}`, { method: 'DELETE' });
-                setIsWishlisted(false);
-            } else {
-                await fetch(`${API_URL}/api/wishlist/${currentUser.uid}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ productId: product.id })
-                });
-                setIsWishlisted(true);
-            }
-        } catch (err) {
-            console.error('Wishlist toggle error:', err);
-        }
-    };
-
     return (
         <Link to={`/product/${product.id}`} className="block">
             <motion.div
@@ -74,6 +40,10 @@ const ProductCard = ({ product }) => {
                         decoding="async"
                         onError={(e) => { e.currentTarget.src = defaultImage; }}
                         className={`w-full h-full object-contain mix-blend-multiply drop-shadow-xl transition-transform duration-500 ${product.stock === 0 ? 'grayscale opacity-50' : 'group-hover:scale-105'}`}
+                    />
+                    <WishlistHeart
+                        productId={product.id}
+                        className={`absolute top-2 right-2 md:top-4 md:right-4 ${isSaved(product.id) ? 'opacity-100' : 'md:opacity-0 md:group-hover:opacity-100'}`}
                     />
                 </div>
                 

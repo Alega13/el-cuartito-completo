@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { signOut } from 'firebase/auth';
+import { signOut, sendEmailVerification } from 'firebase/auth';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useSelections } from '../context/SelectionsContext';
 import ProductCard from '../components/ProductCard';
 import WishlistTab from '../components/WishlistTab';
-
-const isLocal = window.location.hostname === 'localhost';
-const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3001' : 'https://el-cuartito-shop.up.railway.app');
+import { getMyOrders } from '../services/account';
 
 const AccountPage = () => {
     const { currentUser, loading } = useAuth();
@@ -18,6 +16,9 @@ const AccountPage = () => {
     const [orders, setOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [error, setError] = useState('');
+    const [emailVerified, setEmailVerified] = useState(true);
+    const [verifyMsg, setVerifyMsg] = useState('');
+    const [reloadKey, setReloadKey] = useState(0);
 
     const navigate = useNavigate();
 
@@ -35,29 +36,13 @@ const AccountPage = () => {
         const fetchUserOrders = async () => {
             setOrdersLoading(true);
             setError('');
-
-            const tryFetch = async (baseUrl) => {
-                const response = await fetch(`${baseUrl}/api/orders/${currentUser.uid}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return response.json();
-            };
-
             try {
-                let data;
-                try {
-                    data = await tryFetch(API_URL);
-                } catch (localErr) {
-                    // Fallback to production if local fails
-                    data = await tryFetch('https://el-cuartito-shop.up.railway.app');
-                }
-                
-                if (data.success && Array.isArray(data.orders)) {
-                    setOrders(data.orders);
-                } else {
-                    setOrders([]);
-                }
+                const data = await getMyOrders();
+                setEmailVerified(data.emailVerified !== false);
+                setOrders(Array.isArray(data.orders) ? data.orders : []);
             } catch (err) {
                 console.error("Error fetching order history:", err);
+                setError('Could not load your orders. Please try again later.');
                 setOrders([]);
             } finally {
                 setOrdersLoading(false);
@@ -65,7 +50,34 @@ const AccountPage = () => {
         };
 
         fetchUserOrders();
-    }, [currentUser]);
+    }, [currentUser, reloadKey]);
+
+    const handleResendVerification = async () => {
+        try {
+            await sendEmailVerification(currentUser);
+            setVerifyMsg(`Verification email sent to ${currentUser.email}.`);
+        } catch (err) {
+            console.error('Resend verification error:', err);
+            setVerifyMsg('Could not send the email. Please wait a few minutes and try again.');
+        }
+    };
+
+    // After clicking the link in the email: refresh the token so the backend sees email_verified
+    const handleCheckVerified = async () => {
+        await currentUser.reload();
+        await currentUser.getIdToken(true);
+        if (!currentUser.emailVerified) setVerifyMsg('Not verified yet — click the link in the email first.');
+        else setVerifyMsg('');
+        setReloadKey(k => k + 1);
+    };
+
+    const orderStatus = (order) => {
+        const f = String(order.fulfillment_status || order.status || '').toLowerCase();
+        if (['shipped', 'in_transit', 'delivered', 'sent'].includes(f)) return 'SHIPPED';
+        if (['ready_for_pickup'].includes(f)) return 'READY FOR PICKUP';
+        if (['picked_up'].includes(f)) return 'PICKED UP';
+        return 'PROCESSING';
+    };
 
     const handleSignOut = async () => {
         try {
@@ -188,6 +200,17 @@ const AccountPage = () => {
                                 </p>
                             </div>
 
+                            {!emailVerified && (
+                                <div className="mb-6 p-4 border border-black bg-[#F3F3F3] text-xs font-bold uppercase tracking-wider rounded-none flex flex-col gap-3">
+                                    <span>Verify your email to see purchases made with {currentUser.email}.</span>
+                                    <div className="flex flex-wrap gap-3">
+                                        <button onClick={handleResendVerification} className="border border-black px-4 py-2 font-black hover:bg-black hover:text-white transition-none rounded-none">RESEND EMAIL</button>
+                                        <button onClick={handleCheckVerified} className="border border-black bg-black text-white px-4 py-2 font-black hover:bg-white hover:text-black transition-none rounded-none">I'VE VERIFIED</button>
+                                    </div>
+                                    {verifyMsg && <span className="font-mono text-black/60 normal-case">{verifyMsg}</span>}
+                                </div>
+                            )}
+
                             {error && (
                                 <div className="mb-6 p-4 border border-black bg-red-500/10 text-red-700 text-xs font-bold uppercase tracking-wider rounded-none">
                                     ⚠️ {error}
@@ -214,19 +237,19 @@ const AccountPage = () => {
                                 <div className="w-full border-2 border-black bg-white rounded-none">
                                     {/* CSS Grid Table Header */}
                                     <div className="grid grid-cols-12 font-black uppercase text-xs tracking-widest border-b-2 border-black bg-black text-white p-4 rounded-none">
-                                        <div className="col-span-3 text-left">FECHA</div>
-                                        <div className="col-span-5 text-left">TÍTULO DEL VINILO</div>
-                                        <div className="col-span-2 text-left">ESTADO</div>
+                                        <div className="col-span-3 text-left">DATE</div>
+                                        <div className="col-span-5 text-left">RECORDS</div>
+                                        <div className="col-span-2 text-left">STATUS</div>
                                         <div className="col-span-2 text-right">TOTAL</div>
                                     </div>
 
                                     {/* CSS Grid Table Rows */}
                                     <div className="divide-y divide-black bg-white">
                                         {orders.map((order, idx) => {
-                                            const orderDate = formatDate(order.created_at || order.createdAt || order.timestamp);
+                                            const orderDate = formatDate(order.created_at || order.date);
                                             const vinylTitle = getVinylTitles(order);
-                                            const status = (order.status || order.fulfillmentStatus || 'COMPLETED').toUpperCase();
-                                            const total = order.totalAmount || order.price || 0;
+                                            const status = orderStatus(order);
+                                            const total = order.total_amount || 0;
 
                                             return (
                                                 <div 
@@ -235,13 +258,14 @@ const AccountPage = () => {
                                                 >
                                                     <div className="col-span-3 font-mono text-black/80">
                                                         {orderDate}
+                                                        {order.orderNumber && <span className="block text-[9px] text-black/40 mt-0.5">{order.orderNumber}</span>}
                                                     </div>
-                                                    <div className="col-span-5 font-black text-black truncate pr-2">
+                                                    <div className="col-span-5 font-black text-black truncate pr-2" title={vinylTitle}>
                                                         {vinylTitle}
                                                     </div>
                                                     <div className="col-span-2">
                                                         <span className={`inline-block px-2 py-1 text-[10px] font-black border border-black rounded-none ${
-                                                            status === 'COMPLETED' || status === 'PAID' ? 'bg-black text-white' : 'bg-white text-black'
+                                                            status === 'SHIPPED' || status === 'PICKED UP' ? 'bg-black text-white' : 'bg-white text-black'
                                                         }`}>
                                                             {status}
                                                         </span>
@@ -266,7 +290,7 @@ const AccountPage = () => {
                                     SAVED WISHLIST
                                 </h1>
                                 <p className="text-xs font-mono font-bold uppercase tracking-widest text-black/60 mt-1">
-                                    YOUR SAVED VINYL ITEMS FROM FIRESTORE
+                                    RECORDS YOU'VE SAVED WITH ♥
                                 </p>
                             </div>
 

@@ -7,6 +7,7 @@ import { useCart } from '../context/CartContext';
 import defaultImage from '../assets/default-vinyl.png';
 import ProductCard from '../components/ProductCard';
 import SEO from '../components/SEO';
+import WishlistHeart from '../components/WishlistHeart';
 
 
 const ProductPage = ({ products = [] }) => {
@@ -442,6 +443,7 @@ const ProductPage = ({ products = [] }) => {
 
                             {/* Right side */}
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 md:gap-8 flex-wrap sm:flex-nowrap shrink-0 ml-auto w-full sm:w-auto">
+                                <WishlistHeart productId={product.id} size={26} className="self-end sm:self-auto shrink-0" />
                                 {product.stock > 0 ? (
                                     <>
                                         <div className="flex items-center justify-between sm:justify-end sm:flex-col sm:text-right gap-2 sm:mr-8 shrink-0">

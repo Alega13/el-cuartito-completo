@@ -166,6 +166,14 @@ const Navbar = ({ setSearchQuery }) => {
                                 transition={{ duration: 0.2 }}
                                 className="flex items-baseline gap-5 md:gap-8"
                             >
+                                {/* ACCOUNT / LOGIN */}
+                                <Link
+                                    to={currentUser ? '/account' : '/login'}
+                                    className={`text-sm md:text-base font-light uppercase tracking-widest ${navTextColor} leading-none hover:opacity-60 transition-opacity ${isAccount ? 'underline underline-offset-4' : ''}`}
+                                >
+                                    {currentUser ? 'ACCOUNT' : 'LOGIN'}
+                                </Link>
+
                                 {/* CART with corner angle */}
                                 <button onClick={() => setIsCartOpen(true)} className="hover:opacity-60 transition-opacity">
                                     {/* Mobile */}

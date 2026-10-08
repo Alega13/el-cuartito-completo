@@ -4,10 +4,13 @@ import {
     createUserWithEmailAndPassword, 
     sendPasswordResetEmail,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    sendEmailVerification,
+    getAdditionalUserInfo
 } from 'firebase/auth';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { auth } from '../config/firebase';
+import { saveProfile } from '../services/account';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -17,8 +20,22 @@ const LoginPage = () => {
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const [resetSending, setResetSending] = useState(false);
+    const [newsletter, setNewsletter] = useState(false);
 
     const navigate = useNavigate();
+    const location = useLocation();
+    const redirectTo = location.state?.from || '/account';
+
+    // After any successful login: save users/{uid}; on a new account also send
+    // the verification email and record the newsletter choice.
+    const afterAuth = async (user, isNew) => {
+        try {
+            if (isNew && !user.emailVerified) await sendEmailVerification(user);
+            await saveProfile(isNew ? { newsletter } : {});
+        } catch (err) {
+            console.error('Post-login setup error:', err);
+        }
+    };
 
     const handleGoogleAuth = async () => {
         setError('');
@@ -27,8 +44,9 @@ const LoginPage = () => {
         try {
             const provider = new GoogleAuthProvider();
             const result = await signInWithPopup(auth, provider);
+            await afterAuth(result.user, getAdditionalUserInfo(result)?.isNewUser);
             setSuccessMsg(`Welcome ${result.user.displayName || result.user.email}!`);
-            setTimeout(() => navigate('/'), 800);
+            setTimeout(() => navigate(redirectTo), 800);
         } catch (err) {
             console.error("Google Auth error:", err);
             setError(err.message || "Failed to sign in with Google.");
@@ -86,15 +104,17 @@ const LoginPage = () => {
                 // Mode: REGISTER
                 try {
                     const userCredential = await createUserWithEmailAndPassword(auth, targetEmail, targetPassword);
-                    setSuccessMsg(`✓ Account created successfully for ${userCredential.user.email}!`);
-                    setTimeout(() => navigate('/'), 1000);
+                    await afterAuth(userCredential.user, true);
+                    setSuccessMsg(`✓ Account created for ${userCredential.user.email}! Check your inbox to verify your email.`);
+                    setTimeout(() => navigate(redirectTo), 1500);
                 } catch (regErr) {
                     if (regErr.code === 'auth/email-already-in-use') {
                         // Attempt auto sign in
                         try {
                             const userCred = await signInWithEmailAndPassword(auth, targetEmail, targetPassword);
+                            await afterAuth(userCred.user, false);
                             setSuccessMsg(`✓ Account already existed. Signed in as ${userCred.user.email}!`);
-                            setTimeout(() => navigate('/'), 1000);
+                            setTimeout(() => navigate(redirectTo), 1000);
                         } catch (loginErr) {
                             setIsRegistering(false);
                             setError('An account with this email already exists. Please enter your password to sign in, or click "Reset Password" below.');
@@ -109,15 +129,17 @@ const LoginPage = () => {
                 // Mode: SIGN IN
                 try {
                     const userCredential = await signInWithEmailAndPassword(auth, targetEmail, targetPassword);
+                    await afterAuth(userCredential.user, false);
                     setSuccessMsg(`✓ Welcome back, ${userCredential.user.email}!`);
-                    setTimeout(() => navigate('/'), 800);
+                    setTimeout(() => navigate(redirectTo), 800);
                 } catch (loginErr) {
                     if (loginErr.code === 'auth/user-not-found') {
                         // Attempt auto create
                         try {
                             const userCred = await createUserWithEmailAndPassword(auth, targetEmail, targetPassword);
-                            setSuccessMsg(`✓ Account created and signed in as ${userCred.user.email}!`);
-                            setTimeout(() => navigate('/'), 1000);
+                            await afterAuth(userCred.user, true);
+                            setSuccessMsg(`✓ Account created and signed in as ${userCred.user.email}! Check your inbox to verify your email.`);
+                            setTimeout(() => navigate(redirectTo), 1500);
                         } catch (regErr) {
                             setError(regErr.message);
                         }
@@ -224,6 +246,20 @@ const LoginPage = () => {
                             className="w-full border border-black rounded-none p-3.5 text-sm font-bold tracking-wider text-black bg-transparent outline-none focus:bg-white transition-colors placeholder:text-black/30"
                         />
                     </div>
+
+                    {isRegistering && (
+                        <label className="flex items-start gap-3 text-left cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={newsletter}
+                                onChange={(e) => setNewsletter(e.target.checked)}
+                                className="mt-0.5 w-4 h-4 accent-black shrink-0"
+                            />
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-black/70 leading-snug">
+                                Send me new drops & news from El Cuartito. Unsubscribe anytime.
+                            </span>
+                        </label>
+                    )}
 
                     <button
                         type="submit"
