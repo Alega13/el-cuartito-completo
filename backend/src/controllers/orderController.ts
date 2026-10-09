@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { getDb } from '../config/firebaseAdmin';
 
-// Checkouts that were never paid (or were cancelled) are not shown to customers
-const HIDDEN_STATUSES = ['pending', 'failed', 'canceled', 'cancelled'];
+// Checkouts that were never paid are not shown to customers
+const HIDDEN_STATUSES = ['pending', 'failed'];
 
 const toIso = (v: any) => (v && typeof v.toDate === 'function') ? v.toDate().toISOString() : (v || null);
 
@@ -39,7 +39,10 @@ export const getUserOrders = async (req: Request, res: Response) => {
                 created_at: toIso(d.created_at) || toIso(d.timestamp),
                 status: d.status || null,
                 fulfillment_status: d.fulfillment_status || null,
-                tracking_number: d.shipment?.tracking_number || null,
+                tracking_number: d.tracking_number || d.shipment?.tracking_number || null,
+                tracking_link: d.tracking_link || null,
+                carrier: d.label_carrier || d.shipment?.carrier || null,
+                is_pickup: d.shipping_method?.id === 'local_pickup',
                 total_amount: d.total_amount ?? d.total ?? 0,
                 items: (d.items || []).map((i: any) => ({
                     productId: i.productId || i.recordId || null,

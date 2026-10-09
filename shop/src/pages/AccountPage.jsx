@@ -71,12 +71,28 @@ const AccountPage = () => {
         setReloadKey(k => k + 1);
     };
 
-    const orderStatus = (order) => {
-        const f = String(order.fulfillment_status || order.status || '').toLowerCase();
-        if (['shipped', 'in_transit', 'delivered', 'sent'].includes(f)) return 'SHIPPED';
-        if (['ready_for_pickup'].includes(f)) return 'READY FOR PICKUP';
-        if (['picked_up'].includes(f)) return 'PICKED UP';
-        return 'PROCESSING';
+    // Same steps the admin moves an order through in "Envíos"
+    const SHIP_STEPS = [
+        { key: 'preparing', label: 'PREPARING' },
+        { key: 'label_created', label: 'LABEL CREATED' },
+        { key: 'in_transit', label: 'IN TRANSIT' },
+        { key: 'shipped', label: 'SHIPPED' },
+    ];
+    const PICKUP_STEPS = [
+        { key: 'preparing', label: 'PREPARING' },
+        { key: 'ready_for_pickup', label: 'READY FOR PICKUP' },
+        { key: 'picked_up', label: 'PICKED UP' },
+    ];
+    const orderProgress = (order) => {
+        const raw = String(order.fulfillment_status || '').toLowerCase();
+        const f = raw === 'sent' || raw === 'delivered' ? 'shipped' : raw;
+        const canceled = f === 'canceled' || f === 'cancelled' || String(order.status || '').toLowerCase() === 'canceled';
+        const steps = order.is_pickup || f === 'ready_for_pickup' || f === 'picked_up' ? PICKUP_STEPS : SHIP_STEPS;
+        const current = steps.findIndex(st => st.key === f); // -1 = paid, not started yet
+        const label = canceled ? 'CANCELED' : current >= 0 ? steps[current].label : 'ORDER RECEIVED';
+        const done = !canceled && current === steps.length - 1;
+        const trackUrl = order.tracking_link || (order.tracking_number ? `https://app.shipmondo.com/tracking/${order.tracking_number}` : null);
+        return { steps, current, label, canceled, done, trackUrl };
     };
 
     const handleSignOut = async () => {
@@ -248,7 +264,7 @@ const AccountPage = () => {
                                         {orders.map((order, idx) => {
                                             const orderDate = formatDate(order.created_at || order.date);
                                             const vinylTitle = getVinylTitles(order);
-                                            const status = orderStatus(order);
+                                            const progress = orderProgress(order);
                                             const total = order.total_amount || 0;
 
                                             return (
@@ -263,16 +279,36 @@ const AccountPage = () => {
                                                     <div className="col-span-5 font-black text-black truncate pr-2" title={vinylTitle}>
                                                         {vinylTitle}
                                                     </div>
-                                                    <div className="col-span-2">
+                                                    <div className="col-span-2 flex flex-col items-start gap-1.5">
                                                         <span className={`inline-block px-2 py-1 text-[10px] font-black border border-black rounded-none ${
-                                                            status === 'SHIPPED' || status === 'PICKED UP' ? 'bg-black text-white' : 'bg-white text-black'
+                                                            progress.done ? 'bg-black text-white' : progress.canceled ? 'bg-white text-black/40 border-black/40' : 'bg-white text-black'
                                                         }`}>
-                                                            {status}
+                                                            {progress.label}
                                                         </span>
+                                                        {progress.trackUrl && !progress.canceled && (
+                                                            <a href={progress.trackUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] font-black underline underline-offset-2 hover:opacity-60">
+                                                                TRACK SHIPMENT →
+                                                            </a>
+                                                        )}
                                                     </div>
                                                     <div className="col-span-2 text-right font-mono font-black text-black">
                                                         {total} DKK
                                                     </div>
+
+                                                    {/* Progress, updated from the admin's "Envíos" section */}
+                                                    {!progress.canceled && (
+                                                        <div className="col-span-12 mt-4 flex items-start">
+                                                            {progress.steps.map((st, i) => {
+                                                                const reached = i <= progress.current;
+                                                                return (
+                                                                    <div key={st.key} className="flex-1 flex flex-col gap-1.5 min-w-0">
+                                                                        <div className={`h-1 mr-1 ${reached ? 'bg-black' : 'bg-black/15'}`} />
+                                                                        <span className={`text-[9px] font-black tracking-widest truncate ${reached ? 'text-black' : 'text-black/35'}`}>{st.label}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
